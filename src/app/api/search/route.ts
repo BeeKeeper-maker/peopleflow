@@ -1,0 +1,276 @@
+/**
+ * Global Search API
+ * 
+ * Features:
+ * - Multi-entity search (Employees, Departments, Jobs, etc.)
+ * - Relevance scoring
+ * - Result grouping
+ * - Search suggestions
+ * - Recent searches (client-side)
+ */
+
+import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
+
+interface SearchResult {
+    id: string;
+    type: "employee" | "department" | "designation" | "job" | "leave" | "expense";
+    title: string;
+    subtitle?: string;
+    description?: string;
+    url: string;
+    relevance: number;
+    metadata?: Record<string, unknown>;
+}
+
+interface SearchResponse {
+    query: string;
+    total: number;
+    results: SearchResult[];
+    grouped: Record<string, SearchResult[]>;
+    suggestions?: string[];
+}
+
+export async function GET(req: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.email) {
+            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+        });
+
+        if (!user?.organizationId) {
+            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
+        }
+
+        const { searchParams } = new URL(req.url);
+        const query = searchParams.get("q")?.trim() || "";
+        const types = searchParams.get("types")?.split(",") || ["all"];
+        const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
+
+        if (!query || query.length < 2) {
+            return errorResponse(ErrorCodes.VALIDATION_ERROR, "Search query must be at least 2 characters");
+        }
+
+        const organizationId = user.organizationId;
+        const results: SearchResult[] = [];
+
+        // Search Employees
+        if (types.includes("all") || types.includes("employee")) {
+            const employees = await prisma.employee.findMany({
+                where: {
+                    organizationId,
+                    deletedAt: null,
+                    OR: [
+                        { firstName: { contains: query } },
+                        { lastName: { contains: query } },
+                        { email: { contains: query } },
+                        { employeeCode: { contains: query } },
+                        { phone: { contains: query } },
+                    ],
+                },
+                include: {
+                    department: { select: { name: true } },
+                    designation: { select: { name: true } },
+                },
+                take: limit,
+            });
+
+            for (const emp of employees) {
+                results.push({
+                    id: emp.id,
+                    type: "employee",
+                    title: `${emp.firstName} ${emp.lastName}`,
+                    subtitle: emp.employeeCode,
+                    description: `${emp.designation?.name || ""} • ${emp.department?.name || ""}`.trim(),
+                    url: `/employees/${emp.id}`,
+                    relevance: calculateRelevance(query, `${emp.firstName} ${emp.lastName} ${emp.employeeCode}`),
+                    metadata: {
+                        email: emp.email,
+                        status: emp.employmentStatus,
+                        photo: emp.photoUrl,
+                    },
+                });
+            }
+        }
+
+        // Search Departments
+        if (types.includes("all") || types.includes("department")) {
+            const departments = await prisma.department.findMany({
+                where: {
+                    organizationId,
+                    isActive: true,
+                    OR: [
+                        { name: { contains: query } },
+                        { code: { contains: query } },
+                        { nameBn: { contains: query } },
+                    ],
+                },
+                include: {
+                    _count: { select: { employees: true } },
+                },
+                take: limit,
+            });
+
+            for (const dept of departments) {
+                results.push({
+                    id: dept.id,
+                    type: "department",
+                    title: dept.name,
+                    subtitle: dept.code || undefined,
+                    description: `${dept._count.employees} employees`,
+                    url: `/departments/${dept.id}`,
+                    relevance: calculateRelevance(query, `${dept.name} ${dept.code || ""}`),
+                });
+            }
+        }
+
+        // Search Designations
+        if (types.includes("all") || types.includes("designation")) {
+            const designations = await prisma.designation.findMany({
+                where: {
+                    organizationId,
+                    isActive: true,
+                    OR: [
+                        { name: { contains: query } },
+                        { code: { contains: query } },
+                    ],
+                },
+                include: {
+                    _count: { select: { employees: true } },
+                },
+                take: limit,
+            });
+
+            for (const des of designations) {
+                results.push({
+                    id: des.id,
+                    type: "designation",
+                    title: des.name,
+                    subtitle: des.code || undefined,
+                    description: `Grade ${des.grade || "N/A"} • ${des._count.employees} employees`,
+                    url: `/designations/${des.id}`,
+                    relevance: calculateRelevance(query, `${des.name} ${des.code || ""}`),
+                });
+            }
+        }
+
+        // Search Job Postings
+        if (types.includes("all") || types.includes("job")) {
+            const jobs = await prisma.jobPosting.findMany({
+                where: {
+                    organizationId,
+                    OR: [
+                        { title: { contains: query } },
+                        { description: { contains: query } },
+                    ],
+                },
+                include: {
+                    department: { select: { name: true } },
+                    _count: { select: { applications: true } },
+                },
+                take: limit,
+            });
+
+            for (const job of jobs) {
+                results.push({
+                    id: job.id,
+                    type: "job",
+                    title: job.title,
+                    subtitle: job.status,
+                    description: `${job.department?.name || "No dept"} • ${job._count.applications} applications`,
+                    url: `/recruitment/jobs/${job.id}`,
+                    relevance: calculateRelevance(query, job.title),
+                    metadata: {
+                        status: job.status,
+                        openings: job.openings,
+                    },
+                });
+            }
+        }
+
+        // Sort by relevance
+        results.sort((a, b) => b.relevance - a.relevance);
+
+        // Group results by type
+        const grouped: Record<string, SearchResult[]> = {};
+        for (const result of results) {
+            if (!grouped[result.type]) {
+                grouped[result.type] = [];
+            }
+            grouped[result.type].push(result);
+        }
+
+        // Generate suggestions (simple implementation)
+        const suggestions = generateSuggestions(query, results);
+
+        const response: SearchResponse = {
+            query,
+            total: results.length,
+            results: results.slice(0, limit),
+            grouped,
+            suggestions,
+        };
+
+        return successResponse(response);
+
+    } catch (error) {
+        console.error("SEARCH_ERROR:", error);
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Search failed");
+    }
+}
+
+/**
+ * Calculate relevance score (0-100)
+ */
+function calculateRelevance(query: string, text: string): number {
+    const queryLower = query.toLowerCase();
+    const textLower = text.toLowerCase();
+
+    // Exact match
+    if (textLower === queryLower) return 100;
+
+    // Starts with query
+    if (textLower.startsWith(queryLower)) return 90;
+
+    // Contains query as word
+    const words = textLower.split(/\s+/);
+    if (words.some(w => w === queryLower)) return 80;
+
+    // Contains query
+    if (textLower.includes(queryLower)) return 70;
+
+    // Fuzzy match - check character overlap
+    let matchCount = 0;
+    for (const char of queryLower) {
+        if (textLower.includes(char)) matchCount++;
+    }
+    const fuzzyScore = (matchCount / queryLower.length) * 50;
+
+    return Math.round(fuzzyScore);
+}
+
+/**
+ * Generate search suggestions
+ */
+function generateSuggestions(query: string, results: SearchResult[]): string[] {
+    const suggestions: Set<string> = new Set();
+
+    // Extract unique words from results
+    for (const result of results.slice(0, 10)) {
+        const words = result.title.split(/\s+/);
+        for (const word of words) {
+            if (word.toLowerCase().startsWith(query.toLowerCase()) && word.length > query.length) {
+                suggestions.add(word);
+            }
+        }
+    }
+
+    return Array.from(suggestions).slice(0, 5);
+}

@@ -1,0 +1,287 @@
+"use client";
+
+/**
+ * Data Fetching Hooks
+ * 
+ * Reusable React Query hooks for common data fetching patterns
+ * Features:
+ * - Automatic caching
+ * - Background refetching
+ * - Optimistic updates
+ * - Pagination support
+ */
+
+import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import { api, ApiResponse, ApiError } from "@/lib/api-client";
+import { toast } from "sonner";
+
+// ============================================
+// Query Keys Factory
+// ============================================
+
+export const queryKeys = {
+    // Employees
+    employees: {
+        all: ["employees"] as const,
+        lists: () => [...queryKeys.employees.all, "list"] as const,
+        list: (filters: Record<string, unknown>) => [...queryKeys.employees.lists(), filters] as const,
+        details: () => [...queryKeys.employees.all, "detail"] as const,
+        detail: (id: string) => [...queryKeys.employees.details(), id] as const,
+    },
+    // Departments
+    departments: {
+        all: ["departments"] as const,
+        lists: () => [...queryKeys.departments.all, "list"] as const,
+        list: (filters?: Record<string, unknown>) => [...queryKeys.departments.lists(), filters] as const,
+        detail: (id: string) => [...queryKeys.departments.all, "detail", id] as const,
+    },
+    // Designations
+    designations: {
+        all: ["designations"] as const,
+        list: (filters?: Record<string, unknown>) => [...queryKeys.designations.all, "list", filters] as const,
+    },
+    // Leaves
+    leaves: {
+        all: ["leaves"] as const,
+        applications: (filters?: Record<string, unknown>) => [...queryKeys.leaves.all, "applications", filters] as const,
+        types: () => [...queryKeys.leaves.all, "types"] as const,
+        balance: (employeeId: string) => [...queryKeys.leaves.all, "balance", employeeId] as const,
+    },
+    // Attendance
+    attendance: {
+        all: ["attendance"] as const,
+        list: (filters: Record<string, unknown>) => [...queryKeys.attendance.all, "list", filters] as const,
+        today: (employeeId: string) => [...queryKeys.attendance.all, "today", employeeId] as const,
+    },
+    // Payroll
+    payroll: {
+        all: ["payroll"] as const,
+        structures: () => [...queryKeys.payroll.all, "structures"] as const,
+        slips: (filters?: Record<string, unknown>) => [...queryKeys.payroll.all, "slips", filters] as const,
+    },
+    // Search
+    search: (query: string) => ["search", query] as const,
+    // Notifications
+    notifications: {
+        all: ["notifications"] as const,
+        unread: () => [...queryKeys.notifications.all, "unread"] as const,
+    },
+};
+
+// ============================================
+// Generic Hooks
+// ============================================
+
+/**
+ * Hook for fetching a single resource
+ */
+export function useResource<T>(
+    queryKey: readonly unknown[],
+    endpoint: string,
+    options?: Omit<UseQueryOptions<ApiResponse<T>, ApiError>, "queryKey" | "queryFn">
+) {
+    return useQuery<ApiResponse<T>, ApiError>({
+        queryKey,
+        queryFn: () => api.get<T>(endpoint),
+        ...options,
+    });
+}
+
+/**
+ * Hook for fetching a list of resources with pagination
+ */
+export function useResourceList<T>(
+    queryKey: readonly unknown[],
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    options?: Omit<UseQueryOptions<ApiResponse<T[]>, ApiError>, "queryKey" | "queryFn">
+) {
+    return useQuery<ApiResponse<T[]>, ApiError>({
+        queryKey,
+        queryFn: () => api.get<T[]>(endpoint, params),
+        ...options,
+    });
+}
+
+/**
+ * Hook for creating a resource
+ */
+export function useCreateResource<TData, TVariables>(
+    endpoint: string,
+    options?: {
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+    }
+) {
+    const queryClient = useQueryClient();
+
+    return useMutation<ApiResponse<TData>, ApiError, TVariables>({
+        mutationFn: (data) => api.post<TData>(endpoint, data),
+        onSuccess: () => {
+            if (options?.invalidateKeys) {
+                options.invalidateKeys.forEach((key) => {
+                    queryClient.invalidateQueries({ queryKey: key });
+                });
+            }
+            if (options?.successMessage) {
+                toast.success(options.successMessage);
+            }
+        },
+        onError: (error) => {
+            toast.error(options?.errorMessage || error.message);
+        },
+    });
+}
+
+/**
+ * Hook for updating a resource
+ */
+export function useUpdateResource<TData, TVariables>(
+    endpoint: string,
+    options?: {
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+    }
+) {
+    const queryClient = useQueryClient();
+
+    return useMutation<ApiResponse<TData>, ApiError, { id: string; data: TVariables }>({
+        mutationFn: ({ id, data }) => api.put<TData>(`${endpoint}/${id}`, data),
+        onSuccess: () => {
+            if (options?.invalidateKeys) {
+                options.invalidateKeys.forEach((key) => {
+                    queryClient.invalidateQueries({ queryKey: key });
+                });
+            }
+            if (options?.successMessage) {
+                toast.success(options.successMessage);
+            }
+        },
+        onError: (error) => {
+            toast.error(options?.errorMessage || error.message);
+        },
+    });
+}
+
+/**
+ * Hook for deleting a resource
+ */
+export function useDeleteResource(
+    endpoint: string,
+    options?: {
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+    }
+) {
+    const queryClient = useQueryClient();
+
+    return useMutation<ApiResponse<void>, ApiError, string>({
+        mutationFn: (id) => api.delete<void>(`${endpoint}/${id}`),
+        onSuccess: () => {
+            if (options?.invalidateKeys) {
+                options.invalidateKeys.forEach((key) => {
+                    queryClient.invalidateQueries({ queryKey: key });
+                });
+            }
+            if (options?.successMessage) {
+                toast.success(options.successMessage);
+            }
+        },
+        onError: (error) => {
+            toast.error(options?.errorMessage || error.message);
+        },
+    });
+}
+
+// ============================================
+// Specific Hooks
+// ============================================
+
+/**
+ * Fetch employees with filters
+ */
+export function useEmployees(filters?: {
+    page?: number;
+    limit?: number;
+    departmentId?: string;
+    status?: string;
+    search?: string;
+}) {
+    return useResourceList(
+        queryKeys.employees.list(filters || {}),
+        "/api/employees",
+        filters ? {
+            page: filters.page,
+            limit: filters.limit,
+            departmentId: filters.departmentId,
+            status: filters.status,
+            search: filters.search,
+        } : undefined
+    );
+}
+
+/**
+ * Fetch single employee
+ */
+export function useEmployee(id: string) {
+    return useResource(
+        queryKeys.employees.detail(id),
+        `/api/employees/${id}`,
+        { enabled: !!id }
+    );
+}
+
+/**
+ * Fetch departments
+ */
+export function useDepartments() {
+    return useResourceList(
+        queryKeys.departments.lists(),
+        "/api/departments"
+    );
+}
+
+/**
+ * Fetch designations
+ */
+export function useDesignations() {
+    return useResourceList(
+        queryKeys.designations.list(),
+        "/api/designations"
+    );
+}
+
+/**
+ * Global search
+ */
+export function useSearch(query: string) {
+    return useQuery({
+        queryKey: queryKeys.search(query),
+        queryFn: () => api.get("/api/search", { q: query }),
+        enabled: query.length >= 2,
+        staleTime: 60 * 1000, // 1 minute
+    });
+}
+
+/**
+ * Leave types
+ */
+export function useLeaveTypes() {
+    return useResourceList(
+        queryKeys.leaves.types(),
+        "/api/leaves/types"
+    );
+}
+
+/**
+ * Payroll structures
+ */
+export function usePayrollStructures() {
+    return useResourceList(
+        queryKeys.payroll.structures(),
+        "/api/payroll/structures"
+    );
+}
