@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useTranslations } from "next-intl"
 
 interface Notification {
     id: string
@@ -54,6 +55,7 @@ const typeColors: Record<string, string> = {
 }
 
 export default function NotificationsPage() {
+    const t = useTranslations('Notifications')
     const { addToast } = useToast()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [loading, setLoading] = useState(true)
@@ -93,14 +95,14 @@ export default function NotificationsPage() {
             })
             fetchNotifications()
             addToast({
-                title: "Success",
-                description: notificationId ? "Marked as read" : "All notifications marked as read",
+                title: t('toastSuccess'),
+                description: notificationId ? t('toastMarkedRead') : t('toastAllMarkedRead'),
                 type: "success",
             })
         } catch (error) {
             addToast({
-                title: "Error",
-                description: "Failed to update notifications",
+                title: t('toastError'),
+                description: t('toastUpdateFail'),
                 type: "error",
             })
         }
@@ -114,10 +116,10 @@ export default function NotificationsPage() {
         const diffHours = Math.floor(diffMs / 3600000)
         const diffDays = Math.floor(diffMs / 86400000)
 
-        if (diffMins < 1) return "Just now"
-        if (diffMins < 60) return `${diffMins} minutes ago`
-        if (diffHours < 24) return `${diffHours} hours ago`
-        if (diffDays < 7) return `${diffDays} days ago`
+        if (diffMins < 1) return t('justNow')
+        if (diffMins < 60) return t('minutesAgo', { count: diffMins })
+        if (diffHours < 24) return t('hoursAgo', { count: diffHours })
+        if (diffDays < 7) return t('daysAgo', { count: diffDays })
         return date.toLocaleDateString()
     }
 
@@ -128,18 +130,18 @@ export default function NotificationsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Notifications</h1>
-                    <p className="text-white/60 mt-1">
-                        Stay updated with your organization activities
+                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {t('subtitle')}
                     </p>
                 </div>
                 {unreadCount > 0 && (
                     <Button
                         onClick={() => markAsRead()}
-                        className="bg-gradient-to-r from-blue-500 to-indigo-600"
+                        className="bg-linear-to-r from-blue-500 to-indigo-600"
                     >
                         <CheckCheck className="h-4 w-4 mr-2" />
-                        Mark all as read
+                        {t('markAllRead')}
                     </Button>
                 )}
             </div>
@@ -147,10 +149,10 @@ export default function NotificationsPage() {
             {/* Tabs */}
             <Tabs value={filter} onValueChange={(v) => setFilter(v as "all" | "unread")}>
                 <div className="flex items-center justify-between">
-                    <TabsList className="bg-white/5 border-white/10">
-                        <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsList className="bg-hover border-card-border">
+                        <TabsTrigger value="all">{t('tabAll')}</TabsTrigger>
                         <TabsTrigger value="unread">
-                            Unread
+                            {t('tabUnread')}
                             {unreadCount > 0 && (
                                 <Badge variant="danger" className="ml-2">
                                     {unreadCount}
@@ -193,24 +195,25 @@ function NotificationList({
     onMarkRead: (id?: string) => void
     formatTime: (date: string) => string
 }) {
+    const t = useTranslations('Notifications')
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <div className="animate-spin h-8 w-8 border-2 border-white/20 border-t-white rounded-full" />
+                <div className="animate-spin h-8 w-8 border-2 border-border-hover border-t-white rounded-full" />
             </div>
         )
     }
 
     if (notifications.length === 0) {
         return (
-            <Card className="bg-[#12121A] border-white/10">
+            <Card className="bg-card border-card-border">
                 <CardContent className="py-16 text-center">
-                    <Bell className="h-12 w-12 mx-auto text-white/20 mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">
-                        No notifications
+                    <Bell className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">
+                        {t('noNotifications')}
                     </h3>
-                    <p className="text-white/40">
-                        You're all caught up! New notifications will appear here.
+                    <p className="text-tertiary-foreground">
+                        {t('noNotificationsDesc')}
                     </p>
                 </CardContent>
             </Card>
@@ -223,8 +226,8 @@ function NotificationList({
                 <Card
                     key={notification.id}
                     className={cn(
-                        "bg-[#12121A] border-white/10 overflow-hidden transition-all",
-                        "hover:border-white/20 cursor-pointer",
+                        "bg-card border-card-border overflow-hidden transition-all",
+                        "hover:border-border-hover cursor-pointer",
                         !notification.isRead && "border-l-2 border-l-blue-500"
                     )}
                     onClick={() => {
@@ -240,7 +243,7 @@ function NotificationList({
                         <div className="flex items-start gap-4">
                             {/* Icon */}
                             <div className={cn(
-                                "p-3 rounded-xl bg-gradient-to-br shrink-0",
+                                "p-3 rounded-xl bg-linear-to-br shrink-0",
                                 typeColors[notification.type] || typeColors.default
                             )}>
                                 {typeIcons[notification.type] || typeIcons.default}
@@ -252,16 +255,16 @@ function NotificationList({
                                     <div>
                                         <h4 className={cn(
                                             "font-medium",
-                                            notification.isRead ? "text-white/60" : "text-white"
+                                            notification.isRead ? "text-muted-foreground" : "text-foreground"
                                         )}>
                                             {notification.title}
                                         </h4>
-                                        <p className="text-sm text-white/40 mt-1">
+                                        <p className="text-sm text-tertiary-foreground mt-1">
                                             {notification.message}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <span className="text-xs text-white/30">
+                                        <span className="text-xs text-muted-text">
                                             {formatTime(notification.createdAt)}
                                         </span>
                                         {!notification.isRead && (

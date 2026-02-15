@@ -17,7 +17,8 @@ export async function GET(req: Request) {
         });
 
         if (!user?.employee) {
-            return new NextResponse("Employee profile not found", { status: 400 });
+            // Return empty data instead of error — admin/HR users may not have employee profiles
+            return NextResponse.json({ attendance: null, shift: null });
         }
 
         const today = new Date();

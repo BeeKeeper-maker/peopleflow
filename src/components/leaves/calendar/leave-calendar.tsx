@@ -56,7 +56,7 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
 
     return (
         <div className="grid md:grid-cols-[1fr_300px] gap-6">
-            <Card className="bg-white/5 border-white/10">
+            <Card className="bg-hover border-card-border">
                 <CardContent className="p-4 flex justify-center">
                     <DayPicker
                         mode="single"
@@ -64,7 +64,7 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
                         onSelect={setSelectedDate}
                         modifiers={modifiers}
                         modifiersStyles={modifiersStyles}
-                        className={cn("p-3 text-white")}
+                        className={cn("p-3 text-foreground")}
                         classNames={{
                             months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
                             month: "space-y-4",
@@ -72,7 +72,7 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
                             caption_label: "text-sm font-medium",
                             nav: "space-x-1 flex items-center",
                             nav_button: cn(
-                                "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 text-white"
+                                "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 text-foreground"
                             ),
                             nav_button_previous: "absolute left-1",
                             nav_button_next: "absolute right-1",
@@ -83,12 +83,12 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
                             row: "flex w-full mt-2",
                             cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
                             day: cn(
-                                "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-white/10 rounded-md text-white"
+                                "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-hover rounded-md text-foreground"
                             ),
                             day_range_end: "day-range-end",
                             day_selected:
-                                "bg-blue-600 text-white hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white",
-                            day_today: "bg-white/10 text-white font-bold",
+                                "bg-blue-600 text-foreground hover:bg-blue-600 hover:text-foreground focus:bg-blue-600 focus:text-foreground",
+                            day_today: "bg-hover text-foreground font-bold",
                             day_outside:
                                 "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
                             day_disabled: "text-muted-foreground opacity-50",
@@ -101,31 +101,31 @@ export function LeaveCalendar({ leaves }: LeaveCalendarProps) {
             </Card>
 
             <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-foreground">
                     On Leave ({selectedDate ? format(selectedDate, "MMM dd") : "Select a date"})
                 </h3>
 
                 {selectedDayLeaves.length === 0 ? (
-                    <div className="text-center py-8 text-white/40 bg-white/5 rounded-xl border border-white/5">
+                    <div className="text-center py-8 text-tertiary-foreground bg-hover rounded-xl border border-card-border">
                         <p>No leaves regarding this date</p>
                     </div>
                 ) : (
                     <div className="space-y-3">
                         {selectedDayLeaves.map(leave => (
-                            <div key={leave.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                                <Avatar className="h-10 w-10 border border-white/10">
+                            <div key={leave.id} className="flex items-center gap-3 p-3 rounded-xl bg-hover border border-card-border">
+                                <Avatar className="h-10 w-10 border border-card-border">
                                     <AvatarImage src={leave.employee.photoUrl || undefined} />
                                     <AvatarFallback>
                                         {leave.employee.firstName[0]}{leave.employee.lastName[0]}
                                     </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <p className="font-medium text-white">
+                                    <p className="font-medium text-foreground">
                                         {leave.employee.firstName} {leave.employee.lastName}
                                     </p>
                                     <Badge
                                         variant="default"
-                                        className="mt-1 border-0 bg-white/5"
+                                        className="mt-1 border-0 bg-hover"
                                         style={{ color: leave.leaveType.color }}
                                     >
                                         {leave.leaveType.name}

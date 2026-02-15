@@ -31,23 +31,24 @@ export type LeaveRequest = {
 
 export const columns: ColumnDef<LeaveRequest>[] = [
     {
-        accessorKey: "employee",
+        id: "employeeName",
+        accessorFn: (row) => `${row.employee.firstName} ${row.employee.lastName}`,
         header: "Employee",
         cell: ({ row }) => {
             const employee = row.original.employee
             return (
                 <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 border border-white/10">
+                    <Avatar className="h-9 w-9 border border-card-border">
                         <AvatarImage src={employee.photoUrl || ""} />
-                        <AvatarFallback className="bg-blue-600 text-white text-xs">
+                        <AvatarFallback className="bg-blue-600 text-foreground text-xs">
                             {employee.firstName[0]}{employee.lastName[0]}
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <div className="font-medium text-white">
+                        <div className="font-medium text-foreground">
                             {employee.firstName} {employee.lastName}
                         </div>
-                        <div className="text-xs text-white/50">
+                        <div className="text-xs text-tertiary-foreground">
                             {employee.designation?.name || "No Designation"}
                         </div>
                     </div>
@@ -59,7 +60,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
         accessorKey: "leaveType",
         header: "Leave Type",
         cell: ({ row }) => (
-            <Badge variant="default" className="border-white/10 bg-white/5 font-normal" style={{ color: row.original.leaveType.color }}>
+            <Badge variant="default" className="border-card-border bg-hover font-normal" style={{ color: row.original.leaveType.color }}>
                 {row.original.leaveType.name}
             </Badge>
         ),
@@ -72,10 +73,10 @@ export const columns: ColumnDef<LeaveRequest>[] = [
             const to = new Date(row.original.toDate)
             return (
                 <div className="flex flex-col text-sm">
-                    <span className="text-white">
+                    <span className="text-foreground">
                         {format(from, "dd MMM")} - {format(to, "dd MMM, yyyy")}
                     </span>
-                    <span className="text-xs text-white/50">
+                    <span className="text-xs text-tertiary-foreground">
                         {row.original.totalDays} days
                     </span>
                 </div>
@@ -86,7 +87,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
         accessorKey: "reason",
         header: "Reason",
         cell: ({ row }) => (
-            <div className="max-w-[200px] truncate text-white/60" title={row.original.reason || ""}>
+            <div className="max-w-[200px] truncate text-muted-foreground" title={row.original.reason || ""}>
                 {row.original.reason || "-"}
             </div>
         ),

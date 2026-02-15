@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
     Receipt,
     ArrowLeft,
@@ -23,6 +24,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface ExpenseCategory {
     id: string;
@@ -30,137 +32,136 @@ interface ExpenseCategory {
     maxAmount?: number;
     monthlyLimit?: number;
     requiresReceipt: boolean;
-    color?: string;
 }
 
-export default function NewExpenseClaimPage() {
+export default function NewExpensePage() {
+    const t = useTranslations("ESSExpenses");
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-    const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
+    const [isLoadingCategories, setIsLoadingCategories] = useState(true);
 
     const [formData, setFormData] = useState({
         title: "",
-        description: "",
         amount: "",
-        categoryId: "",
-        expenseDate: new Date().toISOString().split("T")[0],
-        receiptUrl: "",
-        receiptName: "",
+        category: "",
+        date: "",
+        description: "",
+        receipt: null as File | null,
     });
-
-    const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const response = await fetch("/api/expenses/categories?active=true");
-                if (response.ok) {
-                    const data = await response.json();
-                    setCategories(data);
+                const res = await fetch("/api/expenses/categories");
+                if (res.ok) {
+                    const data = await res.json();
+                    setCategories(data.data || data || []);
+                } else {
+                    // Use default categories if API not available
+                    setCategories([
+                        { id: "travel", name: "Travel", maxAmount: 10000, monthlyLimit: 50000, requiresReceipt: true },
+                        { id: "meals", name: "Meals", maxAmount: 2000, monthlyLimit: 15000, requiresReceipt: false },
+                        { id: "office", name: "Office Supplies", maxAmount: 5000, monthlyLimit: 20000, requiresReceipt: true },
+                        { id: "communication", name: "Communication", maxAmount: 3000, monthlyLimit: 10000, requiresReceipt: false },
+                        { id: "other", name: "Other", maxAmount: 10000, monthlyLimit: 30000, requiresReceipt: true },
+                    ]);
                 }
             } catch (error) {
                 console.error("Error fetching categories:", error);
+            } finally {
+                setIsLoadingCategories(false);
             }
         };
+
         fetchCategories();
     }, []);
 
-    const validate = () => {
-        const newErrors: Record<string, string> = {};
+    const selectedCategory = categories.find((c) => c.id === formData.category);
 
+    const handleSubmit = async (asDraft = false) => {
+        // Validation
         if (!formData.title.trim()) {
-            newErrors.title = "Title is required";
+            toast.error(t("errTitle"));
+            return;
         }
         if (!formData.amount || parseFloat(formData.amount) <= 0) {
-            newErrors.amount = "Valid amount is required";
+            toast.error(t("errAmount"));
+            return;
         }
-        if (!formData.categoryId) {
-            newErrors.categoryId = "Category is required";
+        if (!formData.category) {
+            toast.error(t("errCategory"));
+            return;
         }
-        if (!formData.expenseDate) {
-            newErrors.expenseDate = "Expense date is required";
+        if (!formData.date) {
+            toast.error(t("errExpenseDate"));
+            return;
         }
-
-        // Check max amount
         if (selectedCategory?.maxAmount && parseFloat(formData.amount) > selectedCategory.maxAmount) {
-            newErrors.amount = `Amount exceeds maximum of ৳${selectedCategory.maxAmount.toLocaleString()}`;
+            toast.error(t("errMaxAmount", { amount: selectedCategory.maxAmount.toLocaleString() }));
+            return;
+        }
+        if (selectedCategory?.requiresReceipt && !formData.receipt && !asDraft) {
+            toast.error(t("errReceipt"));
+            return;
         }
 
-        // Check if receipt required
-        if (selectedCategory?.requiresReceipt && !formData.receiptUrl) {
-            newErrors.receiptUrl = "Receipt is required for this category";
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleSubmit = async (e: React.FormEvent, asDraft: boolean = false) => {
-        e.preventDefault();
-
-        if (!asDraft && !validate()) return;
-
-        setIsLoading(true);
-
+        setIsSubmitting(true);
         try {
-            const response = await fetch("/api/expenses/claims", {
+            const submitData = new FormData();
+            submitData.append("title", formData.title);
+            submitData.append("amount", formData.amount);
+            submitData.append("category", formData.category);
+            submitData.append("date", formData.date);
+            submitData.append("description", formData.description);
+            submitData.append("status", asDraft ? "draft" : "pending");
+            if (formData.receipt) {
+                submitData.append("receipt", formData.receipt);
+            }
+
+            const res = await fetch("/api/expenses", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...formData,
-                    amount: parseFloat(formData.amount),
-                    status: asDraft ? "draft" : "submitted",
-                }),
+                body: submitData,
             });
 
-            if (response.ok) {
-                setIsSubmitted(true);
+            if (res.ok) {
+                setIsSuccess(true);
             } else {
-                const data = await response.json();
-                console.error("Error:", data.error);
+                const data = await res.json();
+                toast.error(data.error || t("errTitle"));
             }
         } catch (error) {
-            console.error("Error submitting claim:", error);
+            console.error("Error submitting expense:", error);
+            toast.error(t("errTitle"));
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     };
 
-    const handleCategoryChange = (categoryId: string) => {
-        setFormData({ ...formData, categoryId });
-        const category = categories.find((c) => c.id === categoryId);
-        setSelectedCategory(category || null);
-    };
-
-    if (isSubmitted) {
+    if (isSuccess) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <Card className="bg-[#141419] border-white/5 max-w-md w-full">
+                <Card className="bg-card border-card-border max-w-md w-full">
                     <CardContent className="p-8 text-center">
                         <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                             <CheckCircle2 className="h-8 w-8 text-green-400" />
                         </div>
-                        <h2 className="text-xl font-semibold text-white mb-2">
-                            Expense Claim Submitted!
+                        <h2 className="text-xl font-bold text-foreground mb-2">
+                            {t("submitSuccess")}
                         </h2>
-                        <p className="text-white/60 mb-6">
-                            Your expense claim has been submitted for approval. You'll be notified
-                            once your manager reviews it.
+                        <p className="text-muted-foreground mb-6">
+                            {t("submitSuccessDesc")}
                         </p>
                         <div className="flex gap-3 justify-center">
                             <Link href="/ess/expenses">
-                                <Button
-                                    variant="outline"
-                                    className="border-white/10 text-white/60 hover:text-white"
-                                >
-                                    View My Expenses
+                                <Button variant="outline" className="border-card-border">
+                                    {t("viewMyExpenses")}
                                 </Button>
                             </Link>
                             <Link href="/ess/dashboard">
                                 <Button className="bg-blue-600 hover:bg-blue-500">
-                                    Go to Dashboard
+                                    {t("goToDashboard")}
                                 </Button>
                             </Link>
                         </div>
@@ -171,215 +172,177 @@ export default function NewExpenseClaimPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-2xl mx-auto">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/ess/expenses">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-white/60 hover:text-white hover:bg-white/5"
-                    >
+                    <Button variant="ghost" size="icon" className="text-muted-foreground">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-white">New Expense Claim</h1>
-                    <p className="text-white/60 mt-1">
-                        Submit a new expense for reimbursement
-                    </p>
+                    <h1 className="text-2xl font-bold text-foreground">{t("newClaimTitle")}</h1>
+                    <p className="text-muted-foreground mt-1">{t("newClaimSubtitle")}</p>
                 </div>
             </div>
 
             {/* Form */}
-            <form onSubmit={(e) => handleSubmit(e, false)}>
-                <Card className="bg-[#141419] border-white/5">
-                    <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
-                            <Receipt className="h-5 w-5 text-blue-400" />
-                            Expense Details
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {/* Category */}
-                        <div className="space-y-2">
-                            <Label className="text-white">Category *</Label>
-                            <Select
-                                value={formData.categoryId}
-                                onValueChange={handleCategoryChange}
-                            >
-                                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                                    <SelectValue placeholder="Select expense category" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-[#1A1A1F] border-white/10">
-                                    {categories.map((category) => (
-                                        <SelectItem
-                                            key={category.id}
-                                            value={category.id}
-                                            className="text-white hover:bg-white/10"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <div
-                                                    className="w-3 h-3 rounded-full"
-                                                    style={{ backgroundColor: category.color || "#6366f1" }}
-                                                />
-                                                <span>{category.name}</span>
-                                                {category.maxAmount && (
-                                                    <span className="text-xs text-white/40">
-                                                        (max ৳{category.maxAmount.toLocaleString()})
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.categoryId && (
-                                <p className="text-sm text-red-400">{errors.categoryId}</p>
+            <Card className="bg-card border-card-border">
+                <CardHeader>
+                    <CardTitle className="text-foreground flex items-center gap-2">
+                        <Receipt className="h-5 w-5 text-blue-400" />
+                        {t("expenseDetails")}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Category */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">{t("categoryLabel")}</Label>
+                        <Select
+                            value={formData.category}
+                            onValueChange={(value) => setFormData({ ...formData, category: value })}
+                        >
+                            <SelectTrigger className="bg-background border-card-border text-foreground">
+                                <SelectValue placeholder={t("selectCategory")} />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background border-card-border">
+                                {categories.map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Category Limits Info */}
+                    {selectedCategory && (
+                        <div className="p-3 bg-blue-500/10 rounded-lg text-sm space-y-1">
+                            <p className="font-medium text-blue-400">{t("categoryLimits")}</p>
+                            {selectedCategory.maxAmount && (
+                                <p className="text-muted-foreground">
+                                    {t("maxPerClaim", { amount: selectedCategory.maxAmount.toLocaleString() })}
+                                </p>
+                            )}
+                            {selectedCategory.monthlyLimit && (
+                                <p className="text-muted-foreground">
+                                    {t("monthlyLimit", { amount: selectedCategory.monthlyLimit.toLocaleString() })}
+                                </p>
+                            )}
+                            {selectedCategory.requiresReceipt && (
+                                <p className="text-yellow-400 text-xs">{t("receiptRequiredNote")}</p>
                             )}
                         </div>
+                    )}
 
-                        {/* Title */}
+                    {/* Title */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">{t("titleLabel")}</Label>
+                        <Input
+                            value={formData.title}
+                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                            placeholder={t("titlePlaceholder")}
+                            className="bg-background border-card-border text-foreground"
+                        />
+                    </div>
+
+                    {/* Amount & Date */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white">Title *</Label>
+                            <Label className="text-muted-foreground">{t("amountLabel")}</Label>
                             <Input
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                placeholder="e.g., Uber to client meeting"
-                                className="bg-white/5 border-white/10 text-white"
-                            />
-                            {errors.title && (
-                                <p className="text-sm text-red-400">{errors.title}</p>
-                            )}
-                        </div>
-
-                        {/* Amount and Date */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <Label className="text-white">Amount (BDT) *</Label>
-                                <Input
-                                    type="number"
-                                    value={formData.amount}
-                                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                    placeholder="0.00"
-                                    min="0"
-                                    step="0.01"
-                                    className="bg-white/5 border-white/10 text-white"
-                                />
-                                {errors.amount && (
-                                    <p className="text-sm text-red-400">{errors.amount}</p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-white">Expense Date *</Label>
-                                <div className="relative">
-                                    <Input
-                                        type="date"
-                                        value={formData.expenseDate}
-                                        onChange={(e) => setFormData({ ...formData, expenseDate: e.target.value })}
-                                        className="bg-white/5 border-white/10 text-white [color-scheme:dark]"
-                                    />
-                                </div>
-                                {errors.expenseDate && (
-                                    <p className="text-sm text-red-400">{errors.expenseDate}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Description */}
-                        <div className="space-y-2">
-                            <Label className="text-white">Description</Label>
-                            <Textarea
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                placeholder="Provide additional details about this expense..."
-                                className="bg-white/5 border-white/10 text-white min-h-[80px]"
+                                type="number"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                className="bg-background border-card-border text-foreground"
                             />
                         </div>
-
-                        {/* Receipt Upload */}
                         <div className="space-y-2">
-                            <Label className="text-white">
-                                Receipt {selectedCategory?.requiresReceipt ? "*" : "(Optional)"}
-                            </Label>
-                            <div className="border-2 border-dashed border-white/10 rounded-lg p-6 text-center hover:border-white/20 transition-colors">
-                                <Upload className="h-8 w-8 text-white/40 mx-auto mb-2" />
-                                <p className="text-white/60 text-sm mb-2">
-                                    Drag and drop your receipt here, or click to browse
-                                </p>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-white/10 text-white/60 hover:text-white"
-                                >
-                                    Upload Receipt
-                                </Button>
-                                <p className="text-white/40 text-xs mt-2">
-                                    Supported formats: JPG, PNG, PDF (max 5MB)
-                                </p>
-                            </div>
-                            {errors.receiptUrl && (
-                                <p className="text-sm text-red-400">{errors.receiptUrl}</p>
-                            )}
+                            <Label className="text-muted-foreground">{t("expenseDateLabel")}</Label>
+                            <Input
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                className="bg-background border-card-border text-foreground"
+                            />
                         </div>
+                    </div>
 
-                        {/* Selected Category Limits Info */}
-                        {selectedCategory && (
-                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <h4 className="text-blue-400 font-medium mb-2">Category Limits</h4>
-                                <div className="text-sm text-white/60 space-y-1">
-                                    {selectedCategory.maxAmount && (
-                                        <p>Maximum per claim: ৳{selectedCategory.maxAmount.toLocaleString()}</p>
-                                    )}
-                                    {selectedCategory.monthlyLimit && (
-                                        <p>Monthly limit: ৳{selectedCategory.monthlyLimit.toLocaleString()}</p>
-                                    )}
-                                    {selectedCategory.requiresReceipt && (
-                                        <p>Receipt required for this category</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                    {/* Description */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">{t("descriptionLabel")}</Label>
+                        <Textarea
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            rows={3}
+                            placeholder={t("descriptionPlaceholder")}
+                            className="bg-background border-card-border text-foreground"
+                        />
+                    </div>
 
-                        {/* Submit */}
-                        <div className="flex items-center justify-end gap-4 pt-4">
-                            <Link href="/ess/expenses">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="border-white/10 text-white/60 hover:text-white"
-                                >
-                                    Cancel
-                                </Button>
-                            </Link>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={(e) => handleSubmit(e, true)}
-                                disabled={isLoading}
-                                className="border-white/10 text-white/60 hover:text-white"
-                            >
-                                Save as Draft
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={isLoading}
-                                className="bg-blue-600 hover:bg-blue-500"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Submitting...
-                                    </>
+                    {/* Receipt Upload */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">
+                            {selectedCategory?.requiresReceipt ? t("receiptRequired") : t("receiptOptional")}
+                        </Label>
+                        <div className="border-2 border-dashed border-card-border rounded-lg p-6 text-center hover:border-blue-500/50 transition-colors cursor-pointer">
+                            <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                className="hidden"
+                                id="receipt-upload"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) {
+                                        setFormData({ ...formData, receipt: e.target.files[0] });
+                                    }
+                                }}
+                            />
+                            <label htmlFor="receipt-upload" className="cursor-pointer">
+                                <Upload className="h-8 w-8 text-muted-text mx-auto mb-2" />
+                                {formData.receipt ? (
+                                    <p className="text-sm text-green-400">{formData.receipt.name}</p>
                                 ) : (
-                                    "Submit for Approval"
+                                    <>
+                                        <p className="text-sm text-muted-foreground">{t("receiptDragDrop")}</p>
+                                        <p className="text-xs text-tertiary-foreground mt-1">{t("supportedFormats")}</p>
+                                    </>
                                 )}
-                            </Button>
+                            </label>
                         </div>
-                    </CardContent>
-                </Card>
-            </form>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3 justify-end">
+                        <Link href="/ess/expenses">
+                            <Button variant="outline" className="border-card-border">
+                                {t("cancelBtn")}
+                            </Button>
+                        </Link>
+                        <Button
+                            variant="outline"
+                            className="border-card-border"
+                            onClick={() => handleSubmit(true)}
+                            disabled={isSubmitting}
+                        >
+                            {t("saveAsDraft")}
+                        </Button>
+                        <Button
+                            className="bg-blue-600 hover:bg-blue-500"
+                            onClick={() => handleSubmit(false)}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    {t("submitting")}
+                                </>
+                            ) : (
+                                t("submitForApproval")
+                            )}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

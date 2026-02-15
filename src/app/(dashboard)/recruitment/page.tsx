@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useTranslations } from "next-intl"
 
 interface JobPosting {
     id: string
@@ -66,6 +67,7 @@ export default function RecruitmentPage() {
     const [jobs, setJobs] = useState<JobPosting[]>([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState("all")
+    const t = useTranslations('Recruitment')
 
     useEffect(() => {
         fetchJobs()
@@ -75,7 +77,9 @@ export default function RecruitmentPage() {
         try {
             const res = await fetch("/api/recruitment/jobs")
             if (res.ok) {
-                setJobs(await res.json())
+                const response = await res.json()
+                // Handle both wrapped and raw responses
+                setJobs(response.data || response || [])
             }
         } catch (error) {
             console.error("Failed to fetch jobs", error)
@@ -100,70 +104,70 @@ export default function RecruitmentPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Recruitment</h1>
-                    <p className="text-white/60 mt-1">Manage job postings and candidates</p>
+                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <Link href="/recruitment/jobs/new">
-                    <Button className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90">
+                    <Button className="bg-linear-to-r from-blue-500 to-indigo-600 hover:opacity-90">
                         <Plus className="h-4 w-4 mr-2" />
-                        Post New Job
+                        {t('postJob')}
                     </Button>
                 </Link>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Total Jobs</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
+                                <p className="text-sm text-muted-foreground">{t('totalJobs')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600">
-                                <Briefcase className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-blue-500 to-indigo-600">
+                                <Briefcase className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Open Positions</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.open}</h3>
+                                <p className="text-sm text-muted-foreground">{t('openPositions')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.open}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600">
-                                <CheckCircle2 className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-green-500 to-emerald-600">
+                                <CheckCircle2 className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Total Applications</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.totalApplications}</h3>
+                                <p className="text-sm text-muted-foreground">{t('totalApplications')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.totalApplications}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
-                                <Users className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-purple-500 to-pink-600">
+                                <Users className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Total Openings</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.positions}</h3>
+                                <p className="text-sm text-muted-foreground">{t('totalOpenings')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.positions}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600">
-                                <UserPlus className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-amber-500 to-orange-600">
+                                <UserPlus className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
@@ -172,32 +176,32 @@ export default function RecruitmentPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-white/5 border-white/10">
-                    <TabsTrigger value="all">All Jobs ({jobs.length})</TabsTrigger>
-                    <TabsTrigger value="open">Open ({stats.open})</TabsTrigger>
-                    <TabsTrigger value="draft">Draft ({jobs.filter(j => j.status === "draft").length})</TabsTrigger>
-                    <TabsTrigger value="closed">Closed ({jobs.filter(j => j.status === "closed").length})</TabsTrigger>
+                <TabsList className="bg-hover border-card-border">
+                    <TabsTrigger value="all">{t('allJobs')} ({jobs.length})</TabsTrigger>
+                    <TabsTrigger value="open">{t('openTab')} ({stats.open})</TabsTrigger>
+                    <TabsTrigger value="draft">{t('draftTab')} ({jobs.filter(j => j.status === "draft").length})</TabsTrigger>
+                    <TabsTrigger value="closed">{t('closedTab')} ({jobs.filter(j => j.status === "closed").length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-4">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+                            <Loader2 className="h-8 w-8 animate-spin text-tertiary-foreground" />
                         </div>
                     ) : filteredJobs.length === 0 ? (
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="py-16 text-center">
-                                <Briefcase className="h-12 w-12 mx-auto text-white/20 mb-4" />
-                                <h3 className="text-lg font-medium text-white mb-2">
-                                    No job postings yet
+                                <Briefcase className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">
+                                    {t('noJobs')}
                                 </h3>
-                                <p className="text-white/40 mb-6">
-                                    Create your first job posting to start hiring
+                                <p className="text-tertiary-foreground mb-6">
+                                    {t('noJobsDesc')}
                                 </p>
                                 <Link href="/recruitment/jobs/new">
-                                    <Button className="bg-gradient-to-r from-blue-500 to-indigo-600">
+                                    <Button className="bg-linear-to-r from-blue-500 to-indigo-600">
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Post New Job
+                                        {t('postJob')}
                                     </Button>
                                 </Link>
                             </CardContent>
@@ -216,8 +220,9 @@ export default function RecruitmentPage() {
 }
 
 function JobCard({ job }: { job: JobPosting }) {
+    const t = useTranslations('Recruitment')
     return (
-        <Card className="bg-[#12121A] border-white/10 hover:border-white/20 transition-all group">
+        <Card className="bg-card border-card-border hover:border-border-hover transition-all group">
             <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -225,16 +230,16 @@ function JobCard({ job }: { job: JobPosting }) {
                             <Badge className={statusColors[job.status]}>
                                 {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                             </Badge>
-                            <Badge variant="outline" className="border-white/20">
+                            <Badge variant="outline" className="border-border-hover">
                                 {employmentTypeLabels[job.employmentType] || job.employmentType}
                             </Badge>
                         </div>
 
-                        <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-blue-400 transition-colors">
                             {job.title}
                         </h3>
 
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-white/60 mt-2">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-2">
                             {job.department && (
                                 <span className="flex items-center gap-1">
                                     <Building2 className="h-3.5 w-3.5" />
@@ -266,15 +271,15 @@ function JobCard({ job }: { job: JobPosting }) {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-card-border">
                     <Link href={`/recruitment/jobs/${job.id}`} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full border-white/10">
+                        <Button variant="outline" size="sm" className="w-full border-card-border">
                             <Eye className="h-4 w-4 mr-2" />
-                            View Details
+                            {t('viewDetails')}
                         </Button>
                     </Link>
                     <Link href={`/recruitment/jobs/${job.id}/edit`}>
-                        <Button variant="ghost" size="sm" className="text-white/60">
+                        <Button variant="ghost" size="sm" className="text-muted-foreground">
                             <Edit className="h-4 w-4" />
                         </Button>
                     </Link>

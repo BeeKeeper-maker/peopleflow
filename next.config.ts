@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
+  // Required for Docker deployment — produces self-contained server
+  output: 'standalone',
+
   // Optimize production builds
   reactStrictMode: true,
 
@@ -52,4 +58,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

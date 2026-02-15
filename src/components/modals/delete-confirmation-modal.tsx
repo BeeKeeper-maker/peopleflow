@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -12,48 +13,46 @@ import {
 } from "@/components/ui/alert-dialog"
 
 interface DeleteConfirmationModalProps {
-    isOpen: boolean
-    onClose: () => void
+    open: boolean
+    onOpenChange: (open: boolean) => void
     onConfirm: () => void
-    loading?: boolean
     title?: string
     description?: string
+    isLoading?: boolean
 }
 
 export function DeleteConfirmationModal({
-    isOpen,
-    onClose,
+    open,
+    onOpenChange,
     onConfirm,
-    loading = false,
-    title = "Are you absolutely sure?",
-    description = "This action will remove the record from the active list. It can be restored by an administrator if needed.",
+    title,
+    description,
+    isLoading,
 }: DeleteConfirmationModalProps) {
+    const t = useTranslations("SharedComponents.deleteModal")
+    const tc = useTranslations("SharedComponents.common")
+
     return (
-        <AlertDialog open={isOpen} onOpenChange={onClose}>
-            <AlertDialogContent className="bg-slate-900 border-white/10 text-white">
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogContent className="bg-background border-card-border">
                 <AlertDialogHeader>
-                    <AlertDialogTitle>{title}</AlertDialogTitle>
-                    <AlertDialogDescription className="text-white/60">
-                        {description}
+                    <AlertDialogTitle className="text-foreground">
+                        {title || t("defaultTitle")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-muted-foreground">
+                        {description || t("defaultDescription")}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel
-                        onClick={onClose}
-                        disabled={loading}
-                        className="bg-white/5 border-white/10 hover:bg-white/10 text-white hover:text-white"
-                    >
-                        Cancel
+                    <AlertDialogCancel className="bg-hover border-card-border text-foreground hover:bg-hover hover:text-foreground">
+                        {tc("cancel")}
                     </AlertDialogCancel>
                     <AlertDialogAction
-                        onClick={(e) => {
-                            e.preventDefault()
-                            onConfirm()
-                        }}
-                        disabled={loading}
-                        className="bg-red-500 hover:bg-red-600 text-white border-none"
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                        className="bg-red-600 text-foreground hover:bg-red-700"
                     >
-                        {loading ? "Deleting..." : "Delete"}
+                        {isLoading ? tc("deleting") : tc("delete")}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

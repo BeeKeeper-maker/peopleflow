@@ -22,6 +22,8 @@ import {
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
+import { exportToExcel, formatPayrollExport } from "@/lib/export"
+import { useTranslations } from "next-intl"
 
 interface Assignment {
     id: string
@@ -73,6 +75,7 @@ const months = [
 
 export default function PayrollPage() {
     const { addToast } = useToast()
+    const t = useTranslations('Payroll')
     const [activeTab, setActiveTab] = useState("overview")
     const [assignments, setAssignments] = useState<Assignment[]>([])
     const [slips, setSlips] = useState<SalarySlip[]>([])
@@ -149,30 +152,30 @@ export default function PayrollPage() {
 
     const stats = [
         {
-            title: "Total Payroll",
+            title: t('totalPayroll'),
             value: `৳${totalPayroll.toLocaleString()}`,
             description: `${months[processMonth - 1]} ${processYear}`,
             icon: DollarSign,
             color: "from-emerald-500 to-green-600",
         },
         {
-            title: "Active Assignments",
+            title: t('activeAssignments'),
             value: assignments.length,
-            description: "Employees with salary",
+            description: t('employeesWithSalary'),
             icon: Users,
             color: "from-blue-500 to-indigo-600",
         },
         {
-            title: "Pending Approval",
+            title: t('pendingApproval'),
             value: pendingCount,
-            description: "Draft slips",
+            description: t('draftSlips'),
             icon: Clock,
             color: "from-amber-500 to-orange-600",
         },
         {
-            title: "Paid",
+            title: t('paid'),
             value: paidCount,
-            description: "This month",
+            description: t('thisMonth'),
             icon: CheckCircle2,
             color: "from-purple-500 to-pink-600",
         },
@@ -183,17 +186,17 @@ export default function PayrollPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Payroll Management</h1>
-                    <p className="text-white/60 mt-1">Process salaries and manage payroll</p>
+                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
                     <Button
                         variant="outline"
-                        className="border-white/10"
+                        className="border-card-border"
                         onClick={() => setShowAssignmentForm(true)}
                     >
                         <Plus className="h-4 w-4 mr-2" />
-                        Assign Salary
+                        {t('assignSalary')}
                     </Button>
                     <Button
                         className="bg-emerald-600 hover:bg-emerald-700"
@@ -205,7 +208,7 @@ export default function PayrollPage() {
                         ) : (
                             <Play className="h-4 w-4 mr-2" />
                         )}
-                        Run Payroll
+                        {t('runPayroll')}
                     </Button>
                 </div>
             </div>
@@ -213,17 +216,17 @@ export default function PayrollPage() {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats.map((stat, i) => (
-                    <Card key={i} className="bg-[#12121A] border-white/10 overflow-hidden">
-                        <div className={`absolute inset-0 bg-gradient-to-r ${stat.color} opacity-5`} />
+                    <Card key={i} className="bg-card border-card-border overflow-hidden">
+                        <div className={`absolute inset-0 bg-linear-to-r ${stat.color} opacity-5`} />
                         <CardContent className="relative p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-white/60">{stat.title}</p>
-                                    <h3 className="text-2xl font-bold text-white mt-1">{stat.value}</h3>
-                                    <p className="text-xs text-white/40 mt-1">{stat.description}</p>
+                                    <p className="text-sm text-muted-foreground">{stat.title}</p>
+                                    <h3 className="text-2xl font-bold text-foreground mt-1">{stat.value}</h3>
+                                    <p className="text-xs text-tertiary-foreground mt-1">{stat.description}</p>
                                 </div>
-                                <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
-                                    <stat.icon className="h-6 w-6 text-white" />
+                                <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color}`}>
+                                    <stat.icon className="h-6 w-6 text-foreground" />
                                 </div>
                             </div>
                         </CardContent>
@@ -233,29 +236,29 @@ export default function PayrollPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-white/5 border-white/10">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="assignments">Salary Assignments</TabsTrigger>
-                    <TabsTrigger value="slips">Salary Slips</TabsTrigger>
+                <TabsList className="bg-hover border-card-border">
+                    <TabsTrigger value="overview">{t('overviewTab')}</TabsTrigger>
+                    <TabsTrigger value="assignments">{t('assignmentsTab')}</TabsTrigger>
+                    <TabsTrigger value="slips">{t('slipsTab')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-4">
                     {/* Month/Year Selector */}
-                    <Card className="bg-[#12121A] border-white/10">
+                    <Card className="bg-card border-card-border">
                         <CardHeader className="pb-3">
-                            <CardTitle className="text-white flex items-center gap-2">
+                            <CardTitle className="text-foreground flex items-center gap-2">
                                 <Calendar className="h-5 w-5 text-blue-400" />
-                                Select Payroll Period
+                                {t('selectPeriod')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="flex gap-4 items-end">
                                 <div className="space-y-2">
-                                    <label className="text-sm text-white/60">Month</label>
+                                    <label className="text-sm text-muted-foreground">{t('month')}</label>
                                     <select
                                         value={processMonth}
                                         onChange={(e) => setProcessMonth(parseInt(e.target.value))}
-                                        className="w-40 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
+                                        className="w-40 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground"
                                     >
                                         {months.map((m, i) => (
                                             <option key={i} value={i + 1}>{m}</option>
@@ -263,61 +266,61 @@ export default function PayrollPage() {
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm text-white/60">Year</label>
+                                    <label className="text-sm text-muted-foreground">{t('year')}</label>
                                     <Input
                                         type="number"
                                         value={processYear}
                                         onChange={(e) => setProcessYear(parseInt(e.target.value))}
-                                        className="w-32 bg-white/5 border-white/10 text-white"
+                                        className="w-32 bg-hover border-card-border text-foreground"
                                     />
                                 </div>
-                                <Button onClick={fetchData} variant="outline" className="border-white/10">
-                                    Load Data
+                                <Button onClick={fetchData} variant="outline" className="border-card-border">
+                                    {t('loadData')}
                                 </Button>
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Payroll Summary */}
-                    <Card className="bg-[#12121A] border-white/10">
+                    <Card className="bg-card border-card-border">
                         <CardHeader>
-                            <CardTitle className="text-white">Payroll Summary - {months[processMonth - 1]} {processYear}</CardTitle>
-                            <CardDescription className="text-white/60">
-                                {slips.length} salary slips generated
+                            <CardTitle className="text-foreground">{t('payrollSummary')} - {months[processMonth - 1]} {processYear}</CardTitle>
+                            <CardDescription className="text-muted-foreground">
+                                {slips.length} {t('slipsGenerated')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             {slips.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <FileText className="h-12 w-12 mx-auto text-white/20" />
-                                    <p className="text-white/60 mt-4">No salary slips for this period</p>
+                                    <FileText className="h-12 w-12 mx-auto text-muted-text" />
+                                    <p className="text-muted-foreground mt-4">{t('noSlipsForPeriod')}</p>
                                     <Button
                                         className="mt-4 bg-emerald-600 hover:bg-emerald-700"
                                         onClick={handleProcessPayroll}
                                         disabled={processing}
                                     >
                                         {processing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                                        Process Payroll
+                                        {t('processPayroll')}
                                     </Button>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-3 gap-4">
                                         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                                            <p className="text-emerald-400 text-sm">Total Gross</p>
-                                            <p className="text-2xl font-bold text-white">
+                                            <p className="text-emerald-400 text-sm">{t('totalGross')}</p>
+                                            <p className="text-2xl font-bold text-foreground">
                                                 ৳{slips.reduce((s, sl) => s + sl.grossSalary, 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                                            <p className="text-red-400 text-sm">Total Deductions</p>
-                                            <p className="text-2xl font-bold text-white">
+                                            <p className="text-red-400 text-sm">{t('totalDeductions')}</p>
+                                            <p className="text-2xl font-bold text-foreground">
                                                 ৳{totalDeductions.toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                            <p className="text-blue-400 text-sm">Net Payable</p>
-                                            <p className="text-2xl font-bold text-white">
+                                            <p className="text-blue-400 text-sm">{t('netPayable')}</p>
+                                            <p className="text-2xl font-bold text-foreground">
                                                 ৳{totalPayroll.toLocaleString()}
                                             </p>
                                         </div>
@@ -329,59 +332,59 @@ export default function PayrollPage() {
                 </TabsContent>
 
                 <TabsContent value="assignments" className="mt-4">
-                    <Card className="bg-[#12121A] border-white/10">
+                    <Card className="bg-card border-card-border">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div>
-                                <CardTitle className="text-white">Active Salary Assignments</CardTitle>
-                                <CardDescription className="text-white/60">
-                                    {assignments.length} employees with assigned salary
+                                <CardTitle className="text-foreground">{t('activeAssignmentsTitle')}</CardTitle>
+                                <CardDescription className="text-muted-foreground">
+                                    {assignments.length} {t('employeesWithAssignedSalary')}
                                 </CardDescription>
                             </div>
                             <Button onClick={() => setShowAssignmentForm(true)} className="bg-blue-600 hover:bg-blue-700">
                                 <Plus className="h-4 w-4 mr-2" />
-                                New Assignment
+                                {t('newAssignment')}
                             </Button>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
                                 <div className="flex items-center justify-center py-12">
-                                    <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+                                    <Loader2 className="h-8 w-8 animate-spin text-tertiary-foreground" />
                                 </div>
                             ) : assignments.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <Users className="h-12 w-12 mx-auto text-white/20" />
-                                    <p className="text-white/60 mt-4">No salary assignments yet</p>
+                                    <Users className="h-12 w-12 mx-auto text-muted-text" />
+                                    <p className="text-muted-foreground mt-4">{t('noAssignmentsYet')}</p>
                                     <Button
                                         className="mt-4"
                                         onClick={() => setShowAssignmentForm(true)}
                                     >
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Assign First Salary
+                                        {t('assignFirstSalary')}
                                     </Button>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="border-b border-white/10 text-left text-white/60">
-                                                <th className="pb-3 font-medium">Employee</th>
-                                                <th className="pb-3 font-medium">Structure</th>
-                                                <th className="pb-3 font-medium text-right">Gross</th>
-                                                <th className="pb-3 font-medium text-right">Basic</th>
-                                                <th className="pb-3 font-medium text-right">Net Salary</th>
-                                                <th className="pb-3 font-medium">Effective From</th>
-                                                <th className="pb-3 font-medium">Status</th>
+                                            <tr className="border-b border-card-border text-left text-muted-foreground">
+                                                <th className="pb-3 font-medium">{t('employee')}</th>
+                                                <th className="pb-3 font-medium">{t('structure')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('gross')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('basic')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('netSalary')}</th>
+                                                <th className="pb-3 font-medium">{t('effectiveFrom')}</th>
+                                                <th className="pb-3 font-medium">{t('status')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {assignments.map((a) => (
-                                                <tr key={a.id} className="text-white/80 hover:bg-white/5">
+                                                <tr key={a.id} className="text-foreground hover:bg-hover">
                                                     <td className="py-4">
                                                         <div>
-                                                            <p className="font-medium text-white">
+                                                            <p className="font-medium text-foreground">
                                                                 {a.employee.firstName} {a.employee.lastName}
                                                             </p>
-                                                            <p className="text-sm text-white/50">
+                                                            <p className="text-sm text-tertiary-foreground">
                                                                 {a.employee.employeeCode}
                                                             </p>
                                                         </div>
@@ -397,7 +400,7 @@ export default function PayrollPage() {
                                                     </td>
                                                     <td className="py-4">
                                                         <Badge variant={a.isActive ? "success" : "secondary"}>
-                                                            {a.isActive ? "Active" : "Inactive"}
+                                                            {a.isActive ? t('active') : t('inactive')}
                                                         </Badge>
                                                     </td>
                                                 </tr>
@@ -411,50 +414,61 @@ export default function PayrollPage() {
                 </TabsContent>
 
                 <TabsContent value="slips" className="mt-4">
-                    <Card className="bg-[#12121A] border-white/10">
+                    <Card className="bg-card border-card-border">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div>
-                                <CardTitle className="text-white">
-                                    Salary Slips - {months[processMonth - 1]} {processYear}
+                                <CardTitle className="text-foreground">
+                                    {t('slipsTab')} - {months[processMonth - 1]} {processYear}
                                 </CardTitle>
-                                <CardDescription className="text-white/60">
-                                    {slips.length} slips generated
+                                <CardDescription className="text-muted-foreground">
+                                    {slips.length} {t('slipsGenerated')}
                                 </CardDescription>
                             </div>
-                            <Button variant="outline" className="border-white/10">
+                            <Button
+                                variant="outline"
+                                className="border-card-border"
+                                disabled={slips.length === 0}
+                                onClick={() => {
+                                    const formatted = formatPayrollExport(slips)
+                                    exportToExcel(formatted, {
+                                        filename: `Salary_Slips_${months[processMonth - 1]}_${processYear}`,
+                                        sheetName: "Salary Slips",
+                                    })
+                                }}
+                            >
                                 <Download className="h-4 w-4 mr-2" />
-                                Export All
+                                {t('exportAll')}
                             </Button>
                         </CardHeader>
                         <CardContent>
                             {slips.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <FileText className="h-12 w-12 mx-auto text-white/20" />
-                                    <p className="text-white/60 mt-4">No slips for this period</p>
+                                    <FileText className="h-12 w-12 mx-auto text-muted-text" />
+                                    <p className="text-muted-foreground mt-4">{t('noSlipsThisPeriod')}</p>
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
-                                            <tr className="border-b border-white/10 text-left text-white/60">
-                                                <th className="pb-3 font-medium">Employee</th>
-                                                <th className="pb-3 font-medium">Department</th>
-                                                <th className="pb-3 font-medium text-right">Gross</th>
-                                                <th className="pb-3 font-medium text-right">Deductions</th>
-                                                <th className="pb-3 font-medium text-right">Net Salary</th>
-                                                <th className="pb-3 font-medium">Status</th>
-                                                <th className="pb-3 font-medium">Actions</th>
+                                            <tr className="border-b border-card-border text-left text-muted-foreground">
+                                                <th className="pb-3 font-medium">{t('employee')}</th>
+                                                <th className="pb-3 font-medium">{t('department')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('gross')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('deductions')}</th>
+                                                <th className="pb-3 font-medium text-right">{t('netSalary')}</th>
+                                                <th className="pb-3 font-medium">{t('status')}</th>
+                                                <th className="pb-3 font-medium">{t('actions')}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {slips.map((slip) => (
-                                                <tr key={slip.id} className="text-white/80 hover:bg-white/5">
+                                                <tr key={slip.id} className="text-foreground hover:bg-hover">
                                                     <td className="py-4">
                                                         <div>
-                                                            <p className="font-medium text-white">
+                                                            <p className="font-medium text-foreground">
                                                                 {slip.employee.firstName} {slip.employee.lastName}
                                                             </p>
-                                                            <p className="text-sm text-white/50">
+                                                            <p className="text-sm text-tertiary-foreground">
                                                                 {slip.employee.employeeCode}
                                                             </p>
                                                         </div>
@@ -478,7 +492,7 @@ export default function PayrollPage() {
                                                         </Badge>
                                                     </td>
                                                     <td className="py-4">
-                                                        <Button size="sm" variant="ghost" className="text-white/60 hover:text-white">
+                                                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground">
                                                             <Download className="h-4 w-4" />
                                                         </Button>
                                                     </td>

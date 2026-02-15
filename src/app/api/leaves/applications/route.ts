@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated, AuthContext } from "@/lib/api-auth";
-import { differenceInDays } from "date-fns";
+import { format } from "date-fns";
+import {
+    calculateWorkingDays,
+    checkOverlappingLeaves,
+    checkMinServiceEligibility,
+    checkGenderEligibility,
+    createLeaveNotification,
+    getWeekendDays,
+    fetchHolidays,
+} from "@/lib/leave-utils";
 
 export async function GET(req: Request) {
     // Authenticate first
@@ -14,6 +23,9 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const employeeId = searchParams.get("employeeId");
         const status = searchParams.get("status");
+        const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+        const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
+        const skip = (page - 1) * limit;
 
         // Get user details for role check
         const user = await prisma.user.findUnique({
@@ -41,25 +53,38 @@ export async function GET(req: Request) {
             where.status = status;
         }
 
-        const applications = await prisma.leaveApplication.findMany({
-            where,
-            include: {
-                leaveType: true,
-                employee: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        photoUrl: true,
-                        designation: {
-                            select: { name: true }
+        const [applications, total] = await Promise.all([
+            prisma.leaveApplication.findMany({
+                where,
+                include: {
+                    leaveType: true,
+                    employee: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            photoUrl: true,
+                            designation: {
+                                select: { name: true }
+                            }
                         }
-                    }
+                    },
                 },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+                orderBy: { createdAt: "desc" },
+                skip,
+                take: limit,
+            }),
+            prisma.leaveApplication.count({ where }),
+        ]);
 
-        return NextResponse.json(applications);
+        return NextResponse.json({
+            data: applications,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
     } catch (error) {
         console.error("GET_LEAVE_APPLICATIONS_ERROR", error);
         return new NextResponse("Internal Error", { status: 500 });
@@ -74,10 +99,18 @@ export async function POST(req: Request) {
     }
 
     try {
-        // Get employee profile
+        // Get employee profile with organization settings
         const user = await prisma.user.findUnique({
             where: { id: auth.userId },
-            include: { employee: true },
+            include: {
+                employee: {
+                    include: {
+                        organization: {
+                            select: { settings: true },
+                        },
+                    },
+                },
+            },
         });
 
         if (!user?.employee) {
@@ -90,18 +123,12 @@ export async function POST(req: Request) {
         const start = new Date(fromDate);
         const end = new Date(toDate);
 
-        // Basic validation
+        // ── Validation 1: Basic date validation ──
         if (end < start) {
             return new NextResponse("End date cannot be before start date", { status: 400 });
         }
 
-        // Calculate duration
-        let totalDays = differenceInDays(end, start) + 1;
-        if (halfDay) {
-            totalDays = 0.5;
-        }
-
-        // Fetch Leave Type
+        // ── Validation 2: Fetch Leave Type ──
         const leaveType = await prisma.leaveType.findUnique({
             where: { id: leaveTypeId },
         });
@@ -110,7 +137,79 @@ export async function POST(req: Request) {
             return new NextResponse("Leave type not found", { status: 404 });
         }
 
-        // Check or Create Allocation
+        // ── Validation 3: Gender eligibility check ──
+        if (!checkGenderEligibility(user.employee.gender, leaveType.applicableGender)) {
+            return new NextResponse(
+                `This leave type (${leaveType.name}) is only available for ${leaveType.applicableGender} employees`,
+                { status: 403 }
+            );
+        }
+
+        // ── Validation 4: Minimum service days check ──
+        const serviceCheck = checkMinServiceEligibility(
+            user.employee.joiningDate,
+            leaveType.minServiceDays
+        );
+        if (!serviceCheck.eligible) {
+            return new NextResponse(
+                `You need at least ${serviceCheck.required} days of service to apply for ${leaveType.name}. ` +
+                `Your current service: ${serviceCheck.serviceDays} days.`,
+                { status: 403 }
+            );
+        }
+
+        // ── Validation 5: Overlapping leave check ──
+        const overlappingLeaves = await checkOverlappingLeaves(
+            prisma,
+            user.employee.id,
+            start,
+            end
+        );
+        if (overlappingLeaves.length > 0) {
+            const conflictInfo = overlappingLeaves
+                .map((l: any) =>
+                    `${l.leaveType.name} (${format(new Date(l.fromDate), "dd MMM")} - ${format(new Date(l.toDate), "dd MMM")})`
+                )
+                .join(", ");
+            return new NextResponse(
+                `You already have overlapping leave(s): ${conflictInfo}`,
+                { status: 409 }
+            );
+        }
+
+        // ── Calculate working days (excluding weekends + holidays) ──
+        let totalDays: number;
+        if (halfDay) {
+            totalDays = 0.5;
+        } else {
+            // Get organization weekend configuration
+            const weekendDays = getWeekendDays(user.employee.organization?.settings);
+
+            // Get holidays for the leave period year(s)
+            const leaveYear = start.getFullYear();
+            const holidays = await fetchHolidays(prisma, auth.organizationId, leaveYear);
+
+            // If leave spans across years, also fetch next year's holidays
+            if (end.getFullYear() !== leaveYear) {
+                const nextYearHolidays = await fetchHolidays(
+                    prisma,
+                    auth.organizationId,
+                    end.getFullYear()
+                );
+                holidays.push(...nextYearHolidays);
+            }
+
+            totalDays = calculateWorkingDays(start, end, holidays, weekendDays);
+
+            if (totalDays <= 0) {
+                return new NextResponse(
+                    "The selected dates contain no working days (all weekends/holidays)",
+                    { status: 400 }
+                );
+            }
+        }
+
+        // ── Check or Create Allocation ──
         const currentYear = new Date().getFullYear();
         let allocation = await prisma.leaveAllocation.findUnique({
             where: {
@@ -136,13 +235,16 @@ export async function POST(req: Request) {
             });
         }
 
-        // Check Balance
+        // ── Check Balance ──
         const remainingDays = allocation.allocatedDays + allocation.carriedForward - allocation.usedDays;
         if (totalDays > remainingDays) {
-            return new NextResponse(`Insufficient leave balance. Remaining: ${remainingDays} days`, { status: 400 });
+            return new NextResponse(
+                `Insufficient leave balance. Requested: ${totalDays} working days, Remaining: ${remainingDays} days`,
+                { status: 400 }
+            );
         }
 
-        // Create Application
+        // ── Create Application ──
         const application = await prisma.leaveApplication.create({
             data: {
                 employeeId: user.employee.id,
@@ -156,7 +258,46 @@ export async function POST(req: Request) {
                 documents: documents ? JSON.stringify(documents) : null,
                 status: "pending",
             },
+            include: {
+                leaveType: true,
+                employee: {
+                    select: { firstName: true, lastName: true },
+                },
+            },
         });
+
+        // ── Notify admin/HR users about new leave request ──
+        const notificationData = {
+            applicantName: `${application.employee.firstName} ${application.employee.lastName}`,
+            leaveTypeName: application.leaveType.name,
+            fromDate: format(start, "dd MMM yyyy"),
+            toDate: format(end, "dd MMM yyyy"),
+            totalDays,
+            reason: reason || undefined,
+        };
+
+        // Find admin/HR users in the same organization to notify
+        const adminUsers = await prisma.user.findMany({
+            where: {
+                organizationId: auth.organizationId,
+                role: { in: ["admin", "hr_admin", "manager"] },
+                id: { not: auth.userId }, // Don't notify yourself
+            },
+            select: { id: true },
+        });
+
+        // Send notifications in parallel (fire & forget, errors handled inside)
+        await Promise.allSettled(
+            adminUsers.map((admin: { id: string }) =>
+                createLeaveNotification(
+                    prisma,
+                    "leave_applied",
+                    admin.id,
+                    notificationData,
+                    application.id
+                )
+            )
+        );
 
         return NextResponse.json(application);
     } catch (error) {
@@ -164,3 +305,4 @@ export async function POST(req: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+

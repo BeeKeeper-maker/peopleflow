@@ -6,10 +6,12 @@ import { columns, LeaveType } from "@/components/leaves/types/columns"
 import { Button } from "@/components/ui/button"
 import { Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useTranslations } from "next-intl"
 
 export default function LeaveTypesPage() {
     const [data, setData] = useState<LeaveType[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const t = useTranslations('Leaves')
 
     useEffect(() => {
         const fetchData = async () => {
@@ -32,21 +34,21 @@ export default function LeaveTypesPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Leave Types</h1>
-                    <p className="text-white/60 mt-1">
-                        Configure different types of leaves and their policies
+                    <h1 className="text-2xl font-bold text-foreground">{t('typesTitle')}</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {t('typesSubtitle')}
                     </p>
                 </div>
                 <Link href="/leaves/types/new">
-                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-foreground">
                         <Plus className="h-4 w-4" />
-                        Add Leave Type
+                        {t('addLeaveType')}
                     </Button>
                 </Link>
             </div>
 
             {isLoading ? (
-                <div className="flex h-64 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                <div className="flex h-64 items-center justify-center rounded-xl border border-card-border bg-hover">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 </div>
             ) : (
@@ -54,7 +56,7 @@ export default function LeaveTypesPage() {
                     columns={columns}
                     data={data}
                     searchKey="name"
-                    placeholder="Search leave types..."
+                    placeholder={t('typesSearchPlaceholder')}
                 />
             )}
         </div>

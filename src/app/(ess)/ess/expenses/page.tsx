@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
     Receipt,
     Plus,
@@ -25,48 +26,55 @@ interface ExpenseClaim {
     id: string;
     claimNumber: string;
     title: string;
-    description?: string;
+    category: string;
     amount: number;
-    expenseDate: string;
-    status: "draft" | "submitted" | "approved" | "rejected" | "reimbursed" | "cancelled";
-    submittedAt?: string;
-    approvedAt?: string;
-    rejectedAt?: string;
-    reimbursedAt?: string;
-    approverNotes?: string;
-    category: {
-        id: string;
-        name: string;
-        color?: string;
-    };
+    date: string;
+    status: "draft" | "pending" | "approved" | "rejected" | "reimbursed";
+    description?: string;
+    receiptUrl?: string;
+    createdAt: string;
+}
+
+interface ExpenseStats {
+    pending: number;
+    approved: number;
+    reimbursed: number;
+    totalReimbursed: number;
 }
 
 export default function ESSExpensesPage() {
+    const t = useTranslations("ESSExpenses");
     const [isLoading, setIsLoading] = useState(true);
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<ExpenseStats>({
         pending: 0,
         approved: 0,
         reimbursed: 0,
-        totalAmount: 0,
+        totalReimbursed: 0,
     });
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await fetch("/api/expenses/claims");
-                if (response.ok) {
-                    const data = await response.json();
-                    setClaims(data);
+                const res = await fetch("/api/expenses");
+                if (res.ok) {
+                    const data = await res.json();
+                    const expenseClaims = data.data || data || [];
+                    setClaims(expenseClaims);
 
                     // Calculate stats
+                    const pendingCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "pending").length;
+                    const approvedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "approved").length;
+                    const reimbursedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "reimbursed").length;
+                    const totalReimbursedAmount = expenseClaims
+                        .filter((c: ExpenseClaim) => c.status === "reimbursed")
+                        .reduce((sum: number, c: ExpenseClaim) => sum + c.amount, 0);
+
                     setStats({
-                        pending: data.filter((c: ExpenseClaim) => c.status === "submitted").length,
-                        approved: data.filter((c: ExpenseClaim) => c.status === "approved").length,
-                        reimbursed: data.filter((c: ExpenseClaim) => c.status === "reimbursed").length,
-                        totalAmount: data
-                            .filter((c: ExpenseClaim) => c.status === "reimbursed")
-                            .reduce((acc: number, c: ExpenseClaim) => acc + c.amount, 0),
+                        pending: pendingCount,
+                        approved: approvedCount,
+                        reimbursed: reimbursedCount,
+                        totalReimbursed: totalReimbursedAmount,
                     });
                 }
             } catch (error) {
@@ -85,35 +93,35 @@ export default function ESSExpensesPage() {
                 return (
                     <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">
                         <FileText className="h-3 w-3 mr-1" />
-                        Draft
+                        {t("draft")}
                     </Badge>
                 );
-            case "submitted":
+            case "pending":
                 return (
                     <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                         <Clock className="h-3 w-3 mr-1" />
-                        Pending
+                        {t("pending")}
                     </Badge>
                 );
             case "approved":
                 return (
                     <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Approved
+                        {t("approved")}
                     </Badge>
                 );
             case "rejected":
                 return (
                     <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
                         <XCircle className="h-3 w-3 mr-1" />
-                        Rejected
+                        {t("rejected")}
                     </Badge>
                 );
             case "reimbursed":
                 return (
                     <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
                         <DollarSign className="h-3 w-3 mr-1" />
-                        Reimbursed
+                        {t("reimbursed")}
                     </Badge>
                 );
             default:
@@ -125,13 +133,12 @@ export default function ESSExpensesPage() {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-12 w-64" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
-                    <Skeleton className="h-24" />
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <Skeleton className="h-32" />
+                    <Skeleton className="h-32" />
+                    <Skeleton className="h-32" />
+                    <Skeleton className="h-32" />
                 </div>
-                <Skeleton className="h-64" />
             </div>
         );
     }
@@ -141,69 +148,67 @@ export default function ESSExpensesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">My Expenses</h1>
-                    <p className="text-white/60 mt-1">
-                        Track and submit expense claims
-                    </p>
+                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
                 </div>
                 <Link href="/ess/expenses/new">
                     <Button className="bg-blue-600 hover:bg-blue-500">
                         <Plus className="h-4 w-4 mr-2" />
-                        New Expense Claim
+                        {t("newExpenseClaim")}
                     </Button>
                 </Link>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-[#141419] border-white/5">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
                                 <Clock className="h-5 w-5 text-yellow-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-white">{stats.pending}</p>
-                                <p className="text-xs text-white/60">Pending</p>
+                                <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
+                                <p className="text-xs text-muted-foreground">{t("pendingStat")}</p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-[#141419] border-white/5">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-white">{stats.approved}</p>
-                                <p className="text-xs text-white/60">Approved</p>
+                                <p className="text-2xl font-bold text-foreground">{stats.approved}</p>
+                                <p className="text-xs text-muted-foreground">{t("approvedStat")}</p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-[#141419] border-white/5">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
                                 <DollarSign className="h-5 w-5 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-white">{stats.reimbursed}</p>
-                                <p className="text-xs text-white/60">Reimbursed</p>
+                                <p className="text-2xl font-bold text-foreground">{stats.reimbursed}</p>
+                                <p className="text-xs text-muted-foreground">{t("reimbursedStat")}</p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-[#141419] border-white/5">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
                                 <Receipt className="h-5 w-5 text-purple-400" />
                             </div>
                             <div>
-                                <p className="text-lg font-bold text-white">{formatCurrency(stats.totalAmount)}</p>
-                                <p className="text-xs text-white/60">Total Reimbursed</p>
+                                <p className="text-lg font-bold text-foreground">{formatCurrency(stats.totalReimbursed)}</p>
+                                <p className="text-xs text-muted-foreground">{t("totalReimbursed")}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -211,22 +216,22 @@ export default function ESSExpensesPage() {
             </div>
 
             {/* Claims List */}
-            <Card className="bg-[#141419] border-white/5">
+            <Card className="bg-card border-card-border">
                 <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
+                    <CardTitle className="text-foreground flex items-center gap-2">
                         <Receipt className="h-5 w-5 text-blue-400" />
-                        Expense Claims
+                        {t("expenseClaims")}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     {claims.length === 0 ? (
                         <div className="p-8 text-center">
-                            <Receipt className="h-12 w-12 text-white/20 mx-auto mb-4" />
-                            <p className="text-white/60 mb-4">No expense claims yet</p>
+                            <Receipt className="h-12 w-12 text-muted-text mx-auto mb-4" />
+                            <p className="text-muted-foreground mb-4">{t("noClaimsYet")}</p>
                             <Link href="/ess/expenses/new">
                                 <Button className="bg-blue-600 hover:bg-blue-500">
                                     <Plus className="h-4 w-4 mr-2" />
-                                    Create Your First Claim
+                                    {t("createFirstClaim")}
                                 </Button>
                             </Link>
                         </div>
@@ -234,81 +239,45 @@ export default function ESSExpensesPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
-                                    <tr className="border-b border-white/5">
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-white/60">Claim #</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-white/60">Title</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-white/60">Category</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-white/60">Date</th>
-                                        <th className="px-4 py-3 text-right text-sm font-medium text-white/60">Amount</th>
-                                        <th className="px-4 py-3 text-left text-sm font-medium text-white/60">Status</th>
-                                        <th className="px-4 py-3 text-center text-sm font-medium text-white/60">Actions</th>
+                                    <tr className="border-b border-card-border">
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("claimNo")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("titleCol")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("categoryCol")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("dateCol")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("amountCol")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("statusCol")}</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{t("actionsCol")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {claims.map((claim) => (
                                         <tr
                                             key={claim.id}
-                                            className="border-b border-white/5 hover:bg-white/5"
+                                            className="border-b border-card-border hover:bg-hover"
                                         >
-                                            <td className="px-4 py-3 text-sm text-white font-mono">
+                                            <td className="px-4 py-3 text-sm text-tertiary-foreground">
                                                 {claim.claimNumber}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <p className="text-sm text-white">{claim.title}</p>
-                                                {claim.description && (
-                                                    <p className="text-xs text-white/40 truncate max-w-[200px]">
-                                                        {claim.description}
-                                                    </p>
-                                                )}
+                                            <td className="px-4 py-3 text-sm text-foreground">
+                                                {claim.title}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <Badge
-                                                    className="text-xs"
-                                                    style={{
-                                                        backgroundColor: `${claim.category.color}20` || "#ffffff20",
-                                                        color: claim.category.color || "#ffffff",
-                                                        borderColor: `${claim.category.color}30` || "#ffffff30",
-                                                    }}
-                                                >
-                                                    {claim.category.name}
-                                                </Badge>
+                                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                                                {claim.category}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-white/60">
-                                                {new Date(claim.expenseDate).toLocaleDateString()}
+                                            <td className="px-4 py-3 text-sm text-muted-foreground">
+                                                {new Date(claim.date).toLocaleDateString()}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-white font-medium text-right">
+                                            <td className="px-4 py-3 text-sm font-medium text-foreground">
                                                 {formatCurrency(claim.amount)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {getStatusBadge(claim.status)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    {claim.status === "draft" && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300"
-                                                        >
-                                                            <Send className="h-4 w-4" />
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 p-0 text-white/60 hover:text-white"
-                                                    >
+                                                <div className="flex items-center gap-1">
+                                                    <Button size="sm" variant="ghost" className="text-blue-400 h-8 w-8 p-0">
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
-                                                    {(claim.status === "draft" || claim.status === "rejected") && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 w-8 p-0 text-red-400 hover:text-red-300"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

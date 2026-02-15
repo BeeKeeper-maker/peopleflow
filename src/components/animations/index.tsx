@@ -192,7 +192,7 @@ export function Pulse({ children }: { children: ReactNode }) {
 export function Shimmer({ className }: { className?: string }) {
     return (
         <motion.div
-            className={`bg-gradient-to-r from-white/5 via-white/10 to-white/5 ${className}`}
+            className={`bg-linear-to-r from-white/5 via-white/10 to-white/5 ${className}`}
             animate={{
                 backgroundPosition: ["200% 0", "-200% 0"],
             }}

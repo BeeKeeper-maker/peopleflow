@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
     Calendar,
     ArrowLeft,
@@ -22,126 +23,145 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 interface LeaveType {
     id: string;
     name: string;
-    remaining: number;
+    nameBn?: string;
+    code: string;
+    maxDaysPerYear: number;
+    remainingDays: number;
 }
 
 export default function ApplyLeavePage() {
+    const t = useTranslations("ESSLeaves");
     const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+    const [isLoadingTypes, setIsLoadingTypes] = useState(true);
 
     const [formData, setFormData] = useState({
-        leaveType: "",
-        fromDate: "",
-        toDate: "",
+        leaveTypeId: "",
+        startDate: "",
+        endDate: "",
         reason: "",
         isHalfDay: false,
-        halfDayType: "", // 'first_half' or 'second_half'
-        attachments: [] as File[],
+        halfDayType: "",
     });
 
-    const [errors, setErrors] = useState<Record<string, string>>({});
+    useEffect(() => {
+        const fetchLeaveTypes = async () => {
+            try {
+                const res = await fetch("/api/leaves/types");
+                if (res.ok) {
+                    const data = await res.json();
+                    setLeaveTypes(data.data || data || []);
+                }
+            } catch (error) {
+                console.error("Error fetching leave types:", error);
+            } finally {
+                setIsLoadingTypes(false);
+            }
+        };
 
-    // Calculate number of days
+        fetchLeaveTypes();
+    }, []);
+
+    const selectedLeaveType = leaveTypes.find((lt) => lt.id === formData.leaveTypeId);
+
     const calculateDays = () => {
-        if (!formData.fromDate || !formData.toDate) return 0;
-        const from = new Date(formData.fromDate);
-        const to = new Date(formData.toDate);
-        const diff = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (!formData.startDate || !formData.endDate) return 0;
+        const start = new Date(formData.startDate);
+        const end = new Date(formData.endDate);
+        const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         return formData.isHalfDay ? 0.5 : Math.max(0, diff);
     };
 
-    useEffect(() => {
-        // Fetch leave types
-        setLeaveTypes([
-            { id: "cl", name: "Casual Leave", remaining: 8 },
-            { id: "sl", name: "Sick Leave", remaining: 11 },
-            { id: "al", name: "Annual Leave", remaining: 10 },
-            { id: "co", name: "Compensatory Leave", remaining: 2 },
-        ]);
-    }, []);
+    const totalDays = calculateDays();
 
-    const validate = () => {
-        const newErrors: Record<string, string> = {};
-
-        if (!formData.leaveType) {
-            newErrors.leaveType = "Please select a leave type";
+    const handleSubmit = async () => {
+        // Validation
+        if (!formData.leaveTypeId) {
+            toast.error(t("errSelectLeaveType"));
+            return;
         }
-        if (!formData.fromDate) {
-            newErrors.fromDate = "Start date is required";
+        if (!formData.startDate) {
+            toast.error(t("errStartDate"));
+            return;
         }
-        if (!formData.toDate) {
-            newErrors.toDate = "End date is required";
+        if (!formData.endDate) {
+            toast.error(t("errEndDate"));
+            return;
         }
-        if (formData.fromDate && formData.toDate) {
-            const from = new Date(formData.fromDate);
-            const to = new Date(formData.toDate);
-            if (to < from) {
-                newErrors.toDate = "End date cannot be before start date";
-            }
+        if (new Date(formData.endDate) < new Date(formData.startDate)) {
+            toast.error(t("errEndBeforeStart"));
+            return;
         }
         if (!formData.reason.trim()) {
-            newErrors.reason = "Reason is required";
+            toast.error(t("errReason"));
+            return;
         }
         if (formData.isHalfDay && !formData.halfDayType) {
-            newErrors.halfDayType = "Please select half day type";
+            toast.error(t("errHalfDayType"));
+            return;
         }
 
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!validate()) return;
-
-        setIsLoading(true);
-
+        setIsSubmitting(true);
         try {
-            // TODO: Call API to submit leave application
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            const res = await fetch("/api/leaves/applications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    leaveTypeId: formData.leaveTypeId,
+                    fromDate: formData.startDate,
+                    toDate: formData.endDate,
+                    reason: formData.reason,
+                    isHalfDay: formData.isHalfDay,
+                    halfDayType: formData.halfDayType || undefined,
+                    totalDays,
+                }),
+            });
 
-            setIsSubmitted(true);
+            if (res.ok) {
+                setIsSuccess(true);
+            } else {
+                const data = await res.json();
+                toast.error(data.error || t("submitFailed"));
+            }
         } catch (error) {
             console.error("Error submitting leave:", error);
+            toast.error(t("submitFailed"));
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     };
 
-    if (isSubmitted) {
+    if (isSuccess) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <Card className="bg-[#141419] border-white/5 max-w-md w-full">
+                <Card className="bg-card border-card-border max-w-md w-full">
                     <CardContent className="p-8 text-center">
                         <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                             <CheckCircle2 className="h-8 w-8 text-green-400" />
                         </div>
-                        <h2 className="text-xl font-semibold text-white mb-2">
-                            Leave Application Submitted!
+                        <h2 className="text-xl font-bold text-foreground mb-2">
+                            {t("submitSuccess")}
                         </h2>
-                        <p className="text-white/60 mb-6">
-                            Your leave request has been submitted for approval. You'll be notified
-                            once your manager reviews it.
+                        <p className="text-muted-foreground mb-6">
+                            {t("submitSuccessDesc")}
                         </p>
                         <div className="flex gap-3 justify-center">
                             <Link href="/ess/leaves">
-                                <Button
-                                    variant="outline"
-                                    className="border-white/10 text-white/60 hover:text-white"
-                                >
-                                    View My Leaves
+                                <Button variant="outline" className="border-card-border">
+                                    {t("viewMyLeaves")}
                                 </Button>
                             </Link>
                             <Link href="/ess/dashboard">
                                 <Button className="bg-blue-600 hover:bg-blue-500">
-                                    Go to Dashboard
+                                    {t("goToDashboard")}
                                 </Button>
                             </Link>
                         </div>
@@ -152,219 +172,148 @@ export default function ApplyLeavePage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-2xl mx-auto">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Link href="/ess/leaves">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-white/60 hover:text-white hover:bg-white/5"
-                    >
+                    <Button variant="ghost" size="icon" className="text-muted-foreground">
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Apply for Leave</h1>
-                    <p className="text-white/60 mt-1">
-                        Submit a new leave request to your manager
-                    </p>
+                    <h1 className="text-2xl font-bold text-foreground">{t("applyTitle")}</h1>
+                    <p className="text-muted-foreground mt-1">{t("applySubtitle")}</p>
                 </div>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit}>
-                <Card className="bg-[#141419] border-white/5">
-                    <CardHeader>
-                        <CardTitle className="text-white flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-blue-400" />
-                            Leave Details
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {/* Leave Type */}
+            <Card className="bg-card border-card-border">
+                <CardHeader>
+                    <CardTitle className="text-foreground flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-blue-400" />
+                        {t("leaveDetails")}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Leave Type */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">{t("leaveType")}</Label>
+                        <Select
+                            value={formData.leaveTypeId}
+                            onValueChange={(value) => setFormData({ ...formData, leaveTypeId: value })}
+                        >
+                            <SelectTrigger className="bg-background border-card-border text-foreground">
+                                <SelectValue placeholder={isLoadingTypes ? t("loading") : t("selectLeaveType")} />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background border-card-border">
+                                {leaveTypes.map((lt) => (
+                                    <SelectItem key={lt.id} value={lt.id}>
+                                        {lt.name} {t("daysLeft", { count: lt.remainingDays })}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Date Range */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-white">Leave Type *</Label>
+                            <Label className="text-muted-foreground">{t("fromDate")}</Label>
+                            <Input
+                                type="date"
+                                value={formData.startDate}
+                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                className="bg-background border-card-border text-foreground"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-muted-foreground">{t("toDate")}</Label>
+                            <Input
+                                type="date"
+                                value={formData.endDate}
+                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                                className="bg-background border-card-border text-foreground"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Half Day Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-background rounded-lg">
+                        <div>
+                            <p className="text-sm font-medium text-foreground">{t("halfDayLeave")}</p>
+                        </div>
+                        <Switch
+                            checked={formData.isHalfDay}
+                            onCheckedChange={(checked) =>
+                                setFormData({ ...formData, isHalfDay: checked, halfDayType: "" })
+                            }
+                        />
+                    </div>
+
+                    {formData.isHalfDay && (
+                        <div className="space-y-2">
+                            <Label className="text-muted-foreground">{t("selectHalf")}</Label>
                             <Select
-                                value={formData.leaveType}
-                                onValueChange={(value) =>
-                                    setFormData({ ...formData, leaveType: value })
-                                }
+                                value={formData.halfDayType}
+                                onValueChange={(value) => setFormData({ ...formData, halfDayType: value })}
                             >
-                                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                                    <SelectValue placeholder="Select leave type" />
+                                <SelectTrigger className="bg-background border-card-border text-foreground">
+                                    <SelectValue placeholder={t("selectHalf")} />
                                 </SelectTrigger>
-                                <SelectContent className="bg-[#1A1A1F] border-white/10">
-                                    {leaveTypes.map((type) => (
-                                        <SelectItem
-                                            key={type.id}
-                                            value={type.id}
-                                            className="text-white hover:bg-white/10"
-                                        >
-                                            <div className="flex items-center justify-between w-full gap-4">
-                                                <span>{type.name}</span>
-                                                <span className="text-xs text-white/40">
-                                                    ({type.remaining} days left)
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
+                                <SelectContent className="bg-background border-card-border">
+                                    <SelectItem value="first_half">{t("firstHalf")}</SelectItem>
+                                    <SelectItem value="second_half">{t("secondHalf")}</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {errors.leaveType && (
-                                <p className="text-sm text-red-400">{errors.leaveType}</p>
-                            )}
                         </div>
+                    )}
 
-                        {/* Date Range */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <Label className="text-white">From Date *</Label>
-                                <Input
-                                    type="date"
-                                    value={formData.fromDate}
-                                    onChange={(e) =>
-                                        setFormData({ ...formData, fromDate: e.target.value })
-                                    }
-                                    className="bg-white/5 border-white/10 text-white [color-scheme:dark]"
-                                />
-                                {errors.fromDate && (
-                                    <p className="text-sm text-red-400">{errors.fromDate}</p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-white">To Date *</Label>
-                                <Input
-                                    type="date"
-                                    value={formData.toDate}
-                                    onChange={(e) =>
-                                        setFormData({ ...formData, toDate: e.target.value })
-                                    }
-                                    className="bg-white/5 border-white/10 text-white [color-scheme:dark]"
-                                />
-                                {errors.toDate && (
-                                    <p className="text-sm text-red-400">{errors.toDate}</p>
-                                )}
-                            </div>
+                    {/* Days Summary */}
+                    {totalDays > 0 && (
+                        <div className="p-3 bg-blue-500/10 rounded-lg text-sm font-medium text-blue-400">
+                            <Calendar className="h-4 w-4 inline mr-2" />
+                            {totalDays === 1
+                                ? t("daysOfLeave", { count: totalDays })
+                                : t("daysOfLeavePlural", { count: totalDays })}
                         </div>
+                    )}
 
-                        {/* Half Day Option */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <input
-                                    type="checkbox"
-                                    id="halfDay"
-                                    checked={formData.isHalfDay}
-                                    onChange={(e) =>
-                                        setFormData({
-                                            ...formData,
-                                            isHalfDay: e.target.checked,
-                                            // Auto-set toDate same as fromDate for half day
-                                            toDate: e.target.checked ? formData.fromDate : formData.toDate,
-                                        })
-                                    }
-                                    className="h-4 w-4 rounded border-white/20 bg-white/5 text-blue-600"
-                                />
-                                <Label htmlFor="halfDay" className="text-white cursor-pointer">
-                                    Half Day Leave
-                                </Label>
-                            </div>
+                    {/* Reason */}
+                    <div className="space-y-2">
+                        <Label className="text-muted-foreground">{t("reasonLabel")}</Label>
+                        <Textarea
+                            value={formData.reason}
+                            onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                            rows={4}
+                            placeholder={t("reasonPlaceholder")}
+                            className="bg-background border-card-border text-foreground"
+                        />
+                    </div>
 
-                            {formData.isHalfDay && (
-                                <div className="space-y-2 pl-7">
-                                    <Label className="text-white/60">Select Half</Label>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="halfDayType"
-                                                value="first_half"
-                                                checked={formData.halfDayType === "first_half"}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, halfDayType: e.target.value })
-                                                }
-                                                className="h-4 w-4 border-white/20 bg-white/5 text-blue-600"
-                                            />
-                                            <span className="text-white">First Half (Morning)</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="halfDayType"
-                                                value="second_half"
-                                                checked={formData.halfDayType === "second_half"}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, halfDayType: e.target.value })
-                                                }
-                                                className="h-4 w-4 border-white/20 bg-white/5 text-blue-600"
-                                            />
-                                            <span className="text-white">Second Half (Afternoon)</span>
-                                        </label>
-                                    </div>
-                                    {errors.halfDayType && (
-                                        <p className="text-sm text-red-400">{errors.halfDayType}</p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Days Summary */}
-                        {calculateDays() > 0 && (
-                            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                <div className="flex items-center gap-2">
-                                    <Calendar className="h-5 w-5 text-blue-400" />
-                                    <span className="text-blue-400 font-medium">
-                                        {calculateDays()} day{calculateDays() !== 1 ? "s" : ""} of leave
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Reason */}
-                        <div className="space-y-2">
-                            <Label className="text-white">Reason for Leave *</Label>
-                            <Textarea
-                                value={formData.reason}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, reason: e.target.value })
-                                }
-                                placeholder="Please provide a reason for your leave..."
-                                className="bg-white/5 border-white/10 text-white min-h-[100px]"
-                            />
-                            {errors.reason && (
-                                <p className="text-sm text-red-400">{errors.reason}</p>
-                            )}
-                        </div>
-
-                        {/* Submit */}
-                        <div className="flex items-center justify-end gap-4 pt-4">
-                            <Link href="/ess/leaves">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="border-white/10 text-white/60 hover:text-white"
-                                >
-                                    Cancel
-                                </Button>
-                            </Link>
-                            <Button
-                                type="submit"
-                                disabled={isLoading}
-                                className="bg-blue-600 hover:bg-blue-500"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Submitting...
-                                    </>
-                                ) : (
-                                    "Submit Application"
-                                )}
+                    {/* Actions */}
+                    <div className="flex gap-3 justify-end">
+                        <Link href="/ess/leaves">
+                            <Button variant="outline" className="border-card-border">
+                                {t("cancelBtn")}
                             </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            </form>
+                        </Link>
+                        <Button
+                            className="bg-blue-600 hover:bg-blue-500"
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    {t("submitting")}
+                                </>
+                            ) : (
+                                t("submitApplication")
+                            )}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

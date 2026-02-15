@@ -3,57 +3,44 @@
 /**
  * Locale Provider
  * 
- * Provides i18n context for the entire application
- * Supports English and Bengali (বাংলা)
+ * Manages locale state (en/bn) via localStorage + cookie.
+ * The cookie is read by next-intl's server-side request config.
+ * Translation function is provided by next-intl's useTranslations hook.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { Locale, Translations, getTranslations, t as translate } from "@/lib/i18n";
+
+export type Locale = "en" | "bn";
 
 interface LocaleContextType {
     locale: Locale;
-    translations: Translations;
     setLocale: (locale: Locale) => void;
-    t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const LocaleContext = createContext<LocaleContextType | undefined>(undefined);
 
-const STORAGE_KEY = "peopleflow-locale";
-
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
     const [locale, setLocaleState] = useState<Locale>("en");
-    const [translations, setTranslations] = useState<Translations>(getTranslations("en"));
 
-    // Load saved locale on mount
+    // Initialize from localStorage
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem(STORAGE_KEY) as Locale | null;
-            if (saved && (saved === "en" || saved === "bn")) {
-                setLocaleState(saved);
-                setTranslations(getTranslations(saved));
-            }
+        const stored = localStorage.getItem("peopleflow-locale") as Locale;
+        if (stored === "bn" || stored === "en") {
+            setLocaleState(stored);
         }
     }, []);
 
-    // Update locale
     const setLocale = useCallback((newLocale: Locale) => {
         setLocaleState(newLocale);
-        setTranslations(getTranslations(newLocale));
-        if (typeof window !== "undefined") {
-            localStorage.setItem(STORAGE_KEY, newLocale);
-            // Update HTML lang attribute
-            document.documentElement.lang = newLocale === "bn" ? "bn-BD" : "en";
-        }
+        localStorage.setItem("peopleflow-locale", newLocale);
+        // Set cookie for server-side next-intl to read
+        document.cookie = `peopleflow-locale=${newLocale};path=/;max-age=31536000;SameSite=Lax`;
+        // Reload the page to let next-intl re-read the cookie server-side
+        window.location.reload();
     }, []);
 
-    // Translation function
-    const t = useCallback((key: string, params?: Record<string, string | number>) => {
-        return translate(locale, key, params);
-    }, [locale]);
-
     return (
-        <LocaleContext.Provider value={{ locale, translations, setLocale, t }}>
+        <LocaleContext.Provider value={{ locale, setLocale }}>
             {children}
         </LocaleContext.Provider>
     );
@@ -65,10 +52,4 @@ export function useLocale() {
         throw new Error("useLocale must be used within a LocaleProvider");
     }
     return context;
-}
-
-// Hook for translation only
-export function useTranslation() {
-    const { t, locale } = useLocale();
-    return { t, locale };
 }

@@ -94,10 +94,10 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px] bg-[#1E293B] border-white/10 text-white">
+            <DialogContent className="sm:max-w-[500px] bg-card border-card-border text-foreground">
                 <DialogHeader>
                     <DialogTitle>{initialData ? "Edit Shift" : "Create New Shift"}</DialogTitle>
-                    <DialogDescription className="text-white/60">
+                    <DialogDescription className="text-muted-foreground">
                         Define working hours and rules for this shift.
                     </DialogDescription>
                 </DialogHeader>
@@ -105,7 +105,7 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Shift Name</label>
-                        <Input {...form.register("name")} placeholder="e.g. General Shift" className="bg-white/5 border-white/10" />
+                        <Input {...form.register("name")} placeholder="e.g. General Shift" className="bg-hover border-card-border" />
                         {form.formState.errors.name && (
                             <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>
                         )}
@@ -115,15 +115,15 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Start Time</label>
                             <div className="relative">
-                                <Input type="time" {...form.register("startTime")} className="bg-white/5 border-white/10 pl-9" />
-                                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                                <Input type="time" {...form.register("startTime")} className="bg-hover border-card-border pl-9" />
+                                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-tertiary-foreground" />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">End Time</label>
                             <div className="relative">
-                                <Input type="time" {...form.register("endTime")} className="bg-white/5 border-white/10 pl-9" />
-                                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-white/40" />
+                                <Input type="time" {...form.register("endTime")} className="bg-hover border-card-border pl-9" />
+                                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-tertiary-foreground" />
                             </div>
                         </div>
                     </div>
@@ -131,22 +131,22 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Grace Period (Min)</label>
-                            <Input type="number" {...form.register("graceMinutes")} className="bg-white/5 border-white/10" />
+                            <Input type="number" {...form.register("graceMinutes")} className="bg-hover border-card-border" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Break Duration (Min)</label>
-                            <Input type="number" {...form.register("breakDuration")} className="bg-white/5 border-white/10" />
+                            <Input type="number" {...form.register("breakDuration")} className="bg-hover border-card-border" />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Full Day Hours</label>
-                            <Input type="number" {...form.register("fullDayHours")} className="bg-white/5 border-white/10" />
+                            <Input type="number" {...form.register("fullDayHours")} className="bg-hover border-card-border" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Half Day Hours</label>
-                            <Input type="number" {...form.register("halfDayHours")} className="bg-white/5 border-white/10" />
+                            <Input type="number" {...form.register("halfDayHours")} className="bg-hover border-card-border" />
                         </div>
                     </div>
 
@@ -155,7 +155,7 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
                             id="isDefault"
                             checked={form.watch("isDefault")}
                             onCheckedChange={(c) => form.setValue("isDefault", c as boolean)}
-                            className="border-white/20 data-[state=checked]:bg-blue-600"
+                            className="border-border-hover data-[state=checked]:bg-blue-600"
                         />
                         <label
                             htmlFor="isDefault"
@@ -169,7 +169,7 @@ export function ShiftForm({ open, onOpenChange, initialData, onSuccess }: ShiftF
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                             Cancel
                         </Button>
-                        <Button type="submit" isLoading={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button type="submit" isLoading={isLoading} className="bg-blue-600 hover:bg-blue-700 text-foreground">
                             {initialData ? "Update Shift" : "Create Shift"}
                         </Button>
                     </div>

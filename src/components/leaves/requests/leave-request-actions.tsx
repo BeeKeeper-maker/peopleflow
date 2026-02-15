@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { BadgeCheck, Ban, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +29,8 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
     const [action, setAction] = useState<"approved" | "rejected" | null>(null)
     const [comment, setComment] = useState("")
     const [isOpen, setIsOpen] = useState(false)
+    const t = useTranslations("SharedComponents.leaveRequestActions")
+    const tc = useTranslations("SharedComponents.common")
 
     async function onAction() {
         if (!action) return
@@ -49,7 +52,7 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
             }
 
             addToast({
-                title: action === "approved" ? "Application Approved" : "Application Rejected",
+                title: action === "approved" ? t("applicationApproved") : t("applicationRejected"),
                 type: action === "approved" ? "success" : "info",
             })
 
@@ -57,8 +60,8 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
             router.refresh()
         } catch (error) {
             addToast({
-                title: "Error",
-                description: error instanceof Error ? error.message : "Something went wrong",
+                title: tc("error"),
+                description: error instanceof Error ? error.message : tc("somethingWentWrong"),
                 type: "error",
             })
         } finally {
@@ -77,11 +80,11 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white gap-1 h-8"
+                    className="bg-green-600 hover:bg-green-700 text-foreground gap-1 h-8"
                     onClick={() => openDialog("approved")}
                 >
                     <BadgeCheck className="h-4 w-4" />
-                    Approve
+                    {t("approve")}
                 </Button>
 
                 <Button
@@ -91,47 +94,47 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
                     onClick={() => openDialog("rejected")}
                 >
                     <Ban className="h-4 w-4" />
-                    Reject
+                    {t("reject")}
                 </Button>
 
-                <DialogContent className="sm:max-w-[425px] bg-[#1C1C24] border-white/10 text-white">
+                <DialogContent className="sm:max-w-[425px] bg-muted border-card-border text-foreground">
                     <DialogHeader>
                         <DialogTitle>
-                            {action === "approved" ? "Approve Leave Request" : "Reject Leave Request"}
+                            {action === "approved" ? t("approveTitle") : t("rejectTitle")}
                         </DialogTitle>
-                        <DialogDescription className="text-white/60">
+                        <DialogDescription className="text-muted-foreground">
                             {action === "approved"
-                                ? "Are you sure you want to approve this leave request? Leave balance will be deducted."
-                                : "Are you sure you want to reject this leave request? Please provide a reason."
+                                ? t("approveDescription")
+                                : t("rejectDescription")
                             }
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <Textarea
-                            placeholder={action === "approved" ? "Add an optional comment..." : "Reason for rejection..."}
+                            placeholder={action === "approved" ? t("approveComment") : t("rejectComment")}
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
-                            className="bg-white/5 border-white/10 text-white min-h-[100px]"
+                            className="bg-hover border-card-border text-foreground min-h-[100px]"
                         />
                     </div>
                     <DialogFooter>
                         <Button
                             variant="ghost"
                             onClick={() => setIsOpen(false)}
-                            className="text-white hover:text-white hover:bg-white/10"
+                            className="text-foreground hover:text-foreground hover:bg-hover"
                         >
-                            Cancel
+                            {tc("cancel")}
                         </Button>
                         <Button
                             onClick={onAction}
                             disabled={isLoading}
                             className={cn(
-                                "text-white",
+                                "text-foreground",
                                 action === "approved" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
                             )}
                         >
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Confirm {action === "approved" ? "Approval" : "Rejection"}
+                            {action === "approved" ? t("confirmApproval") : t("confirmRejection")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

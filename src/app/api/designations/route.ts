@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 
 export async function GET(req: Request) {
     try {
@@ -48,17 +49,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for creating designations
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const json = await req.json();
@@ -72,7 +66,7 @@ export async function POST(req: Request) {
         if (code) {
             const existingCode = await prisma.designation.findFirst({
                 where: {
-                    organizationId: user.organizationId,
+                    organizationId: auth.organizationId,
                     code,
                 },
             });
@@ -86,7 +80,7 @@ export async function POST(req: Request) {
             data: {
                 name,
                 code: code || null,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
                 ...rest,
             },
         });

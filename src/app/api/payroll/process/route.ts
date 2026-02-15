@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import * as z from "zod";
 
 const processPayrollSchema = z.object({
@@ -13,17 +12,10 @@ const processPayrollSchema = z.object({
 // GET - List salary slips
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for viewing salary slips
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const { searchParams } = new URL(req.url);
@@ -34,7 +26,7 @@ export async function GET(req: Request) {
 
         const where: any = {
             employee: {
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             },
         };
 
@@ -70,17 +62,10 @@ export async function GET(req: Request) {
 // POST - Process payroll for month
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for processing payroll
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const body = await req.json();
@@ -92,9 +77,9 @@ export async function POST(req: Request) {
 
         const { month, year, employeeIds } = validation.data;
 
-        // Get employees with active salary assignments
+        // Get employees with active salary assignments, attendance, leaves, and loans
         const whereClause: any = {
-            organizationId: user.organizationId,
+            organizationId: auth.organizationId,
             employmentStatus: "active",
             salaryAssignments: {
                 some: {
@@ -144,11 +129,16 @@ export async function POST(req: Request) {
                         ],
                     },
                 },
+                loans: {
+                    where: {
+                        status: "disbursed",
+                        remainingAmount: { gt: 0 },
+                    },
+                },
             },
         });
 
-        const results = [];
-        const errors = [];
+        const skipped: { employeeId: string; name: string; error: string }[] = [];
 
         // Calculate working days in month
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -159,35 +149,68 @@ export async function POST(req: Request) {
         }
         const totalWorkingDays = daysInMonth - weekends;
 
+        // Pre-filter: skip employees who already have slips
+        const eligibleEmployees: typeof employees = [];
         for (const employee of employees) {
-            try {
-                // Check if slip already exists
-                const existingSlip = await prisma.salarySlip.findUnique({
-                    where: {
-                        employeeId_month_year: {
-                            employeeId: employee.id,
-                            month,
-                            year,
-                        },
-                    },
-                });
-
-                if (existingSlip) {
-                    errors.push({
+            const existingSlip = await prisma.salarySlip.findUnique({
+                where: {
+                    employeeId_month_year: {
                         employeeId: employee.id,
-                        name: `${employee.firstName} ${employee.lastName}`,
-                        error: "Slip already exists",
-                    });
-                    continue;
-                }
+                        month,
+                        year,
+                    },
+                },
+            });
 
+            if (existingSlip) {
+                skipped.push({
+                    employeeId: employee.id,
+                    name: `${employee.firstName} ${employee.lastName}`,
+                    error: "Slip already exists",
+                });
+                continue;
+            }
+
+            const assignment = employee.salaryAssignments[0];
+            if (!assignment) {
+                skipped.push({
+                    employeeId: employee.id,
+                    name: `${employee.firstName} ${employee.lastName}`,
+                    error: "No active salary assignment",
+                });
+                continue;
+            }
+
+            eligibleEmployees.push(employee);
+        }
+
+        if (eligibleEmployees.length === 0) {
+            return NextResponse.json({
+                processed: 0,
+                errorCount: skipped.length,
+                results: [],
+                errors: skipped,
+            });
+        }
+
+        // Single atomic transaction for ALL eligible employees
+        const results = await prisma.$transaction(async (tx) => {
+            const created: {
+                employeeId: string;
+                name: string;
+                netSalary: number;
+                overtime: number;
+                loanDeduction: number;
+                incomeTax: number;
+                status: string;
+            }[] = [];
+
+            for (const employee of eligibleEmployees) {
                 const assignment = employee.salaryAssignments[0];
-                if (!assignment) continue;
-
                 const structure = assignment.salaryStructure;
                 const gross = assignment.grossSalary;
 
-                // Calculate earnings
+                // ─── EARNINGS ───
                 const basic = (gross * structure.basicPercentage) / 100;
                 const houseRent = (basic * structure.houseRentPercent) / 100;
                 const medical = (basic * structure.medicalPercent) / 100;
@@ -203,21 +226,59 @@ export async function POST(req: Request) {
                 );
                 const absentDays = Math.max(0, totalWorkingDays - presentDays - leaveDays);
 
-                // Calculate deductions
-                const pfEmployee = (basic * structure.pfEmployeePercent) / 100;
-                const pfEmployer = (basic * structure.pfEmployerPercent) / 100;
+                // ─── OVERTIME ───
+                const totalOvertimeMinutes = employee.attendances.reduce(
+                    (sum, a) => sum + (a.overtimeMinutes || 0),
+                    0
+                );
+                const overtimeHours = totalOvertimeMinutes / 60;
+                const hourlyBasic = basic / (totalWorkingDays * 8);
+                const overtimePay = Math.round(overtimeHours * hourlyBasic * 1.5);
+
+                // ─── DEDUCTIONS ───
+                const pfEmployee = employee.pfEnabled !== false
+                    ? (basic * structure.pfEmployeePercent) / 100
+                    : 0;
+                const pfEmployer = employee.pfEnabled !== false
+                    ? (basic * structure.pfEmployerPercent) / 100
+                    : 0;
+
                 const perDaySalary = gross / totalWorkingDays;
                 const absentDeduction = absentDays * perDaySalary;
 
-                // Calculate late deduction (if > 3 times late, deduct half day per 3 lates)
                 const lateDays = employee.attendances.filter((a) => a.status === "late").length;
                 const lateDeduction = Math.floor(lateDays / 3) * (perDaySalary / 2);
 
-                const totalDeductions = pfEmployee + absentDeduction + lateDeduction;
-                const netSalary = gross - totalDeductions;
+                // ─── LOAN AUTO-DEDUCTION ───
+                let loanDeduction = 0;
+
+                for (const loan of employee.loans) {
+                    const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
+                    loanDeduction += deductionAmount;
+
+                    const newPaid = loan.paidAmount + deductionAmount;
+                    const newRemaining = loan.remainingAmount - deductionAmount;
+
+                    await tx.loan.update({
+                        where: { id: loan.id },
+                        data: {
+                            paidAmount: newPaid,
+                            remainingAmount: newRemaining,
+                            status: newRemaining <= 0 ? "closed" : "disbursed",
+                        },
+                    });
+                }
+
+                // ─── INCOME TAX (simplified TDS) ───
+                const annualGross = gross * 12;
+                const incomeTax = annualGross > 300000 ? Math.round((gross * 5) / 100) : 0;
+
+                // ─── TOTALS ───
+                const totalDeductions = pfEmployee + absentDeduction + lateDeduction + loanDeduction + incomeTax;
+                const netSalary = gross + overtimePay - totalDeductions;
 
                 // Create salary slip
-                const slip = await prisma.salarySlip.create({
+                const slip = await tx.salarySlip.create({
                     data: {
                         employeeId: employee.id,
                         month,
@@ -230,9 +291,12 @@ export async function POST(req: Request) {
                         houseRent: Math.round(houseRent),
                         medicalAllowance: Math.round(medical),
                         conveyance: Math.round(conveyance),
+                        overtime: Math.round(overtimePay),
                         grossSalary: Math.round(gross),
                         pfEmployee: Math.round(pfEmployee),
                         pfEmployer: Math.round(pfEmployer),
+                        incomeTax: Math.round(incomeTax),
+                        loanDeduction: Math.round(loanDeduction),
                         absentDeduction: Math.round(absentDeduction),
                         lateDeduction: Math.round(lateDeduction),
                         totalDeductions: Math.round(totalDeductions),
@@ -241,29 +305,29 @@ export async function POST(req: Request) {
                     },
                 });
 
-                results.push({
+                created.push({
                     employeeId: employee.id,
                     name: `${employee.firstName} ${employee.lastName}`,
                     netSalary: slip.netSalary,
+                    overtime: Math.round(overtimePay),
+                    loanDeduction: Math.round(loanDeduction),
+                    incomeTax: Math.round(incomeTax),
                     status: "created",
                 });
-            } catch (err) {
-                errors.push({
-                    employeeId: employee.id,
-                    name: `${employee.firstName} ${employee.lastName}`,
-                    error: err instanceof Error ? err.message : "Unknown error",
-                });
             }
-        }
+
+            return created;
+        });
 
         return NextResponse.json({
             processed: results.length,
-            errorCount: errors.length,
+            errorCount: skipped.length,
             results,
-            errors,
+            errors: skipped,
         });
     } catch (error) {
         console.error("PROCESS_PAYROLL_ERROR", error);
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
+

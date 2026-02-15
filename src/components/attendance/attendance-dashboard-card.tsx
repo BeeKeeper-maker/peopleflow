@@ -8,6 +8,7 @@ import { Play, Square, Clock, MapPin, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { differenceInSeconds, format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface AttendanceState {
     status: 'checked-in' | 'checked-out' | 'none';
@@ -19,6 +20,7 @@ interface AttendanceState {
 }
 
 export function AttendanceDashboardCard() {
+    const t = useTranslations('Attendance');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [state, setState] = useState<AttendanceState>({
@@ -123,11 +125,11 @@ export function AttendanceDashboardCard() {
                 throw new Error(msg);
             }
 
-            toast.success("Checked in successfully!");
+            toast.success(t('checkIn') + ' ✓');
             await fetchAttendance();
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to check in");
+            toast.error(error instanceof Error ? error.message : t('checkIn'));
         } finally {
             setActionLoading(false);
         }
@@ -164,24 +166,24 @@ export function AttendanceDashboardCard() {
                 throw new Error(msg);
             }
 
-            toast.success("Checked out successfully!");
+            toast.success(t('checkOut') + ' ✓');
             await fetchAttendance();
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to check out");
+            toast.error(error instanceof Error ? error.message : t('checkOut'));
         } finally {
             setActionLoading(false);
         }
     };
 
     if (loading) {
-        return <div className="h-48 animate-pulse bg-white/5 rounded-xl" />;
+        return <div className="h-48 animate-pulse bg-hover rounded-xl" />;
     }
 
     const todayStr = format(new Date(), "EEEE, dd MMMM yyyy");
 
     return (
-        <Card className="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border-white/10 text-white overflow-hidden relative">
+        <Card className="bg-card border-card-border text-foreground overflow-hidden relative">
             {/* Background decorative elements */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
@@ -190,38 +192,38 @@ export function AttendanceDashboardCard() {
                     <div>
                         <h3 className="text-lg font-semibold flex items-center gap-2">
                             <Clock className="h-5 w-5 text-primary-400" />
-                            Today's Attendance
+                            {t('todaysAttendance')}
                         </h3>
-                        <p className="text-white/60 text-sm mt-1">{todayStr}</p>
+                        <p className="text-muted-foreground text-sm mt-1">{todayStr}</p>
                     </div>
                     {state.status === 'checked-in' && (
                         <div className="flex flex-col items-end">
                             <Badge variant="default" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20">
-                                ● Checked In
+                                ● {t('checkedIn')}
                             </Badge>
                             {state.lateMinutes > 0 && (
                                 <Badge variant="outline" className="mt-2 border-amber-500/50 text-amber-500 bg-amber-500/10 text-[10px]">
-                                    Late by {state.lateMinutes}m
+                                    {t('lateBy', { minutes: state.lateMinutes })}
                                 </Badge>
                             )}
                         </div>
                     )}
                     {state.status === 'checked-out' && (
-                        <Badge variant="secondary" className="bg-white/10 text-white/70">
-                            Present
+                        <Badge variant="secondary" className="bg-hover text-muted-foreground">
+                            {t('present')}
                         </Badge>
                     )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/5">
-                        <p className="text-xs text-white/40 mb-1">Check In Time</p>
+                    <div className="bg-hover rounded-lg p-3 border border-card-border">
+                        <p className="text-xs text-tertiary-foreground mb-1">{t('checkInTime')}</p>
                         <p className="text-xl font-mono font-medium">
                             {state.checkInTime ? format(new Date(state.checkInTime), "hh:mm a") : "--:--"}
                         </p>
                     </div>
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/5">
-                        <p className="text-xs text-white/40 mb-1">Check Out Time</p>
+                    <div className="bg-hover rounded-lg p-3 border border-card-border">
+                        <p className="text-xs text-tertiary-foreground mb-1">{t('checkOutTime')}</p>
                         <p className="text-xl font-mono font-medium">
                             {state.checkOutTime ? format(new Date(state.checkOutTime), "hh:mm a") : "--:--"}
                         </p>
@@ -231,10 +233,10 @@ export function AttendanceDashboardCard() {
                 {state.status === 'checked-in' && (
                     <div className="mb-6">
                         <div className="flex justify-between text-sm mb-2">
-                            <span className="text-white/60">Working Duration</span>
+                            <span className="text-muted-foreground">{t('workingDuration')}</span>
                             <span className="font-mono text-primary-400 font-bold">{formatDuration(elapsedSeconds)}</span>
                         </div>
-                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-2 bg-hover rounded-full overflow-hidden">
                             {/* Progress bar logic could be added here based on shift duration */}
                             <div className="h-full bg-primary-500 w-1/3 animate-pulse" />
                         </div>
@@ -244,13 +246,13 @@ export function AttendanceDashboardCard() {
                 <div className="action-area">
                     {state.status === 'none' && (
                         <Button
-                            className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20"
+                            className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700 text-foreground shadow-lg shadow-emerald-900/20"
                             onClick={handleCheckIn}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? "Checking In..." : (
+                            {actionLoading ? t('checkingIn') : (
                                 <>
-                                    <MapPin className="mr-2 h-5 w-5" /> Check In
+                                    <MapPin className="mr-2 h-5 w-5" /> {t('checkIn')}
                                 </>
                             )}
                         </Button>
@@ -263,17 +265,17 @@ export function AttendanceDashboardCard() {
                             onClick={handleCheckOut}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? "Checking Out..." : (
+                            {actionLoading ? t('checkingOut') : (
                                 <>
-                                    <Square className="mr-2 h-5 w-5 fill-current" /> Check Out
+                                    <Square className="mr-2 h-5 w-5 fill-current" /> {t('checkOut')}
                                 </>
                             )}
                         </Button>
                     )}
 
                     {state.status === 'checked-out' && (
-                        <div className="text-center py-2 text-white/50 text-sm flex items-center justify-center gap-2">
-                            <AlertCircle className="h-4 w-4" /> Day completed
+                        <div className="text-center py-2 text-tertiary-foreground text-sm flex items-center justify-center gap-2">
+                            <AlertCircle className="h-4 w-4" /> {t('dayCompleted')}
                         </div>
                     )}
                 </div>

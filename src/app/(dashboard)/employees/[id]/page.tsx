@@ -60,7 +60,7 @@ export default function EmployeeProfilePage() {
             {/* Back Button */}
             <div className="flex items-center gap-4 mb-4">
                 <Link href="/employees">
-                    <Button variant="ghost" size="sm" className="text-white/60 hover:text-white">
+                    <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Directory
                     </Button>

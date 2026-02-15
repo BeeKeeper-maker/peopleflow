@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 
 export async function GET(
     req: Request,
@@ -51,17 +52,10 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for updating designations
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const { id } = await params;
@@ -76,7 +70,7 @@ export async function PUT(
         if (code) {
             const existingCode = await prisma.designation.findFirst({
                 where: {
-                    organizationId: user.organizationId,
+                    organizationId: auth.organizationId,
                     code,
                     NOT: { id },
                 },
@@ -90,7 +84,7 @@ export async function PUT(
         const designation = await prisma.designation.update({
             where: {
                 id,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             },
             data: {
                 name,
@@ -111,24 +105,17 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for deleting designations
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const { id } = await params;
 
         // Check if designation has employees
         const designation = await prisma.designation.findUnique({
-            where: { id, organizationId: user.organizationId },
+            where: { id, organizationId: auth.organizationId },
             include: { _count: { select: { employees: true } } }
         });
 
@@ -143,7 +130,7 @@ export async function DELETE(
         await prisma.designation.delete({
             where: {
                 id,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             },
         });
 

@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { employeeSchema } from "@/lib/validations/employee";
 import { z } from "zod";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 
 export async function POST(req: Request) {
-    // Authenticate
-    const auth = await requireAuth();
+    // Require HR admin role for creating employees
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) {
-        return auth; // Returns 401 Unauthorized
+        return auth;
     }
 
     try {
@@ -27,44 +27,67 @@ export async function POST(req: Request) {
             return new NextResponse("Employee code already exists", { status: 409 });
         }
 
-        // Check if email exists
-        const existingEmail = await prisma.employee.findFirst({
-            where: {
-                organizationId: auth.organizationId,
-                email: body.email,
-            },
-        });
+        // Check if email exists (only if email provided)
+        if (body.email) {
+            const existingEmail = await prisma.employee.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    email: body.email,
+                },
+            });
 
-        if (existingEmail) {
-            return new NextResponse("Email already exists", { status: 409 });
+            if (existingEmail) {
+                return new NextResponse("Email already exists", { status: 409 });
+            }
         }
 
-        // Get default salary structure
-        const defaultSalaryStructure = await prisma.salaryStructure.findFirst({
-            where: { organizationId: auth.organizationId },
-        });
+        // Get salary structure - use provided ID or fall back to default
+        let salaryStructure;
+        if (body.salaryStructureId) {
+            salaryStructure = await prisma.salaryStructure.findUnique({
+                where: { id: body.salaryStructureId },
+            });
+        }
+        if (!salaryStructure) {
+            salaryStructure = await prisma.salaryStructure.findFirst({
+                where: { organizationId: auth.organizationId },
+            });
+        }
 
-        if (!defaultSalaryStructure) {
+        if (!salaryStructure) {
             return new NextResponse("No active salary structure found. Please configure payroll settings first.", { status: 400 });
         }
 
-        // Destructure grossSalary out of body since it's not on Employee model
-        const { grossSalary, ...employeeData } = body;
+        // Destructure non-Prisma fields out of body
+        const {
+            grossSalary,
+            salaryStructureId: _structId,
+            bankAccount,
+            emergencyContactName: _ecName,
+            emergencyContactPhone: _ecPhone,
+            emergencyContactRelation: _ecRel,
+            ...employeeData
+        } = body as Record<string, unknown>;
+
+        // Map bankAccount to accountNumber for Prisma
+        if (bankAccount !== undefined) {
+            (employeeData as Record<string, unknown>).accountNumber = bankAccount || null;
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             const employee = await tx.employee.create({
                 data: {
-                    ...employeeData,
+                    ...(employeeData as Record<string, unknown>),
                     organizationId: auth.organizationId,
-                },
+                } as any,
             });
 
             // Create Salary Structure Assignment
             await tx.salaryStructureAssignment.create({
                 data: {
                     employeeId: employee.id,
-                    salaryStructureId: defaultSalaryStructure.id,
-                    grossSalary: grossSalary,
+                    salaryStructureId: salaryStructure!.id,
+                    grossSalary: grossSalary as number,
                     effectiveFrom: new Date(),
                 }
             });
@@ -83,10 +106,10 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-    // Authenticate
-    const auth = await requireAuth();
+    // Require HR admin role for viewing all employees
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) {
-        return auth; // Returns 401 Unauthorized
+        return auth;
     }
 
     try {

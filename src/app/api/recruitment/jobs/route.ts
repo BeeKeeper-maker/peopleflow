@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { successResponse, errorResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
 
 // GET - List all job postings
 export async function GET(req: Request) {
     try {
         const session = await getServerSession(authOptions);
         if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
+            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
 
         const user = await prisma.user.findUnique({
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
         });
 
         if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 404 });
+            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
         }
 
         const { searchParams } = new URL(req.url);
@@ -38,10 +39,10 @@ export async function GET(req: Request) {
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json(jobs);
+        return successResponse(jobs);
     } catch (error) {
         console.error("GET_JOBS_ERROR", error);
-        return new NextResponse("Internal Error", { status: 500 });
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch jobs");
     }
 }
 

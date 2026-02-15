@@ -9,7 +9,10 @@ export function PWARegister() {
             navigator.serviceWorker
                 .register("/sw.js")
                 .then((registration) => {
-                    console.log("PeopleFlow SW registered:", registration.scope);
+                    if (process.env.NODE_ENV === "development") {
+                        // eslint-disable-next-line no-console
+                        console.log("PeopleFlow SW registered:", registration.scope);
+                    }
 
                     // Check for updates
                     registration.update();
@@ -19,19 +22,15 @@ export function PWARegister() {
                 });
 
             // Handle app install prompt
-            let deferredPrompt: any = null;
+            let deferredPrompt: BeforeInstallPromptEvent | null = null;
 
-            window.addEventListener("beforeinstallprompt", (e: any) => {
+            window.addEventListener("beforeinstallprompt", (e: Event) => {
                 e.preventDefault();
-                deferredPrompt = e;
-
-                // You can show a custom install button here
-                console.log("PeopleFlow: App can be installed");
+                deferredPrompt = e as BeforeInstallPromptEvent;
             });
 
             // Detect successful install
             window.addEventListener("appinstalled", () => {
-                console.log("PeopleFlow: App was installed");
                 deferredPrompt = null;
             });
         }
@@ -40,15 +39,31 @@ export function PWARegister() {
     return null;
 }
 
+// Type for the beforeinstallprompt event
+interface BeforeInstallPromptEvent extends Event {
+    prompt(): Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+// Extend Window to include deferredPrompt
+declare global {
+    interface Window {
+        deferredPrompt?: BeforeInstallPromptEvent;
+    }
+}
+
 // Hook to trigger install prompt
 export function useInstallPrompt() {
     const promptInstall = async () => {
-        const deferredPrompt = (window as any).deferredPrompt;
+        const deferredPrompt = window.deferredPrompt;
         if (deferredPrompt) {
             deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
-            console.log(`User ${outcome === "accepted" ? "accepted" : "dismissed"} install`);
-            (window as any).deferredPrompt = null;
+            if (process.env.NODE_ENV === "development") {
+                // eslint-disable-next-line no-console
+                console.log(`User ${outcome === "accepted" ? "accepted" : "dismissed"} install`);
+            }
+            window.deferredPrompt = undefined;
         }
     };
 

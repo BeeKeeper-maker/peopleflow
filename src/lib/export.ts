@@ -154,3 +154,116 @@ export function formatPayrollExport(slips: any[]) {
         "Status": slip.status,
     }))
 }
+
+/**
+ * Export data to PDF format using print dialog
+ */
+export function exportToPDF<T extends Record<string, any>>(
+    data: T[],
+    options: ExportOptions & { title?: string }
+): void {
+    const { filename, title = "Report" } = options
+
+    if (data.length === 0) {
+        console.warn("No data to export")
+        return
+    }
+
+    const headers = Object.keys(data[0])
+
+    // Create a new window for printing
+    const printWindow = window.open("", "_blank")
+    if (!printWindow) {
+        alert("Please allow popups to export PDF")
+        return
+    }
+
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>${title} - ${filename}</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    margin: 20px;
+                    color: #333;
+                }
+                h1 {
+                    text-align: center;
+                    color: #1a1a2e;
+                    margin-bottom: 10px;
+                }
+                .subtitle {
+                    text-align: center;
+                    color: #666;
+                    margin-bottom: 20px;
+                    font-size: 12px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    font-size: 11px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #1a1a2e;
+                    color: white;
+                    font-weight: 600;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                tr:hover {
+                    background-color: #f1f1f1;
+                }
+                .footer {
+                    margin-top: 20px;
+                    text-align: center;
+                    font-size: 10px;
+                    color: #999;
+                }
+                @media print {
+                    body { margin: 0; }
+                    button { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>${title}</h1>
+            <p class="subtitle">Generated on ${new Date().toLocaleString()}</p>
+            <table>
+                <thead>
+                    <tr>
+                        ${headers.map(h => `<th>${h}</th>`).join("")}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.map(row => `
+                        <tr>
+                            ${headers.map(h => `<td>${row[h] ?? "-"}</td>`).join("")}
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+            <p class="footer">PeopleFlow HRMS - ${filename}</p>
+            <script>
+                window.onload = function() {
+                    window.print();
+                    window.onafterprint = function() {
+                        window.close();
+                    };
+                };
+            </script>
+        </body>
+        </html>
+    `
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+}

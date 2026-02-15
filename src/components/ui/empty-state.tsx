@@ -73,33 +73,33 @@ export function EmptyState({
             {/* Icon Container */}
             <div className={cn(
                 "relative mb-6 p-6 rounded-2xl",
-                "bg-gradient-to-br",
+                "bg-linear-to-br",
                 gradient,
                 "opacity-20"
             )}>
-                <Icon className="h-12 w-12 text-white" />
+                <Icon className="h-12 w-12 text-foreground" />
             </div>
 
             {/* Overlaid Icon for sharpness */}
-            <div className="-mt-[5.5rem] mb-6 relative z-10">
+            <div className="-mt-22 mb-6 relative z-10">
                 <div className={cn(
                     "p-6 rounded-2xl",
-                    "bg-gradient-to-br",
+                    "bg-linear-to-br",
                     gradient,
                     "shadow-lg shadow-black/20"
                 )}>
-                    <Icon className="h-12 w-12 text-white" />
+                    <Icon className="h-12 w-12 text-foreground" />
                 </div>
             </div>
 
             {/* Title */}
-            <h3 className="text-xl font-semibold text-white mb-2">
+            <h3 className="text-xl font-semibold text-foreground mb-2">
                 {title}
             </h3>
 
             {/* Description */}
             {description && (
-                <p className="text-white/60 max-w-sm mb-6">
+                <p className="text-muted-foreground max-w-sm mb-6">
                     {description}
                 </p>
             )}
@@ -109,9 +109,9 @@ export function EmptyState({
                 <Button
                     onClick={onAction}
                     className={cn(
-                        "bg-gradient-to-r",
+                        "bg-linear-to-r",
                         gradient,
-                        "hover:opacity-90 text-white"
+                        "hover:opacity-90 text-foreground"
                     )}
                 >
                     <Plus className="h-4 w-4 mr-2" />

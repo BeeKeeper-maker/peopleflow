@@ -51,17 +51,17 @@ export default function ApplyLeavePage() {
         <div className="space-y-6 max-w-2xl mx-auto">
             <div className="flex items-center gap-4">
                 <Link href="/leaves">
-                    <Button variant="ghost" size="icon" className="h-10 w-10 text-white hover:text-white hover:bg-white/10">
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-foreground hover:text-foreground hover:bg-hover">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Apply for Leave</h1>
-                    <p className="text-white/60">Submit a new leave request</p>
+                    <h1 className="text-2xl font-bold text-foreground">Apply for Leave</h1>
+                    <p className="text-muted-foreground">Submit a new leave request</p>
                 </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/5 p-6">
+            <div className="rounded-xl border border-card-border bg-hover p-6">
                 <LeaveApplicationForm onSubmit={onSubmit} isLoading={isLoading} />
             </div>
         </div>

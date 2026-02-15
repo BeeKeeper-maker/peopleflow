@@ -4,20 +4,22 @@ export const employeeSchema = z.object({
     // Personal Information
     firstName: z.string().min(2, "First name is required"),
     lastName: z.string().min(2, "Last name is required"),
-    email: z.string().email("Invalid email address"),
+    bengaliName: z.string().optional(),
+    email: z.string().email("Invalid email address").optional().or(z.literal("")),
     phone: z.string().optional(),
 
-    // Allow string or Date, transform to Date object (or Date -> Date)
-    // Input from form will be string (YYYY-MM-DD)
+    // Allow string or Date, transform to Date object
     dateOfBirth: z.union([z.string(), z.date()]).optional().transform((val) => {
         if (!val) return undefined;
         return new Date(val);
     }),
 
     gender: z.enum(["male", "female", "other"]).optional(),
+    bloodGroup: z.string().optional(),
     maritalStatus: z.enum(["single", "married", "divorced", "widowed"]).optional(),
     nationality: z.string().default("Bangladeshi"),
     nidNumber: z.string().optional(),
+    passportNumber: z.string().optional(),
     photoUrl: z.string().optional(),
 
     // Employment Details
@@ -35,8 +37,23 @@ export const employeeSchema = z.object({
 
     // Financial Information
     grossSalary: z.coerce.number().min(0, "Gross salary must be positive"),
+    salaryStructureId: z.string().optional(),
     bankName: z.string().optional(),
     bankAccount: z.string().optional(),
+    bankBranch: z.string().optional(),
+    routingNumber: z.string().optional(),
+    tinNumber: z.string().optional(),
+    pfNumber: z.string().optional(),
+
+    // Address & Emergency
+    presentAddress: z.string().optional(),
+    permanentAddress: z.string().optional(),
+    emergencyContact: z.string().optional(), // JSON string: {name, phone, relationship}
+
+    // Separate emergency contact fields (used by form wizard)
+    emergencyContactName: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    emergencyContactRelation: z.string().optional(),
 });
 
 export type EmployeeFormValues = z.infer<typeof employeeSchema>;

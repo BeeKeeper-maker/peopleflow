@@ -49,13 +49,13 @@ export class ErrorBoundary extends Component<Props, State> {
             }
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-[#0A0A0F] to-[#1A1A2E] flex items-center justify-center p-4">
-                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-md w-full text-center">
+                <div className="min-h-screen bg-linear-to-br from-background to-card flex items-center justify-center p-4">
+                    <div className="bg-hover backdrop-blur-xl border border-card-border rounded-2xl p-8 max-w-md w-full text-center">
                         <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                             <AlertTriangle className="h-8 w-8 text-red-400" />
                         </div>
 
-                        <h1 className="text-2xl font-bold text-white mb-2">
+                        <h1 className="text-2xl font-bold text-foreground mb-2">
                             Something went wrong
                         </h1>
 
@@ -80,7 +80,7 @@ export class ErrorBoundary extends Component<Props, State> {
                         <div className="flex gap-3 justify-center">
                             <button
                                 onClick={this.handleReset}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-foreground rounded-lg transition-colors"
                             >
                                 <RefreshCw className="h-4 w-4" />
                                 Try Again
@@ -88,7 +88,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
                             <Link
                                 href="/dashboard"
-                                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                                className="flex items-center gap-2 px-4 py-2 bg-hover hover:bg-hover text-foreground rounded-lg transition-colors"
                             >
                                 <Home className="h-4 w-4" />
                                 Dashboard

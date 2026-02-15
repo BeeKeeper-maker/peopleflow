@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTranslations } from "next-intl"
 import { LeaveApplicationFormValues, leaveApplicationSchema } from "@/lib/validations/leave-application"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +48,8 @@ export function LeaveApplicationForm({
     isLoading
 }: LeaveApplicationFormProps) {
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
+    const t = useTranslations("SharedComponents.leaveApplicationForm")
+    const tc = useTranslations("SharedComponents.common")
 
     // Fetch leave types for the dropdown
     useEffect(() => {
@@ -55,7 +58,7 @@ export function LeaveApplicationForm({
                 const response = await fetch("/api/leaves/types?all=true")
                 if (response.ok) {
                     const data = await response.json()
-                    // Filter active ones or check applicable gender if we had user context
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     setLeaveTypes(data.filter((lt: any) => lt.isActive))
                 }
             } catch (error) {
@@ -84,11 +87,11 @@ export function LeaveApplicationForm({
                             name="leaveTypeId"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-white">Leave Type *</FormLabel>
+                                    <FormLabel className="text-foreground">{t("leaveTypeLabel")}</FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl>
-                                            <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                                                <SelectValue placeholder="Select type of leave" />
+                                            <SelectTrigger className="bg-hover border-card-border text-foreground">
+                                                <SelectValue placeholder={t("selectLeaveType")} />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
@@ -111,21 +114,21 @@ export function LeaveApplicationForm({
                             name="fromDate"
                             render={({ field }) => (
                                 <FormItem className="flex flex-col">
-                                    <FormLabel className="text-white">From Date *</FormLabel>
+                                    <FormLabel className="text-foreground">{t("fromDate")}</FormLabel>
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <FormControl>
                                                 <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                        "pl-3 text-left font-normal bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white",
+                                                        "pl-3 text-left font-normal bg-hover border-card-border text-foreground hover:bg-hover hover:text-foreground",
                                                         !field.value && "text-muted-foreground"
                                                     )}
                                                 >
                                                     {field.value ? (
                                                         format(field.value, "PPP")
                                                     ) : (
-                                                        <span>Pick a date</span>
+                                                        <span>{t("pickDate")}</span>
                                                     )}
                                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                                 </Button>
@@ -151,21 +154,21 @@ export function LeaveApplicationForm({
                             name="toDate"
                             render={({ field }) => (
                                 <FormItem className="flex flex-col">
-                                    <FormLabel className="text-white">To Date *</FormLabel>
+                                    <FormLabel className="text-foreground">{t("toDate")}</FormLabel>
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <FormControl>
                                                 <Button
                                                     variant={"outline"}
                                                     className={cn(
-                                                        "pl-3 text-left font-normal bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white",
+                                                        "pl-3 text-left font-normal bg-hover border-card-border text-foreground hover:bg-hover hover:text-foreground",
                                                         !field.value && "text-muted-foreground"
                                                     )}
                                                 >
                                                     {field.value ? (
                                                         format(field.value, "PPP")
                                                     ) : (
-                                                        <span>Pick a date</span>
+                                                        <span>{t("pickDate")}</span>
                                                     )}
                                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                                 </Button>
@@ -192,7 +195,7 @@ export function LeaveApplicationForm({
                             control={form.control}
                             name="halfDay"
                             render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-white/10 p-4">
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-card-border p-4">
                                     <FormControl>
                                         <Checkbox
                                             checked={field.value}
@@ -200,11 +203,11 @@ export function LeaveApplicationForm({
                                         />
                                     </FormControl>
                                     <div className="space-y-1 leading-none">
-                                        <FormLabel className="text-white">
-                                            Apply for Half Day
+                                        <FormLabel className="text-foreground">
+                                            {t("halfDay")}
                                         </FormLabel>
-                                        <FormDescription className="text-white/40">
-                                            If checked, only 0.5 days will be deducted (must select single date range)
+                                        <FormDescription className="text-tertiary-foreground">
+                                            {t("halfDayDesc")}
                                         </FormDescription>
                                     </div>
                                 </FormItem>
@@ -219,16 +222,16 @@ export function LeaveApplicationForm({
                                 name="halfDayType"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-white">Half Day Type</FormLabel>
+                                        <FormLabel className="text-foreground">{t("halfDayType")}</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                                                    <SelectValue placeholder="Select morning or afternoon" />
+                                                <SelectTrigger className="bg-hover border-card-border text-foreground">
+                                                    <SelectValue placeholder={t("selectHalfDayType")} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="first_half">First Half (Morning)</SelectItem>
-                                                <SelectItem value="second_half">Second Half (Afternoon)</SelectItem>
+                                                <SelectItem value="first_half">{t("firstHalf")}</SelectItem>
+                                                <SelectItem value="second_half">{t("secondHalf")}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -244,12 +247,12 @@ export function LeaveApplicationForm({
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel className="text-white">Reason *</FormLabel>
+                                    <FormLabel className="text-foreground">{t("reasonLabel")}</FormLabel>
                                     <FormControl>
                                         <Textarea
                                             {...field}
-                                            placeholder="Please provide a valid reason for your leave..."
-                                            className="bg-white/5 border-white/10 text-white min-h-[100px]"
+                                            placeholder={t("reasonPlaceholder")}
+                                            className="bg-hover border-card-border text-foreground min-h-[100px]"
                                         />
                                     </FormControl>
                                     <FormMessage />
@@ -259,14 +262,14 @@ export function LeaveApplicationForm({
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-white/10">
+                <div className="flex justify-end pt-4 border-t border-card-border">
                     <Button
                         type="submit"
                         disabled={isLoading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-blue-600 hover:bg-blue-700 text-foreground"
                     >
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Submit Application
+                        {t("submitApplication")}
                     </Button>
                 </div>
             </form>

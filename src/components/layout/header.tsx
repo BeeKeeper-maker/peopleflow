@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Search, ChevronDown, Menu, X } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { Search, ChevronDown, Menu, X, LogOut, User, Settings as SettingsIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useTranslations } from 'next-intl';
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -15,42 +19,67 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
     const pathname = usePathname();
-    const [showNotifications, setShowNotifications] = useState(false);
+    const { data: session } = useSession();
     const [showProfile, setShowProfile] = useState(false);
+    const t = useTranslations('Header');
+    const tb = useTranslations('Breadcrumb');
 
-    // Generate breadcrumb from pathname
+    // Real user data from session
+    const userName = session?.user?.name || "User";
+    const userEmail = session?.user?.email || "";
+    const initials = userName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
+    // Generate breadcrumb from pathname with i18n
     const getBreadcrumb = () => {
         const paths = pathname.split("/").filter(Boolean);
-        return paths.map((path, index) => ({
-            label: path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " "),
-            href: "/" + paths.slice(0, index + 1).join("/"),
-            isLast: index === paths.length - 1,
-        }));
+        return paths.map((path, index) => {
+            // Use translated label from Breadcrumb namespace
+            const translated = tb(path as any);
+            // If next-intl returns the full key path (e.g. "Breadcrumb.xyz"), it means key is missing
+            const label = translated.includes('.')
+                ? path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ")
+                : translated;
+            return {
+                label,
+                href: "/" + paths.slice(0, index + 1).join("/"),
+                isLast: index === paths.length - 1,
+            };
+        });
     };
 
     const breadcrumb = getBreadcrumb();
 
+    const handleSignOut = async () => {
+        await signOut({ callbackUrl: "/login" });
+    };
+
     return (
-        <header className="sticky top-0 z-30 h-16 border-b border-white/10 bg-[#0A0A0F]/80 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 h-16 border-b border-border bg-header-bg backdrop-blur-xl transition-colors duration-300">
             <div className="flex h-full items-center justify-between px-6">
                 {/* Left Section */}
                 <div className="flex items-center gap-4">
                     {/* Mobile Menu Button */}
                     <button
                         onClick={onMenuClick}
-                        className="lg:hidden rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+                        className="lg:hidden rounded-lg p-2 text-muted-foreground hover:bg-hover hover:text-foreground transition-colors"
+                        aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
                     >
                         {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </button>
 
                     {/* Breadcrumb */}
-                    <nav className="hidden sm:flex items-center gap-2 text-sm">
+                    <nav className="hidden sm:flex items-center gap-2 text-sm" aria-label="Breadcrumb">
                         {breadcrumb.map((item, index) => (
                             <div key={item.href} className="flex items-center gap-2">
-                                {index > 0 && <span className="text-white/30">/</span>}
+                                {index > 0 && <span className="text-tertiary-foreground">/</span>}
                                 <span
                                     className={cn(
-                                        item.isLast ? "text-white font-medium" : "text-white/60"
+                                        item.isLast ? "text-foreground font-medium" : "text-muted-foreground"
                                     )}
                                 >
                                     {item.label}
@@ -65,92 +94,36 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                     {/* Search */}
                     <div className="hidden md:block w-64">
                         <Input
-                            placeholder="Search..."
+                            placeholder={t('search')}
                             leftIcon={<Search className="h-4 w-4" />}
                             className="h-9 text-sm"
                         />
                     </div>
 
-                    {/* Notifications */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            className="relative rounded-xl p-2.5 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
-                        >
-                            <Bell className="h-5 w-5" />
-                            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
-                        </button>
+                    {/* Language Switcher */}
+                    <LanguageSwitcher variant="compact" />
 
-                        {/* Notifications Dropdown */}
-                        {showNotifications && (
-                            <>
-                                <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setShowNotifications(false)}
-                                />
-                                <div className="absolute right-0 top-full mt-2 w-80 z-50 rounded-xl border border-white/10 bg-[#141419] shadow-2xl">
-                                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                                        <h3 className="font-semibold text-white">Notifications</h3>
-                                        <Badge variant="primary" dot>3 new</Badge>
-                                    </div>
-                                    <div className="max-h-80 overflow-y-auto">
-                                        {[
-                                            {
-                                                title: "Leave request pending",
-                                                desc: "Ahmad Hossain has requested 3 days leave",
-                                                time: "5 min ago",
-                                            },
-                                            {
-                                                title: "Payroll processed",
-                                                desc: "January 2026 payroll has been processed",
-                                                time: "1 hour ago",
-                                            },
-                                            {
-                                                title: "New employee joined",
-                                                desc: "Fatima Rahman has joined the Engineering team",
-                                                time: "2 hours ago",
-                                            },
-                                        ].map((notification, i) => (
-                                            <div
-                                                key={i}
-                                                className="flex gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer transition-colors border-b border-white/5 last:border-0"
-                                            >
-                                                <div className="h-2 w-2 mt-2 rounded-full bg-blue-500 flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-white truncate">
-                                                        {notification.title}
-                                                    </p>
-                                                    <p className="text-xs text-white/60 truncate">
-                                                        {notification.desc}
-                                                    </p>
-                                                    <p className="text-xs text-white/40 mt-1">
-                                                        {notification.time}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="border-t border-white/10 p-2">
-                                        <button className="w-full rounded-lg py-2 text-sm text-blue-400 hover:bg-white/5 transition-colors">
-                                            View all notifications
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    {/* Theme Toggle */}
+                    <ThemeToggle />
 
                     {/* Profile Dropdown */}
                     <div className="relative">
                         <button
                             onClick={() => setShowProfile(!showProfile)}
-                            className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-white/10 transition-colors"
+                            className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-hover transition-colors"
+                            aria-expanded={showProfile}
+                            aria-haspopup="true"
                         >
                             <Avatar className="h-8 w-8">
-                                <AvatarFallback className="text-xs">JD</AvatarFallback>
+                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-foreground text-xs font-semibold">
+                                    {initials}
+                                </AvatarFallback>
                             </Avatar>
-                            <span className="hidden sm:block text-sm font-medium text-white">John Doe</span>
-                            <ChevronDown className="h-4 w-4 text-white/40" />
+                            <span className="hidden sm:block text-sm font-medium text-foreground">{userName}</span>
+                            <ChevronDown className={cn(
+                                "h-4 w-4 text-tertiary-foreground transition-transform duration-200",
+                                showProfile && "rotate-180"
+                            )} />
                         </button>
 
                         {showProfile && (
@@ -159,27 +132,36 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                                     className="fixed inset-0 z-40"
                                     onClick={() => setShowProfile(false)}
                                 />
-                                <div className="absolute right-0 top-full mt-2 w-56 z-50 rounded-xl border border-white/10 bg-[#141419] shadow-2xl py-1">
-                                    <div className="px-4 py-3 border-b border-white/10">
-                                        <p className="text-sm font-medium text-white">John Doe</p>
-                                        <p className="text-xs text-white/60">john@company.com</p>
+                                <div className="absolute right-0 top-full mt-2 w-56 z-50 rounded-xl border border-border bg-dropdown shadow-2xl py-1 transition-colors duration-300">
+                                    <div className="px-4 py-3 border-b border-border">
+                                        <p className="text-sm font-medium text-foreground">{userName}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
                                     </div>
-                                    {[
-                                        { label: "My Profile", href: "/profile" },
-                                        { label: "Settings", href: "/settings" },
-                                        { label: "Help Center", href: "/help" },
-                                    ].map((item) => (
-                                        <a
-                                            key={item.href}
-                                            href={item.href}
-                                            className="block px-4 py-2 text-sm text-white/80 hover:bg-white/5 hover:text-white transition-colors"
+                                    <div className="py-1">
+                                        <Link
+                                            href="/profile"
+                                            onClick={() => setShowProfile(false)}
+                                            className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-hover hover:text-foreground transition-colors"
                                         >
-                                            {item.label}
-                                        </a>
-                                    ))}
-                                    <div className="border-t border-white/10 mt-1 pt-1">
-                                        <button className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/5 transition-colors">
-                                            Sign out
+                                            <User className="h-4 w-4 text-tertiary-foreground" />
+                                            {t('myProfile')}
+                                        </Link>
+                                        <Link
+                                            href="/settings"
+                                            onClick={() => setShowProfile(false)}
+                                            className="flex items-center gap-2.5 px-4 py-2 text-sm text-muted-foreground hover:bg-hover hover:text-foreground transition-colors"
+                                        >
+                                            <SettingsIcon className="h-4 w-4 text-tertiary-foreground" />
+                                            {t('settings')}
+                                        </Link>
+                                    </div>
+                                    <div className="border-t border-border pt-1">
+                                        <button
+                                            onClick={handleSignOut}
+                                            className="flex items-center gap-2.5 w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <LogOut className="h-4 w-4" />
+                                            {t('signOut')}
                                         </button>
                                     </div>
                                 </div>

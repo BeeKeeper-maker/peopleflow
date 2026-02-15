@@ -128,10 +128,10 @@ export function ProtectedRoute({
         if (!showLoading) return null;
 
         return (
-            <div className="flex h-screen items-center justify-center bg-[#0A0A0F]">
+            <div className="flex h-screen items-center justify-center bg-background">
                 <div className="flex flex-col items-center gap-4">
                     <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-                    <p className="text-sm text-white/60">Loading...</p>
+                    <p className="text-sm text-muted-foreground">Loading...</p>
                 </div>
             </div>
         );

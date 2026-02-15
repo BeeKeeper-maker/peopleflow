@@ -19,8 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function ChartLoadingFallback() {
     return (
-        <div className="w-full h-64 rounded-xl bg-white/5 animate-pulse flex items-center justify-center">
-            <div className="text-white/40 text-sm">Loading chart...</div>
+        <div className="w-full h-64 rounded-xl bg-hover animate-pulse flex items-center justify-center">
+            <div className="text-tertiary-foreground text-sm">Loading chart...</div>
         </div>
     );
 }
@@ -38,16 +38,16 @@ function TableLoadingFallback() {
 
 function PDFLoadingFallback() {
     return (
-        <div className="w-full h-96 rounded-xl bg-white/5 animate-pulse flex items-center justify-center">
-            <div className="text-white/40 text-sm">Generating PDF...</div>
+        <div className="w-full h-96 rounded-xl bg-hover animate-pulse flex items-center justify-center">
+            <div className="text-tertiary-foreground text-sm">Generating PDF...</div>
         </div>
     );
 }
 
 function CalendarLoadingFallback() {
     return (
-        <div className="w-full aspect-square max-w-md rounded-xl bg-white/5 animate-pulse flex items-center justify-center">
-            <div className="text-white/40 text-sm">Loading calendar...</div>
+        <div className="w-full aspect-square max-w-md rounded-xl bg-hover animate-pulse flex items-center justify-center">
+            <div className="text-tertiary-foreground text-sm">Loading calendar...</div>
         </div>
     );
 }

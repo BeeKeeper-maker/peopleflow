@@ -29,6 +29,7 @@ const HR_ROUTES = [
     "/settings",
     "/notifications",
     "/shifts",
+    "/organization",
 ];
 
 // Check if user has HR level access

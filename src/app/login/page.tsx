@@ -9,10 +9,12 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
 
 export default function LoginPage() {
     const router = useRouter();
     const { addToast } = useToast();
+    const t = useTranslations("Auth.login");
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
@@ -25,13 +27,13 @@ export default function LoginPage() {
         const newErrors: { email?: string; password?: string } = {};
 
         if (!formData.email) {
-            newErrors.email = "Email is required";
+            newErrors.email = t("emailRequired");
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = "Please enter a valid email";
+            newErrors.email = t("emailInvalid");
         }
 
         if (!formData.password) {
-            newErrors.password = "Password is required";
+            newErrors.password = t("passwordRequired");
         }
 
         setErrors(newErrors);
@@ -55,14 +57,14 @@ export default function LoginPage() {
             if (result?.error) {
                 addToast({
                     type: "error",
-                    title: "Login Failed",
+                    title: t("toastLoginFailed"),
                     description: result.error,
                 });
             } else {
                 addToast({
                     type: "success",
-                    title: "Welcome back!",
-                    description: "You have been logged in successfully",
+                    title: t("toastWelcomeBack"),
+                    description: t("toastLoginSuccess"),
                 });
                 router.push("/dashboard");
                 router.refresh();
@@ -70,20 +72,27 @@ export default function LoginPage() {
         } catch (error) {
             addToast({
                 type: "error",
-                title: "Error",
-                description: "An unexpected error occurred",
+                title: t("toastError"),
+                description: t("toastUnexpectedError"),
             });
         } finally {
             setIsLoading(false);
         }
     };
 
+    const features = [
+        t("feature1"),
+        t("feature2"),
+        t("feature3"),
+        t("feature4"),
+    ];
+
     return (
         <div className="min-h-screen flex">
             {/* Left Panel - Branding */}
             <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
                 {/* Animated Background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800">
+                <div className="absolute inset-0 bg-linear-to-br from-blue-600 via-blue-700 to-purple-800">
                     <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
                     <motion.div
                         className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/30 rounded-full blur-3xl"
@@ -118,36 +127,30 @@ export default function LoginPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-lg">
-                                <span className="text-2xl font-bold">P</span>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="flex h-14 w-14 items-center justify-center overflow-hidden">
+                                <img src="/logo.png" alt={t("brandName")} className="h-full w-full object-cover rounded-xl" />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold">PeopleFlow</h1>
-                                <p className="text-sm text-white/60">প্রবাহ</p>
+                                <h1 className="text-2xl font-bold">{t("brandName")}</h1>
+                                <p className="text-sm text-white/60">{t("brandTagline")}</p>
                             </div>
                         </div>
 
                         <h2 className="text-4xl font-bold leading-tight mb-6">
-                            Streamline Your
+                            {t("heroTitle1")}
                             <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-200">
-                                HR Operations
+                            <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-200 to-purple-200">
+                                {t("heroTitle2")}
                             </span>
                         </h2>
 
                         <p className="text-lg text-white/80 mb-12 max-w-md">
-                            The complete HR management system designed for modern organizations.
-                            Manage employees, attendance, payroll, and more with ease.
+                            {t("heroDescription")}
                         </p>
 
                         <div className="space-y-4">
-                            {[
-                                "✓ Employee Management",
-                                "✓ Leave & Attendance Tracking",
-                                "✓ Payroll with Bangladesh Tax Compliance",
-                                "✓ Performance Reviews",
-                            ].map((feature, i) => (
+                            {features.map((feature, i) => (
                                 <motion.div
                                     key={i}
                                     initial={{ opacity: 0, x: -20 }}
@@ -173,24 +176,24 @@ export default function LoginPage() {
                 >
                     {/* Mobile Logo */}
                     <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600">
-                            <span className="text-xl font-bold text-white">P</span>
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden">
+                            <img src="/logo.png" alt={t("brandName")} className="h-full w-full object-cover rounded-xl" />
                         </div>
-                        <h1 className="text-xl font-bold text-white">PeopleFlow</h1>
+                        <h1 className="text-xl font-bold text-white">{t("brandName")}</h1>
                     </div>
 
                     <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold text-white mb-2">Welcome back</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("welcomeBack")}</h2>
                         <p className="text-white/60">
-                            Sign in to your account to continue
+                            {t("signInSubtitle")}
                         </p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <Input
-                            label="Email Address"
+                            label={t("emailLabel")}
                             type="email"
-                            placeholder="Enter your email"
+                            placeholder={t("emailPlaceholder")}
                             value={formData.email}
                             onChange={(e) =>
                                 setFormData({ ...formData, email: e.target.value })
@@ -203,9 +206,9 @@ export default function LoginPage() {
 
                         <div className="relative">
                             <Input
-                                label="Password"
+                                label={t("passwordLabel")}
                                 type={showPassword ? "text" : "password"}
-                                placeholder="Enter your password"
+                                placeholder={t("passwordPlaceholder")}
                                 value={formData.password}
                                 onChange={(e) =>
                                     setFormData({ ...formData, password: e.target.value })
@@ -236,14 +239,14 @@ export default function LoginPage() {
                                     type="checkbox"
                                     className="h-4 w-4 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500/50"
                                 />
-                                <span className="text-white/60">Remember me</span>
+                                <span className="text-white/60">{t("rememberMe")}</span>
                             </label>
-                            <Link
-                                href="/forgot-password"
-                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                            <span
+                                className="text-white/40 cursor-default"
+                                title={t("forgotPasswordTooltip")}
                             >
-                                Forgot password?
-                            </Link>
+                                {t("forgotPassword")}
+                            </span>
                         </div>
 
                         <Button
@@ -253,7 +256,7 @@ export default function LoginPage() {
                         >
                             {!isLoading && (
                                 <>
-                                    Sign In
+                                    {t("signIn")}
                                     <ArrowRight className="h-5 w-5" />
                                 </>
                             )}
@@ -267,7 +270,7 @@ export default function LoginPage() {
                             </div>
                             <div className="relative flex justify-center text-sm">
                                 <span className="px-4 bg-[#0A0A0F] text-white/40">
-                                    Don&apos;t have an account?
+                                    {t("noAccount")}
                                 </span>
                             </div>
                         </div>
@@ -277,20 +280,22 @@ export default function LoginPage() {
                                 href="/register"
                                 className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors font-medium"
                             >
-                                Create your organization
+                                {t("createOrg")}
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
                         </div>
                     </div>
 
-                    {/* Demo Credentials */}
-                    <div className="mt-8 p-4 rounded-xl bg-white/5 border border-white/10">
-                        <p className="text-xs text-white/40 mb-2">Demo Credentials</p>
-                        <div className="space-y-1 text-sm text-white/60">
-                            <p><span className="text-white/40">Email:</span> admin@demo.com</p>
-                            <p><span className="text-white/40">Password:</span> Demo@123</p>
+                    {/* Demo Credentials - only visible in development */}
+                    {process.env.NODE_ENV === "development" && (
+                        <div className="mt-8 p-4 rounded-xl bg-white/5 border border-white/10">
+                            <p className="text-xs text-white/40 mb-2">{t("demoCredentials")}</p>
+                            <div className="space-y-1 text-sm text-white/60">
+                                <p><span className="text-white/40">{t("demoEmail")}</span> admin@demo.com</p>
+                                <p><span className="text-white/40">{t("demoPassword")}</span> Demo@123</p>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </motion.div>
             </div>
         </div>

@@ -13,7 +13,7 @@ export const columns: ColumnDef<Employee>[] = [
         accessorKey: "employeeCode",
         header: "ID",
         cell: ({ row }) => (
-            <span className="font-mono text-xs text-white/60">
+            <span className="font-mono text-xs text-muted-foreground">
                 {row.getValue("employeeCode")}
             </span>
         ),
@@ -39,13 +39,13 @@ export const columns: ColumnDef<Employee>[] = [
 
             return (
                 <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9 border border-white/10">
+                    <Avatar className="h-9 w-9 border border-card-border">
                         <AvatarImage src={employee.photoUrl || undefined} alt={fullName} />
                         <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                        <span className="font-medium text-white">{fullName}</span>
-                        <span className="text-xs text-white/40">{employee.email}</span>
+                        <span className="font-medium text-foreground">{fullName}</span>
+                        <span className="text-xs text-tertiary-foreground">{employee.email}</span>
                     </div>
                 </div>
             )
@@ -57,7 +57,7 @@ export const columns: ColumnDef<Employee>[] = [
         cell: ({ row }) => {
             const department = row.original.department
             return (
-                <span className="text-white/80">
+                <span className="text-foreground">
                     {department?.name || "-"}
                 </span>
             )
@@ -69,7 +69,7 @@ export const columns: ColumnDef<Employee>[] = [
         cell: ({ row }) => {
             const designation = row.original.designation
             return (
-                <span className="text-white/80">
+                <span className="text-foreground">
                     {designation?.name || "-"}
                 </span>
             )
@@ -81,7 +81,7 @@ export const columns: ColumnDef<Employee>[] = [
         cell: ({ row }) => {
             const type = row.getValue("employmentType") as string
             return (
-                <span className="capitalize text-white/60">
+                <span className="capitalize text-muted-foreground">
                     {type}
                 </span>
             )

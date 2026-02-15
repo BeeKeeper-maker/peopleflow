@@ -21,6 +21,7 @@ import {
     Flag,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useTranslations } from "next-intl"
 
 interface KeyResult {
     id: string
@@ -70,6 +71,7 @@ export default function PerformancePage() {
     const [goals, setGoals] = useState<Goal[]>([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState("all")
+    const t = useTranslations('Performance')
 
     useEffect(() => {
         fetchGoals()
@@ -79,7 +81,9 @@ export default function PerformancePage() {
         try {
             const res = await fetch("/api/performance/goals?my=true")
             if (res.ok) {
-                setGoals(await res.json())
+                const response = await res.json()
+                // Handle both wrapped and raw responses for backward compatibility
+                setGoals(response.data || response || [])
             }
         } catch (error) {
             console.error("Failed to fetch goals", error)
@@ -106,70 +110,70 @@ export default function PerformancePage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Performance</h1>
-                    <p className="text-white/60 mt-1">Track goals and performance reviews</p>
+                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <Link href="/performance/goals/new">
-                    <Button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:opacity-90">
+                    <Button className="bg-linear-to-r from-purple-500 to-pink-600 hover:opacity-90">
                         <Plus className="h-4 w-4 mr-2" />
-                        Set New Goal
+                        {t('setNewGoal')}
                     </Button>
                 </Link>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Total Goals</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
+                                <p className="text-sm text-muted-foreground">{t('totalGoals')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
-                                <Target className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-purple-500 to-pink-600">
+                                <Target className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">In Progress</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.inProgress}</h3>
+                                <p className="text-sm text-muted-foreground">{t('inProgress')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.inProgress}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600">
-                                <TrendingUp className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-blue-500 to-indigo-600">
+                                <TrendingUp className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Completed</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.completed}</h3>
+                                <p className="text-sm text-muted-foreground">{t('completed')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.completed}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600">
-                                <CheckCircle2 className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-emerald-500 to-green-600">
+                                <CheckCircle2 className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-[#12121A] border-white/10">
+                <Card className="bg-card border-card-border">
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-white/60">Avg Progress</p>
-                                <h3 className="text-2xl font-bold text-white">{stats.avgProgress}%</h3>
+                                <p className="text-sm text-muted-foreground">{t('avgProgress')}</p>
+                                <h3 className="text-2xl font-bold text-foreground">{stats.avgProgress}%</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600">
-                                <BarChart3 className="h-5 w-5 text-white" />
+                            <div className="p-3 rounded-xl bg-linear-to-r from-amber-500 to-orange-600">
+                                <BarChart3 className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
@@ -178,32 +182,32 @@ export default function PerformancePage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-white/5 border-white/10">
-                    <TabsTrigger value="all">All Goals ({goals.length})</TabsTrigger>
-                    <TabsTrigger value="in_progress">In Progress ({stats.inProgress})</TabsTrigger>
-                    <TabsTrigger value="completed">Completed ({stats.completed})</TabsTrigger>
-                    <TabsTrigger value="not_started">Not Started ({goals.filter(g => g.status === "not_started").length})</TabsTrigger>
+                <TabsList className="bg-hover border-card-border">
+                    <TabsTrigger value="all">{t('allGoals')} ({goals.length})</TabsTrigger>
+                    <TabsTrigger value="in_progress">{t('inProgress')} ({stats.inProgress})</TabsTrigger>
+                    <TabsTrigger value="completed">{t('completed')} ({stats.completed})</TabsTrigger>
+                    <TabsTrigger value="not_started">{t('notStarted')} ({goals.filter(g => g.status === "not_started").length})</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value={activeTab} className="mt-4">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+                            <Loader2 className="h-8 w-8 animate-spin text-tertiary-foreground" />
                         </div>
                     ) : filteredGoals.length === 0 ? (
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="py-16 text-center">
-                                <Target className="h-12 w-12 mx-auto text-white/20 mb-4" />
-                                <h3 className="text-lg font-medium text-white mb-2">
-                                    No goals yet
+                                <Target className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">
+                                    {t('noGoals')}
                                 </h3>
-                                <p className="text-white/40 mb-6">
-                                    Set your first goal to start tracking progress
+                                <p className="text-tertiary-foreground mb-6">
+                                    {t('noGoalsDesc')}
                                 </p>
                                 <Link href="/performance/goals/new">
-                                    <Button className="bg-gradient-to-r from-purple-500 to-pink-600">
+                                    <Button className="bg-linear-to-r from-purple-500 to-pink-600">
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Set New Goal
+                                        {t('addGoal')}
                                     </Button>
                                 </Link>
                             </CardContent>
@@ -225,6 +229,7 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
     const statusInfo = statusConfig[goal.status] || statusConfig.not_started
     const priorityInfo = priorityConfig[goal.priority] || priorityConfig.medium
     const StatusIcon = statusInfo.icon
+    const t = useTranslations('Performance') // Added t for GoalCard
 
     const updateProgress = async (newProgress: number) => {
         try {
@@ -241,7 +246,7 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
     }
 
     return (
-        <Card className="bg-[#12121A] border-white/10 hover:border-white/20 transition-all">
+        <Card className="bg-card border-card-border hover:border-border-hover transition-all">
             <CardContent className="p-6">
                 <div className="flex items-start gap-4">
                     <div className="flex-1">
@@ -255,22 +260,22 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
                                 {priorityInfo.label}
                             </Badge>
                             {goal.type !== "individual" && (
-                                <Badge variant="outline" className="border-white/20">
+                                <Badge variant="outline" className="border-border-hover">
                                     {goal.type}
                                 </Badge>
                             )}
                         </div>
 
-                        <h3 className="text-lg font-semibold text-white mb-1">{goal.title}</h3>
+                        <h3 className="text-lg font-semibold text-foreground mb-1">{goal.title}</h3>
                         {goal.description && (
-                            <p className="text-sm text-white/60 mb-3">{goal.description}</p>
+                            <p className="text-sm text-muted-foreground mb-3">{goal.description}</p>
                         )}
 
                         {/* Progress */}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between text-sm">
-                                <span className="text-white/60">Progress</span>
-                                <span className="text-white font-medium">{goal.progress}%</span>
+                                <span className="text-muted-foreground">{t('progress')}</span>
+                                <span className="text-foreground font-medium">{goal.progress}%</span>
                             </div>
                             <Progress value={goal.progress} className="h-2" />
 
@@ -284,7 +289,7 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
                                             "px-2 py-1 text-xs rounded border transition-all",
                                             goal.progress === p
                                                 ? "bg-purple-500/30 border-purple-500 text-purple-300"
-                                                : "bg-white/5 border-white/10 text-white/60 hover:border-white/20"
+                                                : "bg-hover border-card-border text-muted-foreground hover:border-border-hover"
                                         )}
                                     >
                                         {p}%
@@ -295,15 +300,15 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
 
                         {/* Key Results */}
                         {goal.keyResults.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-white/5">
-                                <h4 className="text-sm font-medium text-white/80 mb-2">Key Results</h4>
+                            <div className="mt-4 pt-4 border-t border-card-border">
+                                <h4 className="text-sm font-medium text-foreground mb-2">{t('keyResults')}</h4>
                                 <div className="space-y-2">
                                     {goal.keyResults.map((kr) => (
                                         <div key={kr.id} className="flex items-center gap-3">
                                             <div className="flex-1">
                                                 <div className="flex items-center justify-between text-sm">
-                                                    <span className="text-white/60">{kr.title}</span>
-                                                    <span className="text-white/80">
+                                                    <span className="text-muted-foreground">{kr.title}</span>
+                                                    <span className="text-foreground">
                                                         {kr.currentValue}/{kr.targetValue} {kr.unit}
                                                     </span>
                                                 </div>
@@ -319,15 +324,15 @@ function GoalCard({ goal, onUpdate }: { goal: Goal; onUpdate: () => void }) {
                         )}
 
                         {/* Footer */}
-                        <div className="flex items-center gap-4 mt-4 text-xs text-white/40">
+                        <div className="flex items-center gap-4 mt-4 text-xs text-tertiary-foreground">
                             {goal.dueDate && (
                                 <span className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    Due: {new Date(goal.dueDate).toLocaleDateString()}
+                                    {t('due')}: {new Date(goal.dueDate).toLocaleDateString()}
                                 </span>
                             )}
                             {goal.reviewCycle && (
-                                <span>Cycle: {goal.reviewCycle.name}</span>
+                                <span>{t('cycle')}: {goal.reviewCycle.name}</span>
                             )}
                         </div>
                     </div>

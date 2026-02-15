@@ -1,16 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
     Form,
     FormControl,
-    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -23,11 +23,12 @@ import {
     SheetHeader,
     SheetTitle,
 } from "@/components/ui/sheet"
+import { Loader2, DollarSign } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
-import { Card, CardContent } from "@/components/ui/card"
 
 const formSchema = z.object({
-    name: z.string().min(1, "Name is required"),
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    code: z.string().optional(),
     basicPercentage: z.coerce.number().min(0).max(100),
     houseRentPercent: z.coerce.number().min(0).max(100),
     medicalPercent: z.coerce.number().min(0).max(100),
@@ -40,32 +41,62 @@ const formSchema = z.object({
 interface StructureFormProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    initialData?: any
     onSuccess: () => void
+    initialData?: {
+        id: string
+        name: string
+        code: string | null
+        basicPercentage: number
+        houseRentPercent: number
+        medicalPercent: number
+        conveyanceFixed: number
+        pfEmployeePercent: number
+        pfEmployerPercent: number
+        description: string | null
+    }
 }
 
-export function StructureForm({ open, onOpenChange, initialData, onSuccess }: StructureFormProps) {
+export function StructureForm({ open, onOpenChange, onSuccess, initialData }: StructureFormProps) {
     const { addToast } = useToast()
     const [loading, setLoading] = useState(false)
+    const t = useTranslations("SharedComponents.structureForm")
+    const tc = useTranslations("SharedComponents.common")
 
     const form = useForm<z.infer<typeof formSchema>>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(formSchema) as any,
         defaultValues: {
             name: initialData?.name || "",
+            code: initialData?.code || "",
             basicPercentage: initialData?.basicPercentage || 50,
-            houseRentPercent: initialData?.houseRentPercent || 50,
+            houseRentPercent: initialData?.houseRentPercent || 25,
             medicalPercent: initialData?.medicalPercent || 10,
-            conveyanceFixed: initialData?.conveyanceFixed || 3000,
-            pfEmployeePercent: initialData?.pfEmployeePercent || 10,
-            pfEmployerPercent: initialData?.pfEmployerPercent || 10,
+            conveyanceFixed: initialData?.conveyanceFixed || 2500,
+            pfEmployeePercent: initialData?.pfEmployeePercent || 0,
+            pfEmployerPercent: initialData?.pfEmployerPercent || 0,
             description: initialData?.description || "",
         },
     })
 
-    const onSubmit = async (values: z.infer<typeof formSchema>) => {
-        setLoading(true)
+    useEffect(() => {
+        if (initialData) {
+            form.reset({
+                name: initialData.name,
+                code: initialData.code || "",
+                basicPercentage: initialData.basicPercentage,
+                houseRentPercent: initialData.houseRentPercent,
+                medicalPercent: initialData.medicalPercent,
+                conveyanceFixed: initialData.conveyanceFixed,
+                pfEmployeePercent: initialData.pfEmployeePercent,
+                pfEmployerPercent: initialData.pfEmployerPercent,
+                description: initialData.description || "",
+            })
+        }
+    }, [initialData, form])
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
         try {
+            setLoading(true)
             const url = initialData
                 ? `/api/payroll/structures/${initialData.id}`
                 : "/api/payroll/structures"
@@ -78,20 +109,23 @@ export function StructureForm({ open, onOpenChange, initialData, onSuccess }: St
             })
 
             if (!res.ok) {
-                throw new Error(await res.text())
+                const error = await res.text()
+                throw new Error(error || tc("somethingWentWrong"))
             }
 
             addToast({
-                title: initialData ? "Structure updated" : "Structure created",
+                title: tc("success"),
+                description: initialData ? t("structureUpdated") : t("structureCreated"),
                 type: "success",
             })
+
+            form.reset()
             onSuccess()
             onOpenChange(false)
-            form.reset()
         } catch (error) {
             addToast({
-                title: "Error",
-                description: error instanceof Error ? error.message : "Something went wrong",
+                title: tc("error"),
+                description: error instanceof Error ? error.message : tc("somethingWentWrong"),
                 type: "error",
             })
         } finally {
@@ -101,162 +135,163 @@ export function StructureForm({ open, onOpenChange, initialData, onSuccess }: St
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-[400px] sm:w-[540px] border-l border-white/10 bg-[#0A0A0F] text-white p-0">
-                <div className="h-full flex flex-col p-6">
-                    <SheetHeader className="mb-6">
-                        <SheetTitle className="text-xl font-bold text-white">
-                            {initialData ? "Edit Salary Structure" : "Create Salary Structure"}
-                        </SheetTitle>
-                        <SheetDescription className="text-white/60">
-                            Configure salary components and their percentages.
-                        </SheetDescription>
-                    </SheetHeader>
+            <SheetContent className="w-full sm:max-w-xl bg-background border-card-border overflow-y-auto">
+                <SheetHeader>
+                    <SheetTitle className="text-foreground flex items-center gap-2">
+                        <DollarSign className="h-5 w-5 text-blue-400" />
+                        {initialData ? t("editTitle") : t("createTitle")}
+                    </SheetTitle>
+                    <SheetDescription className="text-muted-foreground">
+                        {t("sheetDescription")}
+                    </SheetDescription>
+                </SheetHeader>
 
-                    <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-foreground">{t("structureName")}</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder={t("structureNamePlaceholder")} {...field} className="bg-hover border-card-border text-foreground" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {/* Earnings */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-foreground mb-4">{t("earningsConfig")}</h3>
+                            <div className="grid grid-cols-2 gap-4">
                                 <FormField
                                     control={form.control}
-                                    name="name"
+                                    name="basicPercentage"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-white">Structure Name</FormLabel>
+                                            <FormLabel className="text-foreground text-xs">{t("basicOfGross")}</FormLabel>
                                             <FormControl>
-                                                <Input
-                                                    placeholder="e.g. Executive Grade A"
-                                                    {...field}
-                                                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-                                                />
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
-
-                                <Card className="bg-white/5 border-white/10 p-4">
-                                    <h3 className="text-sm font-semibold text-white mb-4">Earnings Configuration</h3>
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <FormField
-                                                control={form.control}
-                                                name="basicPercentage"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-white/80 text-xs">Basic (% of Gross)</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="conveyanceFixed"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-white/80 text-xs">Conveyance (Fixed Amount)</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <FormField
-                                                control={form.control}
-                                                name="houseRentPercent"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-white/80 text-xs">House Rent (% of Basic)</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                            <FormField
-                                                control={form.control}
-                                                name="medicalPercent"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel className="text-white/80 text-xs">Medical (% of Basic)</FormLabel>
-                                                        <FormControl>
-                                                            <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-                                </Card>
-
-                                <Card className="bg-white/5 border-white/10 p-4">
-                                    <h3 className="text-sm font-semibold text-white mb-4">Deductions (PF)</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="pfEmployeePercent"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white/80 text-xs">Employee Contribution (%)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="pfEmployerPercent"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white/80 text-xs">Employer Contribution (%)</FormLabel>
-                                                    <FormControl>
-                                                        <Input type="number" {...field} className="bg-black/20 border-white/10 text-white" />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                </Card>
-
                                 <FormField
                                     control={form.control}
-                                    name="description"
+                                    name="conveyanceFixed"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-white">Description</FormLabel>
+                                            <FormLabel className="text-foreground text-xs">{t("conveyanceFixed")}</FormLabel>
                                             <FormControl>
-                                                <Textarea
-                                                    placeholder="Additional notes..."
-                                                    {...field}
-                                                    className="bg-white/5 border-white/10 text-white resize-none"
-                                                />
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
+                                <FormField
+                                    control={form.control}
+                                    name="houseRentPercent"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-xs">{t("houseRentOfBasic")}</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="medicalPercent"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-xs">{t("medicalOfBasic")}</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </div>
 
-                                <div className="flex justify-end gap-3 pt-4">
-                                    <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} className="text-white/60 hover:text-white">
-                                        Cancel
-                                    </Button>
-                                    <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white">
-                                        {loading ? "Saving..." : "Save Structure"}
-                                    </Button>
-                                </div>
-                            </form>
-                        </Form>
-                    </div>
-                </div>
+                        {/* Deductions */}
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-semibold text-foreground mb-4">{t("deductionsPF")}</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="pfEmployeePercent"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-xs">{t("employeeContribution")}</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="pfEmployerPercent"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-xs">{t("employerContribution")}</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} className="bg-hover border-card-border text-foreground" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </div>
+
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-foreground">{t("description")}</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder={t("descriptionPlaceholder")}
+                                            {...field}
+                                            className="bg-hover border-card-border text-foreground min-h-[80px]"
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <div className="flex justify-end gap-3 pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => onOpenChange(false)}
+                                className="border-card-border"
+                            >
+                                {tc("cancel")}
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="bg-blue-600 hover:bg-blue-700 text-foreground"
+                            >
+                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {loading ? tc("saving") : t("saveStructure")}
+                            </Button>
+                        </div>
+                    </form>
+                </Form>
             </SheetContent>
         </Sheet>
     )

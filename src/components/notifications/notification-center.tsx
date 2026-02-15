@@ -128,26 +128,26 @@ export function NotificationCenter() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="relative text-white/60 hover:text-white hover:bg-white/10"
+                    className="relative text-muted-foreground hover:text-foreground hover:bg-hover"
                 >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-white flex items-center justify-center font-medium">
+                        <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-xs text-foreground flex items-center justify-center font-medium">
                             {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                     )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-96 p-0 bg-[#12121A] border-white/10"
+                className="w-96 p-0 bg-card border-card-border"
                 align="end"
                 sideOffset={8}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <div className="flex items-center justify-between p-4 border-b border-card-border">
                     <div className="flex items-center gap-2">
-                        <Bell className="h-5 w-5 text-white" />
-                        <h3 className="font-semibold text-white">Notifications</h3>
+                        <Bell className="h-5 w-5 text-foreground" />
+                        <h3 className="font-semibold text-foreground">Notifications</h3>
                         {unreadCount > 0 && (
                             <Badge variant="danger" className="ml-1">
                                 {unreadCount}
@@ -159,7 +159,7 @@ export function NotificationCenter() {
                             variant="ghost"
                             size="sm"
                             onClick={() => markAsRead()}
-                            className="text-xs text-white/60 hover:text-white"
+                            className="text-xs text-muted-foreground hover:text-foreground"
                         >
                             <CheckCheck className="h-4 w-4 mr-1" />
                             Mark all read
@@ -171,8 +171,8 @@ export function NotificationCenter() {
                 <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
                         <div className="p-8 text-center">
-                            <Bell className="h-10 w-10 mx-auto text-white/20 mb-3" />
-                            <p className="text-white/60">No notifications yet</p>
+                            <Bell className="h-10 w-10 mx-auto text-muted-text mb-3" />
+                            <p className="text-muted-foreground">No notifications yet</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-white/5">
@@ -182,13 +182,13 @@ export function NotificationCenter() {
                                     onClick={() => handleNotificationClick(notification)}
                                     className={cn(
                                         "flex items-start gap-3 p-4 cursor-pointer transition-colors",
-                                        "hover:bg-white/5",
-                                        !notification.isRead && "bg-white/[0.02]"
+                                        "hover:bg-hover",
+                                        !notification.isRead && "bg-hover"
                                     )}
                                 >
                                     {/* Icon */}
                                     <div className={cn(
-                                        "p-2 rounded-lg bg-gradient-to-br shrink-0",
+                                        "p-2 rounded-lg bg-linear-to-br shrink-0",
                                         typeColors[notification.type] || typeColors.default
                                     )}>
                                         {typeIcons[notification.type] || typeIcons.default}
@@ -199,7 +199,7 @@ export function NotificationCenter() {
                                         <div className="flex items-start justify-between gap-2">
                                             <p className={cn(
                                                 "text-sm truncate",
-                                                notification.isRead ? "text-white/60" : "text-white font-medium"
+                                                notification.isRead ? "text-muted-foreground" : "text-foreground font-medium"
                                             )}>
                                                 {notification.title}
                                             </p>
@@ -207,10 +207,10 @@ export function NotificationCenter() {
                                                 <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />
                                             )}
                                         </div>
-                                        <p className="text-xs text-white/40 line-clamp-2 mt-0.5">
+                                        <p className="text-xs text-tertiary-foreground line-clamp-2 mt-0.5">
                                             {notification.message}
                                         </p>
-                                        <p className="text-xs text-white/30 mt-1">
+                                        <p className="text-xs text-muted-text mt-1">
                                             {formatTime(notification.createdAt)}
                                         </p>
                                     </div>
@@ -222,11 +222,11 @@ export function NotificationCenter() {
 
                 {/* Footer */}
                 {notifications.length > 0 && (
-                    <div className="p-3 border-t border-white/10">
+                    <div className="p-3 border-t border-card-border">
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="w-full text-white/60 hover:text-white text-xs"
+                            className="w-full text-muted-foreground hover:text-foreground text-xs"
                             onClick={() => {
                                 window.location.href = "/notifications"
                                 setOpen(false)

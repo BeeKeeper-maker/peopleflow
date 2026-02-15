@@ -6,10 +6,12 @@ import { columns, Department } from "@/components/departments/columns"
 import { Button } from "@/components/ui/button"
 import { Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useTranslations } from "next-intl"
 
 export default function DepartmentsPage() {
     const [data, setData] = useState<Department[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const t = useTranslations('Departments')
 
     useEffect(() => {
         const fetchData = async () => {
@@ -37,21 +39,21 @@ export default function DepartmentsPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Departments</h1>
-                    <p className="text-white/60 mt-1">
-                        Manage your organization's departments
+                    <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {t('subtitle')}
                     </p>
                 </div>
                 <Link href="/departments/new">
-                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-foreground">
                         <Plus className="h-4 w-4" />
-                        Add Department
+                        {t('addNew')}
                     </Button>
                 </Link>
             </div>
 
             {isLoading ? (
-                <div className="flex h-64 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                <div className="flex h-64 items-center justify-center rounded-xl border border-card-border bg-hover">
                     <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 </div>
             ) : (
@@ -59,7 +61,7 @@ export default function DepartmentsPage() {
                     columns={columns}
                     data={data}
                     searchKey="name"
-                    placeholder="Search departments..."
+                    placeholder={t('searchPlaceholder')}
                 />
             )}
         </div>

@@ -116,8 +116,20 @@ export async function DELETE(
 
         const { id } = await params;
 
-        // Check if leave type is being used
-        // TODO: Check leave applications and allocations before delete
+        // Check if leave type is being used in applications or allocations
+        const [applicationCount, allocationCount] = await Promise.all([
+            prisma.leaveApplication.count({ where: { leaveTypeId: id } }),
+            prisma.leaveAllocation.count({ where: { leaveTypeId: id } }),
+        ]);
+
+        if (applicationCount > 0 || allocationCount > 0) {
+            return new NextResponse(
+                JSON.stringify({
+                    error: `Cannot delete: this leave type has ${applicationCount} application(s) and ${allocationCount} allocation(s) associated with it. Remove them first.`,
+                }),
+                { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+        }
 
         await prisma.leaveType.delete({
             where: {

@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
 
 type Step = 1 | 2 | 3;
 
@@ -34,22 +35,12 @@ interface FormData {
     agreeToTerms: boolean;
 }
 
-const industries = [
-    "Technology",
-    "Healthcare",
-    "Finance & Banking",
-    "Manufacturing",
-    "Retail",
-    "Education",
-    "Consulting",
-    "Real Estate",
-    "Hospitality",
-    "Other",
-];
+type FormErrors = Partial<Record<keyof FormData, string>>;
 
 export default function RegisterPage() {
     const router = useRouter();
     const { addToast } = useToast();
+    const t = useTranslations("Auth.register");
     const [step, setStep] = useState<Step>(1);
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -62,42 +53,55 @@ export default function RegisterPage() {
         confirmPassword: "",
         agreeToTerms: false,
     });
-    const [errors, setErrors] = useState<Partial<FormData>>({});
+    const [errors, setErrors] = useState<FormErrors>({});
+
+    const industries = [
+        { value: "Technology", label: t("industryTechnology") },
+        { value: "Healthcare", label: t("industryHealthcare") },
+        { value: "Finance & Banking", label: t("industryFinance") },
+        { value: "Manufacturing", label: t("industryManufacturing") },
+        { value: "Retail", label: t("industryRetail") },
+        { value: "Education", label: t("industryEducation") },
+        { value: "Consulting", label: t("industryConsulting") },
+        { value: "Real Estate", label: t("industryRealEstate") },
+        { value: "Hospitality", label: t("industryHospitality") },
+        { value: "Other", label: t("industryOther") },
+    ];
 
     const validateStep = () => {
-        const newErrors: Partial<FormData> = {};
+        const newErrors: FormErrors = {};
 
         if (step === 1) {
             if (!formData.organizationName) {
-                newErrors.organizationName = "Organization name is required" as any;
+                newErrors.organizationName = t("orgNameRequired");
             }
             if (!formData.industry) {
-                newErrors.industry = "Please select an industry" as any;
+                newErrors.industry = t("industrySelectRequired");
             }
         }
 
         if (step === 2) {
             if (!formData.name) {
-                newErrors.name = "Name is required" as any;
+                newErrors.name = t("nameRequired");
             }
             if (!formData.email) {
-                newErrors.email = "Email is required" as any;
+                newErrors.email = t("emailRequired");
             } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-                newErrors.email = "Please enter a valid email" as any;
+                newErrors.email = t("emailInvalid");
             }
             if (!formData.password) {
-                newErrors.password = "Password is required" as any;
+                newErrors.password = t("passwordRequired");
             } else if (formData.password.length < 8) {
-                newErrors.password = "Password must be at least 8 characters" as any;
+                newErrors.password = t("passwordMin");
             }
             if (formData.password !== formData.confirmPassword) {
-                newErrors.confirmPassword = "Passwords do not match" as any;
+                newErrors.confirmPassword = t("passwordMismatch");
             }
         }
 
         if (step === 3) {
             if (!formData.agreeToTerms) {
-                newErrors.agreeToTerms = "You must agree to the terms" as any;
+                newErrors.agreeToTerms = t("termsRequired");
             }
         }
 
@@ -138,13 +142,13 @@ export default function RegisterPage() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || "Registration failed");
+                throw new Error(data.error || t("toastRegFailed"));
             }
 
             addToast({
                 type: "success",
-                title: "Account Created!",
-                description: "Welcome to PeopleFlow. Redirecting to login...",
+                title: t("toastAccountCreated"),
+                description: t("toastWelcome"),
             });
 
             setTimeout(() => {
@@ -153,8 +157,8 @@ export default function RegisterPage() {
         } catch (error) {
             addToast({
                 type: "error",
-                title: "Registration Failed",
-                description: error instanceof Error ? error.message : "An error occurred",
+                title: t("toastRegFailed"),
+                description: error instanceof Error ? error.message : t("toastRegError"),
             });
         } finally {
             setIsLoading(false);
@@ -162,16 +166,16 @@ export default function RegisterPage() {
     };
 
     const steps = [
-        { number: 1, title: "Organization" },
-        { number: 2, title: "Admin Account" },
-        { number: 3, title: "Confirm" },
+        { number: 1, title: t("step1Title") },
+        { number: 2, title: t("step2Title") },
+        { number: 3, title: t("step3Title") },
     ];
 
     return (
         <div className="min-h-screen flex">
             {/* Left Panel - Progress */}
             <div className="hidden lg:flex lg:w-2/5 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-purple-700 to-blue-800">
+                <div className="absolute inset-0 bg-linear-to-br from-purple-600 via-purple-700 to-blue-800">
                     <motion.div
                         className="absolute top-1/3 left-1/3 w-80 h-80 bg-purple-400/30 rounded-full blur-3xl"
                         animate={{
@@ -191,20 +195,20 @@ export default function RegisterPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                     >
-                        <div className="flex items-center gap-3 mb-12">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-lg">
-                                <span className="text-2xl font-bold">P</span>
+                        <div className="flex items-center gap-4 mb-12">
+                            <div className="flex h-14 w-14 items-center justify-center overflow-hidden">
+                                <img src="/logo.png" alt={t("brandName")} className="h-full w-full object-cover rounded-xl" />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold">PeopleFlow</h1>
-                                <p className="text-sm text-white/60">প্রবাহ</p>
+                                <h1 className="text-2xl font-bold">{t("brandName")}</h1>
+                                <p className="text-sm text-white/60">{t("brandTagline")}</p>
                             </div>
                         </div>
 
                         <h2 className="text-3xl font-bold mb-8">
-                            Create Your
+                            {t("createOrgTitle1")}
                             <br />
-                            Organization
+                            {t("createOrgTitle2")}
                         </h2>
 
                         {/* Steps */}
@@ -219,8 +223,8 @@ export default function RegisterPage() {
                                 >
                                     <div
                                         className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300 ${step >= s.number
-                                                ? "bg-white text-purple-600"
-                                                : "bg-white/20 text-white/60"
+                                            ? "bg-white text-purple-600"
+                                            : "bg-white/20 text-white/60"
                                             }`}
                                     >
                                         {step > s.number ? (
@@ -234,7 +238,7 @@ export default function RegisterPage() {
                                             className={`text-sm ${step >= s.number ? "text-white" : "text-white/60"
                                                 }`}
                                         >
-                                            Step {s.number}
+                                            {t("stepLabel", { number: s.number })}
                                         </p>
                                         <p
                                             className={`font-medium ${step >= s.number ? "text-white" : "text-white/40"
@@ -256,12 +260,12 @@ export default function RegisterPage() {
                     {/* Mobile Progress */}
                     <div className="lg:hidden flex items-center justify-between mb-8">
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-blue-600">
-                                <span className="text-xl font-bold text-white">P</span>
+                            <div className="flex h-12 w-12 items-center justify-center overflow-hidden">
+                                <img src="/logo.png" alt={t("brandName")} className="h-full w-full object-cover rounded-xl" />
                             </div>
-                            <h1 className="text-xl font-bold text-white">PeopleFlow</h1>
+                            <h1 className="text-xl font-bold text-white">{t("brandName")}</h1>
                         </div>
-                        <p className="text-white/60 text-sm">Step {step} of 3</p>
+                        <p className="text-white/60 text-sm">{t("stepOf", { step })}</p>
                     </div>
 
                     <form onSubmit={step === 3 ? handleSubmit : (e) => e.preventDefault()}>
@@ -279,28 +283,28 @@ export default function RegisterPage() {
                                         <Building2 className="h-7 w-7" />
                                     </div>
                                     <h2 className="text-2xl font-bold text-white">
-                                        Tell us about your organization
+                                        {t("orgHeading")}
                                     </h2>
                                     <p className="text-white/60 mt-2">
-                                        We&apos;ll use this to set up your workspace
+                                        {t("orgSubheading")}
                                     </p>
                                 </div>
 
                                 <Input
-                                    label="Organization Name"
+                                    label={t("orgNameLabel")}
                                     type="text"
-                                    placeholder="e.g., Acme Corporation"
+                                    placeholder={t("orgNamePlaceholder")}
                                     value={formData.organizationName}
                                     onChange={(e) =>
                                         setFormData({ ...formData, organizationName: e.target.value })
                                     }
-                                    error={errors.organizationName as string}
+                                    error={errors.organizationName}
                                     leftIcon={<Building2 className="h-5 w-5" />}
                                 />
 
                                 <div>
                                     <label className="block text-sm font-medium text-white/80 mb-2">
-                                        Industry <span className="text-red-400">*</span>
+                                        {t("industryLabel")} <span className="text-red-400">*</span>
                                     </label>
                                     <select
                                         value={formData.industry}
@@ -310,17 +314,17 @@ export default function RegisterPage() {
                                         className="w-full h-11 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                                     >
                                         <option value="" className="bg-[#141419]">
-                                            Select an industry
+                                            {t("selectIndustry")}
                                         </option>
                                         {industries.map((ind) => (
-                                            <option key={ind} value={ind} className="bg-[#141419]">
-                                                {ind}
+                                            <option key={ind.value} value={ind.value} className="bg-[#141419]">
+                                                {ind.label}
                                             </option>
                                         ))}
                                     </select>
                                     {errors.industry && (
                                         <p className="mt-1.5 text-xs text-red-400">
-                                            {errors.industry as string}
+                                            {errors.industry}
                                         </p>
                                     )}
                                 </div>
@@ -330,7 +334,7 @@ export default function RegisterPage() {
                                     onClick={handleNext}
                                     className="w-full h-12"
                                 >
-                                    Continue
+                                    {t("continue")}
                                     <ArrowRight className="h-5 w-5" />
                                 </Button>
                             </motion.div>
@@ -350,47 +354,47 @@ export default function RegisterPage() {
                                         <User className="h-7 w-7" />
                                     </div>
                                     <h2 className="text-2xl font-bold text-white">
-                                        Create admin account
+                                        {t("adminHeading")}
                                     </h2>
                                     <p className="text-white/60 mt-2">
-                                        This will be the main administrator
+                                        {t("adminSubheading")}
                                     </p>
                                 </div>
 
                                 <Input
-                                    label="Full Name"
+                                    label={t("fullNameLabel")}
                                     type="text"
-                                    placeholder="Enter your full name"
+                                    placeholder={t("fullNamePlaceholder")}
                                     value={formData.name}
                                     onChange={(e) =>
                                         setFormData({ ...formData, name: e.target.value })
                                     }
-                                    error={errors.name as string}
+                                    error={errors.name}
                                     leftIcon={<User className="h-5 w-5" />}
                                 />
 
                                 <Input
-                                    label="Email Address"
+                                    label={t("emailLabel")}
                                     type="email"
-                                    placeholder="Enter your email"
+                                    placeholder={t("emailPlaceholder")}
                                     value={formData.email}
                                     onChange={(e) =>
                                         setFormData({ ...formData, email: e.target.value })
                                     }
-                                    error={errors.email as string}
+                                    error={errors.email}
                                     leftIcon={<Mail className="h-5 w-5" />}
                                 />
 
                                 <Input
-                                    label="Password"
+                                    label={t("passwordLabel")}
                                     type={showPassword ? "text" : "password"}
-                                    placeholder="Create a strong password"
+                                    placeholder={t("passwordPlaceholder")}
                                     value={formData.password}
                                     onChange={(e) =>
                                         setFormData({ ...formData, password: e.target.value })
                                     }
-                                    error={errors.password as string}
-                                    hint="Minimum 8 characters"
+                                    error={errors.password}
+                                    hint={t("passwordHint")}
                                     leftIcon={<Lock className="h-5 w-5" />}
                                     rightIcon={
                                         <button
@@ -403,14 +407,14 @@ export default function RegisterPage() {
                                 />
 
                                 <Input
-                                    label="Confirm Password"
+                                    label={t("confirmPasswordLabel")}
                                     type={showPassword ? "text" : "password"}
-                                    placeholder="Confirm your password"
+                                    placeholder={t("confirmPasswordPlaceholder")}
                                     value={formData.confirmPassword}
                                     onChange={(e) =>
                                         setFormData({ ...formData, confirmPassword: e.target.value })
                                     }
-                                    error={errors.confirmPassword as string}
+                                    error={errors.confirmPassword}
                                     leftIcon={<Lock className="h-5 w-5" />}
                                 />
 
@@ -422,14 +426,14 @@ export default function RegisterPage() {
                                         className="flex-1 h-12"
                                     >
                                         <ArrowLeft className="h-5 w-5" />
-                                        Back
+                                        {t("back")}
                                     </Button>
                                     <Button
                                         type="button"
                                         onClick={handleNext}
                                         className="flex-1 h-12"
                                     >
-                                        Continue
+                                        {t("continue")}
                                         <ArrowRight className="h-5 w-5" />
                                     </Button>
                                 </div>
@@ -450,16 +454,16 @@ export default function RegisterPage() {
                                         <Check className="h-7 w-7" />
                                     </div>
                                     <h2 className="text-2xl font-bold text-white">
-                                        Review & Confirm
+                                        {t("reviewHeading")}
                                     </h2>
                                     <p className="text-white/60 mt-2">
-                                        Make sure everything looks good
+                                        {t("reviewSubheading")}
                                     </p>
                                 </div>
 
                                 <div className="space-y-4">
                                     <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                        <p className="text-xs text-white/40 mb-1">Organization</p>
+                                        <p className="text-xs text-white/40 mb-1">{t("reviewOrgLabel")}</p>
                                         <p className="text-white font-medium">
                                             {formData.organizationName}
                                         </p>
@@ -467,7 +471,7 @@ export default function RegisterPage() {
                                     </div>
 
                                     <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                        <p className="text-xs text-white/40 mb-1">Admin Account</p>
+                                        <p className="text-xs text-white/40 mb-1">{t("reviewAdminLabel")}</p>
                                         <p className="text-white font-medium">{formData.name}</p>
                                         <p className="text-white/60 text-sm">{formData.email}</p>
                                     </div>
@@ -483,13 +487,13 @@ export default function RegisterPage() {
                                         className="h-5 w-5 mt-0.5 rounded border-white/20 bg-white/5 text-blue-500 focus:ring-blue-500/50"
                                     />
                                     <span className="text-sm text-white/60">
-                                        I agree to the{" "}
+                                        {t("agreeToTerms")}{" "}
                                         <Link href="/terms" className="text-blue-400">
-                                            Terms of Service
+                                            {t("termsOfService")}
                                         </Link>{" "}
-                                        and{" "}
+                                        {t("and")}{" "}
                                         <Link href="/privacy" className="text-blue-400">
-                                            Privacy Policy
+                                            {t("privacyPolicy")}
                                         </Link>
                                     </span>
                                 </label>
@@ -503,14 +507,14 @@ export default function RegisterPage() {
                                         disabled={isLoading}
                                     >
                                         <ArrowLeft className="h-5 w-5" />
-                                        Back
+                                        {t("back")}
                                     </Button>
                                     <Button
                                         type="submit"
                                         className="flex-1 h-12"
                                         isLoading={isLoading}
                                     >
-                                        {!isLoading && "Create Account"}
+                                        {!isLoading && t("createAccount")}
                                     </Button>
                                 </div>
                             </motion.div>
@@ -519,12 +523,12 @@ export default function RegisterPage() {
 
                     <div className="mt-8 text-center">
                         <p className="text-white/40 text-sm">
-                            Already have an account?{" "}
+                            {t("alreadyHaveAccount")}{" "}
                             <Link
                                 href="/login"
                                 className="text-blue-400 hover:text-blue-300 transition-colors"
                             >
-                                Sign in
+                                {t("signIn")}
                             </Link>
                         </p>
                     </div>

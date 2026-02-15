@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
     User,
     Mail,
@@ -14,6 +15,7 @@ import {
     Edit2,
     Save,
     X,
+    Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 interface EmployeeProfile {
     id: string;
@@ -30,39 +33,40 @@ interface EmployeeProfile {
     firstName: string;
     lastName: string;
     email: string;
-    phone: string;
-    personalEmail: string;
-    dateOfBirth: string;
-    gender: string;
-    bloodGroup: string;
-    maritalStatus: string;
-    nationality: string;
-    nidNumber: string;
+    phone?: string;
+    personalEmail?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    bloodGroup?: string;
+    maritalStatus?: string;
+    nationality?: string;
+    nidNumber?: string;
+    photoUrl?: string;
 
-    department: string;
-    designation: string;
-    joiningDate: string;
-    employmentType: string;
-    reportingManager: string;
-    shift: string;
-    branch: string;
+    department?: { name: string };
+    designation?: { name: string };
+    joiningDate?: string;
+    employmentType?: string;
+    reportingManager?: { firstName: string; lastName: string };
+    shift?: { name: string };
+    branch?: { name: string };
 
-    presentAddress: string;
-    permanentAddress: string;
-    emergencyContact: {
-        name: string;
-        relation: string;
-        phone: string;
-    };
+    presentAddress?: string;
+    permanentAddress?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    emergencyContactRelation?: string;
 
-    bankName: string;
-    accountNumber: string;
-    routingNumber: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankRoutingNumber?: string;
 }
 
 export default function ESSProfilePage() {
+    const t = useTranslations("ESSProfile");
     const { data: session } = useSession();
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [profile, setProfile] = useState<EmployeeProfile | null>(null);
     const [editedProfile, setEditedProfile] = useState<Partial<EmployeeProfile>>({});
@@ -72,46 +76,13 @@ export default function ESSProfilePage() {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                // TODO: Fetch real data from API
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-
-                const mockProfile: EmployeeProfile = {
-                    id: "1",
-                    employeeCode: "EMP-2024-0042",
-                    firstName: user?.name?.split(" ")[0] || "John",
-                    lastName: user?.name?.split(" ")[1] || "Doe",
-                    email: user?.email || "john@company.com",
-                    phone: "+880 1711-123456",
-                    personalEmail: "john.personal@gmail.com",
-                    dateOfBirth: "1990-03-15",
-                    gender: "Male",
-                    bloodGroup: "O+",
-                    maritalStatus: "Married",
-                    nationality: "Bangladeshi",
-                    nidNumber: "1234567890",
-
-                    department: "Engineering",
-                    designation: "Senior Software Engineer",
-                    joiningDate: "2020-01-01",
-                    employmentType: "Permanent",
-                    reportingManager: "Jane Smith",
-                    shift: "Day Shift (9:00 AM - 6:00 PM)",
-                    branch: "Dhaka HQ",
-
-                    presentAddress: "House 12, Road 5, Dhanmondi, Dhaka-1205",
-                    permanentAddress: "Village: ABC, Upazila: XYZ, District: Dhaka",
-                    emergencyContact: {
-                        name: "Sarah Doe",
-                        relation: "Spouse",
-                        phone: "+880 1712-654321",
-                    },
-
-                    bankName: "Dutch Bangla Bank",
-                    accountNumber: "XXXXXXXXX1234",
-                    routingNumber: "123456789",
-                };
-
-                setProfile(mockProfile);
+                const res = await fetch("/api/employees/me");
+                if (res.ok) {
+                    const data = await res.json();
+                    setProfile(data.data || data);
+                } else {
+                    console.error("Failed to fetch profile");
+                }
             } catch (error) {
                 console.error("Error fetching profile:", error);
             } finally {
@@ -120,41 +91,47 @@ export default function ESSProfilePage() {
         };
 
         fetchProfile();
-    }, [user]);
+    }, []);
 
     const handleEditToggle = () => {
         if (isEditing) {
-            // Cancel editing
             setEditedProfile({});
         } else {
-            // Start editing
             setEditedProfile({
                 phone: profile?.phone,
                 personalEmail: profile?.personalEmail,
                 presentAddress: profile?.presentAddress,
-                emergencyContact: profile?.emergencyContact,
+                emergencyContactName: profile?.emergencyContactName,
+                emergencyContactPhone: profile?.emergencyContactPhone,
+                emergencyContactRelation: profile?.emergencyContactRelation,
             });
         }
         setIsEditing(!isEditing);
     };
 
     const handleSave = async () => {
+        setIsSaving(true);
         try {
-            // TODO: Call API to save changes
-            console.log("Saving:", editedProfile);
+            const res = await fetch("/api/employees/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(editedProfile),
+            });
 
-            // Update local state
-            if (profile) {
-                setProfile({
-                    ...profile,
-                    ...editedProfile,
-                });
+            if (res.ok) {
+                const data = await res.json();
+                setProfile(data.data || data);
+                setIsEditing(false);
+                setEditedProfile({});
+                toast.success(t("updateSuccess"));
+            } else {
+                toast.error(t("updateFailed"));
             }
-
-            setIsEditing(false);
-            setEditedProfile({});
         } catch (error) {
             console.error("Error saving profile:", error);
+            toast.error(t("updateFailed"));
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -176,7 +153,7 @@ export default function ESSProfilePage() {
     if (!profile) {
         return (
             <div className="flex items-center justify-center h-64">
-                <p className="text-white/60">Failed to load profile</p>
+                <p className="text-muted-foreground">{t("updateFailed")}</p>
             </div>
         );
     }
@@ -186,24 +163,26 @@ export default function ESSProfilePage() {
             {/* Profile Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div className="flex items-center gap-6">
-                    <Avatar className="h-24 w-24 border-4 border-white/10">
-                        <AvatarImage src={user?.image || undefined} />
-                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-3xl">
-                            {profile.firstName[0]}{profile.lastName[0]}
+                    <Avatar className="h-24 w-24 border-4 border-card-border">
+                        <AvatarImage src={profile.photoUrl || user?.image || undefined} />
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-3xl">
+                            {profile.firstName?.[0]}{profile.lastName?.[0]}
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <h1 className="text-2xl font-bold text-white">
+                        <h1 className="text-2xl font-bold text-foreground">
                             {profile.firstName} {profile.lastName}
                         </h1>
-                        <p className="text-white/60">{profile.designation}</p>
+                        <p className="text-muted-foreground">{profile.designation?.name || t("notProvided")}</p>
                         <div className="flex items-center gap-3 mt-2">
                             <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
                                 {profile.employeeCode}
                             </Badge>
-                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                                {profile.employmentType}
-                            </Badge>
+                            {profile.employmentType && (
+                                <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                                    {profile.employmentType}
+                                </Badge>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -214,17 +193,23 @@ export default function ESSProfilePage() {
                             <Button
                                 variant="outline"
                                 onClick={handleEditToggle}
-                                className="border-white/10 text-white/60 hover:text-white"
+                                disabled={isSaving}
+                                className="border-card-border text-muted-foreground hover:text-foreground"
                             >
                                 <X className="h-4 w-4 mr-2" />
-                                Cancel
+                                {t("cancelEdit")}
                             </Button>
                             <Button
                                 onClick={handleSave}
+                                disabled={isSaving}
                                 className="bg-green-600 hover:bg-green-500"
                             >
-                                <Save className="h-4 w-4 mr-2" />
-                                Save Changes
+                                {isSaving ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Save className="h-4 w-4 mr-2" />
+                                )}
+                                {isSaving ? t("saving") : t("saveChanges")}
                             </Button>
                         </>
                     ) : (
@@ -233,7 +218,7 @@ export default function ESSProfilePage() {
                             className="bg-blue-600 hover:bg-blue-500"
                         >
                             <Edit2 className="h-4 w-4 mr-2" />
-                            Edit Profile
+                            {t("editProfile")}
                         </Button>
                     )}
                 </div>
@@ -241,63 +226,57 @@ export default function ESSProfilePage() {
 
             {/* Profile Tabs */}
             <Tabs defaultValue="personal" className="space-y-6">
-                <TabsList className="bg-[#141419] border border-white/5">
+                <TabsList className="bg-card border border-card-border">
                     <TabsTrigger value="personal" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
-                        Personal Info
+                        {t("personalInfo")}
                     </TabsTrigger>
                     <TabsTrigger value="employment" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
-                        Employment
+                        {t("workInfo")}
                     </TabsTrigger>
                     <TabsTrigger value="contact" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
-                        Contact & Address
+                        {t("emergencyContact")}
                     </TabsTrigger>
                     <TabsTrigger value="bank" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
-                        Bank Details
+                        {t("bankInfo")}
                     </TabsTrigger>
                 </TabsList>
 
                 {/* Personal Info Tab */}
                 <TabsContent value="personal">
-                    <Card className="bg-[#141419] border-white/5">
+                    <Card className="bg-card border-card-border">
                         <CardHeader>
-                            <CardTitle className="text-white flex items-center gap-2">
+                            <CardTitle className="text-foreground flex items-center gap-2">
                                 <User className="h-5 w-5 text-blue-400" />
-                                Personal Information
+                                {t("personalInfo")}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">First Name</Label>
-                                    <p className="text-white">{profile.firstName}</p>
+                                    <Label className="text-muted-foreground">{t("fullName")}</Label>
+                                    <p className="text-foreground">{profile.firstName} {profile.lastName}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Last Name</Label>
-                                    <p className="text-white">{profile.lastName}</p>
+                                    <Label className="text-muted-foreground">{t("email")}</Label>
+                                    <p className="text-foreground">{profile.email}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Date of Birth</Label>
-                                    <p className="text-white">{new Date(profile.dateOfBirth).toLocaleDateString()}</p>
+                                    <Label className="text-muted-foreground">{t("dateOfBirth")}</Label>
+                                    <p className="text-foreground">
+                                        {profile.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : t("notProvided")}
+                                    </p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Gender</Label>
-                                    <p className="text-white">{profile.gender}</p>
+                                    <Label className="text-muted-foreground">{t("gender")}</Label>
+                                    <p className="text-foreground">{profile.gender || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Blood Group</Label>
-                                    <p className="text-white">{profile.bloodGroup}</p>
+                                    <Label className="text-muted-foreground">{t("bloodGroup")}</Label>
+                                    <p className="text-foreground">{profile.bloodGroup || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Marital Status</Label>
-                                    <p className="text-white">{profile.maritalStatus}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-white/60">Nationality</Label>
-                                    <p className="text-white">{profile.nationality}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-white/60">NID Number</Label>
-                                    <p className="text-white">{profile.nidNumber}</p>
+                                    <Label className="text-muted-foreground">{t("maritalStatus")}</Label>
+                                    <p className="text-foreground">{profile.maritalStatus || t("notProvided")}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -306,46 +285,36 @@ export default function ESSProfilePage() {
 
                 {/* Employment Tab */}
                 <TabsContent value="employment">
-                    <Card className="bg-[#141419] border-white/5">
+                    <Card className="bg-card border-card-border">
                         <CardHeader>
-                            <CardTitle className="text-white flex items-center gap-2">
+                            <CardTitle className="text-foreground flex items-center gap-2">
                                 <Briefcase className="h-5 w-5 text-green-400" />
-                                Employment Details
+                                {t("workInfo")}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Employee Code</Label>
-                                    <p className="text-white">{profile.employeeCode}</p>
+                                    <Label className="text-muted-foreground">{t("employeeCode")}</Label>
+                                    <p className="text-foreground">{profile.employeeCode}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Department</Label>
-                                    <p className="text-white">{profile.department}</p>
+                                    <Label className="text-muted-foreground">{t("department")}</Label>
+                                    <p className="text-foreground">{profile.department?.name || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Designation</Label>
-                                    <p className="text-white">{profile.designation}</p>
+                                    <Label className="text-muted-foreground">{t("designation")}</Label>
+                                    <p className="text-foreground">{profile.designation?.name || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Employment Type</Label>
-                                    <p className="text-white">{profile.employmentType}</p>
+                                    <Label className="text-muted-foreground">{t("employmentType")}</Label>
+                                    <p className="text-foreground">{profile.employmentType || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Joining Date</Label>
-                                    <p className="text-white">{new Date(profile.joiningDate).toLocaleDateString()}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-white/60">Reporting Manager</Label>
-                                    <p className="text-white">{profile.reportingManager}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-white/60">Shift</Label>
-                                    <p className="text-white">{profile.shift}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-white/60">Branch</Label>
-                                    <p className="text-white">{profile.branch}</p>
+                                    <Label className="text-muted-foreground">{t("joinDate")}</Label>
+                                    <p className="text-foreground">
+                                        {profile.joiningDate ? new Date(profile.joiningDate).toLocaleDateString() : t("notProvided")}
+                                    </p>
                                 </div>
                             </div>
                         </CardContent>
@@ -355,102 +324,132 @@ export default function ESSProfilePage() {
                 {/* Contact Tab */}
                 <TabsContent value="contact">
                     <div className="space-y-6">
-                        <Card className="bg-[#141419] border-white/5">
+                        <Card className="bg-card border-card-border">
                             <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
+                                <CardTitle className="text-foreground flex items-center gap-2">
                                     <Phone className="h-5 w-5 text-purple-400" />
-                                    Contact Information
+                                    {t("personalInfo")}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Work Email</Label>
-                                        <p className="text-white">{profile.email}</p>
+                                        <Label className="text-muted-foreground">{t("email")}</Label>
+                                        <p className="text-foreground">{profile.email}</p>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Personal Email</Label>
+                                        <Label className="text-muted-foreground">{t("personalEmail")}</Label>
                                         {isEditing ? (
                                             <Input
                                                 value={editedProfile.personalEmail || ""}
                                                 onChange={(e) =>
                                                     setEditedProfile({ ...editedProfile, personalEmail: e.target.value })
                                                 }
-                                                className="bg-white/5 border-white/10 text-white"
+                                                className="bg-hover border-card-border text-foreground"
                                             />
                                         ) : (
-                                            <p className="text-white">{profile.personalEmail}</p>
+                                            <p className="text-foreground">{profile.personalEmail || t("notProvided")}</p>
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Phone</Label>
+                                        <Label className="text-muted-foreground">{t("phone")}</Label>
                                         {isEditing ? (
                                             <Input
                                                 value={editedProfile.phone || ""}
                                                 onChange={(e) =>
                                                     setEditedProfile({ ...editedProfile, phone: e.target.value })
                                                 }
-                                                className="bg-white/5 border-white/10 text-white"
+                                                className="bg-hover border-card-border text-foreground"
                                             />
                                         ) : (
-                                            <p className="text-white">{profile.phone}</p>
+                                            <p className="text-foreground">{profile.phone || t("notProvided")}</p>
                                         )}
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-[#141419] border-white/5">
+                        <Card className="bg-card border-card-border">
                             <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
+                                <CardTitle className="text-foreground flex items-center gap-2">
                                     <MapPin className="h-5 w-5 text-orange-400" />
-                                    Address
+                                    {t("presentAddress")}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Present Address</Label>
+                                        <Label className="text-muted-foreground">{t("presentAddress")}</Label>
                                         {isEditing ? (
                                             <Input
                                                 value={editedProfile.presentAddress || ""}
                                                 onChange={(e) =>
                                                     setEditedProfile({ ...editedProfile, presentAddress: e.target.value })
                                                 }
-                                                className="bg-white/5 border-white/10 text-white"
+                                                className="bg-hover border-card-border text-foreground"
                                             />
                                         ) : (
-                                            <p className="text-white">{profile.presentAddress}</p>
+                                            <p className="text-foreground">{profile.presentAddress || t("notProvided")}</p>
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Permanent Address</Label>
-                                        <p className="text-white">{profile.permanentAddress}</p>
+                                        <Label className="text-muted-foreground">{t("permanentAddress")}</Label>
+                                        <p className="text-foreground">{profile.permanentAddress || t("notProvided")}</p>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-[#141419] border-white/5">
+                        <Card className="bg-card border-card-border">
                             <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
+                                <CardTitle className="text-foreground flex items-center gap-2">
                                     <User className="h-5 w-5 text-red-400" />
-                                    Emergency Contact
+                                    {t("emergencyContact")}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Name</Label>
-                                        <p className="text-white">{profile.emergencyContact.name}</p>
+                                        <Label className="text-muted-foreground">{t("emergencyContact")}</Label>
+                                        {isEditing ? (
+                                            <Input
+                                                value={editedProfile.emergencyContactName || ""}
+                                                onChange={(e) =>
+                                                    setEditedProfile({ ...editedProfile, emergencyContactName: e.target.value })
+                                                }
+                                                className="bg-hover border-card-border text-foreground"
+                                            />
+                                        ) : (
+                                            <p className="text-foreground">{profile.emergencyContactName || t("notProvided")}</p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Relation</Label>
-                                        <p className="text-white">{profile.emergencyContact.relation}</p>
+                                        <Label className="text-muted-foreground">{t("emergencyRelation")}</Label>
+                                        {isEditing ? (
+                                            <Input
+                                                value={editedProfile.emergencyContactRelation || ""}
+                                                onChange={(e) =>
+                                                    setEditedProfile({ ...editedProfile, emergencyContactRelation: e.target.value })
+                                                }
+                                                className="bg-hover border-card-border text-foreground"
+                                            />
+                                        ) : (
+                                            <p className="text-foreground">{profile.emergencyContactRelation || t("notProvided")}</p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-white/60">Phone</Label>
-                                        <p className="text-white">{profile.emergencyContact.phone}</p>
+                                        <Label className="text-muted-foreground">{t("emergencyPhone")}</Label>
+                                        {isEditing ? (
+                                            <Input
+                                                value={editedProfile.emergencyContactPhone || ""}
+                                                onChange={(e) =>
+                                                    setEditedProfile({ ...editedProfile, emergencyContactPhone: e.target.value })
+                                                }
+                                                className="bg-hover border-card-border text-foreground"
+                                            />
+                                        ) : (
+                                            <p className="text-foreground">{profile.emergencyContactPhone || t("notProvided")}</p>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
@@ -460,31 +459,28 @@ export default function ESSProfilePage() {
 
                 {/* Bank Tab */}
                 <TabsContent value="bank">
-                    <Card className="bg-[#141419] border-white/5">
+                    <Card className="bg-card border-card-border">
                         <CardHeader>
-                            <CardTitle className="text-white flex items-center gap-2">
+                            <CardTitle className="text-foreground flex items-center gap-2">
                                 <Building2 className="h-5 w-5 text-yellow-400" />
-                                Bank Details
+                                {t("bankInfo")}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Bank Name</Label>
-                                    <p className="text-white">{profile.bankName}</p>
+                                    <Label className="text-muted-foreground">{t("bankName")}</Label>
+                                    <p className="text-foreground">{profile.bankName || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Account Number</Label>
-                                    <p className="text-white">{profile.accountNumber}</p>
+                                    <Label className="text-muted-foreground">{t("bankAccount")}</Label>
+                                    <p className="text-foreground">{profile.bankAccountNumber || t("notProvided")}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-white/60">Routing Number</Label>
-                                    <p className="text-white">{profile.routingNumber}</p>
+                                    <Label className="text-muted-foreground">{t("bankRouting")}</Label>
+                                    <p className="text-foreground">{profile.bankRoutingNumber || t("notProvided")}</p>
                                 </div>
                             </div>
-                            <p className="mt-4 text-sm text-white/40">
-                                * Bank details can only be updated by HR. Please contact HR for any changes.
-                            </p>
                         </CardContent>
                     </Card>
                 </TabsContent>

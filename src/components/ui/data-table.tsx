@@ -74,19 +74,19 @@ export function DataTable<TData, TValue>({
                             onChange={(event) =>
                                 table.getColumn(searchKey)?.setFilterValue(event.target.value)
                             }
-                            className="max-w-sm border-white/10 bg-white/5 text-white placeholder:text-white/40 focus-visible:ring-blue-500/50"
+                            className="max-w-sm"
                         />
                     </div>
                 </div>
             )}
-            <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+            <div className="rounded-xl border border-card-border bg-card-bg backdrop-blur-sm overflow-hidden">
                 <Table>
-                    <TableHeader className="bg-white/5">
+                    <TableHeader className="bg-hover">
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="border-white/10 hover:bg-transparent">
+                            <TableRow key={headerGroup.id} className="border-card-border hover:bg-transparent">
                                 {headerGroup.headers.map((header) => {
                                     return (
-                                        <TableHead key={header.id} className="text-white/60">
+                                        <TableHead key={header.id} className="text-muted-foreground">
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
@@ -105,7 +105,7 @@ export function DataTable<TData, TValue>({
                                 <TableRow
                                     key={row.id}
                                     data-state={row.getIsSelected() && "selected"}
-                                    className="border-white/10 hover:bg-white/5 text-white/80"
+                                    className="border-card-border hover:bg-hover text-muted-foreground"
                                 >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>
@@ -121,7 +121,7 @@ export function DataTable<TData, TValue>({
                             <TableRow>
                                 <TableCell
                                     colSpan={columns.length}
-                                    className="h-24 text-center text-white/40"
+                                    className="h-24 text-center text-muted-text"
                                 >
                                     No results.
                                 </TableCell>
@@ -131,7 +131,7 @@ export function DataTable<TData, TValue>({
                 </Table>
             </div>
             <div className="flex items-center justify-between space-x-2 py-4">
-                <div className="flex-1 text-sm text-white/40">
+                <div className="flex-1 text-sm text-muted-text">
                     {table.getFilteredSelectedRowModel().rows.length} of{" "}
                     {table.getFilteredRowModel().rows.length} row(s) selected.
                 </div>

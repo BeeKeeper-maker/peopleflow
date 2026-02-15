@@ -96,21 +96,21 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className={cn(
-                "min-w-[300px] max-w-md rounded-xl border bg-[#141419]/95 backdrop-blur-xl p-4 shadow-2xl",
+                "min-w-[300px] max-w-md rounded-xl border bg-dropdown/95 backdrop-blur-xl p-4 shadow-2xl",
                 borderColors[toast.type]
             )}
         >
             <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">{icons[toast.type]}</div>
+                <div className="shrink-0">{icons[toast.type]}</div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">{toast.title}</p>
+                    <p className="text-sm font-medium text-foreground">{toast.title}</p>
                     {toast.description && (
-                        <p className="mt-1 text-xs text-white/60">{toast.description}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{toast.description}</p>
                     )}
                 </div>
                 <button
                     onClick={onClose}
-                    className="flex-shrink-0 text-white/40 hover:text-white/60 transition-colors"
+                    className="shrink-0 text-tertiary-foreground hover:text-muted-foreground transition-colors"
                 >
                     <X className="h-4 w-4" />
                 </button>

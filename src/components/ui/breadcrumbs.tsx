@@ -52,22 +52,22 @@ export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
         >
             <Link
                 href="/dashboard"
-                className="text-white/40 hover:text-white transition-colors"
+                className="text-tertiary-foreground hover:text-foreground transition-colors"
             >
                 <Home className="h-4 w-4" />
             </Link>
 
             {breadcrumbs.map((crumb, index) => (
                 <div key={crumb.href} className="flex items-center">
-                    <ChevronRight className="h-4 w-4 text-white/20 mx-1" />
+                    <ChevronRight className="h-4 w-4 text-muted-text mx-1" />
                     {index === breadcrumbs.length - 1 ? (
-                        <span className="text-white font-medium">
+                        <span className="text-foreground font-medium">
                             {crumb.label}
                         </span>
                     ) : (
                         <Link
                             href={crumb.href}
-                            className="text-white/40 hover:text-white transition-colors"
+                            className="text-tertiary-foreground hover:text-foreground transition-colors"
                         >
                             {crumb.label}
                         </Link>

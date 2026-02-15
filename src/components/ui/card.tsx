@@ -13,14 +13,15 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         return (
             <div
                 ref={ref}
+                data-card=""
                 className={cn(
                     "rounded-2xl backdrop-blur-sm transition-all duration-300",
                     {
-                        "bg-white/5 border border-white/10": variant === "default",
-                        "bg-white/5 border border-white/10 shadow-xl shadow-black/10": variant === "elevated",
-                        "bg-transparent border border-white/20": variant === "outlined",
+                        "bg-card-bg border border-card-border": variant === "default",
+                        "bg-card-bg border border-card-border shadow-xl shadow-black/10": variant === "elevated",
+                        "bg-transparent border border-border": variant === "outlined",
                     },
-                    hoverable && "hover:bg-white/10 hover:border-white/20 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 cursor-pointer",
+                    hoverable && "hover:bg-hover hover:border-border hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 cursor-pointer",
                     className
                 )}
                 {...props}
@@ -50,7 +51,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <h3
         ref={ref}
-        className={cn("text-lg font-semibold text-white leading-none tracking-tight", className)}
+        className={cn("text-lg font-semibold text-foreground leading-none tracking-tight", className)}
         {...props}
     />
 ));
@@ -63,7 +64,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <p
         ref={ref}
-        className={cn("text-sm text-white/60", className)}
+        className={cn("text-sm text-muted-foreground", className)}
         {...props}
     />
 ));

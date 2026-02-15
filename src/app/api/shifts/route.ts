@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
+import { successResponse, errorResponse, ErrorCodes } from "@/lib/api-response";
 
 const shiftSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -17,17 +19,10 @@ const shiftSchema = z.object({
 
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
+        // Require HR admin role for creating shifts
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) {
+            return auth;
         }
 
         const json = await req.json();
@@ -36,7 +31,7 @@ export async function POST(req: Request) {
         // If setting as default, unset others
         if (body.isDefault) {
             await prisma.shift.updateMany({
-                where: { organizationId: user.organizationId, isDefault: true },
+                where: { organizationId: auth.organizationId, isDefault: true },
                 data: { isDefault: false }
             });
         }
@@ -44,7 +39,7 @@ export async function POST(req: Request) {
         const shift = await prisma.shift.create({
             data: {
                 ...body,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             }
         });
 
@@ -79,10 +74,10 @@ export async function GET(req: Request) {
             orderBy: { createdAt: 'desc' }
         });
 
-        return NextResponse.json(shifts);
+        return successResponse(shifts);
 
     } catch (error) {
         console.error("GET_SHIFTS_ERROR", error);
-        return new NextResponse("Internal Error", { status: 500 });
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch shifts");
     }
 }

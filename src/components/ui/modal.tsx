@@ -60,7 +60,7 @@ export function Modal({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                        className="fixed inset-0 z-50 bg-overlay backdrop-blur-sm"
                         onClick={closeOnOverlayClick ? onClose : undefined}
                     />
 
@@ -74,23 +74,23 @@ export function Modal({
                     >
                         <div
                             className={cn(
-                                "mx-auto w-full rounded-2xl border border-white/10 bg-[#141419] shadow-2xl",
+                                "mx-auto w-full rounded-2xl border border-card-border bg-dropdown shadow-2xl",
                                 sizeClasses[size]
                             )}
                         >
                             {/* Header */}
                             {(title || showClose) && (
-                                <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+                                <div className="flex items-center justify-between border-b border-border px-6 py-4">
                                     <div>
-                                        {title && <h2 className="text-lg font-semibold text-white">{title}</h2>}
+                                        {title && <h2 className="text-lg font-semibold text-foreground">{title}</h2>}
                                         {description && (
-                                            <p className="mt-1 text-sm text-white/60">{description}</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
                                         )}
                                     </div>
                                     {showClose && (
                                         <button
                                             onClick={onClose}
-                                            className="rounded-lg p-2 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                                            className="rounded-lg p-2 text-tertiary-foreground hover:text-foreground hover:bg-hover transition-colors"
                                         >
                                             <X className="h-5 w-5" />
                                         </button>
@@ -136,8 +136,8 @@ export function ConfirmModal({
     return (
         <Modal isOpen={isOpen} onClose={onClose} size="sm" showClose={false}>
             <div className="text-center">
-                <h3 className="text-lg font-semibold text-white">{title}</h3>
-                {description && <p className="mt-2 text-sm text-white/60">{description}</p>}
+                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                {description && <p className="mt-2 text-sm text-muted-foreground">{description}</p>}
                 <div className="mt-6 flex gap-3 justify-center">
                     <Button variant="outline" onClick={onClose} disabled={isLoading}>
                         {cancelText}

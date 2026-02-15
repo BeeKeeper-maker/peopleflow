@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 type AttendanceRecord = {
     id: string;
@@ -26,6 +27,7 @@ type AttendanceRecord = {
 };
 
 export function AttendanceHistory() {
+    const t = useTranslations('Attendance');
     const [history, setHistory] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -46,37 +48,37 @@ export function AttendanceHistory() {
     }, []);
 
     if (loading) {
-        return <div className="h-48 animate-pulse bg-white/5 rounded-xl border border-white/10" />;
+        return <div className="h-48 animate-pulse bg-hover rounded-xl border border-card-border" />;
     }
 
     return (
         <Card className="bg-transparent border-0 shadow-none">
             <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-lg font-semibold text-white">Recent Activity</CardTitle>
+                <CardTitle className="text-lg font-semibold text-foreground">{t('recentActivity')}</CardTitle>
             </CardHeader>
             <CardContent className="px-0">
-                <div className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+                <div className="rounded-xl border border-card-border bg-hover overflow-hidden">
                     <Table>
-                        <TableHeader className="bg-white/5">
-                            <TableRow className="border-white/10 hover:bg-white/5">
-                                <TableHead className="text-white/60">Date</TableHead>
-                                <TableHead className="text-white/60">Status</TableHead>
-                                <TableHead className="text-white/60">Check In</TableHead>
-                                <TableHead className="text-white/60">Check Out</TableHead>
-                                <TableHead className="text-white/60 text-right">Hours</TableHead>
+                        <TableHeader className="bg-hover">
+                            <TableRow className="border-card-border hover:bg-hover">
+                                <TableHead className="text-muted-foreground">{t('date')}</TableHead>
+                                <TableHead className="text-muted-foreground">{t('status')}</TableHead>
+                                <TableHead className="text-muted-foreground">{t('checkIn')}</TableHead>
+                                <TableHead className="text-muted-foreground">{t('checkOut')}</TableHead>
+                                <TableHead className="text-muted-foreground text-right">{t('hours')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {history.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center h-24 text-white/50">
-                                        No attendance records found
+                                    <TableCell colSpan={5} className="text-center h-24 text-tertiary-foreground">
+                                        {t('noRecordsFound')}
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 history.map((record) => (
-                                    <TableRow key={record.id} className="border-white/10 hover:bg-white/5">
-                                        <TableCell className="font-medium text-white">
+                                    <TableRow key={record.id} className="border-card-border hover:bg-hover">
+                                        <TableCell className="font-medium text-foreground">
                                             {format(new Date(record.date), "dd MMM yyyy")}
                                         </TableCell>
                                         <TableCell>
@@ -93,7 +95,7 @@ export function AttendanceHistory() {
                                                 {record.status.replace('_', ' ')}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-white/80">
+                                        <TableCell className="text-foreground">
                                             {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "-"}
                                             {record.lateMinutes > 0 && (
                                                 <span className="text-amber-500 text-xs ml-2">
@@ -101,10 +103,10 @@ export function AttendanceHistory() {
                                                 </span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-white/80">
+                                        <TableCell className="text-foreground">
                                             {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "-"}
                                         </TableCell>
-                                        <TableCell className="text-right text-white/80 font-mono">
+                                        <TableCell className="text-right text-foreground font-mono">
                                             {record.checkIn && record.checkOut
                                                 ? ((new Date(record.checkOut).getTime() - new Date(record.checkIn).getTime()) / 3600000).toFixed(1) + "h"
                                                 : "-"

@@ -34,7 +34,7 @@ export const AuthErrors = {
 };
 
 // User role type
-export type UserRole = "admin" | "hr" | "manager" | "employee";
+export type UserRole = "super_admin" | "admin" | "hr_admin" | "manager" | "employee";
 
 // Authenticated user context
 export interface AuthContext {
@@ -123,7 +123,14 @@ export async function requireRole(
  * Require admin or HR role
  */
 export async function requireAdminOrHR(): Promise<AuthContext | NextResponse> {
-    return requireRole(["admin", "hr"]);
+    return requireRole(["super_admin", "admin", "hr_admin"]);
+}
+
+/**
+ * Require admin, HR, or manager role
+ */
+export async function requireManagerOrAbove(): Promise<AuthContext | NextResponse> {
+    return requireRole(["super_admin", "admin", "hr_admin", "manager"]);
 }
 
 /**

@@ -1,12 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { DesignationFormValues, designationSchema } from "@/lib/validations/designation"
+import * as z from "zod"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/components/ui/toast"
+import { Textarea } from "@/components/ui/textarea"
 import {
     Form,
     FormControl,
@@ -23,32 +25,87 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
+import { useToast } from "@/components/ui/toast"
+
+const formSchema = z.object({
+    name: z.string().min(2, "Designation name must be at least 2 characters"),
+    code: z.string().optional(),
+    grade: z.coerce.number().optional(),
+    description: z.string().optional(),
+    isActive: z.boolean().default(true),
+})
 
 interface DesignationFormProps {
-    initialData?: DesignationFormValues & { id?: string }
-    onSubmit: (data: DesignationFormValues) => Promise<void>
-    isLoading?: boolean
-    submitLabel?: string
+    initialData?: {
+        id: string
+        name: string
+        code: string | null
+        grade: number | null
+        description: string | null
+        isActive: boolean
+    }
 }
 
-export function DesignationForm({
-    initialData,
-    onSubmit,
-    isLoading,
-    submitLabel = "Save Designation"
-}: DesignationFormProps) {
+export function DesignationForm({ initialData }: DesignationFormProps) {
+    const router = useRouter()
     const { addToast } = useToast()
-    const form = useForm<DesignationFormValues>({
+    const [isLoading, setIsLoading] = useState(false)
+    const t = useTranslations("SharedComponents.designationForm")
+    const tc = useTranslations("SharedComponents.common")
+
+    const form = useForm<z.infer<typeof formSchema>>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        resolver: zodResolver(designationSchema) as any,
-        defaultValues: initialData || {
-            name: "",
-            code: "",
-            grade: undefined,
-            description: "",
-            isActive: true,
+        resolver: zodResolver(formSchema) as any,
+        defaultValues: {
+            name: initialData?.name || "",
+            code: initialData?.code || "",
+            grade: initialData?.grade || undefined,
+            description: initialData?.description || "",
+            isActive: initialData?.isActive ?? true,
         },
     })
+
+    const submitLabel = initialData ? tc("save") : t("saveDesignation")
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        try {
+            setIsLoading(true)
+            const url = initialData
+                ? `/api/designations/${initialData.id}`
+                : "/api/designations"
+            const method = initialData ? "PUT" : "POST"
+
+            const response = await fetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(values),
+            })
+
+            if (!response.ok) {
+                const error = await response.text()
+                throw new Error(error || tc("somethingWentWrong"))
+            }
+
+            addToast({
+                title: tc("success"),
+                description: initialData
+                    ? "Designation updated successfully"
+                    : "Designation created successfully",
+                type: "success",
+            })
+
+            router.push("/designations")
+            router.refresh()
+        } catch (error) {
+            addToast({
+                title: tc("error"),
+                description: error instanceof Error ? error.message : tc("somethingWentWrong"),
+                type: "error",
+            })
+        } finally {
+            setIsLoading(false)
+        }
+    }
 
     return (
         <Form {...form}>
@@ -59,13 +116,13 @@ export function DesignationForm({
                         name="name"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-white">Designation Name *</FormLabel>
+                                <FormLabel className="text-foreground">{t("nameLabel")}</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
                                         disabled={isLoading}
-                                        className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-blue-500/20"
-                                        placeholder="e.g. Senior Software Engineer"
+                                        className="bg-hover border-card-border text-foreground"
+                                        placeholder={t("namePlaceholder")}
                                     />
                                 </FormControl>
                                 <FormMessage />
@@ -78,94 +135,98 @@ export function DesignationForm({
                         name="code"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel className="text-white">Designation Code</FormLabel>
+                                <FormLabel className="text-foreground">{t("codeLabel")}</FormLabel>
                                 <FormControl>
                                     <Input
                                         {...field}
                                         disabled={isLoading}
-                                        className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-blue-500/20"
-                                        placeholder="e.g. SSE"
+                                        className="bg-hover border-card-border text-foreground"
+                                        placeholder={t("codePlaceholder")}
                                     />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
-
-                    <FormField
-                        control={form.control}
-                        name="grade"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-white">Grade Level</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        {...field}
-                                        type="number"
-                                        disabled={isLoading}
-                                        className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-blue-500/20"
-                                        placeholder="e.g. 5"
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <FormField
-                        control={form.control}
-                        name="isActive"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel className="text-white">Status</FormLabel>
-                                <Select
-                                    disabled={isLoading}
-                                    onValueChange={(value) => field.onChange(value === "true")}
-                                    value={field.value ? "true" : "false"}
-                                    defaultValue="true"
-                                >
-                                    <FormControl>
-                                        <SelectTrigger className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-blue-500/20">
-                                            <SelectValue defaultValue="true" placeholder="Select status" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="true">Active</SelectItem>
-                                        <SelectItem value="false">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <div className="col-span-2">
-                        <FormField
-                            control={form.control}
-                            name="description"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-white">Description</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            {...field}
-                                            disabled={isLoading}
-                                            className="bg-white/5 border-white/10 text-white placeholder:text-white/40 focus:border-blue-500/50 focus:ring-blue-500/20"
-                                            placeholder="Description of the designation..."
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
                 </div>
 
-                <div className="flex justify-end">
+                <FormField
+                    control={form.control}
+                    name="grade"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-foreground">{t("gradeLabel")}</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    {...field}
+                                    disabled={isLoading}
+                                    className="bg-hover border-card-border text-foreground"
+                                    placeholder={t("gradePlaceholder")}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-foreground">{t("descriptionLabel")}</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    {...field}
+                                    disabled={isLoading}
+                                    className="bg-hover border-card-border text-foreground min-h-[100px]"
+                                    placeholder={t("descriptionPlaceholder")}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="isActive"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-foreground">{t("statusLabel")}</FormLabel>
+                            <Select
+                                onValueChange={(value) => field.onChange(value === "true")}
+                                defaultValue={field.value ? "true" : "false"}
+                            >
+                                <FormControl>
+                                    <SelectTrigger className="bg-hover border-card-border text-foreground">
+                                        <SelectValue placeholder={tc("selectStatus")} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="true">{tc("active")}</SelectItem>
+                                    <SelectItem value="false">{tc("inactive")}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <div className="flex justify-end gap-4">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => router.push("/designations")}
+                        className="border-card-border"
+                    >
+                        {tc("cancel")}
+                    </Button>
                     <Button
                         type="submit"
                         disabled={isLoading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-blue-600 hover:bg-blue-700 text-foreground"
                     >
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {submitLabel}

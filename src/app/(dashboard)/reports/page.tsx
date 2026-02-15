@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/components/ui/toast"
 import { AttendanceCharts } from "@/components/reports/attendance-charts"
 import { LateEarlyTable } from "@/components/reports/late-early-table"
+import { useTranslations } from "next-intl"
 
 interface ReportCard {
     id: string
@@ -41,6 +42,7 @@ interface ReportCard {
 
 export default function ReportsPage() {
     const { addToast } = useToast()
+    const t = useTranslations('Reports')
     const [activeTab, setActiveTab] = useState("overview")
     const [loading, setLoading] = useState(false)
     const [exporting, setExporting] = useState<string | null>(null)
@@ -49,7 +51,7 @@ export default function ReportsPage() {
         totalEmployees: 0,
         activeEmployees: 0,
         pendingLeaves: 0,
-        avgAttendance: 95,
+        avgAttendance: 0,
         monthlyPayroll: 0,
     })
 
@@ -116,7 +118,7 @@ export default function ReportsPage() {
                     const leaveRes = await fetch("/api/leaves/applications")
                     if (!leaveRes.ok) throw new Error("Failed to fetch leaves")
                     const leaveData = await leaveRes.json()
-                    data = Array.isArray(leaveData) ? leaveData : leaveData.applications || []
+                    data = Array.isArray(leaveData) ? leaveData : leaveData.data || []
                     formattedData = formatLeaveExport(data)
                     filename = `leave_report_${new Date().toISOString().split("T")[0]}`
                     break
@@ -170,35 +172,35 @@ export default function ReportsPage() {
     const reportCards: ReportCard[] = [
         {
             id: "employees",
-            title: "Employee Report",
-            description: "Complete list of all employees",
+            title: t('employeeReport'),
+            description: t('employeeReportDesc'),
             icon: <Users className="h-5 w-5" />,
             color: "from-blue-500 to-indigo-600",
             count: stats.totalEmployees,
         },
         {
             id: "attendance",
-            title: "Attendance Report",
-            description: "Monthly attendance summary",
+            title: t('attendanceReport'),
+            description: t('attendanceReportDesc'),
             icon: <Clock className="h-5 w-5" />,
             color: "from-emerald-500 to-green-600",
-            count: "Current Month",
+            count: t('currentMonth'),
         },
         {
             id: "leaves",
-            title: "Leave Report",
-            description: "Leave applications overview",
+            title: t('leaveReport'),
+            description: t('leaveReportDesc'),
             icon: <Calendar className="h-5 w-5" />,
             color: "from-amber-500 to-orange-600",
-            count: `${stats.pendingLeaves} pending`,
+            count: `${stats.pendingLeaves} ${t('pending')}`,
         },
         {
             id: "payroll",
-            title: "Payroll Report",
-            description: "Monthly salary breakdown",
+            title: t('payrollReport'),
+            description: t('payrollReportDesc'),
             icon: <DollarSign className="h-5 w-5" />,
             color: "from-purple-500 to-pink-600",
-            count: "This Month",
+            count: t('thisMonth'),
         },
     ]
 
@@ -207,73 +209,73 @@ export default function ReportsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Reports & Analytics</h1>
-                    <p className="text-white/60 mt-1">Generate and export HR reports</p>
+                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
             </div>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-white/5 border-white/10">
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="exports">Export Reports</TabsTrigger>
-                    <TabsTrigger value="attendance">Attendance Analytics</TabsTrigger>
+                <TabsList className="bg-hover border-card-border">
+                    <TabsTrigger value="overview">{t('overviewTab')}</TabsTrigger>
+                    <TabsTrigger value="exports">{t('exportsTab')}</TabsTrigger>
+                    <TabsTrigger value="attendance">{t('attendanceTab')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-6">
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-white/60">Total Employees</p>
-                                        <h3 className="text-2xl font-bold text-white">{stats.totalEmployees}</h3>
+                                        <p className="text-sm text-muted-foreground">{t('totalEmployees')}</p>
+                                        <h3 className="text-2xl font-bold text-foreground">{stats.totalEmployees}</h3>
                                     </div>
-                                    <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600">
-                                        <Users className="h-5 w-5 text-white" />
+                                    <div className="p-3 rounded-xl bg-linear-to-r from-blue-500 to-indigo-600">
+                                        <Users className="h-5 w-5 text-foreground" />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-white/60">Active Employees</p>
-                                        <h3 className="text-2xl font-bold text-white">{stats.activeEmployees}</h3>
+                                        <p className="text-sm text-muted-foreground">{t('activeEmployees')}</p>
+                                        <h3 className="text-2xl font-bold text-foreground">{stats.activeEmployees}</h3>
                                     </div>
-                                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600">
-                                        <TrendingUp className="h-5 w-5 text-white" />
+                                    <div className="p-3 rounded-xl bg-linear-to-r from-emerald-500 to-green-600">
+                                        <TrendingUp className="h-5 w-5 text-foreground" />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-white/60">Avg Attendance</p>
-                                        <h3 className="text-2xl font-bold text-white">{stats.avgAttendance}%</h3>
+                                        <p className="text-sm text-muted-foreground">{t('avgAttendance')}</p>
+                                        <h3 className="text-2xl font-bold text-foreground">{stats.avgAttendance}%</h3>
                                     </div>
-                                    <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600">
-                                        <BarChart3 className="h-5 w-5 text-white" />
+                                    <div className="p-3 rounded-xl bg-linear-to-r from-amber-500 to-orange-600">
+                                        <BarChart3 className="h-5 w-5 text-foreground" />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm text-white/60">Monthly Payroll</p>
-                                        <h3 className="text-2xl font-bold text-white">৳{stats.monthlyPayroll.toLocaleString() || "0"}</h3>
+                                        <p className="text-sm text-muted-foreground">{t('monthlyPayroll')}</p>
+                                        <h3 className="text-2xl font-bold text-foreground">৳{stats.monthlyPayroll.toLocaleString() || "0"}</h3>
                                     </div>
-                                    <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
-                                        <DollarSign className="h-5 w-5 text-white" />
+                                    <div className="p-3 rounded-xl bg-linear-to-r from-purple-500 to-pink-600">
+                                        <DollarSign className="h-5 w-5 text-foreground" />
                                     </div>
                                 </div>
                             </CardContent>
@@ -293,18 +295,18 @@ export default function ReportsPage() {
                     {/* Report Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {reportCards.map((report) => (
-                            <Card key={report.id} className="bg-[#12121A] border-white/10 overflow-hidden group hover:border-white/20 transition-all">
+                            <Card key={report.id} className="bg-card border-card-border overflow-hidden group hover:border-border-hover transition-all">
                                 <CardHeader className="pb-2">
                                     <div className="flex items-start justify-between">
-                                        <div className={`p-3 rounded-xl bg-gradient-to-r ${report.color}`}>
+                                        <div className={`p-3 rounded-xl bg-linear-to-r ${report.color}`}>
                                             {report.icon}
                                         </div>
                                         <Badge variant="secondary" className="text-xs">
                                             {report.count}
                                         </Badge>
                                     </div>
-                                    <CardTitle className="text-white mt-4">{report.title}</CardTitle>
-                                    <CardDescription className="text-white/60">
+                                    <CardTitle className="text-foreground mt-4">{report.title}</CardTitle>
+                                    <CardDescription className="text-muted-foreground">
                                         {report.description}
                                     </CardDescription>
                                 </CardHeader>
@@ -326,7 +328,7 @@ export default function ReportsPage() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="flex-1 border-white/10"
+                                            className="flex-1 border-card-border"
                                             onClick={() => handleExport(report.id, "csv")}
                                             disabled={!!exporting}
                                         >
@@ -344,14 +346,14 @@ export default function ReportsPage() {
                     </div>
 
                     {/* Custom Report Builder (Future) */}
-                    <Card className="bg-[#12121A] border-white/10 border-dashed mt-6">
+                    <Card className="bg-card border-card-border border-dashed mt-6">
                         <CardContent className="py-12 text-center">
-                            <BarChart3 className="h-12 w-12 mx-auto text-white/20 mb-4" />
-                            <h3 className="text-lg font-medium text-white mb-2">Custom Report Builder</h3>
-                            <p className="text-white/40 mb-4">
-                                Create custom reports with specific filters and date ranges
+                            <BarChart3 className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-2">{t('customReportBuilder')}</h3>
+                            <p className="text-tertiary-foreground mb-4">
+                                {t('customReportDesc')}
                             </p>
-                            <Badge variant="secondary">Coming Soon</Badge>
+                            <Badge variant="secondary">{t('comingSoon')}</Badge>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -367,13 +369,13 @@ export default function ReportsPage() {
                         </>
                     ) : loading ? (
                         <div className="flex items-center justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+                            <Loader2 className="h-8 w-8 animate-spin text-tertiary-foreground" />
                         </div>
                     ) : (
-                        <Card className="bg-[#12121A] border-white/10">
+                        <Card className="bg-card border-card-border">
                             <CardContent className="py-12 text-center">
-                                <Clock className="h-12 w-12 mx-auto text-white/20 mb-4" />
-                                <p className="text-white/60">No attendance data available</p>
+                                <Clock className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                <p className="text-muted-foreground">{t('noAttendanceData')}</p>
                             </CardContent>
                         </Card>
                     )}

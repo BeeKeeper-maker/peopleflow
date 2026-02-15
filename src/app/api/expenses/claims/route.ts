@@ -15,16 +15,30 @@ const claimSchema = z.object({
     status: z.enum(["draft", "submitted"]).default("draft"),
 });
 
-// Generate claim number
+// Generate claim number with retry for race condition safety
 async function generateClaimNumber(organizationId: string): Promise<string> {
     const year = new Date().getFullYear();
-    const count = await prisma.expenseClaim.count({
-        where: {
-            organizationId,
-            claimNumber: { startsWith: `EXP-${year}` },
-        },
-    });
-    return `EXP-${year}-${String(count + 1).padStart(4, "0")}`;
+    const maxRetries = 3;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const count = await prisma.expenseClaim.count({
+            where: {
+                organizationId,
+                claimNumber: { startsWith: `EXP-${year}` },
+            },
+        });
+        const claimNumber = `EXP-${year}-${String(count + 1 + attempt).padStart(4, "0")}`;
+
+        // Check if this number already exists
+        const existing = await prisma.expenseClaim.findFirst({
+            where: { claimNumber, organizationId },
+        });
+
+        if (!existing) return claimNumber;
+    }
+
+    // Fallback: use timestamp-based unique suffix
+    return `EXP-${year}-${Date.now().toString(36).toUpperCase()}`;
 }
 
 // GET - List expense claims

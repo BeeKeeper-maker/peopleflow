@@ -8,7 +8,7 @@ export function Skeleton({ className }: SkeletonProps) {
     return (
         <div
             className={cn(
-                "animate-pulse rounded-md bg-white/5",
+                "animate-pulse rounded-md bg-skeleton",
                 className
             )}
         />
@@ -17,7 +17,7 @@ export function Skeleton({ className }: SkeletonProps) {
 
 export function CardSkeleton() {
     return (
-        <div className="rounded-xl border border-white/10 bg-[#12121A] p-6">
+        <div className="rounded-xl border border-card-border bg-card-bg p-6">
             <div className="flex items-center justify-between">
                 <div className="space-y-3">
                     <Skeleton className="h-4 w-24" />
@@ -32,7 +32,7 @@ export function CardSkeleton() {
 
 export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
     return (
-        <tr className="border-b border-white/5">
+        <tr className="border-b border-card-border">
             {Array.from({ length: columns }).map((_, i) => (
                 <td key={i} className="py-4 px-4">
                     <Skeleton className="h-5 w-full max-w-[120px]" />
@@ -44,14 +44,14 @@ export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
 
 export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
     return (
-        <div className="rounded-xl border border-white/10 bg-[#12121A] overflow-hidden">
-            <div className="p-6 border-b border-white/10">
+        <div className="rounded-xl border border-card-border bg-card-bg overflow-hidden">
+            <div className="p-6 border-b border-card-border">
                 <Skeleton className="h-6 w-48" />
                 <Skeleton className="h-4 w-32 mt-2" />
             </div>
             <table className="w-full">
                 <thead>
-                    <tr className="border-b border-white/10">
+                    <tr className="border-b border-card-border">
                         {Array.from({ length: columns }).map((_, i) => (
                             <th key={i} className="py-3 px-4 text-left">
                                 <Skeleton className="h-4 w-20" />
@@ -78,7 +78,7 @@ export function ProfileSkeleton() {
             {/* Profile Info */}
             <div className="px-6 pb-6">
                 <div className="flex items-end gap-6 -mt-16">
-                    <Skeleton className="h-32 w-32 rounded-full border-4 border-[#0A0A0F]" />
+                    <Skeleton className="h-32 w-32 rounded-full border-4 border-background" />
                     <div className="flex-1 pt-16 space-y-2">
                         <Skeleton className="h-8 w-48" />
                         <Skeleton className="h-4 w-64" />
@@ -103,13 +103,13 @@ export function DashboardSkeleton() {
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Chart */}
-                <div className="lg:col-span-2 rounded-xl border border-white/10 bg-[#12121A] p-6">
+                <div className="lg:col-span-2 rounded-xl border border-card-border bg-card-bg p-6">
                     <Skeleton className="h-6 w-48 mb-4" />
                     <Skeleton className="h-64 w-full" />
                 </div>
 
                 {/* Activity */}
-                <div className="rounded-xl border border-white/10 bg-[#12121A] p-6">
+                <div className="rounded-xl border border-card-border bg-card-bg p-6">
                     <Skeleton className="h-6 w-32 mb-4" />
                     <div className="space-y-4">
                         {Array.from({ length: 5 }).map((_, i) => (

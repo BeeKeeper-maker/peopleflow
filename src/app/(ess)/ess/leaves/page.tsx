@@ -3,6 +3,8 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import {
     Calendar,
     Plus,
@@ -11,6 +13,7 @@ import {
     XCircle,
     Clock,
     FileText,
+    Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,129 +22,90 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface LeaveBalance {
-    id: string;
-    type: string;
-    typeBn: string;
-    code: string;
-    total: number;
-    used: number;
-    remaining: number;
-    color: string;
+    leaveType: {
+        id: string;
+        name: string;
+        nameBn?: string;
+        code: string;
+        color?: string;
+    };
+    allocatedDays: number;
+    usedDays: number;
+    carriedForward: number;
+    remainingDays: number;
 }
 
 interface LeaveApplication {
     id: string;
-    type: string;
+    leaveType: {
+        name: string;
+        code: string;
+    };
     fromDate: string;
     toDate: string;
-    days: number;
+    totalDays: number;
     reason: string;
     status: "pending" | "approved" | "rejected" | "cancelled";
-    appliedOn: string;
-    approvedBy?: string;
+    createdAt: string;
+    approvedBy?: {
+        firstName: string;
+        lastName: string;
+    };
     rejectionReason?: string;
 }
 
 export default function ESSLeavesPage() {
+    const t = useTranslations("ESSLeaves");
     const { data: session } = useSession();
     const [isLoading, setIsLoading] = useState(true);
     const [balances, setBalances] = useState<LeaveBalance[]>([]);
     const [applications, setApplications] = useState<LeaveApplication[]>([]);
     const [activeTab, setActiveTab] = useState("balances");
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+    const handleCancelApplication = async (appId: string) => {
+        if (!confirm(t("cancelConfirm"))) return;
+        setCancellingId(appId);
+        try {
+            const res = await fetch(`/api/leaves/applications/${appId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "cancelled" }),
+            });
+            if (res.ok) {
+                setApplications((prev) =>
+                    prev.map((a) => a.id === appId ? { ...a, status: "cancelled" } : a)
+                );
+                toast.success(t("cancelSuccess"));
+            } else {
+                toast.error(t("cancelFailed"));
+            }
+        } catch (error) {
+            console.error("Error cancelling leave:", error);
+            toast.error(t("errorOccurred"));
+        } finally {
+            setCancellingId(null);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-
-                setBalances([
-                    {
-                        id: "1",
-                        type: "Casual Leave",
-                        typeBn: "নৈমিত্তিক ছুটি",
-                        code: "CL",
-                        total: 10,
-                        used: 2,
-                        remaining: 8,
-                        color: "blue",
-                    },
-                    {
-                        id: "2",
-                        type: "Sick Leave",
-                        typeBn: "অসুস্থতা ছুটি",
-                        code: "SL",
-                        total: 14,
-                        used: 3,
-                        remaining: 11,
-                        color: "red",
-                    },
-                    {
-                        id: "3",
-                        type: "Annual Leave",
-                        typeBn: "বার্ষিক ছুটি",
-                        code: "AL",
-                        total: 15,
-                        used: 5,
-                        remaining: 10,
-                        color: "green",
-                    },
-                    {
-                        id: "4",
-                        type: "Compensatory Leave",
-                        typeBn: "ক্ষতিপূরণ ছুটি",
-                        code: "CO",
-                        total: 3,
-                        used: 1,
-                        remaining: 2,
-                        color: "purple",
-                    },
+                // Fetch real data from APIs
+                const [balancesRes, applicationsRes] = await Promise.all([
+                    fetch("/api/leaves/allocations"),
+                    fetch("/api/leaves/applications"),
                 ]);
 
-                setApplications([
-                    {
-                        id: "1",
-                        type: "Annual Leave",
-                        fromDate: "2026-02-05",
-                        toDate: "2026-02-06",
-                        days: 2,
-                        reason: "Family vacation",
-                        status: "pending",
-                        appliedOn: "2026-01-28",
-                    },
-                    {
-                        id: "2",
-                        type: "Casual Leave",
-                        fromDate: "2026-01-15",
-                        toDate: "2026-01-15",
-                        days: 1,
-                        reason: "Personal work",
-                        status: "approved",
-                        appliedOn: "2026-01-10",
-                        approvedBy: "Jane Smith",
-                    },
-                    {
-                        id: "3",
-                        type: "Sick Leave",
-                        fromDate: "2025-12-20",
-                        toDate: "2025-12-22",
-                        days: 3,
-                        reason: "Fever and cold",
-                        status: "approved",
-                        appliedOn: "2025-12-20",
-                        approvedBy: "Jane Smith",
-                    },
-                    {
-                        id: "4",
-                        type: "Casual Leave",
-                        fromDate: "2025-11-10",
-                        toDate: "2025-11-10",
-                        days: 1,
-                        reason: "Bank work",
-                        status: "rejected",
-                        appliedOn: "2025-11-08",
-                        rejectionReason: "Peak project deadline",
-                    },
-                ]);
+                if (balancesRes.ok) {
+                    const data = await balancesRes.json();
+                    setBalances(data.data || data || []);
+                }
+
+                if (applicationsRes.ok) {
+                    const data = await applicationsRes.json();
+                    setApplications(data.data || data || []);
+                }
             } catch (error) {
                 console.error("Error fetching leave data:", error);
             } finally {
@@ -158,27 +122,27 @@ export default function ESSLeavesPage() {
                 return (
                     <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                         <Clock className="h-3 w-3 mr-1" />
-                        Pending
+                        {t("pending")}
                     </Badge>
                 );
             case "approved":
                 return (
                     <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Approved
+                        {t("approved")}
                     </Badge>
                 );
             case "rejected":
                 return (
                     <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
                         <XCircle className="h-3 w-3 mr-1" />
-                        Rejected
+                        {t("rejected")}
                     </Badge>
                 );
             case "cancelled":
                 return (
                     <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/30">
-                        Cancelled
+                        {t("cancelled")}
                     </Badge>
                 );
             default:
@@ -186,7 +150,7 @@ export default function ESSLeavesPage() {
         }
     };
 
-    const getColorClass = (color: string) => {
+    const getColorClass = (color: string | undefined) => {
         switch (color) {
             case "blue":
                 return "from-blue-500/20 to-blue-600/10 border-blue-500/20";
@@ -196,12 +160,14 @@ export default function ESSLeavesPage() {
                 return "from-green-500/20 to-green-600/10 border-green-500/20";
             case "purple":
                 return "from-purple-500/20 to-purple-600/10 border-purple-500/20";
+            case "orange":
+                return "from-orange-500/20 to-orange-600/10 border-orange-500/20";
             default:
-                return "from-white/10 to-white/5 border-white/10";
+                return "from-blue-500/20 to-blue-600/10 border-blue-500/20";
         }
     };
 
-    const getProgressColor = (color: string) => {
+    const getProgressColor = (color: string | undefined) => {
         switch (color) {
             case "blue":
                 return "from-blue-500 to-blue-600";
@@ -211,8 +177,10 @@ export default function ESSLeavesPage() {
                 return "from-green-500 to-green-600";
             case "purple":
                 return "from-purple-500 to-purple-600";
+            case "orange":
+                return "from-orange-500 to-orange-600";
             default:
-                return "from-white/50 to-white/30";
+                return "from-blue-500 to-blue-600";
         }
     };
 
@@ -235,139 +203,175 @@ export default function ESSLeavesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">My Leaves</h1>
-                    <p className="text-white/60 mt-1">
-                        Manage your leave balances and applications
+                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <p className="text-muted-foreground mt-1">
+                        {t("subtitle")}
                     </p>
                 </div>
                 <Link href="/ess/leaves/apply">
                     <Button className="bg-blue-600 hover:bg-blue-500">
                         <Plus className="h-4 w-4 mr-2" />
-                        Apply for Leave
+                        {t("applyForLeave")}
                     </Button>
                 </Link>
             </div>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-[#141419] border border-white/5">
+                <TabsList className="bg-card border border-card-border">
                     <TabsTrigger
                         value="balances"
                         className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
                     >
-                        Leave Balance
+                        {t("leaveBalance")}
                     </TabsTrigger>
                     <TabsTrigger
                         value="applications"
                         className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
                     >
-                        My Applications
+                        {t("myApplications")}
                     </TabsTrigger>
                 </TabsList>
 
                 {/* Leave Balance Tab */}
                 <TabsContent value="balances" className="mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {balances.map((balance) => (
-                            <Card
-                                key={balance.id}
-                                className={`bg-gradient-to-br ${getColorClass(balance.color)} border`}
-                            >
-                                <CardContent className="p-6">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <span className="text-2xl font-bold text-white/20">
-                                            {balance.code}
-                                        </span>
-                                        <Calendar className="h-5 w-5 text-white/40" />
-                                    </div>
-                                    <p className="text-sm text-white/60">{balance.type}</p>
-                                    <p className="text-xs text-white/40">{balance.typeBn}</p>
-                                    <div className="mt-4 flex items-end gap-2">
-                                        <span className="text-4xl font-bold text-white">
-                                            {balance.remaining}
-                                        </span>
-                                        <span className="text-sm text-white/40 mb-1">
-                                            / {balance.total} days
-                                        </span>
-                                    </div>
-                                    <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
-                                        <div
-                                            className={`h-full rounded-full bg-gradient-to-r ${getProgressColor(balance.color)}`}
-                                            style={{
-                                                width: `${(balance.remaining / balance.total) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="mt-2 flex justify-between text-xs text-white/40">
-                                        <span>Used: {balance.used}</span>
-                                        <span>Remaining: {balance.remaining}</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                    {balances.length === 0 ? (
+                        <Card className="bg-card border-card-border">
+                            <CardContent className="py-12 text-center">
+                                <Calendar className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-2">
+                                    {t("noLeaveTypes")}
+                                </h3>
+                                <p className="text-tertiary-foreground">
+                                    {t("contactHR")}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {balances.map((balance) => (
+                                <Card
+                                    key={balance.leaveType.id}
+                                    className={`bg-linear-to-br ${getColorClass(balance.leaveType.color)} border`}
+                                >
+                                    <CardContent className="p-6">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-2xl font-bold text-muted-text">
+                                                {balance.leaveType.code}
+                                            </span>
+                                            <Calendar className="h-5 w-5 text-tertiary-foreground" />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">{balance.leaveType.name}</p>
+                                        {balance.leaveType.nameBn && (
+                                            <p className="text-xs text-tertiary-foreground">{balance.leaveType.nameBn}</p>
+                                        )}
+                                        <div className="mt-4 flex items-end gap-2">
+                                            <span className="text-4xl font-bold text-foreground">
+                                                {balance.remainingDays}
+                                            </span>
+                                            <span className="text-sm text-tertiary-foreground mb-1">
+                                                / {balance.allocatedDays} {t("days")}
+                                            </span>
+                                        </div>
+                                        <div className="mt-4 h-2 rounded-full bg-hover overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full bg-linear-to-r ${getProgressColor(balance.leaveType.color)}`}
+                                                style={{
+                                                    width: `${balance.allocatedDays > 0 ? (balance.remainingDays / balance.allocatedDays) * 100 : 0}%`,
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="mt-2 flex justify-between text-xs text-tertiary-foreground">
+                                            <span>{t("used")}: {balance.usedDays}</span>
+                                            <span>{t("remaining")}: {balance.remainingDays}</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    )}
                 </TabsContent>
 
                 {/* Applications Tab */}
                 <TabsContent value="applications" className="mt-6">
-                    <Card className="bg-[#141419] border-white/5">
+                    <Card className="bg-card border-card-border">
                         <CardContent className="p-0">
-                            <div className="divide-y divide-white/5">
-                                {applications.map((app) => (
-                                    <div
-                                        key={app.id}
-                                        className="p-4 hover:bg-white/5 transition-colors"
-                                    >
-                                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                                    <FileText className="h-6 w-6 text-blue-400" />
-                                                </div>
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="font-medium text-white">
-                                                            {app.type}
-                                                        </p>
-                                                        {getStatusBadge(app.status)}
+                            {applications.length === 0 ? (
+                                <div className="py-12 text-center">
+                                    <FileText className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                    <h3 className="text-lg font-medium text-foreground mb-2">
+                                        {t("noApplications")}
+                                    </h3>
+                                    <p className="text-tertiary-foreground">
+                                        {t("noApplicationsDesc")}
+                                    </p>
+                                    <Link href="/ess/leaves/apply">
+                                        <Button className="mt-4 bg-blue-600 hover:bg-blue-500">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            {t("applyNow")}
+                                        </Button>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-white/5">
+                                    {applications.map((app) => (
+                                        <div
+                                            key={app.id}
+                                            className="p-4 hover:bg-hover transition-colors"
+                                        >
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                                        <FileText className="h-6 w-6 text-blue-400" />
                                                     </div>
-                                                    <p className="text-sm text-white/60 mt-1">
-                                                        {new Date(app.fromDate).toLocaleDateString()} -{" "}
-                                                        {new Date(app.toDate).toLocaleDateString()} ({app.days}{" "}
-                                                        {app.days === 1 ? "day" : "days"})
-                                                    </p>
-                                                    <p className="text-sm text-white/40 mt-1">
-                                                        Reason: {app.reason}
-                                                    </p>
-                                                    {app.approvedBy && (
-                                                        <p className="text-xs text-green-400/60 mt-1">
-                                                            Approved by: {app.approvedBy}
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-medium text-foreground">
+                                                                {app.leaveType.name}
+                                                            </p>
+                                                            {getStatusBadge(app.status)}
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            {new Date(app.fromDate).toLocaleDateString()} -{" "}
+                                                            {new Date(app.toDate).toLocaleDateString()} ({app.totalDays}{" "}
+                                                            {app.totalDays === 1 ? t("day") : t("daysPlural")})
                                                         </p>
-                                                    )}
-                                                    {app.rejectionReason && (
-                                                        <p className="text-xs text-red-400/60 mt-1">
-                                                            Rejection reason: {app.rejectionReason}
+                                                        <p className="text-sm text-tertiary-foreground mt-1">
+                                                            {t("reason")}: {app.reason}
                                                         </p>
+                                                        {app.approvedBy && (
+                                                            <p className="text-xs text-green-400/60 mt-1">
+                                                                {t("approvedBy")}: {app.approvedBy.firstName} {app.approvedBy.lastName}
+                                                            </p>
+                                                        )}
+                                                        {app.rejectionReason && (
+                                                            <p className="text-xs text-red-400/60 mt-1">
+                                                                {t("rejectionReason")}: {app.rejectionReason}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs text-tertiary-foreground">
+                                                        {t("applied")}: {new Date(app.createdAt).toLocaleDateString()}
+                                                    </p>
+                                                    {app.status === "pending" && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                            disabled={cancellingId === app.id}
+                                                            onClick={() => handleCancelApplication(app.id)}
+                                                        >
+                                                            {cancellingId === app.id ? t("cancelling") : t("cancel")}
+                                                        </Button>
                                                     )}
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-xs text-white/40">
-                                                    Applied: {new Date(app.appliedOn).toLocaleDateString()}
-                                                </p>
-                                                {app.status === "pending" && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                                    >
-                                                        Cancel
-                                                    </Button>
-                                                )}
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>

@@ -38,7 +38,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }, [isSidebarOpen]);
 
     return (
-        <div className="min-h-screen bg-[#0A0A0F]">
+        <div className="min-h-screen bg-background transition-colors duration-300">
             {/* Skip to Content - Accessibility */}
             <SkipLink href="#main-content">Skip to main content</SkipLink>
 
@@ -58,7 +58,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Mobile Overlay */}
             {isSidebarOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                    className="fixed inset-0 z-40 bg-overlay backdrop-blur-sm lg:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                     aria-hidden="true"
                 />

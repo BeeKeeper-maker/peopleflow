@@ -62,7 +62,7 @@ export function EmployeeActions({ employee }: EmployeeActionsProps) {
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
                         <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4 text-white/60" />
+                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -84,10 +84,10 @@ export function EmployeeActions({ employee }: EmployeeActionsProps) {
             </DropdownMenu>
 
             <DeleteConfirmationModal
-                isOpen={showDeleteModal}
-                onClose={() => setShowDeleteModal(false)}
+                open={showDeleteModal}
+                onOpenChange={(open) => setShowDeleteModal(open)}
                 onConfirm={handleDelete}
-                loading={isDeleting}
+                isLoading={isDeleting}
                 title={`Delete ${employee.firstName} ${employee.lastName}?`}
                 description="This will mark the employee as terminated and remove them from the active list."
             />

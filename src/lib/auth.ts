@@ -73,8 +73,8 @@ export const authOptions: NextAuthOptions = {
                 return {
                     ...token,
                     id: user.id,
-                    role: (user as any).role,
-                    organizationId: (user as any).organizationId,
+                    role: user.role,
+                    organizationId: user.organizationId,
                 };
             }
             return token;
@@ -145,6 +145,46 @@ export async function requireRole(allowedRoles: string[]) {
     }
 
     return session;
+}
+
+// ──────────────────────────────────────────────────────
+// API-specific role helpers (return NextResponse, not redirect)
+// ──────────────────────────────────────────────────────
+
+export type UserRole = "super_admin" | "admin" | "hr_admin" | "manager" | "employee";
+
+/** Roles that can manage organizational data (employees, departments, payroll, settings, etc.) */
+export const HR_ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "hr_admin"];
+
+/** Roles that can approve/manage team operations */
+export const MANAGER_ROLES: UserRole[] = ["super_admin", "admin", "hr_admin", "manager"];
+
+/**
+ * Get authenticated user with org context for API routes.
+ * Returns { user, organizationId } or null if unauthenticated.
+ */
+export async function getApiUser() {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) return null;
+
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!user?.organizationId) return null;
+
+    return {
+        user,
+        organizationId: user.organizationId,
+        role: user.role as UserRole,
+    };
+}
+
+/**
+ * Check if a role is in the allowed list
+ */
+export function isRoleAllowed(role: string, allowedRoles: UserRole[]): boolean {
+    return allowedRoles.includes(role as UserRole);
 }
 
 /**

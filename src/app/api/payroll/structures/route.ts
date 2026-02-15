@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
+import { successResponse, errorResponse, ErrorCodes } from "@/lib/api-response";
 
 const structureSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -30,18 +31,18 @@ export async function GET(req: Request) {
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json(structures);
+        return successResponse(structures);
     } catch (error) {
         console.error("SALARY_STRUCTURES_GET_ERROR", error);
-        return new NextResponse("Internal Error", { status: 500 });
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch salary structures");
     }
 }
 
 export async function POST(req: Request) {
-    // Authenticate first
-    const auth = await requireAuth();
+    // Require HR admin role for creating salary structures
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) {
-        return auth; // Returns 401 Unauthorized
+        return auth;
     }
 
     try {

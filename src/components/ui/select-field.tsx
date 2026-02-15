@@ -43,7 +43,7 @@ export const SelectField = React.forwardRef<HTMLButtonElement, SelectFieldProps>
         return (
             <div className={cn("space-y-2", className)}>
                 {label && (
-                    <label className="text-sm font-medium text-white/80">
+                    <label className="text-sm font-medium text-muted-foreground">
                         {label}
                         {required && <span className="text-red-400 ml-1">*</span>}
                     </label>
@@ -57,20 +57,20 @@ export const SelectField = React.forwardRef<HTMLButtonElement, SelectFieldProps>
                     <SelectTrigger
                         ref={ref}
                         className={cn(
-                            "h-10 w-full rounded-lg border bg-white/5 px-3 text-white transition-colors",
+                            "h-10 w-full rounded-lg border bg-card-bg px-3 text-foreground transition-colors",
                             error
                                 ? "border-red-500/50 focus:border-red-500"
-                                : "border-white/10 focus:border-blue-500/50"
+                                : "border-card-border focus:border-blue-500/50"
                         )}
                     >
                         <SelectValue placeholder={placeholder || "Select..."} />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#1C1C24] border-white/10">
+                    <SelectContent className="bg-dropdown border-card-border">
                         {options.map((option) => (
                             <SelectItem
                                 key={option.value}
                                 value={option.value}
-                                className="text-white hover:bg-white/10 focus:bg-white/10 cursor-pointer"
+                                className="text-foreground hover:bg-hover focus:bg-hover cursor-pointer"
                             >
                                 {option.label}
                             </SelectItem>
