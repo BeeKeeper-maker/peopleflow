@@ -416,6 +416,14 @@ export default function RegisterPage() {
                                     }
                                     error={errors.confirmPassword}
                                     leftIcon={<Lock className="h-5 w-5" />}
+                                    rightIcon={
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                        </button>
+                                    }
                                 />
 
                                 <div className="flex gap-3 pt-2">

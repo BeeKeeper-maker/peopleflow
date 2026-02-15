@@ -51,12 +51,18 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy Prisma schema + generated client (needed for DB migrations)
+# Copy Prisma schema + generated client + CLI (needed for DB migration at startup)
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src/generated ./src/generated
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Copy i18n translation files (next-intl needs these at runtime)
 COPY --from=builder /app/messages ./messages
+
+# Create entrypoint script (runs DB migration + starts server)
+RUN printf '#!/bin/sh\necho "Running database schema sync..."\nnode node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss 2>&1 || echo "Warning: DB sync failed, starting server anyway"\necho "Starting server..."\nnode server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Set ownership
 RUN chown -R nextjs:nodejs /app
@@ -72,4 +78,5 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-CMD ["node", "server.js"]
+# Start with DB sync + server
+CMD ["/app/entrypoint.sh"]
