@@ -36,7 +36,7 @@ RUN npm run build
 # Stage 3: Production Runner
 # ═══════════════════════════════════════
 FROM node:20-alpine AS runner
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl curl
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -68,8 +68,8 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget -q --spider http://localhost:3000/api/health || exit 1
+# Health check — longer start-period for cold start, curl is more reliable
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "server.js"]
