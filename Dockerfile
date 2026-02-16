@@ -1,21 +1,22 @@
-# PeopleFlow HRMS - Docker Configuration
-# Multi-stage build for production deployment
+# ═══════════════════════════════════════════════════════════════
+# PeopleFlow HRMS — Production Dockerfile
+# Industry best practices: multi-stage, non-root, health check
+# ═══════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════
-# Stage 1: Install Dependencies
-# ═══════════════════════════════════════
+# ───────────────────────────────────────
+# Stage 1: Install ALL dependencies
+# ───────────────────────────────────────
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-# Copy .npmrc for legacy-peer-deps support
 COPY .npmrc* ./
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
-# ═══════════════════════════════════════
-# Stage 2: Build Application
-# ═══════════════════════════════════════
+# ───────────────────────────────────────
+# Stage 2: Build the application
+# ───────────────────────────────────────
 FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
@@ -23,17 +24,28 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client for PostgreSQL
-ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+# Prisma generate needs a DATABASE_URL (dummy — not used for actual connection)
+ENV DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma"
 RUN npx prisma generate
 
-# Build Next.js (standalone output)
+# Build Next.js in standalone mode
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# ═══════════════════════════════════════
-# Stage 3: Production Runner
-# ═══════════════════════════════════════
+# ───────────────────────────────────────
+# Stage 3: Production-only dependencies
+# ───────────────────────────────────────
+FROM node:20-alpine AS prod-deps
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
+COPY .npmrc* ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# ───────────────────────────────────────
+# Stage 4: Final production image
+# ───────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache openssl curl
 WORKDIR /app
@@ -41,38 +53,48 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Security: non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Copy standalone build output
+# ── Copy standalone server output ──
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy full node_modules (needed for prisma db push at startup)
-COPY --from=builder /app/node_modules ./node_modules
+# ── Copy production node_modules (includes prisma CLI for db push) ──
+COPY --from=prod-deps /app/node_modules ./node_modules
 
-# Copy Prisma schema (needed for db push)
+# ── Copy Prisma schema + generated client ──
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy i18n translation files (next-intl needs these at runtime)
+# ── Copy i18n translation files ──
 COPY --from=builder /app/messages ./messages
 
-# Create entrypoint script
-RUN printf '#!/bin/sh\nset -e\necho "=== PeopleFlow HRMS Starting ==="\necho "Syncing database schema..."\nnpx prisma db push --skip-generate --accept-data-loss 2>&1\necho "Database ready!"\necho "Starting server..."\nexec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# ── Create entrypoint script (DB migration + server start) ──
+RUN printf '#!/bin/sh\n\
+set -e\n\
+echo "=== PeopleFlow HRMS Starting ==="\n\
+echo "-> Syncing database schema..."\n\
+if npx prisma db push --skip-generate --accept-data-loss 2>&1; then\n\
+    echo "OK: Database schema synced"\n\
+else\n\
+    echo "WARN: DB sync failed - server starting without migration"\n\
+fi\n\
+echo "-> Starting Next.js server..."\n\
+exec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# Set ownership
+# Set file ownership
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
 EXPOSE 3000
-
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check
+# Health check with generous startup time for DB migration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
