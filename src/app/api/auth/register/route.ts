@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hashPassword, isValidEmail, validatePassword } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { sendTemplateEmail } from "@/lib/email";
+import crypto from "crypto";
 
 export async function POST(request: Request) {
     try {
@@ -141,11 +143,33 @@ export async function POST(request: Request) {
             return { organization, user };
         });
 
+        // Send email verification
+        const verificationToken = crypto.randomUUID();
+        const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+        await prisma.emailVerificationToken.create({
+            data: {
+                token: verificationToken,
+                email: email.toLowerCase(),
+                expiresAt: verificationExpiry,
+            },
+        });
+
+        const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const verifyUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+
+        // Fire and forget — don't block response
+        sendTemplateEmail(email.toLowerCase(), "verifyEmail", {
+            userName: name,
+            verifyUrl,
+        }).catch((err) => console.error("Failed to send verification email:", err));
+
         return NextResponse.json(
             {
-                message: "Account created successfully",
+                message: "Account created successfully. Please check your email to verify your account.",
                 organizationId: result.organization.id,
                 userId: result.user.id,
+                requiresVerification: true,
             },
             { status: 201 }
         );

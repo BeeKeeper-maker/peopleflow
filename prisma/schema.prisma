@@ -50,6 +50,7 @@ model Organization {
   performanceReviews PerformanceReview[]
   expenseCategories  ExpenseCategory[]
   expenseClaims      ExpenseClaim[]
+  approvalWorkflows  ApprovalWorkflow[]
 }
 
 model User {
@@ -65,14 +66,19 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Two-Factor Authentication
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Relations
-  employee      Employee?
-  accounts      Account[]
-  sessions      Session[]
-  notifications Notification[]
+  employee         Employee?
+  accounts         Account[]
+  sessions         Session[]
+  notifications    Notification[]
+  passwordHistory  PasswordHistory[]
 }
 
 model Account {
@@ -108,6 +114,44 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ============================================
+// Auth Security Tokens
+// ============================================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+model PasswordHistory {
+  id        String   @id @default(cuid())
+  hash      String
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ============================================
@@ -373,7 +417,11 @@ model LeaveType {
 
   // Encashment
   encashmentAllowed Boolean @default(false)
+  encashmentRate    Float   @default(100) // Percentage of basic daily rate
   proRataEnabled    Boolean @default(true)
+
+  // Sandwich Policy
+  sandwichPolicy Boolean @default(false) // Count weekends between leave days
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -963,4 +1011,24 @@ model ExpenseClaim {
   @@index([categoryId])
   @@index([status])
   @@index([expenseDate])
+}
+
+// ============================================
+// Approval Workflows
+// ============================================
+
+model ApprovalWorkflow {
+  id         String  @id @default(cuid())
+  entityType String  // leave, expense, loan, attendance_regularize
+  name       String
+  steps      String  // JSON array of workflow steps
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entityType])
+  @@index([entityType])
 }

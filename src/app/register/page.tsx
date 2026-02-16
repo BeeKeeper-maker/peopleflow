@@ -148,11 +148,11 @@ export default function RegisterPage() {
             addToast({
                 type: "success",
                 title: t("toastAccountCreated"),
-                description: t("toastWelcome"),
+                description: "Please check your email to verify your account.",
             });
 
             setTimeout(() => {
-                router.push("/login");
+                router.push("/verify-email");
             }, 2000);
         } catch (error) {
             addToast({

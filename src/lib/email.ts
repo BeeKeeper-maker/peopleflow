@@ -182,8 +182,73 @@ export const emailTemplates = {
             </div>
         `,
     }),
-};
 
+    passwordReset: (data: { userName: string; resetUrl: string }) => ({
+        subject: "Reset Your PeopleFlow Password",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #EF4444, #DC2626); padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">🔑 Password Reset</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <h2 style="color: #1f2937;">Hello ${data.userName},</h2>
+                    <p style="color: #4b5563;">
+                        We received a request to reset your password. Click the button below
+                        to set a new password. This link will expire in <strong>1 hour</strong>.
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${data.resetUrl}" 
+                           style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #EF4444, #DC2626); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <div style="margin: 20px 0; padding: 15px; background: #fef3c7; border-radius: 8px;">
+                        <p style="color: #92400e; margin: 0; font-size: 13px;">
+                            ⚠️ If you didn't request this password reset, please ignore this email.
+                            Your account is safe.
+                        </p>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 12px;">
+                        Or copy this link: ${data.resetUrl}
+                    </p>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p>© ${new Date().getFullYear()} PeopleFlow HRMS. All rights reserved.</p>
+                </div>
+            </div>
+        `,
+    }),
+
+    verifyEmail: (data: { userName: string; verifyUrl: string }) => ({
+        subject: "Verify Your PeopleFlow Email Address",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #10B981, #059669); padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">✉️ Verify Your Email</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <h2 style="color: #1f2937;">Welcome ${data.userName}! 🎉</h2>
+                    <p style="color: #4b5563;">
+                        Thank you for creating your PeopleFlow account. Please verify your
+                        email address by clicking the button below. This link expires in <strong>24 hours</strong>.
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${data.verifyUrl}" 
+                           style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #10B981, #059669); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                            Verify Email Address
+                        </a>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 12px;">
+                        Or copy this link: ${data.verifyUrl}
+                    </p>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p>© ${new Date().getFullYear()} PeopleFlow HRMS. All rights reserved.</p>
+                </div>
+            </div>
+        `,
+    }),
+};
 /**
  * Send an email
  */

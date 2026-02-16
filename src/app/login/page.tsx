@@ -241,12 +241,12 @@ export default function LoginPage() {
                                 />
                                 <span className="text-white/60">{t("rememberMe")}</span>
                             </label>
-                            <span
-                                className="text-white/40 cursor-default"
-                                title={t("forgotPasswordTooltip")}
+                            <Link
+                                href="/forgot-password"
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
                             >
                                 {t("forgotPassword")}
-                            </span>
+                            </Link>
                         </div>
 
                         <Button
