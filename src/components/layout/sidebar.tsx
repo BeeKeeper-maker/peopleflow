@@ -23,6 +23,10 @@ import {
     Briefcase,
     FileBarChart,
     Layers,
+    FileText,
+    Receipt,
+    ShieldCheck,
+    ScrollText,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -57,6 +61,8 @@ const navSections: NavSection[] = [
             { labelKey: "leaveRequests", href: "/leaves/requests", icon: FileBarChart, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "leaveSettings", href: "/leaves/types", icon: Settings, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "calendar", href: "/leaves/calendar", icon: Calendar, roles: ["super_admin", "admin", "hr_admin", "manager"] },
+            { labelKey: "documents", href: "/documents", icon: FileText, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "expenses", href: "/expenses", icon: Receipt, roles: ["super_admin", "admin", "hr_admin", "manager"] },
         ],
     },
     {
@@ -67,7 +73,9 @@ const navSections: NavSection[] = [
             { labelKey: "performance", href: "/performance", icon: Target, roles: ["super_admin", "admin", "hr_admin", "manager"] },
             { labelKey: "payroll", href: "/payroll", icon: Banknote, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "recruitment", href: "/recruitment", icon: UserPlus, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "compliance", href: "/compliance", icon: ShieldCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "reports", href: "/reports", icon: BarChart3, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "auditLogs", href: "/audit-logs", icon: ScrollText, roles: ["super_admin", "admin"] },
         ],
     },
     {

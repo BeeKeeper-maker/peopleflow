@@ -18,7 +18,13 @@ import {
     Loader2,
     CheckCircle2,
     AlertCircle,
-    Clock
+    Clock,
+    Landmark,
+    FileCheck,
+    Gift,
+    Building2,
+    Search,
+    Shield
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
@@ -236,10 +242,13 @@ export default function PayrollPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="bg-hover border-card-border">
+                <TabsList className="bg-hover border-card-border flex-wrap">
                     <TabsTrigger value="overview">{t('overviewTab')}</TabsTrigger>
                     <TabsTrigger value="assignments">{t('assignmentsTab')}</TabsTrigger>
                     <TabsTrigger value="slips">{t('slipsTab')}</TabsTrigger>
+                    <TabsTrigger value="tax">Tax Certificate</TabsTrigger>
+                    <TabsTrigger value="bank">Bank File</TabsTrigger>
+                    <TabsTrigger value="encashment">Leave Encashment</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-4">
@@ -502,6 +511,239 @@ export default function PayrollPage() {
                                     </table>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Tax Certificate Tab */}
+                <TabsContent value="tax" className="mt-4 space-y-4">
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-indigo-400" />
+                                Annual Tax Computation
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">
+                                Generate tax certificates and annual computation sheets for employees
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-6">
+                                {/* Fiscal Year Selector */}
+                                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-muted-foreground">Fiscal Year</label>
+                                        <select className="w-48 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground">
+                                            <option>2025-2026</option>
+                                            <option>2024-2025</option>
+                                            <option>2023-2024</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2 flex-1">
+                                        <label className="text-sm text-muted-foreground">Employee (optional)</label>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input placeholder="Search employee..." className="pl-10 bg-hover border-card-border text-foreground" />
+                                        </div>
+                                    </div>
+                                    <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2">
+                                        <FileCheck className="h-4 w-4" />
+                                        Generate Certificate
+                                    </Button>
+                                </div>
+
+                                {/* Tax Breakdown Preview */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                                        <p className="text-sm text-indigo-400">Total Taxable Income</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Based on annual salary</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                        <p className="text-sm text-amber-400">Tax Deducted (TDS)</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Monthly deductions sum</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <p className="text-sm text-emerald-400">Investment Rebate</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Under Section 78</p>
+                                    </div>
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                                    <AlertCircle className="h-5 w-5 text-blue-400 shrink-0" />
+                                    <p className="text-sm text-blue-300">
+                                        Tax certificates follow NBR (National Board of Revenue) format. Select a fiscal year and optionally filter by employee to generate.
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Bank File Tab */}
+                <TabsContent value="bank" className="mt-4 space-y-4">
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground flex items-center gap-2">
+                                <Landmark className="h-5 w-5 text-cyan-400" />
+                                Bank Transfer File (BEFTN)
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">
+                                Generate bank transfer files for salary disbursement
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-6">
+                                {/* Period + Bank Selection */}
+                                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-muted-foreground">Month</label>
+                                        <select
+                                            value={processMonth}
+                                            onChange={(e) => setProcessMonth(parseInt(e.target.value))}
+                                            className="w-40 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground"
+                                        >
+                                            {months.map((m, i) => (
+                                                <option key={i} value={i + 1}>{m}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-muted-foreground">Year</label>
+                                        <Input
+                                            type="number"
+                                            value={processYear}
+                                            onChange={(e) => setProcessYear(parseInt(e.target.value))}
+                                            className="w-32 bg-hover border-card-border text-foreground"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-muted-foreground">Bank Format</label>
+                                        <select className="w-48 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground">
+                                            <option>BEFTN (Standard)</option>
+                                            <option>BACH (Batch)</option>
+                                            <option>EFT (Individual)</option>
+                                        </select>
+                                    </div>
+                                    <Button className="bg-cyan-600 hover:bg-cyan-700 gap-2">
+                                        <Download className="h-4 w-4" />
+                                        Generate File
+                                    </Button>
+                                </div>
+
+                                {/* Bank Summary */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    {[
+                                        { label: "Total Recipients", value: slips.length, bgColor: "bg-cyan-500/10 border-cyan-500/20", textColor: "text-cyan-400" },
+                                        { label: "Total Amount", value: `৳${slips.reduce((s, sl) => s + sl.netSalary, 0).toLocaleString()}`, bgColor: "bg-emerald-500/10 border-emerald-500/20", textColor: "text-emerald-400" },
+                                        { label: "Banks", value: "—", bgColor: "bg-purple-500/10 border-purple-500/20", textColor: "text-purple-400" },
+                                        { label: "Status", value: slips.length > 0 ? "Ready" : "No Data", bgColor: "bg-amber-500/10 border-amber-500/20", textColor: "text-amber-400" },
+                                    ].map((item, i) => (
+                                        <div key={i} className={`p-4 rounded-xl border ${item.bgColor}`}>
+                                            <p className={`text-sm ${item.textColor}`}>{item.label}</p>
+                                            <p className="text-xl font-bold text-foreground mt-1">{item.value}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Employees with bank details */}
+                                {slips.length > 0 && (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="border-b border-card-border text-left text-muted-foreground">
+                                                    <th className="pb-3 font-medium">Employee</th>
+                                                    <th className="pb-3 font-medium">Bank</th>
+                                                    <th className="pb-3 font-medium">Account</th>
+                                                    <th className="pb-3 font-medium text-right">Net Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5">
+                                                {slips.slice(0, 10).map((slip) => (
+                                                    <tr key={slip.id} className="text-foreground hover:bg-hover">
+                                                        <td className="py-3">
+                                                            <p className="font-medium">{slip.employee.firstName} {slip.employee.lastName}</p>
+                                                            <p className="text-xs text-tertiary-foreground">{slip.employee.employeeCode}</p>
+                                                        </td>
+                                                        <td className="py-3 text-muted-foreground">—</td>
+                                                        <td className="py-3 text-muted-foreground">—</td>
+                                                        <td className="py-3 text-right font-semibold text-emerald-400">
+                                                            ৳{slip.netSalary.toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                {slips.length === 0 && (
+                                    <div className="text-center py-12">
+                                        <Landmark className="h-12 w-12 mx-auto text-muted-text" />
+                                        <p className="text-muted-foreground mt-4">Process payroll first to generate bank files</p>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Leave Encashment Tab */}
+                <TabsContent value="encashment" className="mt-4 space-y-4">
+                    <Card className="bg-card border-card-border">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-foreground flex items-center gap-2">
+                                    <Gift className="h-5 w-5 text-amber-400" />
+                                    Leave Encashment
+                                </CardTitle>
+                                <CardDescription className="text-muted-foreground">
+                                    Calculate and process unused leave payout for employees
+                                </CardDescription>
+                            </div>
+                            <Button className="bg-amber-600 hover:bg-amber-700 gap-2">
+                                <Plus className="h-4 w-4" />
+                                New Encashment
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-6">
+                                {/* Encashment Stats */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                        <p className="text-sm text-amber-400">Pending Requests</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <p className="text-sm text-emerald-400">Processed This Year</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                                        <p className="text-sm text-purple-400">Total Payout</p>
+                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                    </div>
+                                </div>
+
+                                {/* Empty State */}
+                                <div className="text-center py-12">
+                                    <Gift className="h-12 w-12 mx-auto text-muted-text" />
+                                    <p className="text-muted-foreground mt-4">No leave encashment requests yet</p>
+                                    <p className="text-sm text-tertiary-foreground mt-2">
+                                        Employees can request encashment for unused CL/EL balances as per company policy
+                                    </p>
+                                </div>
+
+                                {/* Policy Note */}
+                                <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                    <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+                                    <p className="text-sm text-amber-300">
+                                        Leave encashment is calculated at (Basic Salary / 30) × encashable days. Maximum encashable days are configured in leave type settings.
+                                    </p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
