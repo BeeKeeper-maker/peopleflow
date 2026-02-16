@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/layout";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,7 @@ const statusConfig = {
 
 export default function ExpensesPage() {
     const { addToast } = useToast();
+    const t = useTranslations('Expenses');
     const [loading, setLoading] = useState(true);
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
     const [stats, setStats] = useState<ExpenseStats | null>(null);
@@ -157,17 +158,17 @@ export default function ExpensesPage() {
     ] : [];
 
     return (
-        <DashboardLayout>
+        <>
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Expense Claims</h1>
-                        <p className="text-muted-foreground mt-1">Manage and approve expense claims</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Link href="/expenses/new">
                         <Button className="gap-2">
-                            <Plus className="h-4 w-4" /> New Claim
+                            <Plus className="h-4 w-4" /> {t('newClaim')}
                         </Button>
                     </Link>
                 </div>
@@ -215,7 +216,7 @@ export default function ExpensesPage() {
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search by employee, description, or category..."
+                                    placeholder={t('searchPlaceholder')}
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     className="pl-10"
@@ -341,6 +342,6 @@ export default function ExpensesPage() {
                     )}
                 </div>
             </div>
-        </DashboardLayout>
+        </>
     );
 }

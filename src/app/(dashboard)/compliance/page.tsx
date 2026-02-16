@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/layout";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +123,7 @@ function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
 // ════════════════════════════════════════════════════════════════════════
 
 export default function CompliancePage() {
+    const t = useTranslations('Compliance');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [checks, setChecks] = useState<ComplianceCheck[]>([]);
@@ -208,16 +209,16 @@ export default function CompliancePage() {
     const passedChecks = checks.filter(c => c.status === "pass");
 
     return (
-        <DashboardLayout>
+        <>
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                             <ShieldCheck className="h-7 w-7 text-emerald-400" />
-                            Compliance Dashboard
+                            {t('title')}
                         </h1>
-                        <p className="text-muted-foreground mt-1">Bangladesh Labor Law 2006 compliance status</p>
+                        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Button
                         variant="outline"
@@ -226,7 +227,7 @@ export default function CompliancePage() {
                         className="gap-2"
                     >
                         {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        Re-check
+                        {t('recheck')}
                     </Button>
                 </div>
 
@@ -389,6 +390,6 @@ export default function CompliancePage() {
                     </CardContent>
                 </Card>
             </div>
-        </DashboardLayout>
+        </>
     );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DashboardLayout } from "@/components/layout";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,7 @@ const templateStyles: Record<string, { color: string; bgColor: string }> = {
 
 export default function DocumentsPage() {
     const { addToast } = useToast();
+    const t = useTranslations('Documents');
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     const [loading, setLoading] = useState(true);
@@ -161,13 +162,13 @@ export default function DocumentsPage() {
     }));
 
     return (
-        <DashboardLayout>
+        <>
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">Documents</h1>
-                        <p className="text-muted-foreground mt-1">Generate official HR documents</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     {step > 1 && (
                         <Button variant="outline" onClick={() => { setStep(1); setGeneratedHTML(""); }}>
@@ -179,9 +180,9 @@ export default function DocumentsPage() {
                 {/* Step Indicator */}
                 <div className="flex items-center gap-3">
                     {[
-                        { num: 1, label: "Select Template" },
-                        { num: 2, label: "Customize" },
-                        { num: 3, label: "Preview & Download" },
+                        { num: 1, label: t('selectTemplate') },
+                        { num: 2, label: t('customize') },
+                        { num: 3, label: t('preview') },
                     ].map((s, i) => (
                         <div key={s.num} className="flex items-center gap-2">
                             <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${step >= s.num
@@ -204,8 +205,8 @@ export default function DocumentsPage() {
                         {/* Employee Selection */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">Select Employee</CardTitle>
-                                <CardDescription>Choose the employee for the document</CardDescription>
+                                <CardTitle className="text-base">{t('selectEmployee')}</CardTitle>
+                                <CardDescription>{t('selectTemplateDesc')}</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 {loading ? (
@@ -224,8 +225,8 @@ export default function DocumentsPage() {
                         {/* Template Grid */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">Choose Document Type</CardTitle>
-                                <CardDescription>Select the type of document to generate</CardDescription>
+                                <CardTitle className="text-base">{t('selectTemplate')}</CardTitle>
+                                <CardDescription>{t('selectTemplateDesc')}</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 {loading ? (
@@ -281,7 +282,7 @@ export default function DocumentsPage() {
                                 className="gap-2"
                                 disabled={!selectedType || !selectedEmployee}
                             >
-                                Next: Customize <ChevronRight className="h-4 w-4" />
+                                Next: {t('customize')} <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
@@ -326,7 +327,7 @@ export default function DocumentsPage() {
                                     <h4 className="text-sm font-medium text-foreground mb-4">Optional Overrides</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Document Date</Label>
+                                            <Label>{t('issueDate')}</Label>
                                             <Input
                                                 type="date"
                                                 value={customData.date || ""}
@@ -334,7 +335,7 @@ export default function DocumentsPage() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Reference Number</Label>
+                                            <Label>{t('referenceNumber')}</Label>
                                             <Input
                                                 value={customData.referenceNumber || ""}
                                                 onChange={(e) => setCustomData({ ...customData, referenceNumber: e.target.value })}
@@ -347,10 +348,10 @@ export default function DocumentsPage() {
                         </Card>
 
                         <div className="flex justify-between">
-                            <Button variant="outline" onClick={() => setStep(1)}>← Back</Button>
+                            <Button variant="outline" onClick={() => setStep(1)}>← {t('backToTemplates')}</Button>
                             <Button onClick={handleGenerate} disabled={generating} className="gap-2">
                                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                                Generate & Preview
+                                {generating ? t('generating') : t('generateDocument')}
                             </Button>
                         </div>
                     </div>
@@ -364,14 +365,14 @@ export default function DocumentsPage() {
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-base flex items-center gap-2">
                                         <Eye className="h-5 w-5 text-blue-400" />
-                                        Document Preview
+                                        {t('documentPreview')}
                                     </CardTitle>
                                     <div className="flex gap-2">
                                         <Button variant="outline" size="sm" onClick={handleDownloadHTML} className="gap-2">
-                                            <Download className="h-4 w-4" /> HTML
+                                            <Download className="h-4 w-4" /> {t('downloadHTML')}
                                         </Button>
                                         <Button size="sm" onClick={handlePrint} className="gap-2">
-                                            <Printer className="h-4 w-4" /> Print / PDF
+                                            <Printer className="h-4 w-4" /> {t('print')}
                                         </Button>
                                     </div>
                                 </div>
@@ -398,6 +399,6 @@ export default function DocumentsPage() {
                     </div>
                 )}
             </div>
-        </DashboardLayout>
+        </>
     );
 }

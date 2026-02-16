@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DashboardLayout } from "@/components/layout";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ interface Category {
 export default function NewExpenseClaimPage() {
     const router = useRouter();
     const { addToast } = useToast();
+    const t = useTranslations('ExpensesNew');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [categories, setCategories] = useState<Category[]>([]);
@@ -127,7 +128,7 @@ export default function NewExpenseClaimPage() {
     };
 
     return (
-        <DashboardLayout>
+        <>
             <div className="space-y-6 max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="flex items-center gap-4">
@@ -135,8 +136,8 @@ export default function NewExpenseClaimPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">New Expense Claim</h1>
-                        <p className="text-muted-foreground mt-1">Add your expense items and submit for approval</p>
+                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                 </div>
 
@@ -271,13 +272,13 @@ export default function NewExpenseClaimPage() {
                                 </Button>
                                 <Button onClick={handleSubmit} disabled={submitting} className="gap-2 flex-1 sm:flex-none">
                                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
-                                    Submit Claim
+                                    {submitting ? t('submitting') : t('submitClaim')}
                                 </Button>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
-        </DashboardLayout>
+        </>
     );
 }

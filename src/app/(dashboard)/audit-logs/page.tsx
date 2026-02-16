@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/layout";
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +62,7 @@ const actionColors: Record<string, string> = {
 // ════════════════════════════════════════════════════════════════════════
 
 export default function AuditLogsPage() {
+    const t = useTranslations('AuditLogs');
     const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [total, setTotal] = useState(0);
@@ -137,16 +138,16 @@ export default function AuditLogsPage() {
     const entities = ["Employee", "LeaveApplication", "Attendance", "SalarySlip", "ExpenseClaim", "JobPosting", "Goal"];
 
     return (
-        <DashboardLayout>
+        <>
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                             <Shield className="h-7 w-7 text-blue-400" />
-                            Audit Logs
+                            {t('title')}
                         </h1>
-                        <p className="text-muted-foreground mt-1">Complete audit trail of all system actions</p>
+                        <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Button
                         variant="outline"
@@ -155,7 +156,7 @@ export default function AuditLogsPage() {
                         className="gap-2"
                     >
                         {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        Export CSV
+                        {t('exportCSV')}
                     </Button>
                 </div>
 
@@ -371,6 +372,6 @@ export default function AuditLogsPage() {
                     </div>
                 )}
             </div>
-        </DashboardLayout>
+        </>
     );
 }
