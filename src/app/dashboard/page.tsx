@@ -91,9 +91,9 @@ function StatCard({
                             {changeType === "positive" && <TrendingUp className="h-4 w-4 text-emerald-400" />}
                             {changeType === "negative" && <TrendingDown className="h-4 w-4 text-red-400" />}
                             <span className={`text-sm ${changeType === "positive" ? "text-emerald-400"
-                                    : changeType === "negative" ? "text-red-400"
-                                        : changeType === "warning" ? "text-amber-400"
-                                            : "text-muted-foreground"
+                                : changeType === "negative" ? "text-red-400"
+                                    : changeType === "warning" ? "text-amber-400"
+                                        : "text-muted-foreground"
                                 }`}>{change}</span>
                         </div>
                     </div>
@@ -197,9 +197,10 @@ const DONUT_COLORS = [
     "#EF4444", "#EC4899", "#6366F1", "#14B8A6", "#F97316",
 ];
 
-function DonutChart({ data, size = 160 }: {
+function DonutChart({ data, size = 160, totalLabel = "Total" }: {
     data: { name: string; count: number }[];
     size?: number;
+    totalLabel?: string;
 }) {
     const total = data.reduce((s, d) => s + d.count, 0);
     if (total === 0) return null;
@@ -237,7 +238,7 @@ function DonutChart({ data, size = 160 }: {
                     />
                 ))}
                 <text x={cx} y={cy - 4} textAnchor="middle" className="fill-foreground text-[10px] font-bold">{total}</text>
-                <text x={cx} y={cy + 8} textAnchor="middle" className="fill-muted-foreground text-[5px]">Total</text>
+                <text x={cx} y={cy + 8} textAnchor="middle" className="fill-muted-foreground text-[5px]">{totalLabel}</text>
             </svg>
             <div className="flex-1 space-y-1.5 max-h-40 overflow-y-auto">
                 {segments.map((seg, i) => (
@@ -258,9 +259,10 @@ function DonutChart({ data, size = 160 }: {
 // Attendance Ring
 // ════════════════════════════════════════════════════════════════════════════════
 
-function AttendanceRing({ data, total }: {
+function AttendanceRing({ data, total, labels }: {
     data: Record<string, number>;
     total: number;
+    labels: { present: string; late: string; absent: string; onLeave: string; notCheckedIn: string; attendance: string };
 }) {
     const present = (data.present || 0) + (data.late || 0);
     const pct = total > 0 ? Math.round((present / total) * 100) : 0;
@@ -269,11 +271,11 @@ function AttendanceRing({ data, total }: {
     const fill = (pct / 100) * circumference;
 
     const items = [
-        { label: "Present", value: data.present || 0, color: "#10B981" },
-        { label: "Late", value: data.late || 0, color: "#F59E0B" },
-        { label: "Absent", value: data.absent || 0, color: "#EF4444" },
-        { label: "On Leave", value: data.on_leave || 0, color: "#8B5CF6" },
-        { label: "Not Checked In", value: data.notCheckedIn || 0, color: "#6B7280" },
+        { label: labels.present, value: data.present || 0, color: "#10B981" },
+        { label: labels.late, value: data.late || 0, color: "#F59E0B" },
+        { label: labels.absent, value: data.absent || 0, color: "#EF4444" },
+        { label: labels.onLeave, value: data.on_leave || 0, color: "#8B5CF6" },
+        { label: labels.notCheckedIn, value: data.notCheckedIn || 0, color: "#6B7280" },
     ];
 
     return (
@@ -289,7 +291,7 @@ function AttendanceRing({ data, total }: {
                     className="transition-all duration-1000"
                 />
                 <text x="50" y="46" textAnchor="middle" className="fill-foreground text-[14px] font-bold">{pct}%</text>
-                <text x="50" y="58" textAnchor="middle" className="fill-muted-foreground text-[5px]">Attendance</text>
+                <text x="50" y="58" textAnchor="middle" className="fill-muted-foreground text-[5px]">{labels.attendance}</text>
             </svg>
             <div className="flex-1 space-y-2">
                 {items.filter(i => i.value > 0).map((item, idx) => (
@@ -348,7 +350,7 @@ export default function DashboardPage() {
         {
             title: t('totalEmployees'),
             value: formatNumber(analytics.headcount.total, locale),
-            change: `${formatNumber(analytics.headcount.newHires, locale)} new this month`,
+            change: t('newThisMonth', { count: formatNumber(analytics.headcount.newHires, locale) }),
             changeType: analytics.headcount.newHires > 0 ? "positive" as const : "neutral" as const,
             Icon: Users,
             color: "from-blue-500 to-blue-600",
@@ -443,8 +445,8 @@ export default function DashboardPage() {
                     <Card className="lg:col-span-2">
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">Headcount Trend</CardTitle>
-                                <Badge variant="default">12 months</Badge>
+                                <CardTitle className="text-base">{t('headcountTrend')}</CardTitle>
+                                <Badge variant="default">{t('months12')}</Badge>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -455,11 +457,11 @@ export default function DashboardPage() {
                                     <div className="flex gap-4 mb-3">
                                         <div className="flex items-center gap-1.5">
                                             <div className="h-2 w-2 rounded-full bg-emerald-400" />
-                                            <span className="text-xs text-muted-foreground">Hires</span>
+                                            <span className="text-xs text-muted-foreground">{t('hires')}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <div className="h-2 w-2 rounded-full bg-red-400" />
-                                            <span className="text-xs text-muted-foreground">Separations</span>
+                                            <span className="text-xs text-muted-foreground">{t('separations')}</span>
                                         </div>
                                     </div>
                                     <MiniLineChart
@@ -477,7 +479,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="h-[140px] flex items-center justify-center text-muted-foreground text-sm">No data available</div>
+                                <div className="h-[140px] flex items-center justify-center text-muted-foreground text-sm">{t('noDataAvailable')}</div>
                             )}
                         </CardContent>
                     </Card>
@@ -485,13 +487,24 @@ export default function DashboardPage() {
                     {/* Today's Attendance Ring */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">Today&apos;s Attendance</CardTitle>
+                            <CardTitle className="text-base">{t('todaysAttendance')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
                                 <Skeleton className="h-[130px] w-full rounded-lg" />
                             ) : analytics ? (
-                                <AttendanceRing data={analytics.attendance} total={analytics.headcount.total} />
+                                <AttendanceRing
+                                    data={analytics.attendance}
+                                    total={analytics.headcount.total}
+                                    labels={{
+                                        present: t('present'),
+                                        late: t('late'),
+                                        absent: t('absent'),
+                                        onLeave: t('onLeaveLabel'),
+                                        notCheckedIn: t('notCheckedIn'),
+                                        attendance: t('attendance'),
+                                    }}
+                                />
                             ) : null}
                         </CardContent>
                     </Card>
@@ -503,8 +516,8 @@ export default function DashboardPage() {
                     <Card>
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">Payroll Cost Trend</CardTitle>
-                                <Badge variant="default">6 months</Badge>
+                                <CardTitle className="text-base">{t('payrollCostTrend')}</CardTitle>
+                                <Badge variant="default">{t('months6')}</Badge>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -515,11 +528,11 @@ export default function DashboardPage() {
                                     <div className="flex gap-4 mb-3">
                                         <div className="flex items-center gap-1.5">
                                             <div className="h-2 w-2 rounded-full bg-blue-400 opacity-30" />
-                                            <span className="text-xs text-muted-foreground">Gross</span>
+                                            <span className="text-xs text-muted-foreground">{t('gross')}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <div className="h-2 w-2 rounded-full bg-blue-400" />
-                                            <span className="text-xs text-muted-foreground">Net</span>
+                                            <span className="text-xs text-muted-foreground">{t('net')}</span>
                                         </div>
                                     </div>
                                     <MiniBarChart
@@ -532,7 +545,7 @@ export default function DashboardPage() {
                                     />
                                 </div>
                             ) : (
-                                <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">No payroll data</div>
+                                <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">{t('noPayrollData')}</div>
                             )}
                         </CardContent>
                     </Card>
@@ -540,15 +553,15 @@ export default function DashboardPage() {
                     {/* Department Distribution */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-base">Department Distribution</CardTitle>
+                            <CardTitle className="text-base">{t('departmentDistribution')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
                                 <Skeleton className="h-[160px] w-full rounded-lg" />
                             ) : analytics?.departments && analytics.departments.length > 0 ? (
-                                <DonutChart data={analytics.departments} size={140} />
+                                <DonutChart data={analytics.departments} size={140} totalLabel={t('total')} />
                             ) : (
-                                <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">No departments</div>
+                                <div className="h-[160px] flex items-center justify-center text-muted-foreground text-sm">{t('noDepartments')}</div>
                             )}
                         </CardContent>
                     </Card>
@@ -562,7 +575,7 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <Gift className="h-5 w-5 text-pink-400" />
-                                    Upcoming Events
+                                    {t('upcomingEventsTitle')}
                                 </CardTitle>
                             </div>
                         </CardHeader>
@@ -582,7 +595,7 @@ export default function DashboardPage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-foreground truncate">{b.name}</p>
-                                                <p className="text-xs text-muted-foreground">{b.department} • Birthday</p>
+                                                <p className="text-xs text-muted-foreground">{b.department} • {t('birthday')}</p>
                                             </div>
                                             <Badge variant="default">{b.date}</Badge>
                                         </div>
@@ -594,7 +607,7 @@ export default function DashboardPage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-foreground truncate">{a.name}</p>
-                                                <p className="text-xs text-muted-foreground">{a.department} • {a.years} year anniversary</p>
+                                                <p className="text-xs text-muted-foreground">{a.department} • {t('yearAnniversary', { years: a.years })}</p>
                                             </div>
                                             <Badge variant="default">{a.date}</Badge>
                                         </div>
@@ -602,7 +615,7 @@ export default function DashboardPage() {
                                     {(!analytics?.upcoming.birthdays.length && !analytics?.upcoming.anniversaries.length) && (
                                         <div className="text-center py-8">
                                             <Calendar className="h-8 w-8 text-tertiary-foreground mx-auto mb-2" />
-                                            <p className="text-sm text-muted-foreground">No upcoming events in the next 30 days</p>
+                                            <p className="text-sm text-muted-foreground">{t('noUpcomingEvents30')}</p>
                                         </div>
                                     )}
                                 </div>
@@ -615,7 +628,7 @@ export default function DashboardPage() {
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
                                 <AlertCircle className="h-5 w-5 text-amber-400" />
-                                Pending Actions
+                                {t('pendingActions')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -634,8 +647,8 @@ export default function DashboardPage() {
                                                     <CalendarOff className="h-4 w-4 text-blue-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-foreground">Leave Requests</p>
-                                                    <p className="text-xs text-muted-foreground">Awaiting approval</p>
+                                                    <p className="text-sm font-medium text-foreground">{t('leaveRequests')}</p>
+                                                    <p className="text-xs text-muted-foreground">{t('awaitingApprovalLabel')}</p>
                                                 </div>
                                             </div>
                                             <Badge variant="warning" dot>{analytics.pendingActions.leaves}</Badge>
@@ -648,8 +661,8 @@ export default function DashboardPage() {
                                                     <Receipt className="h-4 w-4 text-emerald-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-foreground">Expense Claims</p>
-                                                    <p className="text-xs text-muted-foreground">Pending review</p>
+                                                    <p className="text-sm font-medium text-foreground">{t('expenseClaims')}</p>
+                                                    <p className="text-xs text-muted-foreground">{t('pendingReview')}</p>
                                                 </div>
                                             </div>
                                             <Badge variant="warning" dot>{analytics.pendingActions.expenses}</Badge>
@@ -662,8 +675,8 @@ export default function DashboardPage() {
                                                     <Banknote className="h-4 w-4 text-purple-400" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-foreground">Loan Requests</p>
-                                                    <p className="text-xs text-muted-foreground">Pending approval</p>
+                                                    <p className="text-sm font-medium text-foreground">{t('loanRequests')}</p>
+                                                    <p className="text-xs text-muted-foreground">{t('pendingApprovalAction')}</p>
                                                 </div>
                                             </div>
                                             <Badge variant="warning" dot>{analytics.pendingActions.loans}</Badge>
