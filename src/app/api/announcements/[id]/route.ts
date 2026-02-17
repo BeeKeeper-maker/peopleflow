@@ -10,6 +10,11 @@ export async function PUT(
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can update announcements
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const { id } = await params;
         const json = await req.json();
@@ -50,6 +55,11 @@ export async function DELETE(
 ) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Only admin/hr can delete announcements
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
 
     try {
         const { id } = await params;

@@ -14,6 +14,17 @@ export async function GET(req: Request) {
         const where: Record<string, unknown> = {
             employee: { organizationId: auth.organizationId },
         };
+
+        // Non-admin users can only see their own loans
+        if (!["super_admin", "admin", "hr_admin", "manager"].includes(auth.role)) {
+            if (auth.employeeId) {
+                where.employeeId = auth.employeeId;
+            } else {
+                // No employee record linked — return empty
+                return NextResponse.json([]);
+            }
+        }
+
         if (status) where.status = status;
 
         const loans = await prisma.loan.findMany({

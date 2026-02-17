@@ -10,6 +10,11 @@ export async function POST(
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can add holidays
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const { id } = await params;
 
@@ -80,12 +85,33 @@ export async function PUT(
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can update holidays
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const { id } = await params;
         const json = await req.json();
 
+        // Verify the holiday list belongs to this org
+        const ownerCheck = await prisma.holidayList.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!ownerCheck) {
+            return NextResponse.json({ error: "Holiday list not found" }, { status: 404 });
+        }
+
         // If holidayId is present, update a specific holiday
         if (json.holidayId) {
+            // Verify the holiday belongs to this list
+            const holidayCheck = await prisma.holiday.findFirst({
+                where: { id: json.holidayId, holidayListId: id },
+            });
+            if (!holidayCheck) {
+                return NextResponse.json({ error: "Holiday not found" }, { status: 404 });
+            }
+
             const holiday = await prisma.holiday.update({
                 where: { id: json.holidayId },
                 data: {
@@ -122,16 +148,29 @@ export async function DELETE(
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can delete holidays
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const { id } = await params;
         const { searchParams } = new URL(req.url);
         const holidayId = searchParams.get("holidayId");
 
         if (holidayId) {
-            // Delete a specific holiday
-            await prisma.holiday.delete({
-                where: { id: holidayId },
+            // Verify the holiday belongs to a list owned by this org
+            const holiday = await prisma.holiday.findFirst({
+                where: {
+                    id: holidayId,
+                    holidayList: { organizationId: auth.organizationId },
+                },
             });
+            if (!holiday) {
+                return NextResponse.json({ error: "Holiday not found" }, { status: 404 });
+            }
+
+            await prisma.holiday.delete({ where: { id: holidayId } });
             return NextResponse.json({ success: true });
         }
 

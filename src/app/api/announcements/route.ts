@@ -55,6 +55,11 @@ export async function POST(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can create announcements
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const json = await req.json();
         const { title, content, type, priority, isPinned, publishDate, expiryDate, targetDepartments, isActive } = json;

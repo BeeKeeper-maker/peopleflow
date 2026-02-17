@@ -41,6 +41,11 @@ export async function POST(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can create holiday lists
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const json = await req.json();
         const { name, year } = json;

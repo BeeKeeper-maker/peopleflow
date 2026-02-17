@@ -25,6 +25,11 @@ export async function POST(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can create approval workflows
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     try {
         const body = await req.json();
         const { entityType, name, steps, isActive } = body;

@@ -199,7 +199,36 @@ export async function syncDevice(deviceId: string): Promise<SyncDeviceResult> {
                 }
 
                 try {
-                    // Upsert — create if not exists, update check-out if exists
+                    // Check for existing record to compare check-in times
+                    const existingRecord = await prisma.attendance.findUnique({
+                        where: {
+                            employeeId_date: { employeeId, date },
+                        },
+                        select: { checkIn: true },
+                    });
+
+                    // Determine the best check-in: keep the earlier of existing vs biometric
+                    let bestCheckIn = times.checkIn;
+                    let bestLateMinutes = lateMinutes;
+                    let bestStatus = status;
+
+                    if (existingRecord?.checkIn && times.checkIn) {
+                        if (existingRecord.checkIn < times.checkIn) {
+                            // Existing record has earlier check-in — keep it
+                            bestCheckIn = existingRecord.checkIn;
+                            // Recalculate late minutes with the earlier check-in
+                            if (employee?.shift) {
+                                const shiftStartForCalc = new Date(date);
+                                const [sH, sM] = (employee.shift.startTime || "09:00").split(":").map(Number);
+                                shiftStartForCalc.setHours(sH, sM, 0, 0);
+                                const recalcLate = differenceInMinutes(bestCheckIn, shiftStartForCalc);
+                                bestLateMinutes = recalcLate > 0 ? recalcLate : 0;
+                                bestStatus = bestLateMinutes > 0 ? "late" : "present";
+                            }
+                        }
+                    }
+
+                    // Upsert — create if not exists, update with best values
                     await prisma.attendance.upsert({
                         where: {
                             employeeId_date: {
@@ -220,10 +249,10 @@ export async function syncDevice(deviceId: string): Promise<SyncDeviceResult> {
                             notes: `Synced from ${device.name}`,
                         },
                         update: {
-                            // Update check-in if biometric has data
-                            checkIn: times.checkIn,
-                            lateMinutes,
-                            status,
+                            // Use the earliest check-in time
+                            checkIn: bestCheckIn,
+                            lateMinutes: bestLateMinutes,
+                            status: bestStatus,
                             source: "biometric",
                             // Update check-out if biometric has one
                             ...(times.checkOut

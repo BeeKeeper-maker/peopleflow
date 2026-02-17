@@ -7,6 +7,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Only admin/hr can update approval workflows
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const { id } = await params;
 
     try {
@@ -41,6 +46,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Only admin/hr can delete approval workflows
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
 
     const { id } = await params;
 
