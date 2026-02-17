@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
 
 interface LeaveApproval {
@@ -56,6 +56,7 @@ interface ExpenseApproval {
 
 export default function ManagerApprovalsPage() {
     const t = useTranslations("ManagerApprovals");
+    const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [leaveApprovals, setLeaveApprovals] = useState<LeaveApproval[]>([]);
     const [expenseApprovals, setExpenseApprovals] = useState<ExpenseApproval[]>([]);
@@ -106,13 +107,13 @@ export default function ManagerApprovalsPage() {
                 } else {
                     setExpenseApprovals((prev) => prev.filter((a) => a.id !== id));
                 }
-                toast.success(t("approveSuccess"));
+                addToast({ title: t("approveSuccess"), type: "success" });
             } else {
-                toast.error(t("approveFailed"));
+                addToast({ title: t("approveFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Error approving:", error);
-            toast.error(t("errorOccurred"));
+            addToast({ title: t("errorOccurred"), type: "error" });
         } finally {
             setProcessingId(null);
         }
@@ -145,13 +146,13 @@ export default function ManagerApprovalsPage() {
                 } else {
                     setExpenseApprovals((prev) => prev.filter((a) => a.id !== id));
                 }
-                toast.success(t("rejectSuccess"));
+                addToast({ title: t("rejectSuccess"), type: "success" });
             } else {
-                toast.error(t("rejectFailed"));
+                addToast({ title: t("rejectFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Error rejecting:", error);
-            toast.error(t("errorOccurred"));
+            addToast({ title: t("errorOccurred"), type: "error" });
         } finally {
             setProcessingId(null);
             setShowRejectInput(null);

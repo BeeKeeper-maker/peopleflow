@@ -24,7 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 
 interface LeaveType {
     id: string;
@@ -38,6 +38,7 @@ interface LeaveType {
 export default function ApplyLeavePage() {
     const t = useTranslations("ESSLeaves");
     const router = useRouter();
+    const { addToast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
@@ -85,27 +86,27 @@ export default function ApplyLeavePage() {
     const handleSubmit = async () => {
         // Validation
         if (!formData.leaveTypeId) {
-            toast.error(t("errSelectLeaveType"));
+            addToast({ title: t("errSelectLeaveType"), type: "error" });
             return;
         }
         if (!formData.startDate) {
-            toast.error(t("errStartDate"));
+            addToast({ title: t("errStartDate"), type: "error" });
             return;
         }
         if (!formData.endDate) {
-            toast.error(t("errEndDate"));
+            addToast({ title: t("errEndDate"), type: "error" });
             return;
         }
         if (new Date(formData.endDate) < new Date(formData.startDate)) {
-            toast.error(t("errEndBeforeStart"));
+            addToast({ title: t("errEndBeforeStart"), type: "error" });
             return;
         }
         if (!formData.reason.trim()) {
-            toast.error(t("errReason"));
+            addToast({ title: t("errReason"), type: "error" });
             return;
         }
         if (formData.isHalfDay && !formData.halfDayType) {
-            toast.error(t("errHalfDayType"));
+            addToast({ title: t("errHalfDayType"), type: "error" });
             return;
         }
 
@@ -129,11 +130,11 @@ export default function ApplyLeavePage() {
                 setIsSuccess(true);
             } else {
                 const data = await res.json();
-                toast.error(data.error || t("submitFailed"));
+                addToast({ title: data.error || t("submitFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Error submitting leave:", error);
-            toast.error(t("submitFailed"));
+            addToast({ title: t("submitFailed"), type: "error" });
         } finally {
             setIsSubmitting(false);
         }

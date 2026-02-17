@@ -30,6 +30,14 @@ const HR_ROUTES = [
     "/notifications",
     "/shifts",
     "/organization",
+    "/expenses",
+    "/documents",
+    "/audit-logs",
+    "/compliance",
+    "/announcements",
+    "/loans",
+    "/approval-workflows",
+    "/devices",
 ];
 
 // Check if user has HR level access
@@ -96,6 +104,7 @@ export default withAuth(
                     "/register",
                     "/forgot-password",
                     "/reset-password",
+                    "/verify-email",
                     "/careers", // Public career page
                 ];
 

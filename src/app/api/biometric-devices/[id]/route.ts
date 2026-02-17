@@ -1,0 +1,137 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+
+interface RouteParams {
+    params: Promise<{ id: string }>;
+}
+
+/**
+ * GET /api/biometric-devices/[id] — Get device details + recent sync logs
+ */
+export async function GET(req: Request, { params }: RouteParams) {
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
+
+    try {
+        const { id } = await params;
+
+        const device = await prisma.biometricDevice.findFirst({
+            where: { id, organizationId: auth.organizationId },
+            include: {
+                branch: { select: { id: true, name: true, code: true } },
+                syncLogs: {
+                    orderBy: { syncedAt: "desc" },
+                    take: 20,
+                },
+            },
+        });
+
+        if (!device) {
+            return new NextResponse("Device not found", { status: 404 });
+        }
+
+        return NextResponse.json(device);
+    } catch (error) {
+        console.error("GET_DEVICE_DETAIL_ERROR", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}
+
+/**
+ * PUT /api/biometric-devices/[id] — Update device configuration
+ */
+export async function PUT(req: Request, { params }: RouteParams) {
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
+
+    if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    try {
+        const { id } = await params;
+        const body = await req.json();
+        const { name, ip, port, model, connectionType, location, branchId, syncInterval, isActive } = body;
+
+        // Verify device belongs to org
+        const existing = await prisma.biometricDevice.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!existing) {
+            return new NextResponse("Device not found", { status: 404 });
+        }
+
+        // Check IP+port uniqueness if changed
+        if ((ip && ip !== existing.ip) || (port && port !== existing.port)) {
+            const duplicate = await prisma.biometricDevice.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    ip: ip || existing.ip,
+                    port: port || existing.port,
+                    id: { not: id },
+                },
+            });
+            if (duplicate) {
+                return NextResponse.json(
+                    { error: "Another device with this IP and port already exists" },
+                    { status: 409 }
+                );
+            }
+        }
+
+        const updated = await prisma.biometricDevice.update({
+            where: { id },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(ip !== undefined && { ip }),
+                ...(port !== undefined && { port }),
+                ...(model !== undefined && { model }),
+                ...(connectionType !== undefined && { connectionType }),
+                ...(location !== undefined && { location }),
+                ...(branchId !== undefined && { branchId: branchId || null }),
+                ...(syncInterval !== undefined && { syncInterval }),
+                ...(isActive !== undefined && { isActive }),
+            },
+            include: {
+                branch: { select: { id: true, name: true, code: true } },
+            },
+        });
+
+        return NextResponse.json(updated);
+    } catch (error) {
+        console.error("UPDATE_DEVICE_ERROR", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}
+
+/**
+ * DELETE /api/biometric-devices/[id] — Remove a device
+ */
+export async function DELETE(req: Request, { params }: RouteParams) {
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
+
+    if (!["super_admin", "admin"].includes(auth.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
+    try {
+        const { id } = await params;
+
+        const device = await prisma.biometricDevice.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!device) {
+            return new NextResponse("Device not found", { status: 404 });
+        }
+
+        // Cascade deletes sync logs too
+        await prisma.biometricDevice.delete({ where: { id } });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("DELETE_DEVICE_ERROR", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}

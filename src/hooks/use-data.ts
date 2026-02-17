@@ -13,7 +13,7 @@
 
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { api, ApiResponse, ApiError } from "@/lib/api-client";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 
 // ============================================
 // Query Keys Factory
@@ -115,6 +115,7 @@ export function useCreateResource<TData, TVariables>(
     }
 ) {
     const queryClient = useQueryClient();
+    const { addToast } = useToast();
 
     return useMutation<ApiResponse<TData>, ApiError, TVariables>({
         mutationFn: (data) => api.post<TData>(endpoint, data),
@@ -125,11 +126,11 @@ export function useCreateResource<TData, TVariables>(
                 });
             }
             if (options?.successMessage) {
-                toast.success(options.successMessage);
+                addToast({ title: options.successMessage, type: "success" });
             }
         },
         onError: (error) => {
-            toast.error(options?.errorMessage || error.message);
+            addToast({ title: options?.errorMessage || error.message, type: "error" });
         },
     });
 }
@@ -146,6 +147,7 @@ export function useUpdateResource<TData, TVariables>(
     }
 ) {
     const queryClient = useQueryClient();
+    const { addToast } = useToast();
 
     return useMutation<ApiResponse<TData>, ApiError, { id: string; data: TVariables }>({
         mutationFn: ({ id, data }) => api.put<TData>(`${endpoint}/${id}`, data),
@@ -156,11 +158,11 @@ export function useUpdateResource<TData, TVariables>(
                 });
             }
             if (options?.successMessage) {
-                toast.success(options.successMessage);
+                addToast({ title: options.successMessage, type: "success" });
             }
         },
         onError: (error) => {
-            toast.error(options?.errorMessage || error.message);
+            addToast({ title: options?.errorMessage || error.message, type: "error" });
         },
     });
 }
@@ -177,6 +179,7 @@ export function useDeleteResource(
     }
 ) {
     const queryClient = useQueryClient();
+    const { addToast } = useToast();
 
     return useMutation<ApiResponse<void>, ApiError, string>({
         mutationFn: (id) => api.delete<void>(`${endpoint}/${id}`),
@@ -187,11 +190,11 @@ export function useDeleteResource(
                 });
             }
             if (options?.successMessage) {
-                toast.success(options.successMessage);
+                addToast({ title: options.successMessage, type: "success" });
             }
         },
         onError: (error) => {
-            toast.error(options?.errorMessage || error.message);
+            addToast({ title: options?.errorMessage || error.message, type: "error" });
         },
     });
 }

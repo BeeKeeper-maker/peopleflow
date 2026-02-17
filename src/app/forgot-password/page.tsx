@@ -7,8 +7,10 @@ import { Mail, ArrowRight, ArrowLeft, Loader2, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
 
 export default function ForgotPasswordPage() {
+    const t = useTranslations("ForgotPassword");
     const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
@@ -20,12 +22,12 @@ export default function ForgotPasswordPage() {
         setError("");
 
         if (!email) {
-            setError("Email is required");
+            setError(t("emailRequired"));
             return;
         }
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            setError("Please enter a valid email address");
+            setError(t("emailInvalid"));
             return;
         }
 
@@ -45,15 +47,15 @@ export default function ForgotPasswordPage() {
             } else {
                 addToast({
                     type: "error",
-                    title: "Error",
-                    description: data.error || "Something went wrong",
+                    title: t("errorTitle"),
+                    description: data.error || t("errorGeneric"),
                 });
             }
         } catch {
             addToast({
                 type: "error",
-                title: "Error",
-                description: "Failed to send request. Please try again.",
+                title: t("errorTitle"),
+                description: t("errorSend"),
             });
         } finally {
             setIsLoading(false);
@@ -74,28 +76,28 @@ export default function ForgotPasswordPage() {
                     className="inline-flex items-center gap-2 text-white/40 hover:text-white/60 transition-colors mb-8"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Login
+                    {t("backToLogin")}
                 </Link>
 
                 {!isSubmitted ? (
                     <>
                         <div className="text-center mb-8">
-                            <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
+                            <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
                                 <Mail className="h-8 w-8 text-white" />
                             </div>
                             <h2 className="text-2xl font-bold text-white mb-2">
-                                Forgot Your Password?
+                                {t("title")}
                             </h2>
                             <p className="text-white/60">
-                                Enter your email address and we&apos;ll send you a link to reset your password.
+                                {t("subtitle")}
                             </p>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <Input
-                                label="Email Address"
+                                label={t("emailLabel")}
                                 type="email"
-                                placeholder="your@email.com"
+                                placeholder={t("emailPlaceholder")}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 error={error}
@@ -111,7 +113,7 @@ export default function ForgotPasswordPage() {
                             >
                                 {!isLoading && (
                                     <>
-                                        Send Reset Link
+                                        {t("sendResetLink")}
                                         <ArrowRight className="h-5 w-5" />
                                     </>
                                 )}
@@ -124,19 +126,18 @@ export default function ForgotPasswordPage() {
                         animate={{ opacity: 1, scale: 1 }}
                         className="text-center"
                     >
-                        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
                             <CheckCircle className="h-8 w-8 text-white" />
                         </div>
                         <h2 className="text-2xl font-bold text-white mb-2">
-                            Check Your Email
+                            {t("checkEmail")}
                         </h2>
                         <p className="text-white/60 mb-6">
-                            If an account exists with <strong className="text-white">{email}</strong>,
-                            you&apos;ll receive a password reset link shortly.
+                            {t("checkEmailDesc", { email })}
                         </p>
                         <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-white/50 text-sm mb-6">
-                            <p>📧 Didn&apos;t receive the email? Check your spam folder.</p>
-                            <p className="mt-2">The link expires in <strong className="text-white/70">1 hour</strong>.</p>
+                            <p>📧 {t("checkSpam")}</p>
+                            <p className="mt-2">{t("linkExpires", { duration: "1 hour" })}</p>
                         </div>
                         <Button
                             variant="outline"
@@ -146,7 +147,7 @@ export default function ForgotPasswordPage() {
                                 setEmail("");
                             }}
                         >
-                            Try Another Email
+                            {t("tryAnother")}
                         </Button>
                     </motion.div>
                 )}

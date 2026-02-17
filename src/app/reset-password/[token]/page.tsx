@@ -8,11 +8,13 @@ import { Lock, Eye, EyeOff, ArrowLeft, ArrowRight, CheckCircle, XCircle, Loader2
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
 
 export default function ResetPasswordPage() {
     const router = useRouter();
     const params = useParams();
     const token = params.token as string;
+    const t = useTranslations("ResetPassword");
     const { addToast } = useToast();
 
     const [isLoading, setIsLoading] = useState(false);
@@ -53,21 +55,21 @@ export default function ResetPasswordPage() {
         const newErrors: { password?: string; confirmPassword?: string } = {};
 
         if (!formData.password) {
-            newErrors.password = "Password is required";
+            newErrors.password = t("passwordRequired");
         } else if (formData.password.length < 8) {
-            newErrors.password = "Password must be at least 8 characters";
+            newErrors.password = t("passwordMin");
         } else if (!/[A-Z]/.test(formData.password)) {
-            newErrors.password = "Must contain at least one uppercase letter";
+            newErrors.password = t("passwordUppercase");
         } else if (!/[a-z]/.test(formData.password)) {
-            newErrors.password = "Must contain at least one lowercase letter";
+            newErrors.password = t("passwordLowercase");
         } else if (!/[0-9]/.test(formData.password)) {
-            newErrors.password = "Must contain at least one number";
+            newErrors.password = t("passwordNumber");
         }
 
         if (!formData.confirmPassword) {
-            newErrors.confirmPassword = "Please confirm your password";
+            newErrors.confirmPassword = t("confirmRequired");
         } else if (formData.password !== formData.confirmPassword) {
-            newErrors.confirmPassword = "Passwords do not match";
+            newErrors.confirmPassword = t("passwordMismatch");
         }
 
         setErrors(newErrors);
@@ -99,15 +101,15 @@ export default function ResetPasswordPage() {
             } else {
                 addToast({
                     type: "error",
-                    title: "Reset Failed",
-                    description: data.error || "Something went wrong",
+                    title: t("errorTitle"),
+                    description: data.error || t("errorGeneric"),
                 });
             }
         } catch {
             addToast({
                 type: "error",
-                title: "Error",
-                description: "Failed to reset password. Please try again.",
+                title: t("errorTitle"),
+                description: t("errorReset"),
             });
         } finally {
             setIsLoading(false);
@@ -120,7 +122,7 @@ export default function ResetPasswordPage() {
             <div className="min-h-screen flex items-center justify-center bg-[#0A0A0F]">
                 <div className="text-center">
                     <Loader2 className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" />
-                    <p className="text-white/60">Validating reset link...</p>
+                    <p className="text-white/60">{t("validating")}</p>
                 </div>
             </div>
         );
@@ -135,19 +137,18 @@ export default function ResetPasswordPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="w-full max-w-md text-center"
                 >
-                    <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center mb-4">
+                    <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 flex items-center justify-center mb-4">
                         <XCircle className="h-8 w-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">
-                        Invalid or Expired Link
+                        {t("invalidTitle")}
                     </h2>
                     <p className="text-white/60 mb-6">
-                        This password reset link is invalid or has expired.
-                        Please request a new one.
+                        {t("invalidDesc")}
                     </p>
                     <Link href="/forgot-password">
                         <Button className="w-full">
-                            Request New Reset Link
+                            {t("requestNew")}
                             <ArrowRight className="h-5 w-5" />
                         </Button>
                     </Link>
@@ -165,18 +166,18 @@ export default function ResetPasswordPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     className="w-full max-w-md text-center"
                 >
-                    <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
+                    <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
                         <CheckCircle className="h-8 w-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">
-                        Password Reset Successfully!
+                        {t("successTitle")}
                     </h2>
                     <p className="text-white/60 mb-6">
-                        Your password has been changed. You can now log in with your new password.
+                        {t("successDesc")}
                     </p>
                     <Link href="/login">
                         <Button className="w-full h-12">
-                            Go to Login
+                            {t("goToLogin")}
                             <ArrowRight className="h-5 w-5" />
                         </Button>
                     </Link>
@@ -199,26 +200,26 @@ export default function ResetPasswordPage() {
                     className="inline-flex items-center gap-2 text-white/40 hover:text-white/60 transition-colors mb-8"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Login
+                    {t("backToLogin")}
                 </Link>
 
                 <div className="text-center mb-8">
-                    <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
+                    <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
                         <ShieldCheck className="h-8 w-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">
-                        Set New Password
+                        {t("title")}
                     </h2>
                     <p className="text-white/60">
-                        Choose a strong password that you haven&apos;t used before.
+                        {t("subtitle")}
                     </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <Input
-                        label="New Password"
+                        label={t("newPasswordLabel")}
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter new password"
+                        placeholder={t("newPasswordPlaceholder")}
                         value={formData.password}
                         onChange={(e) =>
                             setFormData({ ...formData, password: e.target.value })
@@ -238,9 +239,9 @@ export default function ResetPasswordPage() {
                     />
 
                     <Input
-                        label="Confirm New Password"
+                        label={t("confirmPasswordLabel")}
                         type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm new password"
+                        placeholder={t("confirmPasswordPlaceholder")}
                         value={formData.confirmPassword}
                         onChange={(e) =>
                             setFormData({ ...formData, confirmPassword: e.target.value })
@@ -261,12 +262,12 @@ export default function ResetPasswordPage() {
 
                     {/* Password requirements */}
                     <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <p className="text-white/40 text-xs font-medium mb-2">Password requirements:</p>
+                        <p className="text-white/40 text-xs font-medium mb-2">{t("requirements")}</p>
                         <div className="grid grid-cols-2 gap-1 text-xs">
-                            <RequirementCheck met={formData.password.length >= 8} text="8+ characters" />
-                            <RequirementCheck met={/[A-Z]/.test(formData.password)} text="Uppercase letter" />
-                            <RequirementCheck met={/[a-z]/.test(formData.password)} text="Lowercase letter" />
-                            <RequirementCheck met={/[0-9]/.test(formData.password)} text="Number" />
+                            <RequirementCheck met={formData.password.length >= 8} text={t("req8Chars")} />
+                            <RequirementCheck met={/[A-Z]/.test(formData.password)} text={t("reqUppercase")} />
+                            <RequirementCheck met={/[a-z]/.test(formData.password)} text={t("reqLowercase")} />
+                            <RequirementCheck met={/[0-9]/.test(formData.password)} text={t("reqNumber")} />
                         </div>
                     </div>
 
@@ -277,7 +278,7 @@ export default function ResetPasswordPage() {
                     >
                         {!isLoading && (
                             <>
-                                Reset Password
+                                {t("resetBtn")}
                                 <ArrowRight className="h-5 w-5" />
                             </>
                         )}

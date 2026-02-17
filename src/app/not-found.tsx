@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Home, ArrowLeft, Search } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 /* ─── Floating particle component ─── */
 function Particle({ delay, size, x, duration }: { delay: number; size: number; x: number; duration: number }) {
@@ -53,6 +54,7 @@ function OrbitDot({ size, radius, duration, color, delay }: { size: number; radi
 export default function NotFound() {
     const [mounted, setMounted] = useState(false);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const t = useTranslations("NotFound");
 
     useEffect(() => {
         setMounted(true);
@@ -235,11 +237,10 @@ export default function NotFound() {
                 {/* Subtitle */}
                 <div style={{ animation: mounted ? "fadeInUp 0.8s ease-out 0.5s both" : "none" }}>
                     <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">
-                        Lost in Space
+                        {t("title")}
                     </h2>
                     <p className="text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                        The page you&apos;re searching for has drifted into the void.
-                        Let&apos;s navigate you back to safety.
+                        {t("description")}
                     </p>
                 </div>
 
@@ -266,7 +267,7 @@ export default function NotFound() {
                         {/* Shine effect */}
                         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full" style={{ transition: "transform 0.6s, opacity 0.3s" }} />
                         <Home className="h-5 w-5 relative z-10" />
-                        <span className="relative z-10">Back to Dashboard</span>
+                        <span className="relative z-10">{t("backToDashboard")}</span>
                     </Link>
 
                     <button
@@ -274,7 +275,7 @@ export default function NotFound() {
                         className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-semibold text-foreground bg-card-bg border border-card-border hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <ArrowLeft className="h-5 w-5 transition-transform duration-300 group-hover:-translate-x-1" />
-                        Go Back
+                        {t("goBack")}
                     </button>
                 </div>
 
@@ -284,7 +285,7 @@ export default function NotFound() {
                     style={{ animation: mounted ? "fadeInUp 0.8s ease-out 0.9s both" : "none" }}
                 >
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/50 animate-pulse" />
-                    <span className="tracking-widest uppercase font-medium">PeopleFlow HRMS</span>
+                    <span className="tracking-widest uppercase font-medium">{t("brandName")}</span>
                     <div className="w-1.5 h-1.5 rounded-full bg-purple-500/50 animate-pulse" />
                 </div>
             </div>

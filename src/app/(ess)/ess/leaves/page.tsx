@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
 import {
     Calendar,
@@ -56,6 +56,7 @@ interface LeaveApplication {
 
 export default function ESSLeavesPage() {
     const t = useTranslations("ESSLeaves");
+    const { addToast } = useToast();
     const { data: session } = useSession();
     const [isLoading, setIsLoading] = useState(true);
     const [balances, setBalances] = useState<LeaveBalance[]>([]);
@@ -76,13 +77,13 @@ export default function ESSLeavesPage() {
                 setApplications((prev) =>
                     prev.map((a) => a.id === appId ? { ...a, status: "cancelled" } : a)
                 );
-                toast.success(t("cancelSuccess"));
+                addToast({ title: t("cancelSuccess"), type: "success" });
             } else {
-                toast.error(t("cancelFailed"));
+                addToast({ title: t("cancelFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Error cancelling leave:", error);
-            toast.error(t("errorOccurred"));
+            addToast({ title: t("errorOccurred"), type: "error" });
         } finally {
             setCancellingId(null);
         }

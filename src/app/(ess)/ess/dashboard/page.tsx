@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
 import { toBengaliNumber } from "@/lib/i18n-utils";
 
@@ -60,6 +60,7 @@ interface TodayAttendance {
 export default function ESSDashboardPage() {
     const { data: session } = useSession();
     const t = useTranslations('ESS');
+    const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
     const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
@@ -184,14 +185,14 @@ export default function ESSDashboardPage() {
                         hour12: true,
                     }),
                 });
-                toast.success("Checked in successfully!");
+                addToast({ title: "Checked in successfully!", type: "success" });
             } else {
                 const errorText = await res.text();
-                toast.error(errorText || "Failed to check in");
+                addToast({ title: errorText || "Failed to check in", type: "error" });
             }
         } catch (error) {
             console.error("Check-in error:", error);
-            toast.error("An error occurred while checking in");
+            addToast({ title: "An error occurred while checking in", type: "error" });
         } finally {
             setIsCheckingIn(false);
         }
@@ -217,14 +218,14 @@ export default function ESSDashboardPage() {
                         hour12: true,
                     }),
                 });
-                toast.success("Checked out successfully!");
+                addToast({ title: "Checked out successfully!", type: "success" });
             } else {
                 const errorText = await res.text();
-                toast.error(errorText || "Failed to check out");
+                addToast({ title: errorText || "Failed to check out", type: "error" });
             }
         } catch (error) {
             console.error("Check-out error:", error);
-            toast.error("An error occurred while checking out");
+            addToast({ title: "An error occurred while checking out", type: "error" });
         } finally {
             setIsCheckingOut(false);
         }

@@ -37,7 +37,7 @@ import {
     X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
 
 interface UserProfile {
@@ -71,6 +71,7 @@ export default function ProfilePage() {
     const t = useTranslations('Profile')
     const { data: session, status } = useSession()
     const router = useRouter()
+    const { addToast } = useToast()
     const [loading, setLoading] = useState(true)
     const [profile, setProfile] = useState<UserProfile | null>(null)
 
@@ -139,15 +140,15 @@ export default function ProfilePage() {
             })
 
             if (res.ok) {
-                toast.success(t('toastProfileUpdated'))
+                addToast({ title: t('toastProfileUpdated'), type: 'success' })
                 setIsEditing(false)
                 fetchProfile()
             } else {
                 const data = await res.json()
-                toast.error(data.error || t('toastProfileFail'))
+                addToast({ title: data.error || t('toastProfileFail'), type: 'error' })
             }
         } catch (error) {
-            toast.error(t('toastProfileFail'))
+            addToast({ title: t('toastProfileFail'), type: 'error' })
         } finally {
             setIsSaving(false)
         }
@@ -155,11 +156,11 @@ export default function ProfilePage() {
 
     const handleChangePassword = async () => {
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-            toast.error(t('toastPasswordMismatch'))
+            addToast({ title: t('toastPasswordMismatch'), type: 'error' })
             return
         }
         if (passwordForm.newPassword.length < 8) {
-            toast.error(t('toastPasswordMin'))
+            addToast({ title: t('toastPasswordMin'), type: 'error' })
             return
         }
 
@@ -175,15 +176,15 @@ export default function ProfilePage() {
             })
 
             if (res.ok) {
-                toast.success(t('toastPasswordChanged'))
+                addToast({ title: t('toastPasswordChanged'), type: 'success' })
                 setShowPasswordModal(false)
                 setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
             } else {
                 const data = await res.json()
-                toast.error(data.error || t('toastPasswordFail'))
+                addToast({ title: data.error || t('toastPasswordFail'), type: 'error' })
             }
         } catch (error) {
-            toast.error(t('toastPasswordFail'))
+            addToast({ title: t('toastPasswordFail'), type: 'error' })
         } finally {
             setIsChangingPassword(false)
         }
@@ -456,7 +457,7 @@ export default function ProfilePage() {
                                 <Button
                                     variant="outline"
                                     className="border-border-hover"
-                                    onClick={() => toast.info(t('twoFAComingSoon'))}
+                                    onClick={() => addToast({ title: t('twoFAComingSoon'), type: 'info' })}
                                 >
                                     {t('enable2FA')}
                                 </Button>

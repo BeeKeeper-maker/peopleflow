@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Square, Clock, MapPin, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 import { differenceInSeconds, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -21,6 +21,7 @@ interface AttendanceState {
 
 export function AttendanceDashboardCard() {
     const t = useTranslations('Attendance');
+    const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [state, setState] = useState<AttendanceState>({
@@ -110,7 +111,7 @@ export function AttendanceDashboardCard() {
                     };
                 } catch (e) {
                     console.warn("Geolocation failed", e);
-                    toast.warning("Could not fetch location, checking in anyway.");
+                    addToast({ title: "Could not fetch location, checking in anyway.", type: "warning" });
                 }
             }
 
@@ -125,11 +126,11 @@ export function AttendanceDashboardCard() {
                 throw new Error(msg);
             }
 
-            toast.success(t('checkIn') + ' ✓');
+            addToast({ title: t('checkIn') + ' ✓', type: 'success' });
             await fetchAttendance();
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : t('checkIn'));
+            addToast({ title: error instanceof Error ? error.message : t('checkIn'), type: 'error' });
         } finally {
             setActionLoading(false);
         }
@@ -166,11 +167,11 @@ export function AttendanceDashboardCard() {
                 throw new Error(msg);
             }
 
-            toast.success(t('checkOut') + ' ✓');
+            addToast({ title: t('checkOut') + ' ✓', type: 'success' });
             await fetchAttendance();
 
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : t('checkOut'));
+            addToast({ title: error instanceof Error ? error.message : t('checkOut'), type: 'error' });
         } finally {
             setActionLoading(false);
         }

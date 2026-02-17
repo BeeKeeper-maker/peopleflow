@@ -27,6 +27,12 @@ import {
     Receipt,
     ShieldCheck,
     ScrollText,
+    CalendarDays,
+    Building,
+    Megaphone,
+    HandCoins,
+    GitPullRequest,
+    Fingerprint,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -75,6 +81,8 @@ const navSections: NavSection[] = [
             { labelKey: "recruitment", href: "/recruitment", icon: UserPlus, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "compliance", href: "/compliance", icon: ShieldCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "reports", href: "/reports", icon: BarChart3, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "announcements", href: "/announcements", icon: Megaphone, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "loans", href: "/loans", icon: HandCoins, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "auditLogs", href: "/audit-logs", icon: ScrollText, roles: ["super_admin", "admin"] },
         ],
     },
@@ -85,6 +93,10 @@ const navSections: NavSection[] = [
             { labelKey: "departments", href: "/departments", icon: Building2, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "designations", href: "/designations", icon: Briefcase, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "shifts", href: "/organization/shifts", icon: Clock, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "holidays", href: "/organization/holidays", icon: CalendarDays, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "branches", href: "/organization/branches", icon: Building, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "approvalWorkflows", href: "/approval-workflows", icon: GitPullRequest, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },
         ],
     },

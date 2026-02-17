@@ -34,7 +34,7 @@ import {
     ImageIcon,
 } from "lucide-react"
 import { useSession } from "next-auth/react"
-import { toast } from "sonner"
+import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
 
 interface OrganizationSettings {
@@ -60,6 +60,7 @@ interface NotificationSettings {
 export default function SettingsPage() {
     const t = useTranslations('Settings')
     const { data: session } = useSession()
+    const { addToast } = useToast()
     const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState("organization")
     const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -116,12 +117,12 @@ export default function SettingsPage() {
         if (!file) return
 
         if (!file.type.startsWith("image/")) {
-            toast.error(t('toastSelectImage'))
+            addToast({ title: t('toastSelectImage'), type: 'error' })
             return
         }
 
         if (file.size > 2 * 1024 * 1024) {
-            toast.error(t('toastImageSize'))
+            addToast({ title: t('toastImageSize'), type: 'error' })
             return
         }
 
@@ -138,20 +139,20 @@ export default function SettingsPage() {
 
                 if (res.ok) {
                     setOrgSettings(prev => ({ ...prev, logoUrl: base64 }))
-                    toast.success(t('toastLogoSuccess'))
+                    addToast({ title: t('toastLogoSuccess'), type: 'success' })
                 } else {
-                    toast.error(t('toastLogoFail'))
+                    addToast({ title: t('toastLogoFail'), type: 'error' })
                 }
                 setUploadingLogo(false)
             }
             reader.onerror = () => {
-                toast.error(t('toastReadFail'))
+                addToast({ title: t('toastReadFail'), type: 'error' })
                 setUploadingLogo(false)
             }
             reader.readAsDataURL(file)
         } catch (error) {
             console.error("Logo upload error:", error)
-            toast.error(t('toastLogoFail'))
+            addToast({ title: t('toastLogoFail'), type: 'error' })
             setUploadingLogo(false)
         }
     }
@@ -171,13 +172,13 @@ export default function SettingsPage() {
             })
 
             if (res.ok) {
-                toast.success(t('toastSettingsSaved'))
+                addToast({ title: t('toastSettingsSaved'), type: 'success' })
             } else {
-                toast.error(t('toastSettingsFail'))
+                addToast({ title: t('toastSettingsFail'), type: 'error' })
             }
         } catch (error) {
             console.error("Save error:", error)
-            toast.error(t('toastSettingsFail'))
+            addToast({ title: t('toastSettingsFail'), type: 'error' })
         } finally {
             setSaving(false)
         }
@@ -193,13 +194,13 @@ export default function SettingsPage() {
             })
 
             if (res.ok) {
-                toast.success(t('toastNotifSaved'))
+                addToast({ title: t('toastNotifSaved'), type: 'success' })
             } else {
-                toast.error(t('toastNotifFail'))
+                addToast({ title: t('toastNotifFail'), type: 'error' })
             }
         } catch (error) {
             console.error("Save error:", error)
-            toast.error(t('toastNotifFail'))
+            addToast({ title: t('toastNotifFail'), type: 'error' })
         } finally {
             setSaving(false)
         }
@@ -207,12 +208,12 @@ export default function SettingsPage() {
 
     const handleChangePassword = async () => {
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-            toast.error(t('toastPasswordMismatch'))
+            addToast({ title: t('toastPasswordMismatch'), type: 'error' })
             return
         }
 
         if (passwordForm.newPassword.length < 8) {
-            toast.error(t('toastPasswordMin'))
+            addToast({ title: t('toastPasswordMin'), type: 'error' })
             return
         }
 
@@ -228,16 +229,16 @@ export default function SettingsPage() {
             })
 
             if (res.ok) {
-                toast.success(t('toastPasswordChanged'))
+                addToast({ title: t('toastPasswordChanged'), type: 'success' })
                 setPasswordModalOpen(false)
                 setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
             } else {
                 const data = await res.json()
-                toast.error(data.error || t('toastPasswordFail'))
+                addToast({ title: data.error || t('toastPasswordFail'), type: 'error' })
             }
         } catch (error) {
             console.error("Password change error:", error)
-            toast.error(t('toastPasswordFail'))
+            addToast({ title: t('toastPasswordFail'), type: 'error' })
         } finally {
             setChangingPassword(false)
         }

@@ -1,0 +1,72 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+
+// PUT /api/announcements/[id] — Update an announcement
+export async function PUT(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
+
+    try {
+        const { id } = await params;
+        const json = await req.json();
+
+        const existing = await prisma.announcement.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+
+        if (!existing) {
+            return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
+        }
+
+        const announcement = await prisma.announcement.update({
+            where: { id },
+            data: {
+                title: json.title ?? existing.title,
+                content: json.content ?? existing.content,
+                type: json.type ?? existing.type,
+                isPinned: json.isPinned ?? existing.isPinned,
+                publishDate: json.publishDate ? new Date(json.publishDate) : existing.publishDate,
+                expiryDate: json.expiryDate ? new Date(json.expiryDate) : json.expiryDate === null ? null : existing.expiryDate,
+                targetDepartments: json.targetDepartments !== undefined ? json.targetDepartments : existing.targetDepartments,
+                isActive: json.isActive ?? existing.isActive,
+            },
+        });
+
+        return NextResponse.json(announcement);
+    } catch (error) {
+        console.error("UPDATE_ANNOUNCEMENT_ERROR", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}
+
+// DELETE /api/announcements/[id] — Delete an announcement
+export async function DELETE(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
+
+    try {
+        const { id } = await params;
+
+        const existing = await prisma.announcement.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+
+        if (!existing) {
+            return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
+        }
+
+        await prisma.announcement.delete({ where: { id } });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("DELETE_ANNOUNCEMENT_ERROR", error);
+        return new NextResponse("Internal Error", { status: 500 });
+    }
+}

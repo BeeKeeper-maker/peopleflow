@@ -24,7 +24,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 
 interface ExpenseCategory {
     id: string;
@@ -37,6 +37,7 @@ interface ExpenseCategory {
 export default function NewExpensePage() {
     const t = useTranslations("ESSExpenses");
     const router = useRouter();
+    const { addToast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [categories, setCategories] = useState<ExpenseCategory[]>([]);
@@ -83,27 +84,27 @@ export default function NewExpensePage() {
     const handleSubmit = async (asDraft = false) => {
         // Validation
         if (!formData.title.trim()) {
-            toast.error(t("errTitle"));
+            addToast({ title: t("errTitle"), type: "error" });
             return;
         }
         if (!formData.amount || parseFloat(formData.amount) <= 0) {
-            toast.error(t("errAmount"));
+            addToast({ title: t("errAmount"), type: "error" });
             return;
         }
         if (!formData.category) {
-            toast.error(t("errCategory"));
+            addToast({ title: t("errCategory"), type: "error" });
             return;
         }
         if (!formData.date) {
-            toast.error(t("errExpenseDate"));
+            addToast({ title: t("errExpenseDate"), type: "error" });
             return;
         }
         if (selectedCategory?.maxAmount && parseFloat(formData.amount) > selectedCategory.maxAmount) {
-            toast.error(t("errMaxAmount", { amount: selectedCategory.maxAmount.toLocaleString() }));
+            addToast({ title: t("errMaxAmount", { amount: selectedCategory.maxAmount.toLocaleString() }), type: "error" });
             return;
         }
         if (selectedCategory?.requiresReceipt && !formData.receipt && !asDraft) {
-            toast.error(t("errReceipt"));
+            addToast({ title: t("errReceipt"), type: "error" });
             return;
         }
 
@@ -129,11 +130,11 @@ export default function NewExpensePage() {
                 setIsSuccess(true);
             } else {
                 const data = await res.json();
-                toast.error(data.error || t("errTitle"));
+                addToast({ title: data.error || t("errTitle"), type: "error" });
             }
         } catch (error) {
             console.error("Error submitting expense:", error);
-            toast.error(t("errTitle"));
+            addToast({ title: t("errTitle"), type: "error" });
         } finally {
             setIsSubmitting(false);
         }

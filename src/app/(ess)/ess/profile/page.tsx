@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/toast";
 
 interface EmployeeProfile {
     id: string;
@@ -65,6 +65,7 @@ interface EmployeeProfile {
 export default function ESSProfilePage() {
     const t = useTranslations("ESSProfile");
     const { data: session } = useSession();
+    const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -123,13 +124,13 @@ export default function ESSProfilePage() {
                 setProfile(data.data || data);
                 setIsEditing(false);
                 setEditedProfile({});
-                toast.success(t("updateSuccess"));
+                addToast({ title: t("updateSuccess"), type: "success" });
             } else {
-                toast.error(t("updateFailed"));
+                addToast({ title: t("updateFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Error saving profile:", error);
-            toast.error(t("updateFailed"));
+            addToast({ title: t("updateFailed"), type: "error" });
         } finally {
             setIsSaving(false);
         }

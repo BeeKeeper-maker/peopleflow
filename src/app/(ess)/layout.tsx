@@ -17,6 +17,10 @@ import {
     ChevronRight,
     Layers,
     Wallet,
+    Banknote,
+    Megaphone,
+    FileText,
+    Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -66,6 +70,16 @@ const navSections: NavSection[] = [
         items: [
             { label: "My Payslips", labelBn: "আমার বেতন স্লিপ", href: "/ess/payslips", icon: Wallet },
             { label: "My Expenses", labelBn: "আমার খরচ", href: "/ess/expenses", icon: Receipt },
+            { label: "My Loans", labelBn: "আমার ঋণ", href: "/ess/loans", icon: Banknote },
+        ],
+    },
+    {
+        label: "INFORMATION",
+        labelBn: "তথ্য",
+        items: [
+            { label: "Announcements", labelBn: "ঘোষণাসমূহ", href: "/ess/announcements", icon: Megaphone },
+            { label: "My Documents", labelBn: "আমার ডকুমেন্ট", href: "/ess/documents", icon: FileText },
+            { label: "My Performance", labelBn: "আমার কর্মদক্ষতা", href: "/ess/performance", icon: Target },
         ],
     },
 ];

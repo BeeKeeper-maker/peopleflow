@@ -51,6 +51,8 @@ model Organization {
   expenseCategories  ExpenseCategory[]
   expenseClaims      ExpenseClaim[]
   approvalWorkflows  ApprovalWorkflow[]
+  documentRequests   DocumentRequest[]
+  biometricDevices   BiometricDevice[]
 }
 
 model User {
@@ -219,7 +221,8 @@ model Branch {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  employees Employee[]
+  employees        Employee[]
+  biometricDevices BiometricDevice[]
 
   @@unique([organizationId, code])
 }
@@ -319,6 +322,9 @@ model Employee {
   permanentAddress String?
   emergencyContact String?
 
+  // Biometric
+  biometricUserId String?  // User ID on biometric device (maps device punch → employee)
+
   // Custom fields
   customFields String @default("{}") // JSON string
 
@@ -369,6 +375,10 @@ model Employee {
   // Expenses
   expenseClaims    ExpenseClaim[] @relation("ExpenseEmployee")
   approvedExpenses ExpenseClaim[] @relation("ExpenseApprover")
+
+  // Announcements & Documents
+  announcementsAuthored Announcement[]    @relation("AnnouncementAuthor")
+  documentRequests      DocumentRequest[] @relation("DocumentRequests")
   // email uniqueness handled at application level (optional field)
 
   @@unique([organizationId, employeeCode])
@@ -649,8 +659,29 @@ model Loan {
   approverId String?
   approver   Employee? @relation("LoanApprover", fields: [approverId], references: [id])
 
+  repayments LoanRepayment[]
+
   @@index([employeeId])
   @@index([status])
+}
+
+model LoanRepayment {
+  id            String   @id @default(cuid())
+  installmentNo Int
+  amount        Float
+  principalPart Float
+  interestPart  Float
+  paidDate      DateTime
+  method        String   @default("payroll") // payroll, bank_transfer, cash
+  reference     String?  // Transaction reference number
+  note          String?
+  createdAt     DateTime @default(now())
+
+  loanId String
+  loan   Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
+  @@index([paidDate])
 }
 
 // ============================================
@@ -662,6 +693,7 @@ model Announcement {
   title             String
   content           String
   type              String    @default("general") // general, policy, celebration, urgent
+  priority          String    @default("medium") // low, medium, high, critical
   isPinned          Boolean   @default(false)
   publishDate       DateTime  @default(now())
   expiryDate        DateTime?
@@ -670,8 +702,14 @@ model Announcement {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  authorId String?
+  author   Employee? @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
+  @@index([publishDate])
 }
 
 model Notification {
@@ -1031,4 +1069,79 @@ model ApprovalWorkflow {
 
   @@unique([organizationId, entityType])
   @@index([entityType])
+}
+
+// ============================================
+// Document Requests (Employee Self-Service)
+// ============================================
+
+model DocumentRequest {
+  id            String    @id @default(cuid())
+  type          String    // offer_letter, salary_certificate, experience_certificate, noc_letter, appointment_letter, increment_letter
+  status        String    @default("pending") // pending, processing, ready, rejected
+  documentUrl   String?   // Generated document URL or content
+  processedAt   DateTime?
+  processedBy   String?   // User ID of processor
+  rejectionNote String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employeeId String
+  employee   Employee @relation("DocumentRequests", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([organizationId])
+}
+
+// ============================================
+// Biometric Device Management
+// ============================================
+
+model BiometricDevice {
+  id              String    @id @default(cuid())
+  name            String                          // "Main Gate", "Reception"
+  serialNumber    String?                         // Device serial number
+  model           String    @default("ZKTeco")    // ZKTeco, Suprema, HikVision, etc.
+  ip              String                          // Device IP address
+  port            Int       @default(4370)        // Communication port
+  connectionType  String    @default("tcp")       // tcp, udp
+  location        String?                         // Physical location description
+  isActive        Boolean   @default(true)
+  lastSyncAt      DateTime?                       // Last successful sync
+  lastSyncStatus  String?                         // success, failed, partial
+  syncInterval    Int       @default(15)          // Auto-sync every N minutes
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  branchId       String?
+  branch         Branch?      @relation(fields: [branchId], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  syncLogs DeviceSyncLog[]
+
+  @@unique([organizationId, ip, port])
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model DeviceSyncLog {
+  id             String   @id @default(cuid())
+  status         String                         // success, failed, partial
+  recordsSynced  Int      @default(0)
+  recordsSkipped Int      @default(0)
+  errorMessage   String?
+  syncDuration   Int?                           // Duration in milliseconds
+  syncedAt       DateTime @default(now())
+
+  deviceId String
+  device   BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([syncedAt])
 }

@@ -8,10 +8,12 @@ import { CheckCircle, XCircle, Loader2, ArrowRight, Mail, RefreshCw } from "luci
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
 
 export default function VerifyEmailPage() {
     const searchParams = useSearchParams();
     const token = searchParams.get("token");
+    const t = useTranslations("VerifyEmail");
     const { addToast } = useToast();
 
     const [status, setStatus] = useState<"loading" | "success" | "error" | "no-token">(
@@ -34,16 +36,16 @@ export default function VerifyEmailPage() {
                     setStatus("success");
                 } else {
                     setStatus("error");
-                    setErrorMessage(data.error || "Verification failed");
+                    setErrorMessage(data.error || t("errorGeneric"));
                 }
             } catch {
                 setStatus("error");
-                setErrorMessage("An error occurred during verification");
+                setErrorMessage(t("errorGeneric"));
             }
         };
 
         verifyEmail();
-    }, [token]);
+    }, [token, t]);
 
     const handleResend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -63,22 +65,22 @@ export default function VerifyEmailPage() {
                 setResendSuccess(true);
                 addToast({
                     type: "success",
-                    title: "Email Sent",
-                    description: "Check your inbox for the verification link.",
+                    title: t("emailSentTitle"),
+                    description: t("emailSentDesc"),
                 });
             } else {
                 const data = await res.json();
                 addToast({
                     type: "error",
-                    title: "Error",
-                    description: data.error || "Something went wrong",
+                    title: t("errorTitle"),
+                    description: data.error || t("errorGeneric"),
                 });
             }
         } catch {
             addToast({
                 type: "error",
-                title: "Error",
-                description: "Failed to resend. Please try again.",
+                title: t("errorTitle"),
+                description: t("errorResend"),
             });
         } finally {
             setIsResending(false);
@@ -97,24 +99,24 @@ export default function VerifyEmailPage() {
                 {status === "loading" && (
                     <>
                         <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold text-white mb-2">Verifying Your Email...</h2>
-                        <p className="text-white/60">Please wait a moment.</p>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("verifying")}</h2>
+                        <p className="text-white/60">{t("pleaseWait")}</p>
                     </>
                 )}
 
                 {/* Success */}
                 {status === "success" && (
                     <>
-                        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4">
                             <CheckCircle className="h-8 w-8 text-white" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Email Verified! ✅</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("successTitle")}</h2>
                         <p className="text-white/60 mb-6">
-                            Your email has been verified successfully. You can now log in to your account.
+                            {t("successDesc")}
                         </p>
                         <Link href="/login">
                             <Button className="w-full h-12">
-                                Go to Login
+                                {t("goToLogin")}
                                 <ArrowRight className="h-5 w-5" />
                             </Button>
                         </Link>
@@ -124,17 +126,17 @@ export default function VerifyEmailPage() {
                 {/* Error */}
                 {status === "error" && (
                     <>
-                        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-red-500 to-red-600 flex items-center justify-center mb-4">
                             <XCircle className="h-8 w-8 text-white" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Verification Failed</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("failedTitle")}</h2>
                         <p className="text-white/60 mb-6">{errorMessage}</p>
 
                         {/* Resend form */}
                         {!resendSuccess ? (
                             <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-left">
                                 <p className="text-white/50 text-sm mb-3">
-                                    Need a new verification link?
+                                    {t("needNewLink")}
                                 </p>
                                 <form onSubmit={handleResend} className="space-y-3">
                                     <Input
@@ -154,7 +156,7 @@ export default function VerifyEmailPage() {
                                         {!isResending && (
                                             <>
                                                 <RefreshCw className="h-4 w-4" />
-                                                Resend Verification
+                                                {t("resendBtn")}
                                             </>
                                         )}
                                     </Button>
@@ -163,7 +165,7 @@ export default function VerifyEmailPage() {
                         ) : (
                             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
                                 <p className="text-green-400 text-sm">
-                                    ✅ Verification email sent! Check your inbox.
+                                    ✅ {t("resendSuccess")}
                                 </p>
                             </div>
                         )}
@@ -173,19 +175,18 @@ export default function VerifyEmailPage() {
                 {/* No token (landing page after registration) */}
                 {status === "no-token" && (
                     <>
-                        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
                             <Mail className="h-8 w-8 text-white" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Check Your Email 📧</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("checkEmailTitle")}</h2>
                         <p className="text-white/60 mb-6">
-                            We&apos;ve sent a verification link to your email address.
-                            Please click the link to activate your account.
+                            {t("checkEmailDesc")}
                         </p>
 
                         <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-white/50 text-sm mb-6 text-left space-y-2">
-                            <p>📬 Check your inbox (and spam folder)</p>
-                            <p>⏱️ The link expires in <strong className="text-white/70">24 hours</strong></p>
-                            <p>🔄 Didn&apos;t receive it? Use the form below to resend</p>
+                            <p>📬 {t("checkInbox")}</p>
+                            <p>⏱️ {t("linkExpires", { duration: "24 hours" })}</p>
+                            <p>🔄 {t("didntReceive")}</p>
                         </div>
 
                         {/* Resend form */}
@@ -208,7 +209,7 @@ export default function VerifyEmailPage() {
                                     {!isResending && (
                                         <>
                                             <RefreshCw className="h-4 w-4" />
-                                            Resend Verification Email
+                                            {t("resendEmailBtn")}
                                         </>
                                     )}
                                 </Button>
@@ -216,14 +217,14 @@ export default function VerifyEmailPage() {
                         ) : (
                             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
                                 <p className="text-green-400 text-sm">
-                                    ✅ Verification email sent! Check your inbox.
+                                    ✅ {t("resendSuccess")}
                                 </p>
                             </div>
                         )}
 
                         <div className="mt-6">
                             <Link href="/login" className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
-                                Already verified? Go to Login →
+                                {t("alreadyVerified")}
                             </Link>
                         </div>
                     </>
