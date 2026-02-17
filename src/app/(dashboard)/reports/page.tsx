@@ -67,10 +67,11 @@ export default function ReportsPage() {
 
                 if (empRes.ok) {
                     const data = await empRes.json()
+                    const empList = Array.isArray(data) ? data : data.data || []
                     setStats(prev => ({
                         ...prev,
-                        totalEmployees: data.total || data.employees?.length || 0,
-                        activeEmployees: data.employees?.filter((e: any) => e.employmentStatus === "active").length || 0,
+                        totalEmployees: data.meta?.total || empList.length || 0,
+                        activeEmployees: empList.filter((e: any) => e.employmentStatus === "active").length || 0,
                     }))
                 }
 
@@ -98,7 +99,7 @@ export default function ReportsPage() {
                     const empRes = await fetch("/api/employees?limit=1000")
                     if (!empRes.ok) throw new Error("Failed to fetch employees")
                     const empData = await empRes.json()
-                    data = empData.employees || []
+                    data = Array.isArray(empData) ? empData : empData.data || []
                     formattedData = formatEmployeeExport(data)
                     filename = `employees_report_${new Date().toISOString().split("T")[0]}`
                     break

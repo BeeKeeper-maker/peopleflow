@@ -94,7 +94,7 @@ export default function DocumentsPage() {
             }
             if (empRes.ok) {
                 const data = await empRes.json();
-                setEmployees(data.employees || []);
+                setEmployees(Array.isArray(data) ? data : data.data || []);
             }
         } catch (error) {
             console.error("Failed to load data:", error);

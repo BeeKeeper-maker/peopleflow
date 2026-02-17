@@ -68,7 +68,7 @@ export default function LoansPage() {
             if (loansRes.ok) setLoans(await loansRes.json())
             if (empRes.ok) {
                 const empData = await empRes.json()
-                setEmployees(Array.isArray(empData) ? empData : empData.employees || [])
+                setEmployees(Array.isArray(empData) ? empData : empData.data || empData.employees || [])
             }
         } catch (error) {
             console.error("Failed to fetch", error)
