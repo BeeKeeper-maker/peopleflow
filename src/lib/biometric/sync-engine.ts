@@ -220,7 +220,12 @@ export async function syncDevice(deviceId: string): Promise<SyncDeviceResult> {
                             notes: `Synced from ${device.name}`,
                         },
                         update: {
-                            // Only update check-out if biometric has later time
+                            // Update check-in if biometric has data
+                            checkIn: times.checkIn,
+                            lateMinutes,
+                            status,
+                            source: "biometric",
+                            // Update check-out if biometric has one
                             ...(times.checkOut
                                 ? {
                                     checkOut: times.checkOut,

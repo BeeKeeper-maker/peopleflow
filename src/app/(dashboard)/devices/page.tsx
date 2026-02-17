@@ -136,7 +136,7 @@ export default function DevicesPage() {
 
     const fetchBranches = useCallback(async () => {
         try {
-            const res = await fetch("/api/organization/branches");
+            const res = await fetch("/api/branches");
             if (res.ok) {
                 const data = await res.json();
                 setBranches(Array.isArray(data) ? data : data.branches || []);
@@ -701,7 +701,7 @@ export default function DevicesPage() {
                                 <option value="">{t("noBranch")}</option>
                                 {branches.map((b) => (
                                     <option key={b.id} value={b.id}>
-                                        {b.name} ({b.code})
+                                        {b.name}{b.code ? ` (${b.code})` : ""}
                                     </option>
                                 ))}
                             </select>
