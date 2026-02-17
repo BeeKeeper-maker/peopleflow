@@ -92,7 +92,7 @@ export default function NewExpenseClaimPage() {
         // Validate
         for (const item of items) {
             if (!item.category || !item.description || !item.amount || !item.date) {
-                addToast({ title: "Incomplete", description: "Please fill in all fields for each expense item.", type: "error" });
+                addToast({ title: t("incomplete"), description: t("incompleteDesc"), type: "error" });
                 return;
             }
         }
@@ -114,14 +114,14 @@ export default function NewExpenseClaimPage() {
             });
 
             if (res.ok) {
-                addToast({ title: "Claim Submitted", description: "Your expense claim has been submitted for approval.", type: "success" });
+                addToast({ title: t("claimSubmitted"), description: t("claimSubmittedDesc"), type: "success" });
                 router.push("/expenses");
             } else {
                 const err = await res.json();
-                addToast({ title: "Error", description: err.error || "Submission failed", type: "error" });
+                addToast({ title: t("networkError"), description: err.error || t("submissionFailed"), type: "error" });
             }
         } catch {
-            addToast({ title: "Error", description: "Network error", type: "error" });
+            addToast({ title: t("networkError"), description: t("networkError"), type: "error" });
         } finally {
             setSubmitting(false);
         }
@@ -146,11 +146,11 @@ export default function NewExpenseClaimPage() {
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle className="text-base">Expense Items</CardTitle>
-                                <CardDescription>Add one or more expense items</CardDescription>
+                                <CardTitle className="text-base">{t("expenseItems")}</CardTitle>
+                                <CardDescription>{t("addItemsHint")}</CardDescription>
                             </div>
                             <Button variant="outline" size="sm" onClick={addItem} className="gap-2">
-                                <Plus className="h-4 w-4" /> Add Item
+                                <Plus className="h-4 w-4" /> {t("addItem")}
                             </Button>
                         </div>
                     </CardHeader>
@@ -174,7 +174,7 @@ export default function NewExpenseClaimPage() {
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <Label>Category</Label>
+                                            <Label>{t("categoryLabel")}</Label>
                                             {loading ? (
                                                 <Skeleton className="h-10 w-full rounded-lg" />
                                             ) : (
@@ -183,19 +183,19 @@ export default function NewExpenseClaimPage() {
                                                     onChange={(e) => updateItem(item.id, "category", e.target.value)}
                                                     className="w-full h-10 px-3 rounded-lg bg-hover border border-card-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                                 >
-                                                    <option value="">Select category</option>
+                                                    <option value="">{t("selectCategory")}</option>
                                                     {categories.length > 0 ? (
                                                         categories.map(c => (
                                                             <option key={c.id} value={c.name}>{c.name}</option>
                                                         ))
                                                     ) : (
                                                         <>
-                                                            <option value="Travel">Travel</option>
-                                                            <option value="Meals">Meals</option>
-                                                            <option value="Office Supplies">Office Supplies</option>
-                                                            <option value="Transportation">Transportation</option>
-                                                            <option value="Training">Training</option>
-                                                            <option value="Other">Other</option>
+                                                            <option value="Travel">{t("categoryTravel")}</option>
+                                                            <option value="Meals">{t("categoryMeals")}</option>
+                                                            <option value="Office Supplies">{t("categoryOfficeSupplies")}</option>
+                                                            <option value="Transportation">{t("categoryTransportation")}</option>
+                                                            <option value="Training">{t("categoryTraining")}</option>
+                                                            <option value="Other">{t("categoryOther")}</option>
                                                         </>
                                                     )}
                                                 </select>
@@ -203,7 +203,7 @@ export default function NewExpenseClaimPage() {
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label>Date</Label>
+                                            <Label>{t("dateLabel")}</Label>
                                             <Input
                                                 type="date"
                                                 value={item.date}
@@ -212,16 +212,16 @@ export default function NewExpenseClaimPage() {
                                         </div>
 
                                         <div className="space-y-2 sm:col-span-2">
-                                            <Label>Description</Label>
+                                            <Label>{t("descriptionLabel")}</Label>
                                             <Input
                                                 value={item.description}
                                                 onChange={(e) => updateItem(item.id, "description", e.target.value)}
-                                                placeholder="Brief description of the expense"
+                                                placeholder={t("descriptionPlaceholder")}
                                             />
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label>Amount (৳)</Label>
+                                            <Label>{t("amountLabel")}</Label>
                                             <Input
                                                 type="number"
                                                 min="0"
@@ -241,14 +241,14 @@ export default function NewExpenseClaimPage() {
                 {/* Notes */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Additional Notes</CardTitle>
+                        <CardTitle className="text-base">{t("additionalNotes")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <textarea
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             className="w-full h-24 px-3 py-2 rounded-lg bg-hover border border-card-border text-foreground text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            placeholder="Any additional notes or justification..."
+                            placeholder={t("notesPlaceholder")}
                         />
                     </CardContent>
                 </Card>
@@ -262,13 +262,13 @@ export default function NewExpenseClaimPage() {
                                     <Calculator className="h-6 w-6 text-purple-400" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-muted-foreground">Total Amount</p>
+                                    <p className="text-sm text-muted-foreground">{t("totalAmount")}</p>
                                     <p className="text-2xl font-bold text-foreground">৳{total.toLocaleString()}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 w-full sm:w-auto">
                                 <Button variant="outline" onClick={() => router.push("/expenses")} className="flex-1 sm:flex-none">
-                                    Cancel
+                                    {t("cancelBtn")}
                                 </Button>
                                 <Button onClick={handleSubmit} disabled={submitting} className="gap-2 flex-1 sm:flex-none">
                                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}

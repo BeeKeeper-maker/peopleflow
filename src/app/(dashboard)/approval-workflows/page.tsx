@@ -455,7 +455,7 @@ export default function ApprovalWorkflowsPage() {
                                                 : "bg-gray-500/15 text-gray-400 border border-gray-500/20"
                                         )}>
                                             {workflow.isActive ? <Power className="h-3 w-3" /> : <PowerOff className="h-3 w-3" />}
-                                            {workflow.isActive ? t("isActive") : "Inactive"}
+                                            {workflow.isActive ? t("isActive") : t("inactive")}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
                                             {steps.length} {t("steps").toLowerCase()}

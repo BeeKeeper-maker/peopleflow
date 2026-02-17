@@ -131,18 +131,18 @@ export default function PayrollPage() {
 
             if (res.ok) {
                 addToast({
-                    title: "Payroll Processed",
+                    title: t("payrollProcessed"),
                     description: `${result.processed} slips created, ${result.errors} errors`,
                     type: result.errors > 0 ? "warning" : "success",
                 })
                 fetchData()
             } else {
-                throw new Error(result.error || "Failed to process payroll")
+                throw new Error(result.error || t("payrollFailed"))
             }
         } catch (error) {
             addToast({
-                title: "Error",
-                description: error instanceof Error ? error.message : "Failed to process payroll",
+                title: t("payrollFailed"),
+                description: error instanceof Error ? error.message : t("payrollFailed"),
                 type: "error",
             })
         } finally {
@@ -246,9 +246,9 @@ export default function PayrollPage() {
                     <TabsTrigger value="overview">{t('overviewTab')}</TabsTrigger>
                     <TabsTrigger value="assignments">{t('assignmentsTab')}</TabsTrigger>
                     <TabsTrigger value="slips">{t('slipsTab')}</TabsTrigger>
-                    <TabsTrigger value="tax">Tax Certificate</TabsTrigger>
-                    <TabsTrigger value="bank">Bank File</TabsTrigger>
-                    <TabsTrigger value="encashment">Leave Encashment</TabsTrigger>
+                    <TabsTrigger value="tax">{t("taxCertTab")}</TabsTrigger>
+                    <TabsTrigger value="bank">{t("bankFileTab")}</TabsTrigger>
+                    <TabsTrigger value="encashment">{t("encashmentTab")}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-4">
@@ -521,10 +521,10 @@ export default function PayrollPage() {
                         <CardHeader>
                             <CardTitle className="text-foreground flex items-center gap-2">
                                 <Shield className="h-5 w-5 text-indigo-400" />
-                                Annual Tax Computation
+                                {t("annualTaxComputation")}
                             </CardTitle>
                             <CardDescription className="text-muted-foreground">
-                                Generate tax certificates and annual computation sheets for employees
+                                {t("annualTaxDesc")}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -532,7 +532,7 @@ export default function PayrollPage() {
                                 {/* Fiscal Year Selector */}
                                 <div className="flex flex-col sm:flex-row gap-4 items-end">
                                     <div className="space-y-2">
-                                        <label className="text-sm text-muted-foreground">Fiscal Year</label>
+                                        <label className="text-sm text-muted-foreground">{t("fiscalYear")}</label>
                                         <select className="w-48 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground">
                                             <option>2025-2026</option>
                                             <option>2024-2025</option>
@@ -540,34 +540,34 @@ export default function PayrollPage() {
                                         </select>
                                     </div>
                                     <div className="space-y-2 flex-1">
-                                        <label className="text-sm text-muted-foreground">Employee (optional)</label>
+                                        <label className="text-sm text-muted-foreground">{t("employeeOptional")}</label>
                                         <div className="relative">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input placeholder="Search employee..." className="pl-10 bg-hover border-card-border text-foreground" />
+                                            <Input placeholder={t("searchEmployee")} className="pl-10 bg-hover border-card-border text-foreground" />
                                         </div>
                                     </div>
                                     <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2">
                                         <FileCheck className="h-4 w-4" />
-                                        Generate Certificate
+                                        {t("generateCertificate")}
                                     </Button>
                                 </div>
 
                                 {/* Tax Breakdown Preview */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                                        <p className="text-sm text-indigo-400">Total Taxable Income</p>
+                                        <p className="text-sm text-indigo-400">{t("totalTaxableIncome")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Based on annual salary</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t("basedOnAnnualSalary")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                                        <p className="text-sm text-amber-400">Tax Deducted (TDS)</p>
+                                        <p className="text-sm text-amber-400">{t("taxDeductedTDS")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Monthly deductions sum</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t("monthlyDeductionsSum")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                                        <p className="text-sm text-emerald-400">Investment Rebate</p>
+                                        <p className="text-sm text-emerald-400">{t("investmentRebate")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Under Section 78</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t("underSection78")}</p>
                                     </div>
                                 </div>
 
@@ -575,7 +575,7 @@ export default function PayrollPage() {
                                 <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                                     <AlertCircle className="h-5 w-5 text-blue-400 shrink-0" />
                                     <p className="text-sm text-blue-300">
-                                        Tax certificates follow NBR (National Board of Revenue) format. Select a fiscal year and optionally filter by employee to generate.
+                                        {t("taxCertNote")}
                                     </p>
                                 </div>
                             </div>
@@ -589,10 +589,10 @@ export default function PayrollPage() {
                         <CardHeader>
                             <CardTitle className="text-foreground flex items-center gap-2">
                                 <Landmark className="h-5 w-5 text-cyan-400" />
-                                Bank Transfer File (BEFTN)
+                                {t("bankTransferBEFTN")}
                             </CardTitle>
                             <CardDescription className="text-muted-foreground">
-                                Generate bank transfer files for salary disbursement
+                                {t("bankTransferDesc")}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -600,7 +600,7 @@ export default function PayrollPage() {
                                 {/* Period + Bank Selection */}
                                 <div className="flex flex-col sm:flex-row gap-4 items-end">
                                     <div className="space-y-2">
-                                        <label className="text-sm text-muted-foreground">Month</label>
+                                        <label className="text-sm text-muted-foreground">{t("month")}</label>
                                         <select
                                             value={processMonth}
                                             onChange={(e) => setProcessMonth(parseInt(e.target.value))}
@@ -612,7 +612,7 @@ export default function PayrollPage() {
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm text-muted-foreground">Year</label>
+                                        <label className="text-sm text-muted-foreground">{t("year")}</label>
                                         <Input
                                             type="number"
                                             value={processYear}
@@ -621,7 +621,7 @@ export default function PayrollPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-sm text-muted-foreground">Bank Format</label>
+                                        <label className="text-sm text-muted-foreground">{t("bankFormat")}</label>
                                         <select className="w-48 bg-hover border border-card-border rounded-lg px-3 py-2 text-foreground">
                                             <option>BEFTN (Standard)</option>
                                             <option>BACH (Batch)</option>
@@ -630,17 +630,17 @@ export default function PayrollPage() {
                                     </div>
                                     <Button className="bg-cyan-600 hover:bg-cyan-700 gap-2">
                                         <Download className="h-4 w-4" />
-                                        Generate File
+                                        {t("generateFile")}
                                     </Button>
                                 </div>
 
                                 {/* Bank Summary */}
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     {[
-                                        { label: "Total Recipients", value: slips.length, bgColor: "bg-cyan-500/10 border-cyan-500/20", textColor: "text-cyan-400" },
-                                        { label: "Total Amount", value: `৳${slips.reduce((s, sl) => s + sl.netSalary, 0).toLocaleString()}`, bgColor: "bg-emerald-500/10 border-emerald-500/20", textColor: "text-emerald-400" },
-                                        { label: "Banks", value: "—", bgColor: "bg-purple-500/10 border-purple-500/20", textColor: "text-purple-400" },
-                                        { label: "Status", value: slips.length > 0 ? "Ready" : "No Data", bgColor: "bg-amber-500/10 border-amber-500/20", textColor: "text-amber-400" },
+                                        { label: t("totalRecipients"), value: slips.length, bgColor: "bg-cyan-500/10 border-cyan-500/20", textColor: "text-cyan-400" },
+                                        { label: t("totalAmountLabel"), value: `৳${slips.reduce((s, sl) => s + sl.netSalary, 0).toLocaleString()}`, bgColor: "bg-emerald-500/10 border-emerald-500/20", textColor: "text-emerald-400" },
+                                        { label: t("banks"), value: "—", bgColor: "bg-purple-500/10 border-purple-500/20", textColor: "text-purple-400" },
+                                        { label: t("statusLabel"), value: slips.length > 0 ? t("readyStatus") : t("noDataStatus"), bgColor: "bg-amber-500/10 border-amber-500/20", textColor: "text-amber-400" },
                                     ].map((item, i) => (
                                         <div key={i} className={`p-4 rounded-xl border ${item.bgColor}`}>
                                             <p className={`text-sm ${item.textColor}`}>{item.label}</p>
@@ -655,10 +655,10 @@ export default function PayrollPage() {
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="border-b border-card-border text-left text-muted-foreground">
-                                                    <th className="pb-3 font-medium">Employee</th>
-                                                    <th className="pb-3 font-medium">Bank</th>
-                                                    <th className="pb-3 font-medium">Account</th>
-                                                    <th className="pb-3 font-medium text-right">Net Amount</th>
+                                                    <th className="pb-3 font-medium">{t("bankTableEmployee")}</th>
+                                                    <th className="pb-3 font-medium">{t("bankTableBank")}</th>
+                                                    <th className="pb-3 font-medium">{t("bankTableAccount")}</th>
+                                                    <th className="pb-3 font-medium text-right">{t("bankTableNetAmount")}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/5">
@@ -683,7 +683,7 @@ export default function PayrollPage() {
                                 {slips.length === 0 && (
                                     <div className="text-center py-12">
                                         <Landmark className="h-12 w-12 mx-auto text-muted-text" />
-                                        <p className="text-muted-foreground mt-4">Process payroll first to generate bank files</p>
+                                        <p className="text-muted-foreground mt-4">{t("processPayrollFirst")}</p>
                                     </div>
                                 )}
                             </div>
@@ -698,15 +698,15 @@ export default function PayrollPage() {
                             <div>
                                 <CardTitle className="text-foreground flex items-center gap-2">
                                     <Gift className="h-5 w-5 text-amber-400" />
-                                    Leave Encashment
+                                    {t("leaveEncashment")}
                                 </CardTitle>
                                 <CardDescription className="text-muted-foreground">
-                                    Calculate and process unused leave payout for employees
+                                    {t("leaveEncashmentDesc")}
                                 </CardDescription>
                             </div>
                             <Button className="bg-amber-600 hover:bg-amber-700 gap-2">
                                 <Plus className="h-4 w-4" />
-                                New Encashment
+                                {t("newEncashment")}
                             </Button>
                         </CardHeader>
                         <CardContent>
@@ -714,15 +714,15 @@ export default function PayrollPage() {
                                 {/* Encashment Stats */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                                        <p className="text-sm text-amber-400">Pending Requests</p>
+                                        <p className="text-sm text-amber-400">{t("pendingRequests")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                                        <p className="text-sm text-emerald-400">Processed This Year</p>
+                                        <p className="text-sm text-emerald-400">{t("processedThisYear")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                                        <p className="text-sm text-purple-400">Total Payout</p>
+                                        <p className="text-sm text-purple-400">{t("totalPayout")}</p>
                                         <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
                                     </div>
                                 </div>
@@ -730,9 +730,9 @@ export default function PayrollPage() {
                                 {/* Empty State */}
                                 <div className="text-center py-12">
                                     <Gift className="h-12 w-12 mx-auto text-muted-text" />
-                                    <p className="text-muted-foreground mt-4">No leave encashment requests yet</p>
+                                    <p className="text-muted-foreground mt-4">{t("noEncashmentYet")}</p>
                                     <p className="text-sm text-tertiary-foreground mt-2">
-                                        Employees can request encashment for unused CL/EL balances as per company policy
+                                        {t("noEncashmentDesc")}
                                     </p>
                                 </div>
 
@@ -740,7 +740,7 @@ export default function PayrollPage() {
                                 <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                     <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
                                     <p className="text-sm text-amber-300">
-                                        Leave encashment is calculated at (Basic Salary / 30) × encashable days. Maximum encashable days are configured in leave type settings.
+                                        {t("encashmentNote")}
                                     </p>
                                 </div>
                             </div>

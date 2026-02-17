@@ -203,7 +203,7 @@ export default function AuditLogsPage() {
                                 onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
                                 className="h-10 px-3 rounded-lg bg-hover border border-card-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
-                                <option value="">All Actions</option>
+                                <option value="">{t("allActions")}</option>
                                 {actions.map(a => (
                                     <option key={a} value={a} className="capitalize">{a}</option>
                                 ))}
@@ -213,7 +213,7 @@ export default function AuditLogsPage() {
                                 onChange={(e) => { setEntityFilter(e.target.value); setPage(1); }}
                                 className="h-10 px-3 rounded-lg bg-hover border border-card-border text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
-                                <option value="">All Entities</option>
+                                <option value="">{t("allEntities")}</option>
                                 {entities.map(e => (
                                     <option key={e} value={e}>{e}</option>
                                 ))}

@@ -48,9 +48,9 @@ interface RegularizationRequest {
 }
 
 const statusConfig = {
-    pending: { label: "Pending", color: "bg-amber-500/20 text-amber-400", icon: Clock },
-    approved: { label: "Approved", color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
-    rejected: { label: "Rejected", color: "bg-red-500/20 text-red-400", icon: XCircle },
+    pending: { labelKey: "pendingLabel", color: "bg-amber-500/20 text-amber-400", icon: Clock },
+    approved: { labelKey: "approvedLabel", color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
+    rejected: { labelKey: "rejectedLabel", color: "bg-red-500/20 text-red-400", icon: XCircle },
 };
 
 // ════════════════════════════════════════════════════════════════════════
@@ -101,14 +101,14 @@ export default function AttendancePage() {
                 body: JSON.stringify({ action }),
             });
             if (res.ok) {
-                addToast({ title: `Request ${action}d`, description: `Regularization request has been ${action}d.`, type: "success" });
+                addToast({ title: action === "approve" ? t("requestApproved") : t("requestRejected"), description: action === "approve" ? t("approvedDesc") : t("rejectedDesc"), type: "success" });
                 fetchRequests();
             } else {
                 const err = await res.json();
-                addToast({ title: "Error", description: err.error || `Failed to ${action}`, type: "error" });
+                addToast({ title: t("networkError"), description: err.error || t("networkError"), type: "error" });
             }
         } catch {
-            addToast({ title: "Error", description: "Network error", type: "error" });
+            addToast({ title: t("networkError"), description: t("networkError"), type: "error" });
         } finally {
             setProcessing(null);
         }
@@ -116,7 +116,7 @@ export default function AttendancePage() {
 
     const handleSubmitRequest = async () => {
         if (!formDate || !formReason) {
-            addToast({ title: "Missing fields", description: "Date and reason are required.", type: "error" });
+            addToast({ title: t("missingFields"), description: t("missingFieldsDesc"), type: "error" });
             return;
         }
         setSubmitting(true);
@@ -132,7 +132,7 @@ export default function AttendancePage() {
                 }),
             });
             if (res.ok) {
-                addToast({ title: "Request Submitted", description: "Your regularization request has been submitted.", type: "success" });
+                addToast({ title: t("requestSubmitted"), description: t("requestSubmittedDesc"), type: "success" });
                 setShowForm(false);
                 setFormDate("");
                 setFormCheckIn("");
@@ -141,10 +141,10 @@ export default function AttendancePage() {
                 fetchRequests();
             } else {
                 const err = await res.json();
-                addToast({ title: "Error", description: err.error || "Failed to submit", type: "error" });
+                addToast({ title: t("networkError"), description: err.error || t("networkError"), type: "error" });
             }
         } catch {
-            addToast({ title: "Error", description: "Network error", type: "error" });
+            addToast({ title: t("networkError"), description: t("networkError"), type: "error" });
         } finally {
             setSubmitting(false);
         }
@@ -160,10 +160,10 @@ export default function AttendancePage() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="bg-hover border-card-border">
-                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                    <TabsTrigger value="dashboard">{t("dashboardTab")}</TabsTrigger>
                     <TabsTrigger value="regularization" className="gap-2">
                         <ClipboardEdit className="h-4 w-4" />
-                        Regularization
+                        {t("regularizationTab")}
                         {pendingCount > 0 && (
                             <Badge className="bg-amber-500/20 text-amber-400 text-[10px] ml-1">
                                 {pendingCount}
@@ -189,12 +189,12 @@ export default function AttendancePage() {
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-foreground">Attendance Regularization</h3>
-                            <p className="text-sm text-muted-foreground">Request corrections to attendance records</p>
+                            <h3 className="text-lg font-semibold text-foreground">{t("regularizationTitle")}</h3>
+                            <p className="text-sm text-muted-foreground">{t("regularizationSubtitle")}</p>
                         </div>
                         <Button className="gap-2" onClick={() => setShowForm(!showForm)}>
                             <Plus className="h-4 w-4" />
-                            New Request
+                            {t("newRequest")}
                         </Button>
                     </div>
 
@@ -202,13 +202,13 @@ export default function AttendancePage() {
                     {showForm && (
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-base">Submit Regularization Request</CardTitle>
-                                <CardDescription>Correct your attendance for a specific date</CardDescription>
+                                <CardTitle className="text-base">{t("submitRegularization")}</CardTitle>
+                                <CardDescription>{t("regularizeDesc")}</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label>Date</Label>
+                                        <Label>{t("dateField")}</Label>
                                         <Input
                                             type="date"
                                             value={formDate}
@@ -216,7 +216,7 @@ export default function AttendancePage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Requested Check-In Time</Label>
+                                        <Label>{t("requestedCheckInTime")}</Label>
                                         <Input
                                             type="time"
                                             value={formCheckIn}
@@ -225,7 +225,7 @@ export default function AttendancePage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Requested Check-Out Time</Label>
+                                        <Label>{t("requestedCheckOutTime")}</Label>
                                         <Input
                                             type="time"
                                             value={formCheckOut}
@@ -234,20 +234,20 @@ export default function AttendancePage() {
                                         />
                                     </div>
                                     <div className="space-y-2 sm:col-span-2">
-                                        <Label>Reason</Label>
+                                        <Label>{t("reasonField")}</Label>
                                         <textarea
                                             value={formReason}
                                             onChange={(e) => setFormReason(e.target.value)}
                                             className="w-full h-20 px-3 py-2 rounded-lg bg-hover border border-card-border text-foreground text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                            placeholder="Reason for attendance regularization..."
+                                            placeholder={t("reasonPlaceholder")}
                                         />
                                     </div>
                                 </div>
                                 <div className="flex gap-3 mt-4">
-                                    <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+                                    <Button variant="outline" onClick={() => setShowForm(false)}>{t("cancelAction")}</Button>
                                     <Button onClick={handleSubmitRequest} disabled={submitting} className="gap-2">
                                         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardEdit className="h-4 w-4" />}
-                                        Submit Request
+                                        {t("submitRequestBtn")}
                                     </Button>
                                 </div>
                             </CardContent>
@@ -257,9 +257,9 @@ export default function AttendancePage() {
                     {/* Stats */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {[
-                            { label: "Pending", value: requests.filter(r => r.status === "pending").length, bgColor: "bg-amber-500/20", textColor: "text-amber-400", icon: Clock },
-                            { label: "Approved", value: requests.filter(r => r.status === "approved").length, bgColor: "bg-emerald-500/20", textColor: "text-emerald-400", icon: CheckCircle2 },
-                            { label: "Rejected", value: requests.filter(r => r.status === "rejected").length, bgColor: "bg-red-500/20", textColor: "text-red-400", icon: XCircle },
+                            { label: t("pendingLabel"), value: requests.filter(r => r.status === "pending").length, bgColor: "bg-amber-500/20", textColor: "text-amber-400", icon: Clock },
+                            { label: t("approvedLabel"), value: requests.filter(r => r.status === "approved").length, bgColor: "bg-emerald-500/20", textColor: "text-emerald-400", icon: CheckCircle2 },
+                            { label: t("rejectedLabel"), value: requests.filter(r => r.status === "rejected").length, bgColor: "bg-red-500/20", textColor: "text-red-400", icon: XCircle },
                         ].map((s, i) => (
                             <Card key={i}>
                                 <CardContent className="p-4">
@@ -297,9 +297,9 @@ export default function AttendancePage() {
                             <Card>
                                 <CardContent className="p-8 text-center">
                                     <ClipboardEdit className="h-12 w-12 text-tertiary-foreground mx-auto mb-3" />
-                                    <p className="text-muted-foreground">No regularization requests</p>
+                                    <p className="text-muted-foreground">{t("noRequests")}</p>
                                     <p className="text-sm text-tertiary-foreground mt-1">
-                                        Submit a request to correct attendance for any missing or incorrect records
+                                        {t("noRequestsDesc")}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -340,7 +340,7 @@ export default function AttendancePage() {
                                                 <div className="flex items-center gap-3 shrink-0">
                                                     <Badge className={`${config.color} text-[10px]`}>
                                                         <StatusIcon className="h-3 w-3 mr-1" />
-                                                        {config.label}
+                                                        {t(config.labelKey as any)}
                                                     </Badge>
 
                                                     {req.status === "pending" && (
