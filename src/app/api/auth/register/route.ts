@@ -86,6 +86,7 @@ export async function POST(request: Request) {
                     role: "admin",
                     organizationId: organization.id,
                     isActive: true,
+                    emailVerified: new Date(),
                 },
             });
 
