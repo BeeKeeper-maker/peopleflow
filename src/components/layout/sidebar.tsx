@@ -33,6 +33,7 @@ import {
     HandCoins,
     GitPullRequest,
     Fingerprint,
+
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -78,6 +79,7 @@ const navSections: NavSection[] = [
             { labelKey: "attendance", href: "/attendance", icon: Clock, roles: ["super_admin", "admin", "hr_admin", "manager"] },
             { labelKey: "performance", href: "/performance", icon: Target, roles: ["super_admin", "admin", "hr_admin", "manager"] },
             { labelKey: "payroll", href: "/payroll", icon: Banknote, roles: ["super_admin", "admin", "hr_admin"] },
+
             { labelKey: "recruitment", href: "/recruitment", icon: UserPlus, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "compliance", href: "/compliance", icon: ShieldCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "reports", href: "/reports", icon: BarChart3, roles: ["super_admin", "admin", "hr_admin"] },
@@ -97,6 +99,7 @@ const navSections: NavSection[] = [
             { labelKey: "branches", href: "/organization/branches", icon: Building, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "approvalWorkflows", href: "/approval-workflows", icon: GitPullRequest, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
+
             { labelKey: "settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },
         ],
     },
@@ -212,7 +215,7 @@ export function Sidebar() {
 
             {/* Scrollable Navigation */}
             <nav className="flex flex-col h-[calc(100vh-57px)]">
-                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 scrollbar-thin">
                     {/* Dashboard - standalone top item */}
                     <Link
                         href="/dashboard"
@@ -267,8 +270,8 @@ export function Sidebar() {
 
                                 {/* Section Items - Collapsible */}
                                 <div className={cn(
-                                    "overflow-hidden transition-all duration-200 ease-out",
-                                    isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                                    "overflow-hidden transition-all duration-300 ease-out",
+                                    isExpanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0"
                                 )}>
                                     <div className="space-y-0.5">
                                         {section.items.map((item) => {

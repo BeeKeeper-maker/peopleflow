@@ -318,7 +318,7 @@ export default function DocumentsPage() {
                                 ) : (
                                     <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <FileCheck className="h-5 w-5 text-emerald-400" />
-                                        <p className="text-sm text-emerald-300">All required data will be auto-populated from the employee record. No additional customization needed.</p>
+                                        <p className="text-sm text-emerald-400">All required data will be auto-populated from the employee record. No additional customization needed.</p>
                                     </div>
                                 )}
 
@@ -392,7 +392,7 @@ export default function DocumentsPage() {
 
                         <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                             <AlertCircle className="h-5 w-5 text-blue-400 shrink-0" />
-                            <p className="text-sm text-blue-300">
+                            <p className="text-sm text-blue-400">
                                 Use <strong>&quot;Print / PDF&quot;</strong> to save as PDF. In the print dialog, select &quot;Save as PDF&quot; as the destination.
                             </p>
                         </div>

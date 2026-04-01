@@ -559,6 +559,53 @@ table {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
+/* ─── Premium Scrollbar Utilities ─────────────────────────────────────────────── */
+
+/* Ultra-thin macOS-style scrollbar — appears only on hover */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.scrollbar-thin:hover {
+  scrollbar-color: rgba(128, 128, 128, 0.35) transparent;
+}
+
+/* Webkit (Chrome, Edge, Safari) */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background 0.2s;
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.35);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.55);
+}
+
+/* Completely hidden scrollbar (for no-chrome scroll areas) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Print Styles ────────────────────────────────────────────────────────────── */
 @media print {
   body {

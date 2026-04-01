@@ -38,16 +38,75 @@ export async function autoMarkAbsent(
         return { ...result, skipped: -1 }; // -1 indicates weekend skip
     }
 
-    // Get all active employees
+    // Get all active employees WITH their shift config
     const employees = await prisma.employee.findMany({
         where: { organizationId, employmentStatus: "active" },
-        select: { id: true },
+        select: {
+            id: true,
+            shift: {
+                select: {
+                    crossesMidnight: true,
+                    startTime: true,
+                    endTime: true,
+                },
+            },
+        },
     });
 
     if (employees.length === 0) return result;
 
-    const employeeIds = employees.map(e => e.id);
+    // ── Night Shift Awareness ──
+    // Night shift workers (crossesMidnight=true) should NOT be auto-marked absent
+    // on the date their shift STARTS, because their check-out comes the next calendar day.
+    // Instead, they should be evaluated for the PREVIOUS day's shift.
+    //
+    // Example: Worker on 22:00→06:00 shift:
+    //   - On March 15th, we check if they were absent for the March 14th night shift
+    //   - NOT whether they checked in on March 15th (their shift hasn't started yet)
+    //
+    // Strategy: Split employees into two groups:
+    //   1. Day shift workers → check attendance for today
+    //   2. Night shift workers → check attendance for yesterday (their shift date)
 
+    const dayShiftEmployees = employees.filter(
+        (e) => !e.shift?.crossesMidnight
+    );
+    const nightShiftEmployees = employees.filter(
+        (e) => e.shift?.crossesMidnight === true
+    );
+
+    // Process day shift employees (standard logic)
+    const dayShiftIds = dayShiftEmployees.map((e) => e.id);
+    if (dayShiftIds.length > 0) {
+        await processAbsentBatch(dayShiftIds, date, result);
+    }
+
+    // Process night shift employees (check YESTERDAY's shift date)
+    const nightShiftIds = nightShiftEmployees.map((e) => e.id);
+    if (nightShiftIds.length > 0) {
+        const yesterday = new Date(date);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+
+        // Only process if yesterday wasn't a weekend
+        const yesterdayDow = yesterday.getDay();
+        if (yesterdayDow !== 5 && yesterdayDow !== 6) {
+            await processAbsentBatch(nightShiftIds, yesterday, result);
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Process auto-absent for a batch of employees on a specific date.
+ * Shared logic between day-shift and night-shift processing.
+ */
+async function processAbsentBatch(
+    employeeIds: string[],
+    date: Date,
+    result: AutoAbsentResult
+): Promise<void> {
     // Get employees who already have attendance for this date
     const existingAttendance = await prisma.attendance.findMany({
         where: {
@@ -60,7 +119,7 @@ export async function autoMarkAbsent(
         select: { employeeId: true },
     });
 
-    const checkedInIds = new Set(existingAttendance.map(a => a.employeeId));
+    const checkedInIds = new Set(existingAttendance.map((a) => a.employeeId));
 
     // Get employees on approved leave
     const onLeave = await prisma.leaveApplication.findMany({
@@ -73,24 +132,23 @@ export async function autoMarkAbsent(
         select: { employeeId: true },
     });
 
-    const onLeaveIds = new Set(onLeave.map(l => l.employeeId));
+    const onLeaveIds = new Set(onLeave.map((l) => l.employeeId));
 
     // Mark absent for employees who didn't check in and aren't on leave
-    for (const employee of employees) {
-        if (checkedInIds.has(employee.id)) {
+    for (const employeeId of employeeIds) {
+        if (checkedInIds.has(employeeId)) {
             result.skipped++;
             continue;
         }
 
-        if (onLeaveIds.has(employee.id)) {
-            // Create "on_leave" attendance record
+        if (onLeaveIds.has(employeeId)) {
             try {
                 await prisma.attendance.create({
                     data: {
                         date,
                         status: "on_leave",
                         source: "system",
-                        employeeId: employee.id,
+                        employeeId,
                     },
                 });
             } catch {
@@ -107,16 +165,14 @@ export async function autoMarkAbsent(
                     status: "absent",
                     source: "system",
                     notes: "Auto-marked absent — no check-in recorded",
-                    employeeId: employee.id,
+                    employeeId,
                 },
             });
             result.marked++;
         } catch (error) {
-            result.errors.push(`Failed for employee ${employee.id}: ${error}`);
+            result.errors.push(`Failed for employee ${employeeId}: ${error}`);
         }
     }
-
-    return result;
 }
 
 // ============================================

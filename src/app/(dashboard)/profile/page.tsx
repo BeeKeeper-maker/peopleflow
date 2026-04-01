@@ -35,36 +35,57 @@ import {
     Loader2,
     Save,
     X,
+    UserCircle,
+    AlertCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
 
+// ── Types matching the new structured API response ──
+interface EmployeeData {
+    id: string
+    firstName: string
+    lastName: string
+    email?: string
+    phone?: string
+    personalEmail?: string
+    photoUrl?: string
+    employeeCode: string
+    employmentStatus: string
+    employmentType?: string
+    joiningDate: string
+    dateOfBirth?: string
+    gender?: string
+    bloodGroup?: string
+    maritalStatus?: string
+    nationality?: string
+    nidNumber?: string
+    presentAddress?: string
+    permanentAddress?: string
+    emergencyContactName?: string
+    emergencyContactPhone?: string
+    emergencyContactRelation?: string
+    bankName?: string
+    accountNumber?: string
+    routingNumber?: string
+    department?: { name: string }
+    designation?: { name: string }
+    branch?: { name: string }
+    shift?: { name: string }
+    reportingManager?: { firstName: string; lastName: string }
+}
+
 interface UserProfile {
     id: string
-    name: string
-    email: string
+    name: string | null
+    email: string | null
     role: string
-    employee?: {
-        id: string
-        firstName: string
-        lastName: string
-        email: string
-        phone: string
-        photoUrl?: string
-        employeeCode: string
-        employmentStatus: string
-        joinDate: string
-        department?: { name: string }
-        designation?: { name: string }
-        address?: string
-        city?: string
-        country?: string
-    }
-    organization?: {
+    employee: EmployeeData | null
+    organization: {
         name: string
         industry?: string
-    }
+    } | null
 }
 
 export default function ProfilePage() {
@@ -75,13 +96,15 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(true)
     const [profile, setProfile] = useState<UserProfile | null>(null)
 
-    // Edit profile state
+    // Edit profile state — only self-editable fields
     const [isEditing, setIsEditing] = useState(false)
     const [editForm, setEditForm] = useState({
         phone: "",
-        address: "",
-        city: "",
-        country: "",
+        personalEmail: "",
+        presentAddress: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        emergencyContactRelation: "",
     })
     const [isSaving, setIsSaving] = useState(false)
 
@@ -111,29 +134,34 @@ export default function ProfilePage() {
         try {
             const res = await fetch("/api/employees/me")
             if (res.ok) {
-                const data = await res.json()
-                const profileData = data.data || data
-                setProfile(profileData)
-                setEditForm({
-                    phone: profileData.employee?.phone || "",
-                    address: profileData.employee?.address || "",
-                    city: profileData.employee?.city || "",
-                    country: profileData.employee?.country || "",
-                })
+                const json = await res.json()
+                const data: UserProfile = json.data
+                setProfile(data)
+
+                // Pre-fill edit form with current employee data
+                if (data.employee) {
+                    setEditForm({
+                        phone: data.employee.phone || "",
+                        personalEmail: data.employee.personalEmail || "",
+                        presentAddress: data.employee.presentAddress || "",
+                        emergencyContactName: data.employee.emergencyContactName || "",
+                        emergencyContactPhone: data.employee.emergencyContactPhone || "",
+                        emergencyContactRelation: data.employee.emergencyContactRelation || "",
+                    })
+                }
             }
         } catch (error) {
             console.error("Failed to fetch profile", error)
+            addToast({ title: t('toastProfileFail'), type: 'error' })
         } finally {
             setLoading(false)
         }
     }
 
     const handleSaveProfile = async () => {
-        if (!profile?.employee?.id) return
-
         setIsSaving(true)
         try {
-            const res = await fetch(`/api/employees/${profile.employee.id}`, {
+            const res = await fetch("/api/employees/me", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(editForm),
@@ -190,6 +218,7 @@ export default function ProfilePage() {
         }
     }
 
+    // ── Loading State ──
     if (status === "loading" || loading) {
         return (
             <div className="space-y-6">
@@ -198,17 +227,21 @@ export default function ProfilePage() {
                     <div className="space-y-2">
                         <Skeleton className="h-8 w-48" />
                         <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-24" />
                     </div>
                 </div>
-                <Skeleton className="h-64 w-full" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-64 w-full" />
+                    <Skeleton className="h-64 w-full" />
+                </div>
             </div>
         )
     }
 
-    const user = session?.user
     const employee = profile?.employee
+    const user = session?.user
     const initials = employee
-        ? `${employee.firstName?.[0]}${employee.lastName?.[0]}`
+        ? `${employee.firstName?.[0] || ""}${employee.lastName?.[0] || ""}`
         : user?.name?.[0] || "U"
 
     return (
@@ -219,37 +252,39 @@ export default function ProfilePage() {
                     <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
-                {isEditing ? (
-                    <div className="flex gap-2">
+                {employee && (
+                    isEditing ? (
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                className="border-border-hover"
+                                onClick={() => setIsEditing(false)}
+                            >
+                                <X className="h-4 w-4 mr-2" />
+                                {t('cancel')}
+                            </Button>
+                            <Button
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={handleSaveProfile}
+                                disabled={isSaving}
+                            >
+                                {isSaving ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Save className="h-4 w-4 mr-2" />
+                                )}
+                                {t('saveChanges')}
+                            </Button>
+                        </div>
+                    ) : (
                         <Button
-                            variant="outline"
-                            className="border-border-hover"
-                            onClick={() => setIsEditing(false)}
+                            className="bg-linear-to-r from-blue-500 to-indigo-600 hover:opacity-90"
+                            onClick={() => setIsEditing(true)}
                         >
-                            <X className="h-4 w-4 mr-2" />
-                            {t('cancel')}
+                            <Edit className="h-4 w-4 mr-2" />
+                            {t('editProfile')}
                         </Button>
-                        <Button
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={handleSaveProfile}
-                            disabled={isSaving}
-                        >
-                            {isSaving ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                                <Save className="h-4 w-4 mr-2" />
-                            )}
-                            {t('saveChanges')}
-                        </Button>
-                    </div>
-                ) : (
-                    <Button
-                        className="bg-linear-to-r from-blue-500 to-indigo-600 hover:opacity-90"
-                        onClick={() => setIsEditing(true)}
-                    >
-                        <Edit className="h-4 w-4 mr-2" />
-                        {t('editProfile')}
-                    </Button>
+                    )
                 )}
             </div>
 
@@ -314,10 +349,10 @@ export default function ProfilePage() {
                                         <span>{t('idLabel', { code: employee.employeeCode })}</span>
                                     </div>
                                 )}
-                                {employee?.joinDate && (
+                                {employee?.joiningDate && (
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4" />
-                                        <span>{t('joined', { date: new Date(employee.joinDate).toLocaleDateString() })}</span>
+                                        <span>{t('joined', { date: new Date(employee.joiningDate).toLocaleDateString() })}</span>
                                     </div>
                                 )}
                             </div>
@@ -364,44 +399,30 @@ export default function ProfilePage() {
 
                                 {isEditing ? (
                                     <div className="space-y-2">
+                                        <Label className="text-muted-foreground">Personal Email</Label>
+                                        <Input
+                                            value={editForm.personalEmail}
+                                            onChange={(e) => setEditForm({ ...editForm, personalEmail: e.target.value })}
+                                            className="bg-hover border-card-border text-foreground"
+                                            placeholder="personal@email.com"
+                                        />
+                                    </div>
+                                ) : (
+                                    <InfoRow label="Personal Email" value={employee?.personalEmail || "-"} />
+                                )}
+
+                                {isEditing ? (
+                                    <div className="space-y-2">
                                         <Label className="text-muted-foreground">{t('address')}</Label>
                                         <Input
-                                            value={editForm.address}
-                                            onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                                            value={editForm.presentAddress}
+                                            onChange={(e) => setEditForm({ ...editForm, presentAddress: e.target.value })}
                                             className="bg-hover border-card-border text-foreground"
                                             placeholder={t('addressPlaceholder')}
                                         />
                                     </div>
                                 ) : (
-                                    <InfoRow label={t('address')} value={employee?.address || "-"} />
-                                )}
-
-                                {isEditing ? (
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground">{t('city')}</Label>
-                                        <Input
-                                            value={editForm.city}
-                                            onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                                            className="bg-hover border-card-border text-foreground"
-                                            placeholder={t('cityPlaceholder')}
-                                        />
-                                    </div>
-                                ) : (
-                                    <InfoRow label={t('city')} value={employee?.city || "-"} />
-                                )}
-
-                                {isEditing ? (
-                                    <div className="space-y-2">
-                                        <Label className="text-muted-foreground">{t('country')}</Label>
-                                        <Input
-                                            value={editForm.country}
-                                            onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
-                                            className="bg-hover border-card-border text-foreground"
-                                            placeholder={t('countryPlaceholder')}
-                                        />
-                                    </div>
-                                ) : (
-                                    <InfoRow label={t('country')} value={employee?.country || "-"} />
+                                    <InfoRow label={t('address')} value={employee?.presentAddress || "-"} />
                                 )}
                             </CardContent>
                         </Card>
@@ -419,8 +440,59 @@ export default function ProfilePage() {
                                 <InfoRow label={t('department')} value={employee?.department?.name || "-"} />
                                 <InfoRow label={t('designation')} value={employee?.designation?.name || "-"} />
                                 <InfoRow label={t('organization')} value={profile?.organization?.name || "-"} />
-                                <InfoRow label={t('joinDate')} value={employee?.joinDate ? new Date(employee.joinDate).toLocaleDateString() : "-"} />
+                                <InfoRow label={t('joinDate')} value={employee?.joiningDate ? new Date(employee.joiningDate).toLocaleDateString() : "-"} />
                                 <InfoRow label={t('status')} value={employee?.employmentStatus || "-"} />
+                            </CardContent>
+                        </Card>
+
+                        {/* Emergency Contact (separate card) */}
+                        <Card className="bg-card border-card-border md:col-span-2">
+                            <CardHeader>
+                                <CardTitle className="text-foreground flex items-center gap-2">
+                                    <AlertCircle className="h-5 w-5 text-red-400" />
+                                    Emergency Contact
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {isEditing ? (
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label className="text-muted-foreground">Contact Name</Label>
+                                                <Input
+                                                    value={editForm.emergencyContactName}
+                                                    onChange={(e) => setEditForm({ ...editForm, emergencyContactName: e.target.value })}
+                                                    className="bg-hover border-card-border text-foreground"
+                                                    placeholder="Emergency contact name"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-muted-foreground">Relation</Label>
+                                                <Input
+                                                    value={editForm.emergencyContactRelation}
+                                                    onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
+                                                    className="bg-hover border-card-border text-foreground"
+                                                    placeholder="e.g. Father, Spouse"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-muted-foreground">Contact Phone</Label>
+                                                <Input
+                                                    value={editForm.emergencyContactPhone}
+                                                    onChange={(e) => setEditForm({ ...editForm, emergencyContactPhone: e.target.value })}
+                                                    className="bg-hover border-card-border text-foreground"
+                                                    placeholder="+880 1XXX XXXXXX"
+                                                />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <InfoRow label="Contact Name" value={employee?.emergencyContactName || "-"} />
+                                            <InfoRow label="Relation" value={employee?.emergencyContactRelation || "-"} />
+                                            <InfoRow label="Contact Phone" value={employee?.emergencyContactPhone || "-"} />
+                                        </>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </div>

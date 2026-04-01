@@ -136,38 +136,20 @@ export default function CompliancePage() {
     const runComplianceCheck = async () => {
         setRefreshing(true);
         try {
-            // Attempt real compliance check — in production this calls a real API
-            let loaded = false;
             const res = await fetch("/api/reports?type=compliance");
             if (res.ok) {
                 const data = await res.json();
-                if (data.checks && data.checks.length > 0) {
-                    setChecks(data.checks);
-                    setOverallScore(data.score || 0);
-                    loaded = true;
-                }
-            }
-
-            // If API doesn't exist yet or returned no checks, use demo data
-            if (!loaded) {
-                const demoChecks: ComplianceCheck[] = [
-                    { id: "1", category: "Wages", rule: "Minimum Wage Compliance", description: "All employees must receive at least the statutory minimum wage", severity: "critical", status: "pass", affectedCount: 0 },
-                    { id: "2", category: "Wages", rule: "Overtime Payment Rate", description: "Overtime must be paid at double the basic rate (Section 108)", severity: "high", status: "pass", affectedCount: 0 },
-                    { id: "3", category: "Leave", rule: "Annual Leave Allocation", description: "Every employee must receive minimum 10 days annual leave (Section 117)", severity: "high", status: "warning", affectedCount: 3, details: "3 employees have less than 10 days allocated" },
-                    { id: "4", category: "Leave", rule: "Weekly Holiday", description: "At least 1 rest day per week required (Section 103)", severity: "critical", status: "pass", affectedCount: 0 },
-                    { id: "5", category: "PF", rule: "Provident Fund Contribution", description: "Employer PF contribution must match employee contribution", severity: "high", status: "pass", affectedCount: 0 },
-                    { id: "6", category: "Gratuity", rule: "Gratuity Eligibility", description: "Employees with 1+ year service eligible for gratuity (Section 27)", severity: "medium", status: "pass", affectedCount: 0 },
-                    { id: "7", category: "Notice", rule: "Notice Period Compliance", description: "Notice periods must match employment type requirements (Section 26)", severity: "medium", status: "warning", affectedCount: 2, details: "2 permanent employees missing notice period configuration" },
-                    { id: "8", category: "Working Hours", rule: "Maximum Working Hours", description: "Daily working hours must not exceed 8 hours + 2 OT (Section 100)", severity: "high", status: "pass", affectedCount: 0 },
-                    { id: "9", category: "Working Hours", rule: "Night Shift Restrictions", description: "Women workers require consent for night shifts (Section 109)", severity: "medium", status: "pass", affectedCount: 0 },
-                    { id: "10", category: "Documentation", rule: "Employment Contracts", description: "All employees must have signed employment contracts", severity: "high", status: "fail", affectedCount: 5, details: "5 employees missing signed contracts" },
-                ];
-                setChecks(demoChecks);
-                const passed = demoChecks.filter(c => c.status === "pass").length;
-                setOverallScore(Math.round((passed / demoChecks.length) * 100));
+                setChecks(data.checks || []);
+                setOverallScore(data.score || 0);
+            } else {
+                console.error("Compliance API returned:", res.status);
+                setChecks([]);
+                setOverallScore(0);
             }
         } catch (error) {
             console.error("Compliance check failed:", error);
+            setChecks([]);
+            setOverallScore(0);
         } finally {
             setLoading(false);
             setRefreshing(false);

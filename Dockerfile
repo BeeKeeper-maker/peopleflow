@@ -76,11 +76,11 @@ COPY --from=builder /app/messages ./messages
 RUN printf '#!/bin/sh\n\
 set -e\n\
 echo "=== PeopleFlow HRMS Starting ==="\n\
-echo "-> Syncing database schema..."\n\
-if npx prisma db push --skip-generate --accept-data-loss 2>&1; then\n\
-    echo "OK: Database schema synced"\n\
+echo "-> Running database migrations..."\n\
+if npx prisma migrate deploy 2>&1; then\n\
+    echo "OK: Database migrations applied"\n\
 else\n\
-    echo "WARN: DB sync failed - server starting without migration"\n\
+    echo "WARN: Migration failed - server starting without migration"\n\
 fi\n\
 echo "-> Starting Next.js server..."\n\
 exec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh

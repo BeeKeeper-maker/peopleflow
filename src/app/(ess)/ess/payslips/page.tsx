@@ -172,7 +172,7 @@ export default function ESSPayslipsPage() {
                             <p className="text-tertiary-foreground">{t("noPayslipsDesc")}</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-white/5">
+                        <div className="divide-y divide-border">
                             {payslips.map((payslip) => (
                                 <div
                                     key={payslip.id}

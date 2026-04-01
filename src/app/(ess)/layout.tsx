@@ -128,14 +128,14 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar-bg backdrop-blur-2xl border-r border-sidebar-border",
+                    "fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-sidebar-bg backdrop-blur-2xl border-r border-sidebar-border",
                     "transform transition-transform duration-300 ease-in-out",
                     "lg:translate-x-0",
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >
                 {/* Logo */}
-                <div className="h-16 flex items-center gap-3 px-5 border-b border-sidebar-border">
+                <div className="h-16 flex items-center gap-3 px-5 border-b border-sidebar-border shrink-0">
                     <div className="relative">
                         <div className="w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
                             <Layers className="h-4 w-4 text-foreground" />
@@ -149,10 +149,10 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
                 </div>
 
                 {/* Gradient Accent */}
-                <div className="h-px bg-linear-to-r from-transparent via-sidebar-accent-line to-transparent" />
+                <div className="h-px bg-linear-to-r from-transparent via-sidebar-accent-line to-transparent shrink-0" />
 
                 {/* User Info Card */}
-                <div className="p-4 border-b border-sidebar-border">
+                <div className="p-4 border-b border-sidebar-border shrink-0">
                     <div className="flex items-center gap-3 p-2.5 rounded-xl bg-card-bg border border-card-border">
                         <Avatar className="h-10 w-10 ring-2 ring-border">
                             <AvatarImage src={user?.image || undefined} />
@@ -171,8 +171,8 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
                     </div>
                 </div>
 
-                {/* Navigation */}
-                <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+                {/* Navigation — Scrollable */}
+                <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
                     {navSections.map((section) => (
                         <div key={section.label}>
                             {/* Section Label */}
@@ -227,7 +227,7 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
                 </nav>
 
                 {/* Bottom Section */}
-                <div className="p-3 border-t border-sidebar-border space-y-1">
+                <div className="p-3 border-t border-sidebar-border space-y-1 shrink-0">
                     {/* Theme & Language */}
                     <ThemeToggle variant="compact" />
                     <LanguageSwitcher variant="compact" />

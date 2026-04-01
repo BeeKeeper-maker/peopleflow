@@ -1,5 +1,6 @@
 // PeopleFlow HRMS - Database Schema
-// Development: SQLite | Production: PostgreSQL
+// Enterprise B2B SaaS — Multi-Tenant Architecture
+// PostgreSQL with JSONB support
 
 generator client {
   provider = "prisma-client-js"
@@ -12,23 +13,234 @@ datasource db {
 }
 
 // ============================================
+// PLATFORM PLANE: SaaS Owner Administration
+// ============================================
+
+model PlatformAdmin {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String    // bcrypt hash
+  name      String
+  role      String    @default("platform_admin") // platform_admin, platform_super
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  impersonationSessions ImpersonationSession[]
+  platformAuditLogs     PlatformAuditLog[]
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(cuid())
+  action     String   // tenant.suspend, tenant.activate, impersonation.start, etc.
+  targetType String   // "organization", "subscription", "user"
+  targetId   String   // ID of the entity acted upon
+  metadata   Json?    // Arbitrary context
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  platformAdminId String
+  platformAdmin   PlatformAdmin @relation(fields: [platformAdminId], references: [id])
+
+  @@index([platformAdminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model ImpersonationSession {
+  id     String @id @default(cuid())
+  token  String @unique @default(cuid()) // Opaque session token
+  reason String // Required: "Support ticket #1234"
+  status String @default("active") // active, ended, expired
+
+  // Time-boxed: auto-expires
+  expiresAt DateTime // Max 1 hour from creation
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  // Who is being impersonated
+  targetUserId         String
+  targetOrganizationId String
+
+  // Who initiated
+  platformAdminId String
+  platformAdmin   PlatformAdmin @relation(fields: [platformAdminId], references: [id])
+
+  @@index([token])
+  @@index([platformAdminId])
+  @@index([targetOrganizationId])
+  @@index([status])
+}
+
+// ============================================
+// MONETIZATION: Plans & Subscriptions
+// ============================================
+
+model Plan {
+  id          String  @id @default(cuid())
+  name        String  // "Starter", "Growth", "Enterprise"
+  slug        String  @unique // "starter", "growth", "enterprise"
+  description String?
+  isActive    Boolean @default(true)
+
+  // Pricing (in smallest currency unit — poisha/cents)
+  priceMonthly Int
+  priceYearly  Int
+  currency     String @default("BDT")
+
+  // Plan Limits
+  maxEmployees Int // 25, 100, 500, -1 for unlimited
+  maxAdmins    Int @default(3)
+  maxBranches  Int @default(1)
+  maxDevices   Int @default(0) // Biometric devices
+  maxStorageMB Int @default(500) // File storage limit
+
+  // Feature Flags
+  features Json @default("{}")
+  // { "payroll": true, "recruitment": false, "performance": false,
+  //   "expenses": true, "biometric": false, "apiAccess": false,
+  //   "customDocuments": false, "advancedReports": false }
+
+  // Stripe mapping
+  stripePriceIdMonthly String?
+  stripePriceIdYearly  String?
+
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id     String @id @default(cuid())
+  status String @default("trialing")
+  // trialing, active, past_due, canceled, suspended, expired
+
+  billingCycle       String   @default("monthly") // monthly, yearly
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean  @default(false)
+
+  // Trial
+  trialStart DateTime?
+  trialEnd   DateTime?
+
+  // Stripe IDs
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  // Overrides for enterprise custom deals
+  maxEmployeesOverride Int?
+  maxStorageOverride   Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String       @unique // 1:1 with Organization
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  invoices Invoice[]
+
+  @@index([status])
+  @@index([planId])
+  @@index([currentPeriodEnd])
+  @@index([stripeSubscriptionId])
+}
+
+model Invoice {
+  id            String @id @default(cuid())
+  invoiceNumber String @unique // INV-2026-0001
+  status        String @default("pending") // pending, paid, failed, refunded, void
+  amount        Int // In smallest currency unit
+  currency      String @default("BDT")
+  description   String?
+
+  // Payment tracking
+  paidAt        DateTime?
+  failedAt      DateTime?
+  failureReason String?
+
+  // External IDs
+  stripeInvoiceId String? @unique
+  paymentMethod   String? // "card", "bank_transfer", "manual"
+
+  // Period this invoice covers
+  periodStart DateTime
+  periodEnd   DateTime
+
+  dueDate   DateTime
+  createdAt DateTime @default(now())
+
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model UsageRecord {
+  id         String   @id @default(cuid())
+  metric     String   // "api_calls", "storage_mb", "active_employees"
+  value      Float
+  recordedAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, metric, recordedAt])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  keyHash     String    @unique // SHA-256 hash of the actual key
+  keyPrefix   String    // "pk_live_xxxx" (first 8 chars, for display)
+  name        String    // "Payroll Integration", "ERP Sync"
+  permissions Json      // ["employees:read", "attendance:read"]
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([keyHash])
+  @@index([organizationId])
+}
+
+// ============================================
 // CORE: Organizations & Users
 // ============================================
 
 model Organization {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   name               String
-  slug               String   @unique
+  slug               String    @unique
   logoUrl            String?
   industry           String?
   employeeCountRange String?
-  fiscalYearStart    Int      @default(1) // Month 1-12
-  countryCode        String   @default("BD")
-  currencyCode       String   @default("BDT")
-  timezone           String   @default("Asia/Dhaka")
-  settings           String   @default("{}") // JSON string
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  fiscalYearStart    Int       @default(1) // Month 1-12
+  countryCode        String    @default("BD")
+  currencyCode       String    @default("BDT")
+  timezone           String    @default("Asia/Dhaka")
+  settings           Json      @default("{}") // Native JSONB
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // SaaS Fields
+  status          String    @default("active") // active, suspended, deactivated
+  suspendedAt     DateTime?
+  suspendedReason String?
+  onboardedAt     DateTime?
+  trialEndsAt     DateTime?
 
   // Relations
   users              User[]
@@ -53,6 +265,20 @@ model Organization {
   approvalWorkflows  ApprovalWorkflow[]
   documentRequests   DocumentRequest[]
   biometricDevices   BiometricDevice[]
+  subscription       Subscription?
+  usageRecords       UsageRecord[]
+  apiKeys            ApiKey[]
+
+  // Payroll v2
+  festivalBonusConfigs FestivalBonusConfig[]
+  lateDeductionPolicies LateDeductionPolicy[]
+  pfAccounts           PFAccount[]
+
+  // Phase 3: Approvals & RBAC
+  approvalRequests      ApprovalRequest[]
+  rbacPermissions       RBACPermission[]
+
+  @@index([status])
 }
 
 model User {
@@ -81,6 +307,7 @@ model User {
   sessions         Session[]
   notifications    Notification[]
   passwordHistory  PasswordHistory[]
+  rbacPermissions  RBACPermission[]
 }
 
 model Account {
@@ -240,8 +467,14 @@ model Shift {
   fullDayHours  Float    @default(8)
   isDefault     Boolean  @default(false)
   isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  // ── Night Shift Support ──
+  // When true, the shift crosses midnight (e.g., 22:00 → 06:00).
+  // The attendance date is anchored to the date the shift STARTED.
+  crossesMidnight Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -326,7 +559,7 @@ model Employee {
   biometricUserId String?  // User ID on biometric device (maps device punch → employee)
 
   // Custom fields
-  customFields String @default("{}") // JSON string
+  customFields Json @default("{}") // Native JSONB
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -362,6 +595,14 @@ model Employee {
   salaryAssignments SalaryStructureAssignment[]
   salarySlips       SalarySlip[]
   loans             Loan[]
+
+  // Payroll v2
+  festivalBonusPayments FestivalBonusPayment[]
+  pfAccount             PFAccount?
+
+  // Phase 3: Approvals
+  approvalRequests      ApprovalRequest[]  @relation("ApprovalRequester")
+  approvalStepsActed    ApprovalStepLog[]  @relation("ApprovalActor")
 
   // As approver
   approvedLeaves LeaveApplication[] @relation("LeaveApprover")
@@ -474,11 +715,20 @@ model LeaveApplication {
   reason          String?
   status          String    @default("pending") // pending, approved, rejected, cancelled
   rejectionReason String?
-  documents       String? // JSON array of file URLs
+  documents       Json? // JSONB array of file URLs
   appliedAt       DateTime  @default(now())
   approvedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  // ── Maternity Leave Compliance (BLA 2006, Section 46-47) ──
+  // Tracks pre-delivery (8 weeks) and post-delivery (8 weeks) split
+  isMaternityLeave      Boolean   @default(false)
+  maternityPhase        String?   // pre_delivery, post_delivery, full (when applied as single block)
+  expectedDeliveryDate  DateTime? // Employee-declared expected date of delivery
+  actualDeliveryDate    DateTime? // Actual date (updated post-delivery)
+  preDeliveryDays       Int?      // Days taken before delivery (max 56 = 8 weeks)
+  postDeliveryDays      Int?      // Days taken after delivery (max 56 = 8 weeks)
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -594,7 +844,8 @@ model SalarySlip {
   conveyance       Float @default(0)
   specialAllowance Float @default(0)
   overtime         Float @default(0)
-  bonus            Float @default(0)
+  bonus            Float @default(0) // Legacy ad-hoc bonus
+  festivalBonus    Float @default(0) // Festival bonus (Eid, Durga Puja, etc.)
   arrears          Float @default(0)
   otherEarnings    Float @default(0)
   grossSalary      Float
@@ -682,6 +933,217 @@ model LoanRepayment {
 
   @@index([loanId])
   @@index([paidDate])
+}
+
+// ============================================
+// Festival Bonus Management
+// ============================================
+
+/**
+ * Organization-level festival bonus configuration.
+ * Supports multiple festivals per year (Eid-ul-Fitr, Eid-ul-Adha, Durga Puja, Christmas, etc.)
+ * Bangladesh reality: Most companies give 2 Eid bonuses at 50-100% of basic.
+ * Some give Durga Puja (Hindu), Christmas (Christian) bonuses as well.
+ */
+model FestivalBonusConfig {
+  id             String  @id @default(cuid())
+  name           String  // "Eid-ul-Fitr Bonus 2025", "Durga Puja Bonus"
+  nameBn         String? // "ঈদ-উল-ফিতর বোনাস ২০২৫"
+  festivalType   String  // eid_ul_fitr, eid_ul_adha, durga_puja, christmas, new_year, custom
+  year           Int
+
+  // Calculation rules
+  calculationBasis  String  @default("basic") // basic, gross
+  percentageOfBasis Float   @default(100)     // 50%, 100%, 200% of basic/gross
+
+  // Eligibility rules
+  minimumServiceDays  Int     @default(180)     // Must have worked N days to be eligible (6 months)
+  proRataForNewJoinee Boolean @default(true)    // Pro-rate for employees with less than 1 year service
+  includeProbation    Boolean @default(false)   // Include probation-period employees
+  includeContractual  Boolean @default(false)   // Include contractual employees
+
+  // Status
+  status    String   @default("draft") // draft, generated, approved, paid
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  payments FestivalBonusPayment[]
+
+  @@unique([organizationId, festivalType, year])
+  @@index([organizationId])
+  @@index([year])
+}
+
+/**
+ * Individual bonus payment records — one per eligible employee per festival.
+ * Created in bulk by the bonus engine, paid via payroll integration.
+ */
+model FestivalBonusPayment {
+  id                String   @id @default(cuid())
+  amount            Float    // Calculated bonus amount
+  basisAmount       Float    // The basic/gross used for calculation
+  percentageApplied Float    // Actual % applied (may differ if pro-rated)
+  proRataFactor     Float    @default(1.0)  // 1.0 = full, 0.5 = half year, etc.
+  isProRated        Boolean  @default(false)
+  status            String   @default("pending") // pending, included_in_payroll, paid, cancelled
+  payrollMonth      Int?     // Month this bonus was included in payroll
+  payrollYear       Int?     // Year this bonus was included in payroll
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  bonusConfigId String
+  bonusConfig   FestivalBonusConfig @relation(fields: [bonusConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, bonusConfigId]) // One payment per employee per festival
+  @@index([employeeId])
+  @@index([bonusConfigId])
+  @@index([status])
+}
+
+// ============================================
+// Late Deduction Policy (Tiered Severity)
+// ============================================
+
+/**
+ * Organization-level late deduction policy.
+ * Bangladesh corporate standard: progressive severity tiers per month.
+ *
+ * Example common policy:
+ *   Tier 1 (1-3 lates):  Grace — no deduction
+ *   Tier 2 (4-6 lates):  Warning + 0.5 day deduction per late
+ *   Tier 3 (7-9 lates):  1 day deduction per late
+ *   Tier 4 (10+ lates):  Full day deduction per late + written warning
+ */
+model LateDeductionPolicy {
+  id       String  @id @default(cuid())
+  name     String  // "Standard Policy", "Factory Floor Policy"
+  isActive Boolean @default(true)
+
+  // Late definition threshold (minutes after grace before counting as "late")
+  lateThresholdMinutes  Int @default(0) // Additional minutes beyond shift grace
+
+  // Monthly reset — late count resets every month
+  monthlyReset Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  tiers LateDeductionTier[]
+
+  @@index([organizationId])
+}
+
+/**
+ * Individual severity tier within a late deduction policy.
+ * Tiers are evaluated in order — the highest matching tier applies.
+ */
+model LateDeductionTier {
+  id        String @id @default(cuid())
+  tierOrder Int    // 1, 2, 3, 4... (ascending severity)
+  name      String // "Grace Period", "Warning", "Half-Day Cut", "Full-Day Cut"
+  nameBn    String?
+
+  // Trigger: this tier activates when monthly late count is >= fromCount and <= toCount
+  fromCount Int // e.g., 1 (inclusive)
+  toCount   Int // e.g., 3 (inclusive), use 999 for "unlimited"
+
+  // Deduction per late in this tier
+  deductionType  String @default("none") // none, half_day, full_day, fixed_amount, percentage_of_daily
+  deductionValue Float  @default(0)      // For fixed_amount: BDT value. For percentage_of_daily: % (e.g., 50 = half day)
+
+  // Administrative action
+  issueWarning  Boolean @default(false) // Generate a warning notification
+  warningLevel  String  @default("verbal") // verbal, written, final
+
+  policyId String
+  policy   LateDeductionPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, tierOrder])
+  @@index([policyId])
+}
+
+// ============================================
+// Provident Fund (PF) Ledger
+// ============================================
+
+/**
+ * PF Account — one per employee.
+ * Tracks running balance of employee + employer contributions.
+ * Bangladesh PF rules: Employee and Employer contribute equally (typically 10% of basic).
+ * Interest is calculated annually and credited to the account.
+ */
+model PFAccount {
+  id                  String   @id @default(cuid())
+  accountNumber       String?  // Organization-assigned PF account number
+  status              String   @default("active") // active, frozen, withdrawn, settled
+  openingDate         DateTime @default(now())
+  closingDate         DateTime?
+
+  // Running balances (updated on each transaction)
+  employeeBalance     Float    @default(0) // Total employee contributions
+  employerBalance     Float    @default(0) // Total employer contributions
+  interestBalance     Float    @default(0) // Total interest accrued
+  totalBalance        Float    @default(0) // employee + employer + interest
+
+  // Last interest calculation
+  lastInterestDate    DateTime?
+  interestRate        Float    @default(12.0) // Annual interest rate (BD standard: 12%)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employeeId String @unique // One PF account per employee
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  transactions PFTransaction[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+/**
+ * PF Transaction — double-entry ledger for every movement.
+ *
+ * Transaction types:
+ *   - employee_contribution: Monthly deduction from salary
+ *   - employer_contribution: Employer's matching contribution
+ *   - interest_credit: Annual interest credited to account
+ *   - withdrawal: Partial or full withdrawal
+ *   - settlement: Final settlement on resignation/retirement
+ *   - adjustment: Manual correction by HR/Finance
+ */
+model PFTransaction {
+  id              String   @id @default(cuid())
+  transactionType String   // employee_contribution, employer_contribution, interest_credit, withdrawal, settlement, adjustment
+  amount          Float    // Positive for credits, negative for debits
+  runningBalance  Float    // Balance AFTER this transaction
+  description     String   // "March 2025 Employee Contribution", "FY2024-25 Interest @12%"
+  referenceMonth  Int?     // For contributions: month (1-12)
+  referenceYear   Int?     // For contributions: year
+  transactionDate DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  pfAccountId String
+  pfAccount   PFAccount @relation(fields: [pfAccountId], references: [id], onDelete: Cascade)
+
+  @@index([pfAccountId])
+  @@index([transactionType])
+  @@index([transactionDate])
+  @@index([referenceMonth, referenceYear])
 }
 
 // ============================================
@@ -1072,6 +1534,162 @@ model ApprovalWorkflow {
 }
 
 // ============================================
+// Stateful Approval Engine (Phase 3)
+// ============================================
+
+/**
+ * ApprovalRequest — persistent, stateful tracking for multi-level approvals.
+ *
+ * This is the "brain" of the approval system. Every leave, expense, loan, etc.
+ * request creates an ApprovalRequest that tracks:
+ *   - Current step in the workflow
+ *   - Complete audit trail of who approved/rejected at each step
+ *   - Timeout/escalation tracking
+ *
+ * Lifecycle:
+ *   pending → in_progress → approved/rejected/cancelled/escalated
+ */
+model ApprovalRequest {
+  id              String    @id @default(cuid())
+  entityType      String    // leave, expense, loan, attendance_regularize, document_request
+  entityId        String    // ID of the entity being approved (LeaveApplication.id, etc.)
+  requestTitle    String    // "Annual Leave: 5 days (Jan 15-19)" — human-readable
+  status          String    @default("pending") // pending, in_progress, approved, rejected, cancelled, escalated
+
+  // Workflow tracking
+  totalSteps      Int       // Total number of approval steps
+  currentStep     Int       @default(1) // Current step number (1-indexed)
+  currentApproverRole   String?   // Role required for current step
+  currentApproverId     String?   // Specific person assigned for current step
+
+  // Metadata
+  priority        String    @default("normal") // low, normal, high, urgent
+  dueDate         DateTime? // Auto-escalate if not actioned by this date
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  requesterId     String
+  requester       Employee  @relation("ApprovalRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  steps           ApprovalStepLog[]
+
+  @@unique([entityType, entityId]) // One approval request per entity
+  @@index([organizationId])
+  @@index([status])
+  @@index([currentApproverId])
+  @@index([requesterId])
+  @@index([entityType])
+}
+
+/**
+ * ApprovalStepLog — individual step record in the approval chain.
+ *
+ * One record per step per request. Provides complete audit trail:
+ *   - WHO approved/rejected
+ *   - WHEN they took action
+ *   - WHAT notes they left
+ *   - HOW LONG it took
+ *
+ * Steps are created AHEAD of time (all workflow steps get seeded on request creation)
+ * and then UPDATED when the actor takes action.
+ */
+model ApprovalStepLog {
+  id              String    @id @default(cuid())
+  stepNumber      Int       // 1, 2, 3... (matches workflow step order)
+  stepName        String    // "Manager Approval", "HR Review", "MD Final Approval"
+
+  // Who should approve
+  assignedRole    String    // manager, hr_admin, admin, department_head, md
+  assignedToId    String?   // Specific person, if pre-assigned
+
+  // Action taken
+  status          String    @default("pending") // pending, approved, rejected, skipped, escalated
+  actedById       String?   // Who actually took the action
+  actedBy         Employee? @relation("ApprovalActor", fields: [actedById], references: [id])
+  actedAt         DateTime?
+  notes           String?   // Comments from the approver
+  timeToAction    Int?      // Minutes from assignment to action (SLA tracking)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  approvalRequestId String
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([approvalRequestId, stepNumber]) // One log per step per request
+  @@index([approvalRequestId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+// ============================================
+// Deep RBAC — Granular Permission System (Phase 3)
+// ============================================
+
+/**
+ * RBACPermission — fine-grained, scoped permission grants.
+ *
+ * This extends the flat User.role system with:
+ *   - Resource-level permissions (e.g., "payroll:view", "leave:approve")
+ *   - Department scoping (HR Head of Engineering can only approve Engineering leaves)
+ *   - Designation-based authority (Grade 7+ can approve expenses > 50k)
+ *   - Time-bounded delegation (Acting GM while real GM is on leave)
+ *
+ * Permission format: "resource:action"
+ *   - employees:view, employees:edit, employees:delete
+ *   - payroll:view, payroll:process, payroll:approve
+ *   - leave:view, leave:approve, leave:manage
+ *   - expense:view, expense:approve, expense:manage
+ *   - attendance:view, attendance:edit, attendance:manage
+ *   - reports:view, reports:export
+ *   - settings:manage
+ *
+ * Scope types:
+ *   - "global" — applies to entire organization
+ *   - "department" — only within specified department(s)
+ *   - "branch" — only within specified branch(es)
+ *   - "self" — only the user's own records
+ */
+model RBACPermission {
+  id              String    @id @default(cuid())
+  permission      String    // "payroll:process", "leave:approve", etc.
+  scope           String    @default("global") // global, department, branch, self
+
+  // Scoping filters (applied when scope is "department" or "branch")
+  departmentIds   Json?     // ["dept_1", "dept_2"] — null means all
+  branchIds       Json?     // ["branch_1"] — null means all
+  designationMinGrade Int?  // Minimum designation grade required (for authority-based)
+
+  // Time-bounded delegation
+  validFrom       DateTime  @default(now())
+  validUntil      DateTime? // Null = permanent
+  isActive        Boolean   @default(true)
+
+  // Granted to
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Organization
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([permission])
+  @@index([isActive])
+}
+
+// ============================================
 // Document Requests (Employee Self-Service)
 // ============================================
 
@@ -1114,8 +1732,16 @@ model BiometricDevice {
   lastSyncAt      DateTime?                       // Last successful sync
   lastSyncStatus  String?                         // success, failed, partial
   syncInterval    Int       @default(15)          // Auto-sync every N minutes
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+
+  // ── Device Health Monitoring ──
+  lastPingAt          DateTime?                   // Last successful heartbeat
+  isOnline            Boolean   @default(false)   // Current reachability status
+  consecutiveFailures Int       @default(0)       // Failed sync/ping streak
+  alertSentAt         DateTime?                   // Last time an offline alert was sent
+  maxRetries          Int       @default(5)       // Max retry attempts before DLQ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   branchId       String?
   branch         Branch?      @relation(fields: [branchId], references: [id])
@@ -1123,11 +1749,13 @@ model BiometricDevice {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  syncLogs DeviceSyncLog[]
+  syncLogs    DeviceSyncLog[]
+  healthLogs  DeviceHealthLog[]
 
   @@unique([organizationId, ip, port])
   @@index([organizationId])
   @@index([isActive])
+  @@index([isOnline])
 }
 
 model DeviceSyncLog {
@@ -1144,4 +1772,19 @@ model DeviceSyncLog {
 
   @@index([deviceId])
   @@index([syncedAt])
+}
+
+// Health check ping history — tracks device reachability over time
+model DeviceHealthLog {
+  id        String   @id @default(cuid())
+  status    String   // online, offline, timeout, connection_refused
+  latencyMs Int?     // Round-trip time in ms (null if offline)
+  error     String?  // Error message if offline
+  checkedAt DateTime @default(now())
+
+  deviceId String
+  device   BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([checkedAt])
 }

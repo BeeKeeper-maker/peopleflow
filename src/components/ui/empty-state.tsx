@@ -48,8 +48,8 @@ const variantGradients = {
     jobs: "from-purple-500 to-pink-600",
     files: "from-cyan-500 to-blue-600",
     inbox: "from-rose-500 to-red-600",
-    search: "from-gray-500 to-slate-600",
-    default: "from-white/10 to-white/5",
+    search: "from-gray-400 to-slate-500",
+    default: "from-blue-500/80 to-indigo-500/80",
 }
 
 export function EmptyState({
@@ -66,40 +66,37 @@ export function EmptyState({
     return (
         <div
             className={cn(
-                "flex flex-col items-center justify-center py-16 px-4 text-center",
+                "flex flex-col items-center justify-center py-16 px-4 text-center animate-fade-in",
                 className
             )}
         >
-            {/* Icon Container */}
-            <div className={cn(
-                "relative mb-6 p-6 rounded-2xl",
-                "bg-linear-to-br",
-                gradient,
-                "opacity-20"
-            )}>
-                <Icon className="h-12 w-12 text-foreground" />
-            </div>
-
-            {/* Overlaid Icon for sharpness */}
-            <div className="-mt-22 mb-6 relative z-10">
+            {/* Icon with glow backdrop */}
+            <div className="relative mb-6">
+                {/* Glow effect behind icon */}
                 <div className={cn(
-                    "p-6 rounded-2xl",
+                    "absolute inset-0 rounded-2xl blur-xl opacity-30",
                     "bg-linear-to-br",
                     gradient,
-                    "shadow-lg shadow-black/20"
+                )} />
+                {/* Main icon container */}
+                <div className={cn(
+                    "relative p-5 rounded-2xl",
+                    "bg-linear-to-br",
+                    gradient,
+                    "shadow-lg"
                 )}>
-                    <Icon className="h-12 w-12 text-foreground" />
+                    <Icon className="h-10 w-10 text-white" />
                 </div>
             </div>
 
             {/* Title */}
-            <h3 className="text-xl font-semibold text-foreground mb-2">
+            <h3 className="text-lg font-semibold text-foreground mb-1.5">
                 {title}
             </h3>
 
             {/* Description */}
             {description && (
-                <p className="text-muted-foreground max-w-sm mb-6">
+                <p className="text-sm text-muted-foreground max-w-sm mb-6 leading-relaxed">
                     {description}
                 </p>
             )}
@@ -111,7 +108,7 @@ export function EmptyState({
                     className={cn(
                         "bg-linear-to-r",
                         gradient,
-                        "hover:opacity-90 text-foreground"
+                        "hover:opacity-90 text-white shadow-lg"
                     )}
                 >
                     <Plus className="h-4 w-4 mr-2" />

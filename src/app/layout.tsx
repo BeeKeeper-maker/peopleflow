@@ -86,11 +86,11 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale === 'bn' ? 'bn-BD' : 'en'} suppressHydrationWarning>
+    <html lang={locale === 'bn' ? 'bn-BD' : 'en'} className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider>
             <NextIntlClientProvider messages={messages} locale={locale}>

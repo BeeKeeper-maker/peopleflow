@@ -2,6 +2,7 @@
  * Biometric Device Module — Public API
  *
  * Central export point for all biometric device functionality.
+ * Includes device adapter interface, sync engine, and shift utilities.
  */
 
 // Core adapter interface & registry
@@ -20,5 +21,5 @@ export {
 // ZKTeco adapter (auto-registers on import)
 import "./zkteco-adapter";
 
-// Sync engine
-export { syncDevice, syncAllDevices, type SyncDeviceResult } from "./sync-engine";
+// Sync engine (v2 — night-shift-aware)
+export { syncDevice, syncAllDevices, syncDeviceById, type SyncDeviceResult } from "./sync-engine";

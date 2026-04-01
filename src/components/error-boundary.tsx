@@ -59,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
                             Something went wrong
                         </h1>
 
-                        <p className="text-gray-400 mb-6">
+                        <p className="text-muted-foreground mb-6">
                             We apologize for the inconvenience. Please try refreshing the page
                             or return to the dashboard.
                         </p>

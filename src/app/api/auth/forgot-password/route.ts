@@ -7,7 +7,7 @@ import crypto from "crypto";
 export async function POST(request: Request) {
     try {
         // Rate limit: max 5 requests per hour
-        const rl = rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "forgot-password");
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "forgot-password");
         if (!rl.allowed) return rl.response!;
 
         const { email } = await request.json();

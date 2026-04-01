@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
+import { createApprovalRequest } from "@/lib/approval-engine";
 
 const claimSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -225,6 +226,26 @@ export async function POST(request: NextRequest) {
                 },
             },
         });
+
+        // ── ✅ NEW: Create Stateful Approval Request when submitted ──
+        if (validatedData.status === "submitted") {
+            try {
+                const formattedAmount = new Intl.NumberFormat("en-BD", {
+                    style: "currency", currency: "BDT", maximumFractionDigits: 0,
+                }).format(validatedData.amount);
+
+                await createApprovalRequest({
+                    entityType: "expense",
+                    entityId: claim.id,
+                    requestTitle: `Expense: ${validatedData.title} (${formattedAmount})`,
+                    requesterId: user.employee.id,
+                    organizationId: user.organizationId,
+                    priority: validatedData.amount >= 50000 ? "high" : "normal",
+                });
+            } catch (approvalError) {
+                console.error("EXPENSE_APPROVAL_REQUEST_ERROR", approvalError);
+            }
+        }
 
         return NextResponse.json(claim, { status: 201 });
     } catch (error) {

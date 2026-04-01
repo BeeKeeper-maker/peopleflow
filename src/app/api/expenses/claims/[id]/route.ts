@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
+import { processApprovalStep } from "@/lib/approval-engine";
 
 type RouteParams = {
     params: Promise<{ id: string }>;
@@ -123,6 +124,42 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 return NextResponse.json({ error: "Employee profile required" }, { status: 400 });
             }
 
+            // ── ✅ Route approve/reject through Stateful Approval Engine ──
+            if (approvalData.action === "approve" || approvalData.action === "reject") {
+                const approvalRequest = await prisma.approvalRequest.findUnique({
+                    where: { entityType_entityId: { entityType: "expense", entityId: id } },
+                });
+
+                if (approvalRequest && approvalRequest.status === "in_progress") {
+                    const result = await processApprovalStep({
+                        approvalRequestId: approvalRequest.id,
+                        actorId: user.employee.id,
+                        action: approvalData.action,
+                        notes: approvalData.notes,
+                    });
+
+                    if (!result.success) {
+                        return NextResponse.json({ error: result.message }, { status: 400 });
+                    }
+
+                    // Fetch updated claim
+                    const updatedClaim = await prisma.expenseClaim.findUnique({
+                        where: { id },
+                        include: {
+                            category: true,
+                            employee: { select: { firstName: true, lastName: true } },
+                        },
+                    });
+
+                    return NextResponse.json({
+                        ...updatedClaim,
+                        approvalMessage: result.message,
+                        approvalTrail: result.request,
+                    });
+                }
+            }
+
+            // ── FALLBACK: Direct update (no ApprovalRequest or reimburse action) ──
             let updateData: any = {
                 approverNotes: approvalData.notes,
                 approverId: user.employee.id,

@@ -314,7 +314,7 @@ export default function ESSLeavesPage() {
                                     </Link>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-white/5">
+                                <div className="divide-y divide-border">
                                     {applications.map((app) => (
                                         <div
                                             key={app.id}

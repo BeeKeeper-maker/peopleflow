@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,7 +25,9 @@ import {
     Gift,
     Building2,
     Search,
-    Shield
+    Shield,
+    ArrowRight,
+    Timer,
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
@@ -190,7 +193,7 @@ export default function PayrollPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
@@ -249,6 +252,9 @@ export default function PayrollPage() {
                     <TabsTrigger value="tax">{t("taxCertTab")}</TabsTrigger>
                     <TabsTrigger value="bank">{t("bankFileTab")}</TabsTrigger>
                     <TabsTrigger value="encashment">{t("encashmentTab")}</TabsTrigger>
+                    <TabsTrigger value="festival-bonus">{t("festivalBonusTab")}</TabsTrigger>
+                    <TabsTrigger value="pf-ledger">{t("pfLedgerTab")}</TabsTrigger>
+                    <TabsTrigger value="late-policy">{t("latePolicyTab")}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-4 space-y-4">
@@ -261,7 +267,7 @@ export default function PayrollPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex gap-4 items-end">
+                            <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
                                 <div className="space-y-2">
                                     <label className="text-sm text-muted-foreground">{t('month')}</label>
                                     <select
@@ -314,7 +320,7 @@ export default function PayrollPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                                             <p className="text-emerald-400 text-sm">{t('totalGross')}</p>
                                             <p className="text-2xl font-bold text-foreground">
@@ -385,7 +391,7 @@ export default function PayrollPage() {
                                                 <th className="pb-3 font-medium">{t('status')}</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-white/5">
+                                        <tbody className="divide-y divide-border">
                                             {assignments.map((a) => (
                                                 <tr key={a.id} className="text-foreground hover:bg-hover">
                                                     <td className="py-4">
@@ -469,7 +475,7 @@ export default function PayrollPage() {
                                                 <th className="pb-3 font-medium">{t('actions')}</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-white/5">
+                                        <tbody className="divide-y divide-border">
                                             {slips.map((slip) => (
                                                 <tr key={slip.id} className="text-foreground hover:bg-hover">
                                                     <td className="py-4">
@@ -574,7 +580,7 @@ export default function PayrollPage() {
                                 {/* Info */}
                                 <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                                     <AlertCircle className="h-5 w-5 text-blue-400 shrink-0" />
-                                    <p className="text-sm text-blue-300">
+                                    <p className="text-sm text-blue-400">
                                         {t("taxCertNote")}
                                     </p>
                                 </div>
@@ -635,7 +641,7 @@ export default function PayrollPage() {
                                 </div>
 
                                 {/* Bank Summary */}
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     {[
                                         { label: t("totalRecipients"), value: slips.length, bgColor: "bg-cyan-500/10 border-cyan-500/20", textColor: "text-cyan-400" },
                                         { label: t("totalAmountLabel"), value: `৳${slips.reduce((s, sl) => s + sl.netSalary, 0).toLocaleString()}`, bgColor: "bg-emerald-500/10 border-emerald-500/20", textColor: "text-emerald-400" },
@@ -661,7 +667,7 @@ export default function PayrollPage() {
                                                     <th className="pb-3 font-medium text-right">{t("bankTableNetAmount")}</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-white/5">
+                                            <tbody className="divide-y divide-border">
                                                 {slips.slice(0, 10).map((slip) => (
                                                     <tr key={slip.id} className="text-foreground hover:bg-hover">
                                                         <td className="py-3">
@@ -739,13 +745,82 @@ export default function PayrollPage() {
                                 {/* Policy Note */}
                                 <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                     <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
-                                    <p className="text-sm text-amber-300">
+                                    <p className="text-sm text-amber-400">
                                         {t("encashmentNote")}
                                     </p>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* ── Festival Bonus Portal ── */}
+                <TabsContent value="festival-bonus" className="mt-4">
+                    <Link href="/payroll/festival-bonus" className="block group">
+                        <Card className="relative overflow-hidden border-amber-500/15 hover:border-amber-500/30 transition-all cursor-pointer">
+                            <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 via-transparent to-orange-500/5" />
+                            <CardContent className="relative py-10">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <Gift className="w-8 h-8 text-amber-400" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold">{t("festivalBonusTitle")}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                                        {t("festivalBonusDesc")}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-4 text-amber-400 text-sm font-medium">
+                                        {t("openEngine")} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                </TabsContent>
+
+                {/* ── PF Ledger Portal ── */}
+                <TabsContent value="pf-ledger" className="mt-4">
+                    <Link href="/payroll/pf-ledger" className="block group">
+                        <Card className="relative overflow-hidden border-emerald-500/15 hover:border-emerald-500/30 transition-all cursor-pointer">
+                            <div className="absolute inset-0 bg-linear-to-br from-emerald-500/5 via-transparent to-teal-500/5" />
+                            <CardContent className="relative py-10">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <Landmark className="w-8 h-8 text-emerald-400" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold">{t("pfLedgerTitle")}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                                        {t("pfLedgerDesc")}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-4 text-emerald-400 text-sm font-medium">
+                                        {t("openLedger")} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
+                </TabsContent>
+
+                {/* ── Late Policy Portal ── */}
+                <TabsContent value="late-policy" className="mt-4">
+                    <Link href="/settings/late-deduction" className="block group">
+                        <Card className="relative overflow-hidden border-rose-500/15 hover:border-rose-500/30 transition-all cursor-pointer">
+                            <div className="absolute inset-0 bg-linear-to-br from-rose-500/5 via-transparent to-red-500/5" />
+                            <CardContent className="relative py-10">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-rose-500/20 to-red-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <Timer className="w-8 h-8 text-rose-400" />
+                                    </div>
+                                    <h3 className="text-lg font-semibold">{t("latePolicyTitle")}</h3>
+                                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                                        {t("latePolicyDesc")}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-4 text-rose-400 text-sm font-medium">
+                                        {t("openPolicyBuilder")} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </Link>
                 </TabsContent>
             </Tabs>
 

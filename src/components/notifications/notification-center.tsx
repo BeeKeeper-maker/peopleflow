@@ -68,8 +68,8 @@ export function NotificationCenter() {
                 setNotifications(data.notifications || [])
                 setUnreadCount(data.unreadCount || 0)
             }
-        } catch (error) {
-            console.error("Failed to fetch notifications", error)
+        } catch {
+            // Silent — notification bell gracefully shows 0 when API is unavailable
         }
     }, [])
 
@@ -92,8 +92,8 @@ export function NotificationCenter() {
                 ),
             })
             fetchNotifications()
-        } catch (error) {
-            console.error("Failed to mark as read", error)
+        } catch {
+            // Silent — marking as read can fail gracefully
         }
     }
 
@@ -175,7 +175,7 @@ export function NotificationCenter() {
                             <p className="text-muted-foreground">No notifications yet</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-white/5">
+                        <div className="divide-y divide-border">
                             {notifications.map((notification) => (
                                 <div
                                     key={notification.id}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { createApprovalRequest } from "@/lib/approval-engine";
 
 // GET /api/loans — List loans for the organization
 export async function GET(req: Request) {
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
         // Verify employee belongs to org
         const employee = await prisma.employee.findFirst({
             where: { id: employeeId, organizationId: auth.organizationId },
+            select: { id: true, firstName: true, lastName: true },
         });
         if (!employee) {
             return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -96,6 +98,24 @@ export async function POST(req: Request) {
                 },
             },
         });
+
+        // ── ✅ NEW: Create Stateful Approval Request ──
+        try {
+            const formattedAmount = new Intl.NumberFormat("en-BD", {
+                style: "currency", currency: "BDT", maximumFractionDigits: 0,
+            }).format(amount);
+
+            await createApprovalRequest({
+                entityType: "loan",
+                entityId: loan.id,
+                requestTitle: `${type} Loan: ${formattedAmount} (${tenure} months)`,
+                requesterId: employeeId,
+                organizationId: auth.organizationId,
+                priority: amount >= 500000 ? "high" : "normal",
+            });
+        } catch (approvalError) {
+            console.error("LOAN_APPROVAL_REQUEST_ERROR", approvalError);
+        }
 
         return NextResponse.json(loan);
     } catch (error) {

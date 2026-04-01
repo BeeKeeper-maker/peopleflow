@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             select: { settings: true },
         })
 
-        const settings = org?.settings ? JSON.parse(org.settings) : {}
+        const settings = (org?.settings as Record<string, any>) || {}
         const notifications = settings.notifications || {
             emailNotifications: true,
             leaveApprovals: true,
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest) {
             select: { settings: true },
         })
 
-        const currentSettings = org?.settings ? JSON.parse(org.settings) : {}
+        const currentSettings = (org?.settings as Record<string, any>) || {}
 
         // Update notification preferences in settings JSON
         currentSettings.notifications = {
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest) {
 
         await prisma.organization.update({
             where: { id: organizationId },
-            data: { settings: JSON.stringify(currentSettings) },
+            data: { settings: currentSettings },
         })
 
         return NextResponse.json({ success: true, notifications: currentSettings.notifications })

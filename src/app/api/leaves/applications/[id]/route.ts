@@ -7,6 +7,7 @@ import {
     getWeekendDays,
     fetchHolidays,
 } from "@/lib/leave-utils";
+import { processApprovalStep, cancelApprovalRequest } from "@/lib/approval-engine";
 
 export async function GET(
     req: Request,
@@ -68,9 +69,74 @@ export async function PUT(
             return new NextResponse("Invalid status", { status: 400 });
         }
 
-        // Start Transaction
+        // ── ✅ Route through Stateful Approval Engine ──
+        // Check if a stateful ApprovalRequest exists for this leave
+        const approvalRequest = await prisma.approvalRequest.findUnique({
+            where: { entityType_entityId: { entityType: "leave", entityId: id } },
+        });
+
+        if (approvalRequest && approvalRequest.status === "in_progress") {
+            // Get acting employee ID
+            const actorEmployee = await prisma.employee.findFirst({
+                where: { userId: auth.userId, organizationId: auth.organizationId },
+                select: { id: true },
+            });
+
+            if (!actorEmployee) {
+                return new NextResponse("Actor employee profile not found", { status: 400 });
+            }
+
+            if (status === "cancelled") {
+                // Find the requester to cancel
+                const cancelResult = await cancelApprovalRequest(
+                    approvalRequest.id,
+                    approvalRequest.requesterId,
+                    managerComment || "Cancelled by manager/HR"
+                );
+
+                if (!cancelResult.success) {
+                    return new NextResponse(cancelResult.message, { status: 400 });
+                }
+
+                // Handle balance revert for cancellation
+                await handleCancellation(id, auth.organizationId);
+
+                return NextResponse.json({
+                    status: "cancelled",
+                    message: cancelResult.message,
+                    approvalTrail: cancelResult.request,
+                });
+            }
+
+            // Approve or Reject via stateful engine
+            const result = await processApprovalStep({
+                approvalRequestId: approvalRequest.id,
+                actorId: actorEmployee.id,
+                action: status === "approved" ? "approve" : "reject",
+                notes: managerComment,
+            });
+
+            if (!result.success) {
+                return new NextResponse(result.message, { status: 400 });
+            }
+
+            // If FULLY approved (engine auto-updated leave status), handle balance deduction + attendance
+            if (result.request?.status === "approved") {
+                await handleApproval(id, auth.organizationId);
+            }
+
+            // Notify the applicant
+            await notifyApplicant(id, status, managerComment);
+
+            return NextResponse.json({
+                status: result.request?.status || status,
+                message: result.message,
+                approvalTrail: result.request,
+            });
+        }
+
+        // ── FALLBACK: Direct update (no approval request exists — legacy behavior) ──
         const result = await prisma.$transaction(async (tx) => {
-            // Fetch with org-level check + organization settings for weekend config
             const application = await tx.leaveApplication.findFirst({
                 where: {
                     id,
@@ -96,7 +162,6 @@ export async function PUT(
                 throw new Error(`Cannot change status from '${application.status}'`);
             }
 
-            // Additional check: only pending → approved/rejected, only approved → cancelled
             if (status === "approved" && application.status !== "pending") {
                 throw new Error("Can only approve pending applications");
             }
@@ -107,7 +172,6 @@ export async function PUT(
                 throw new Error("Can only cancel approved applications");
             }
 
-            // Build update data conditionally
             const updateData: Record<string, unknown> = {
                 status,
                 rejectionReason: status === "rejected" ? (managerComment || null) : null,
@@ -118,7 +182,6 @@ export async function PUT(
                 updateData.approverId = application.employee.user?.id || null;
             }
 
-            // Update Application Status
             const updatedApp = await tx.leaveApplication.update({
                 where: { id },
                 data: updateData,
@@ -128,7 +191,6 @@ export async function PUT(
 
             // ── If Approved → Deduct Balance + Create Attendance Records ──
             if (status === "approved" && application.status === "pending") {
-                // Deduct from allocation
                 const allocation = await tx.leaveAllocation.findUnique({
                     where: {
                         employeeId_leaveTypeId_year: {
@@ -142,11 +204,7 @@ export async function PUT(
                 if (allocation) {
                     await tx.leaveAllocation.update({
                         where: { id: allocation.id },
-                        data: {
-                            usedDays: {
-                                increment: application.totalDays
-                            }
-                        }
+                        data: { usedDays: { increment: application.totalDays } }
                     });
                 } else {
                     await tx.leaveAllocation.create({
@@ -161,21 +219,17 @@ export async function PUT(
                     });
                 }
 
-                // ── Auto-mark attendance as "on_leave" for each working day ──
+                // Auto-mark attendance as "on_leave"
                 const weekendDays = getWeekendDays(application.employee.organization?.settings);
                 const holidays = await fetchHolidays(tx, auth.organizationId, application.fromDate.getFullYear());
 
-                // Also fetch next year holidays if leave spans years
                 if (application.toDate.getFullYear() !== application.fromDate.getFullYear()) {
                     const nextYearHolidays = await fetchHolidays(
-                        tx,
-                        auth.organizationId,
-                        application.toDate.getFullYear()
+                        tx, auth.organizationId, application.toDate.getFullYear()
                     );
                     holidays.push(...nextYearHolidays);
                 }
 
-                // Build holiday set for O(1) lookup
                 const holidaySet = new Set(
                     holidays.map((h) => {
                         const d = new Date(h.date);
@@ -193,15 +247,12 @@ export async function PUT(
                     const dayOfWeek = day.getDay();
                     const dateStr = day.toISOString().split("T")[0];
 
-                    // Skip weekends and holidays
                     if (weekendDays.includes(dayOfWeek)) continue;
                     if (holidaySet.has(dateStr)) continue;
 
-                    // Normalize to start of day for the unique constraint
                     const normalizedDate = new Date(day);
                     normalizedDate.setHours(0, 0, 0, 0);
 
-                    // Upsert attendance — create if not exists, update if exists
                     await tx.attendance.upsert({
                         where: {
                             employeeId_date: {
@@ -227,7 +278,6 @@ export async function PUT(
 
             // ── If Cancelled from Approved → Revert Balance + Cleanup Attendance ──
             if (status === "cancelled" && application.status === "approved") {
-                // Revert allocation
                 const allocation = await tx.leaveAllocation.findUnique({
                     where: {
                         employeeId_leaveTypeId_year: {
@@ -241,15 +291,10 @@ export async function PUT(
                 if (allocation) {
                     await tx.leaveAllocation.update({
                         where: { id: allocation.id },
-                        data: {
-                            usedDays: {
-                                decrement: application.totalDays
-                            }
-                        }
+                        data: { usedDays: { decrement: application.totalDays } }
                     });
                 }
 
-                // ── Cleanup auto-created attendance records ──
                 const allDays = eachDayOfInterval({
                     start: application.fromDate,
                     end: application.toDate,
@@ -259,7 +304,6 @@ export async function PUT(
                     const normalizedDate = new Date(day);
                     normalizedDate.setHours(0, 0, 0, 0);
 
-                    // Only delete if it was auto-marked by system
                     await tx.attendance.deleteMany({
                         where: {
                             employeeId: application.employeeId,
@@ -307,5 +351,175 @@ export async function PUT(
     } catch (error) {
         console.error("UPDATE_LEAVE_APPLICATION_ERROR", error);
         return new NextResponse(error instanceof Error ? error.message : "Internal Error", { status: 500 });
+    }
+}
+
+// ── Helper: Handle approval side-effects (balance deduction + attendance marking) ──
+async function handleApproval(leaveApplicationId: string, organizationId: string) {
+    try {
+        const application = await prisma.leaveApplication.findUnique({
+            where: { id: leaveApplicationId },
+            include: {
+                leaveType: true,
+                employee: {
+                    include: { organization: { select: { settings: true } } },
+                },
+            },
+        });
+
+        if (!application) return;
+
+        const currentYear = new Date().getFullYear();
+
+        // Deduct from allocation
+        const allocation = await prisma.leaveAllocation.findUnique({
+            where: {
+                employeeId_leaveTypeId_year: {
+                    employeeId: application.employeeId,
+                    leaveTypeId: application.leaveTypeId,
+                    year: currentYear,
+                },
+            },
+        });
+
+        if (allocation) {
+            await prisma.leaveAllocation.update({
+                where: { id: allocation.id },
+                data: { usedDays: { increment: application.totalDays } },
+            });
+        }
+
+        // Auto-mark attendance
+        const weekendDays = getWeekendDays(application.employee.organization?.settings);
+        const holidays = await fetchHolidays(prisma, organizationId, application.fromDate.getFullYear());
+
+        const holidaySet = new Set(
+            holidays.map((h) => new Date(h.date).toISOString().split("T")[0])
+        );
+
+        const allDays = eachDayOfInterval({
+            start: application.fromDate,
+            end: application.toDate,
+        });
+
+        for (const day of allDays) {
+            const dayOfWeek = day.getDay();
+            const dateStr = day.toISOString().split("T")[0];
+            if (weekendDays.includes(dayOfWeek)) continue;
+            if (holidaySet.has(dateStr)) continue;
+
+            const normalizedDate = new Date(day);
+            normalizedDate.setHours(0, 0, 0, 0);
+
+            await prisma.attendance.upsert({
+                where: {
+                    employeeId_date: {
+                        employeeId: application.employeeId,
+                        date: normalizedDate,
+                    },
+                },
+                create: {
+                    employeeId: application.employeeId,
+                    date: normalizedDate,
+                    status: application.halfDay ? "half_day" : "on_leave",
+                    source: "system",
+                    notes: `Auto-marked: ${application.leaveType.name} leave`,
+                },
+                update: {
+                    status: application.halfDay ? "half_day" : "on_leave",
+                    source: "system",
+                    notes: `Auto-marked: ${application.leaveType.name} leave`,
+                },
+            });
+        }
+    } catch (error) {
+        console.error("HANDLE_APPROVAL_ERROR", error);
+    }
+}
+
+// ── Helper: Handle cancellation side-effects (balance revert + attendance cleanup) ──
+async function handleCancellation(leaveApplicationId: string, organizationId: string) {
+    try {
+        const application = await prisma.leaveApplication.findUnique({
+            where: { id: leaveApplicationId },
+            include: { leaveType: true },
+        });
+        if (!application) return;
+
+        const currentYear = new Date().getFullYear();
+        const allocation = await prisma.leaveAllocation.findUnique({
+            where: {
+                employeeId_leaveTypeId_year: {
+                    employeeId: application.employeeId,
+                    leaveTypeId: application.leaveTypeId,
+                    year: currentYear,
+                },
+            },
+        });
+
+        if (allocation) {
+            await prisma.leaveAllocation.update({
+                where: { id: allocation.id },
+                data: { usedDays: { decrement: application.totalDays } },
+            });
+        }
+
+        const allDays = eachDayOfInterval({
+            start: application.fromDate,
+            end: application.toDate,
+        });
+
+        for (const day of allDays) {
+            const normalizedDate = new Date(day);
+            normalizedDate.setHours(0, 0, 0, 0);
+            await prisma.attendance.deleteMany({
+                where: {
+                    employeeId: application.employeeId,
+                    date: normalizedDate,
+                    source: "system",
+                    status: { in: ["on_leave", "half_day"] },
+                },
+            });
+        }
+    } catch (error) {
+        console.error("HANDLE_CANCELLATION_ERROR", error);
+    }
+}
+
+// ── Helper: Notify applicant of status change ──
+async function notifyApplicant(leaveApplicationId: string, status: string, comment?: string) {
+    try {
+        const application = await prisma.leaveApplication.findUnique({
+            where: { id: leaveApplicationId },
+            include: {
+                leaveType: true,
+                employee: { include: { user: { select: { id: true } } } },
+            },
+        });
+        if (!application?.employee.user?.id) return;
+
+        const notificationData = {
+            applicantName: `${application.employee.firstName} ${application.employee.lastName}`,
+            leaveTypeName: application.leaveType.name,
+            fromDate: format(application.fromDate, "dd MMM yyyy"),
+            toDate: format(application.toDate, "dd MMM yyyy"),
+            totalDays: application.totalDays,
+            rejectionReason: comment || undefined,
+        };
+
+        const notificationType =
+            status === "approved" ? "leave_approved" as const :
+                status === "rejected" ? "leave_rejected" as const :
+                    "leave_cancelled" as const;
+
+        await createLeaveNotification(
+            prisma,
+            notificationType,
+            application.employee.user.id,
+            notificationData,
+            application.id
+        );
+    } catch (error) {
+        console.error("NOTIFY_APPLICANT_ERROR", error);
     }
 }

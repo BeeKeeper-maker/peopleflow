@@ -10,6 +10,20 @@ export async function GET() {
     }
 
     try {
+        // Get the user with organization context
+        const user = await prisma.user.findUnique({
+            where: { id: auth.userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                organization: {
+                    select: { name: true, industry: true },
+                },
+            },
+        });
+
         // Get the employee linked to the current user
         const employee = await prisma.employee.findFirst({
             where: {
@@ -36,10 +50,30 @@ export async function GET() {
         });
 
         if (!employee) {
-            return NextResponse.json({ error: "Employee profile not found" }, { status: 404 });
+            // Return user-only data if no employee record linked
+            return NextResponse.json({
+                data: {
+                    id: user?.id || auth.userId,
+                    name: user?.name,
+                    email: user?.email,
+                    role: user?.role || "employee",
+                    employee: null,
+                    organization: user?.organization || null,
+                },
+            });
         }
 
-        return NextResponse.json({ data: employee });
+        // Return structured response with employee + user context
+        return NextResponse.json({
+            data: {
+                id: user?.id || auth.userId,
+                name: user?.name,
+                email: user?.email,
+                role: user?.role || "employee",
+                employee,
+                organization: user?.organization || null,
+            },
+        });
     } catch (error) {
         console.error("Error fetching employee profile:", error);
         return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });

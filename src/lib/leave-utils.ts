@@ -288,24 +288,25 @@ export async function createLeaveNotification(
 // ============================================
 
 /**
- * Parse weekend days from the organization's settings JSON.
+ * Parse weekend days from the organization's settings.
+ * With JSONB, settings is already an object — no JSON.parse needed.
  * Falls back to BD defaults (Fri + Sat) if not configured.
- * 
- * @param settingsJson - Organization settings JSON string
+ *
+ * @param settings - Organization settings object (Prisma Json type)
  * @returns Array of weekend day numbers (0-6)
  */
-export function getWeekendDays(settingsJson: string | null | undefined): number[] {
-    if (!settingsJson) return DEFAULT_WEEKEND_DAYS;
+export function getWeekendDays(settings: unknown): number[] {
+    if (!settings || typeof settings !== "object") return DEFAULT_WEEKEND_DAYS;
 
     try {
-        const settings: OrganizationSettings = JSON.parse(settingsJson);
-        if (Array.isArray(settings.weekendDays) && settings.weekendDays.length > 0) {
+        const s = settings as OrganizationSettings;
+        if (Array.isArray(s.weekendDays) && s.weekendDays.length > 0) {
             // Validate all values are 0-6
-            const valid = settings.weekendDays.every((d) => d >= 0 && d <= 6);
-            if (valid) return settings.weekendDays;
+            const valid = s.weekendDays.every((d) => d >= 0 && d <= 6);
+            if (valid) return s.weekendDays;
         }
     } catch {
-        // Invalid JSON, use defaults
+        // Invalid data, use defaults
     }
 
     return DEFAULT_WEEKEND_DAYS;

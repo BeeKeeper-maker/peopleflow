@@ -6,11 +6,9 @@ import type { AuthContext } from "@/lib/api-auth";
 // ✅ CSV injection protection
 function escapeCsvField(value: string): string {
     const str = String(value ?? "");
-    // Escape formula injection characters
     if (/^[=+\-@\t\r]/.test(str)) {
         return `"'${str.replace(/"/g, '""')}"`;
     }
-    // Quote values containing commas, quotes, or newlines
     if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
         return `"${str.replace(/"/g, '""')}"`;
     }
@@ -18,7 +16,7 @@ function escapeCsvField(value: string): string {
 }
 
 /**
- * GET - Fetch audit logs with filters
+ * GET - Fetch audit logs with filters + server-side stats
  */
 export async function GET(req: Request) {
     try {
@@ -32,7 +30,7 @@ export async function GET(req: Request) {
         }
 
         const { searchParams } = new URL(req.url);
-        const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1); // ✅ Validate page ≥ 1
+        const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
         const limit = Math.min(Math.max(1, parseInt(searchParams.get("limit") || "20") || 20), 100);
         const search = searchParams.get("search") || "";
         const action = searchParams.get("action") || "";
@@ -40,12 +38,12 @@ export async function GET(req: Request) {
         const userId = searchParams.get("userId") || "";
         const dateFrom = searchParams.get("dateFrom");
         const dateTo = searchParams.get("dateTo");
-        const format = searchParams.get("format"); // "csv" for export
+        const format = searchParams.get("format");
 
-        // Build filters
-        const where: Record<string, unknown> = {
-            organizationId: ctx.organizationId,
-        };
+        const orgFilter = { organizationId: ctx.organizationId };
+
+        // Build where clause
+        const where: Record<string, unknown> = { ...orgFilter };
 
         if (search) {
             where.OR = [
@@ -65,7 +63,7 @@ export async function GET(req: Request) {
             if (dateTo) (where.createdAt as Record<string, unknown>).lte = new Date(dateTo + "T23:59:59Z");
         }
 
-        // CSV Export
+        // ── CSV Export ────────────────────────────────────────────────────
         if (format === "csv") {
             const allLogs = await prisma.auditLog.findMany({
                 where: where as any,
@@ -73,7 +71,6 @@ export async function GET(req: Request) {
                 take: 5000,
             });
 
-            // Look up user names for the logs
             const logUserIds = [...new Set(allLogs.filter(l => l.userId).map(l => l.userId!))];
             const users = logUserIds.length > 0
                 ? await prisma.user.findMany({
@@ -83,7 +80,7 @@ export async function GET(req: Request) {
                 : [];
             const userMap = new Map(users.map(u => [u.id, u]));
 
-            const csvHeaders = "Date,Time,Action,Entity Type,Entity ID,Performed By,IP Address";
+            const csvHeaders = "Date,Time,Action,Entity Type,Entity ID,Performed By,IP Address,User Agent";
             const csvRows = allLogs.map(log => {
                 const date = new Date(log.createdAt);
                 const user = log.userId ? userMap.get(log.userId) : null;
@@ -93,13 +90,13 @@ export async function GET(req: Request) {
                     escapeCsvField(log.action),
                     escapeCsvField(log.entityType),
                     escapeCsvField(log.entityId || ""),
-                    escapeCsvField(user?.name || user?.email || ""),
+                    escapeCsvField(user?.name || user?.email || "System"),
                     escapeCsvField(log.ipAddress || ""),
+                    escapeCsvField(log.userAgent || ""),
                 ].join(",");
             });
 
             const csv = [csvHeaders, ...csvRows].join("\n");
-
             return new NextResponse(csv, {
                 headers: {
                     "Content-Type": "text/csv; charset=utf-8",
@@ -108,8 +105,11 @@ export async function GET(req: Request) {
             });
         }
 
-        // Paginated JSON response
-        const [logs, total] = await Promise.all([
+        // ── Paginated JSON + Server-Side Stats ───────────────────────────
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const [logs, total, todayCount, criticalCount, activeUsersRaw, filterActions, filterEntities] = await Promise.all([
             prisma.auditLog.findMany({
                 where: where as any,
                 orderBy: { createdAt: "desc" },
@@ -117,9 +117,38 @@ export async function GET(req: Request) {
                 take: limit,
             }),
             prisma.auditLog.count({ where: where as any }),
+            // Today's log count
+            prisma.auditLog.count({
+                where: { ...orgFilter, createdAt: { gte: todayStart } } as any,
+            }),
+            // Critical actions count (delete, approve, reject)
+            prisma.auditLog.count({
+                where: {
+                    ...orgFilter,
+                    action: { in: ["delete", "approve", "reject"] },
+                    createdAt: { gte: todayStart },
+                } as any,
+            }),
+            // Active users today (distinct userIds)
+            prisma.auditLog.findMany({
+                where: { ...orgFilter, createdAt: { gte: todayStart }, userId: { not: null } } as any,
+                select: { userId: true },
+                distinct: ["userId"],
+            }),
+            // Filter options
+            prisma.auditLog.findMany({
+                where: orgFilter as any,
+                select: { action: true },
+                distinct: ["action"],
+            }),
+            prisma.auditLog.findMany({
+                where: orgFilter as any,
+                select: { entityType: true },
+                distinct: ["entityType"],
+            }),
         ]);
 
-        // Look up user names
+        // Lookup user names for log entries
         const logUserIds = [...new Set(logs.filter(l => l.userId).map(l => l.userId!))];
         const users = logUserIds.length > 0
             ? await prisma.user.findMany({
@@ -128,20 +157,6 @@ export async function GET(req: Request) {
             })
             : [];
         const userMap = new Map(users.map(u => [u.id, u]));
-
-        // Get filter options (distinct values)
-        const [actions, entityTypes] = await Promise.all([
-            prisma.auditLog.findMany({
-                where: { organizationId: ctx.organizationId },
-                select: { action: true },
-                distinct: ["action"],
-            }),
-            prisma.auditLog.findMany({
-                where: { organizationId: ctx.organizationId },
-                select: { entityType: true },
-                distinct: ["entityType"],
-            }),
-        ]);
 
         return NextResponse.json({
             logs: logs.map(log => {
@@ -165,9 +180,15 @@ export async function GET(req: Request) {
                 total,
                 totalPages: Math.ceil(total / limit),
             },
+            stats: {
+                total,
+                todayCount,
+                criticalCount,
+                activeUsers: activeUsersRaw.length,
+            },
             filters: {
-                actions: actions.map(a => a.action),
-                entityTypes: entityTypes.map(e => e.entityType),
+                actions: filterActions.map(a => a.action),
+                entityTypes: filterEntities.map(e => e.entityType),
             },
         });
     } catch (error) {

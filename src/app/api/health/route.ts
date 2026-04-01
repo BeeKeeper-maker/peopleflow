@@ -40,6 +40,22 @@ export async function GET(request: NextRequest) {
         };
     }
 
+    // Check Redis connectivity
+    try {
+        const { getRedis } = await import("@/lib/redis");
+        const redisStart = Date.now();
+        await getRedis().ping();
+        (healthStatus.checks as Record<string, unknown>).redis = {
+            status: "healthy",
+            latency: Date.now() - redisStart,
+        };
+    } catch {
+        (healthStatus.checks as Record<string, unknown>).redis = {
+            status: "unreachable",
+            latency: -1,
+        };
+    }
+
     // Check memory usage
     try {
         const memoryUsage = process.memoryUsage();

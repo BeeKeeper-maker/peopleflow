@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { processApprovalStep } from "@/lib/approval-engine";
 
-// PUT /api/loans/[id] — Update loan status
+// PUT /api/loans/[id] — Update loan status (routes through stateful approval engine)
 export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -28,6 +29,52 @@ export async function PUT(
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
         }
 
+        // ── ✅ Route approve/reject through Stateful Approval Engine ──
+        if (json.status === "approved" || json.status === "rejected") {
+            const approvalRequest = await prisma.approvalRequest.findUnique({
+                where: { entityType_entityId: { entityType: "loan", entityId: id } },
+            });
+
+            if (approvalRequest && approvalRequest.status === "in_progress") {
+                const actorEmployee = await prisma.employee.findFirst({
+                    where: { userId: auth.userId, organizationId: auth.organizationId },
+                    select: { id: true },
+                });
+
+                if (!actorEmployee) {
+                    return new NextResponse("Actor employee profile not found", { status: 400 });
+                }
+
+                const result = await processApprovalStep({
+                    approvalRequestId: approvalRequest.id,
+                    actorId: actorEmployee.id,
+                    action: json.status === "approved" ? "approve" : "reject",
+                    notes: json.notes || json.reason,
+                });
+
+                if (!result.success) {
+                    return NextResponse.json({ error: result.message }, { status: 400 });
+                }
+
+                // Fetch updated loan
+                const updatedLoan = await prisma.loan.findUnique({
+                    where: { id },
+                    include: {
+                        employee: {
+                            select: { id: true, firstName: true, lastName: true, employeeCode: true },
+                        },
+                    },
+                });
+
+                return NextResponse.json({
+                    ...updatedLoan,
+                    approvalMessage: result.message,
+                    approvalTrail: result.request,
+                });
+            }
+        }
+
+        // ── FALLBACK: Direct update (for statuses the approval engine doesn't handle) ──
         const data: Record<string, unknown> = {};
 
         if (json.status) {

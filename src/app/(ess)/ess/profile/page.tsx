@@ -79,8 +79,10 @@ export default function ESSProfilePage() {
             try {
                 const res = await fetch("/api/employees/me");
                 if (res.ok) {
-                    const data = await res.json();
-                    setProfile(data.data || data);
+                    const json = await res.json();
+                    // API now returns { data: { employee: {...}, ... } }
+                    const profileData = json.data?.employee || json.data || json;
+                    setProfile(profileData);
                 } else {
                     console.error("Failed to fetch profile");
                 }
@@ -120,8 +122,10 @@ export default function ESSProfilePage() {
             });
 
             if (res.ok) {
-                const data = await res.json();
-                setProfile(data.data || data);
+                const json = await res.json();
+                // PATCH returns { data: employee } (flat employee object)
+                const updatedProfile = json.data?.employee || json.data || json;
+                setProfile(updatedProfile);
                 setIsEditing(false);
                 setEditedProfile({});
                 addToast({ title: t("updateSuccess"), type: "success" });

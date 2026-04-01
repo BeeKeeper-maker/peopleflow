@@ -1,10 +1,20 @@
 /**
- * PeopleFlow Configurable Approval Workflow Engine
+ * @deprecated — LEGACY Stateless Approval Workflow Engine
  *
- * Manages multi-level approval workflows for leaves, expenses, loans,
- * and attendance regularization requests.
- * 
- * ✅ Audit fixes applied:
+ * This engine is STATELESS — it does not persist approval state between steps.
+ * It has been superseded by `approval-engine.ts` which provides:
+ *   ✅ Persistent ApprovalRequest + ApprovalStepLog records
+ *   ✅ Full audit trail (who approved, when, notes, SLA)
+ *   ✅ Deep RBAC with department/designation scoping
+ *   ✅ Cancellation support
+ *   ✅ Pending approvals dashboard query
+ *
+ * Use `createApprovalRequest()` and `processApprovalStep()` from
+ * `@/lib/approval-engine` for all new approval workflows.
+ *
+ * This file is kept for backward compatibility with existing API routes.
+ *
+ * Original audit fixes:
  *  - Self-approval prevention
  *  - ExpenseClaim rejection now sets rejectedAt timestamp
  *  - Approval notes saved on approve (not just reject)

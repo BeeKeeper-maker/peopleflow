@@ -175,6 +175,14 @@ export function calculateGratuity(
 // ============================================
 
 /**
+ * @deprecated Use `festival-bonus-engine.ts` for full bonus management.
+ * This was the original "dead function" identified in the audit —
+ * a pure calculation with no DB persistence, no eligibility checks,
+ * no pro-rata, and no payroll integration.
+ *
+ * Kept for backward compatibility. Use `generateFestivalBonus()` from
+ * `@/lib/festival-bonus-engine` for the production workflow.
+ *
  * Bangladesh standard practice (not legally mandated but industry standard):
  * - 2 festival bonuses per year (Eid-ul-Fitr and Eid-ul-Adha)
  * - Each bonus = 1 month basic salary (minimum)

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { calculateSalary } from "@/lib/payroll-engine";
 import * as z from "zod";
 
 const processPayrollSchema = z.object({
@@ -77,14 +78,13 @@ export async function POST(req: Request) {
 
         const { month, year, employeeIds } = validation.data;
 
-        // Get employees with active salary assignments, attendance, leaves, and loans
+        // Get eligible employees
         const whereClause: any = {
             organizationId: auth.organizationId,
             employmentStatus: "active",
+            deletedAt: null,
             salaryAssignments: {
-                some: {
-                    isActive: true,
-                },
+                some: { isActive: true },
             },
         };
 
@@ -94,64 +94,30 @@ export async function POST(req: Request) {
 
         const employees = await prisma.employee.findMany({
             where: whereClause,
-            include: {
-                salaryAssignments: {
-                    where: { isActive: true },
-                    include: {
-                        salaryStructure: true,
-                    },
-                    take: 1,
-                },
-                attendances: {
-                    where: {
-                        date: {
-                            gte: new Date(year, month - 1, 1),
-                            lt: new Date(year, month, 1),
-                        },
-                    },
-                },
-                leaveApplications: {
-                    where: {
-                        status: "approved",
-                        OR: [
-                            {
-                                fromDate: {
-                                    gte: new Date(year, month - 1, 1),
-                                    lt: new Date(year, month, 1),
-                                },
-                            },
-                            {
-                                toDate: {
-                                    gte: new Date(year, month - 1, 1),
-                                    lt: new Date(year, month, 1),
-                                },
-                            },
-                        ],
-                    },
-                },
-                loans: {
-                    where: {
-                        status: "disbursed",
-                        remainingAmount: { gt: 0 },
-                    },
-                },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
             },
         });
 
         const skipped: { employeeId: string; name: string; error: string }[] = [];
+        const created: {
+            employeeId: string;
+            name: string;
+            netSalary: number;
+            overtime: number;
+            festivalBonus: number;
+            lateDeduction: number;
+            loanDeduction: number;
+            incomeTax: number;
+            status: string;
+        }[] = [];
 
-        // Calculate working days in month
-        const daysInMonth = new Date(year, month, 0).getDate();
-        let weekends = 0;
-        for (let d = 1; d <= daysInMonth; d++) {
-            const day = new Date(year, month - 1, d).getDay();
-            if (day === 5 || day === 6) weekends++; // Friday, Saturday for BD
-        }
-        const totalWorkingDays = daysInMonth - weekends;
-
-        // Pre-filter: skip employees who already have slips
-        const eligibleEmployees: typeof employees = [];
         for (const employee of employees) {
+            const empName = `${employee.firstName} ${employee.lastName}`;
+
+            // Check if slip already exists
             const existingSlip = await prisma.salarySlip.findUnique({
                 where: {
                     employeeId_month_year: {
@@ -165,164 +131,109 @@ export async function POST(req: Request) {
             if (existingSlip) {
                 skipped.push({
                     employeeId: employee.id,
-                    name: `${employee.firstName} ${employee.lastName}`,
+                    name: empName,
                     error: "Slip already exists",
                 });
                 continue;
             }
 
-            const assignment = employee.salaryAssignments[0];
-            if (!assignment) {
-                skipped.push({
+            try {
+                // ✅ Use the centralized payroll engine v2
+                // This gives us: proper tax slabs, tiered late deduction,
+                // festival bonus auto-inclusion, PF ledger posting
+                const salary = await calculateSalary({
                     employeeId: employee.id,
-                    name: `${employee.firstName} ${employee.lastName}`,
-                    error: "No active salary assignment",
+                    month,
+                    year,
+                    postPFContributions: true,
                 });
-                continue;
-            }
 
-            eligibleEmployees.push(employee);
-        }
+                // Get active loans for auto-deduction within transaction
+                const activeLoans = await prisma.loan.findMany({
+                    where: {
+                        employeeId: employee.id,
+                        status: "disbursed",
+                        remainingAmount: { gt: 0 },
+                    },
+                });
 
-        if (eligibleEmployees.length === 0) {
-            return NextResponse.json({
-                processed: 0,
-                errorCount: skipped.length,
-                results: [],
-                errors: skipped,
-            });
-        }
-
-        // Single atomic transaction for ALL eligible employees
-        const results = await prisma.$transaction(async (tx) => {
-            const created: {
-                employeeId: string;
-                name: string;
-                netSalary: number;
-                overtime: number;
-                loanDeduction: number;
-                incomeTax: number;
-                status: string;
-            }[] = [];
-
-            for (const employee of eligibleEmployees) {
-                const assignment = employee.salaryAssignments[0];
-                const structure = assignment.salaryStructure;
-                const gross = assignment.grossSalary;
-
-                // ─── EARNINGS ───
-                const basic = (gross * structure.basicPercentage) / 100;
-                const houseRent = (basic * structure.houseRentPercent) / 100;
-                const medical = (basic * structure.medicalPercent) / 100;
-                const conveyance = structure.conveyanceFixed;
-
-                // Calculate attendance
-                const presentDays = employee.attendances.filter(
-                    (a) => a.status === "present" || a.status === "late"
-                ).length;
-                const leaveDays = employee.leaveApplications.reduce(
-                    (sum, l) => sum + l.totalDays,
-                    0
-                );
-                const absentDays = Math.max(0, totalWorkingDays - presentDays - leaveDays);
-
-                // ─── OVERTIME ───
-                const totalOvertimeMinutes = employee.attendances.reduce(
-                    (sum, a) => sum + (a.overtimeMinutes || 0),
-                    0
-                );
-                const overtimeHours = totalOvertimeMinutes / 60;
-                const hourlyBasic = basic / (totalWorkingDays * 8);
-                const overtimePay = Math.round(overtimeHours * hourlyBasic * 1.5);
-
-                // ─── DEDUCTIONS ───
-                const pfEmployee = employee.pfEnabled !== false
-                    ? (basic * structure.pfEmployeePercent) / 100
-                    : 0;
-                const pfEmployer = employee.pfEnabled !== false
-                    ? (basic * structure.pfEmployerPercent) / 100
-                    : 0;
-
-                const perDaySalary = gross / totalWorkingDays;
-                const absentDeduction = absentDays * perDaySalary;
-
-                const lateDays = employee.attendances.filter((a) => a.status === "late").length;
-                const lateDeduction = Math.floor(lateDays / 3) * (perDaySalary / 2);
-
-                // ─── LOAN AUTO-DEDUCTION ───
-                let loanDeduction = 0;
-
-                for (const loan of employee.loans) {
-                    const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
-                    loanDeduction += deductionAmount;
-
-                    const newPaid = loan.paidAmount + deductionAmount;
-                    const newRemaining = loan.remainingAmount - deductionAmount;
-
-                    await tx.loan.update({
-                        where: { id: loan.id },
+                // Atomic: create slip + update loan balances
+                await prisma.$transaction(async (tx) => {
+                    // Create salary slip with full v2 breakdown
+                    await tx.salarySlip.create({
                         data: {
-                            paidAmount: newPaid,
-                            remainingAmount: newRemaining,
-                            status: newRemaining <= 0 ? "closed" : "disbursed",
+                            employeeId: employee.id,
+                            month,
+                            year,
+                            totalWorkingDays: salary.totalWorkingDays,
+                            presentDays: salary.presentDays,
+                            absentDays: salary.absentDays,
+                            leaveDays: salary.leaveDays,
+                            basicSalary: salary.basicSalary,
+                            houseRent: salary.houseRent,
+                            medicalAllowance: salary.medicalAllowance,
+                            conveyance: salary.conveyance,
+                            specialAllowance: salary.specialAllowance,
+                            overtime: salary.overtime,
+                            bonus: salary.bonus,
+                            festivalBonus: salary.festivalBonus,
+                            arrears: salary.arrears,
+                            otherEarnings: salary.otherEarnings,
+                            grossSalary: salary.grossSalary,
+                            pfEmployee: salary.pfEmployee,
+                            pfEmployer: salary.pfEmployer,
+                            incomeTax: salary.incomeTax,
+                            loanDeduction: salary.loanDeduction,
+                            absentDeduction: salary.absentDeduction,
+                            lateDeduction: salary.lateDeduction,
+                            otherDeductions: salary.otherDeductions,
+                            totalDeductions: salary.totalDeductions,
+                            netSalary: salary.netSalary,
+                            status: "draft",
                         },
                     });
-                }
 
-                // ─── INCOME TAX (simplified TDS) ───
-                const annualGross = gross * 12;
-                const incomeTax = annualGross > 300000 ? Math.round((gross * 5) / 100) : 0;
+                    // Update loan balances
+                    for (const loan of activeLoans) {
+                        const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
+                        const newPaid = loan.paidAmount + deductionAmount;
+                        const newRemaining = loan.remainingAmount - deductionAmount;
 
-                // ─── TOTALS ───
-                const totalDeductions = pfEmployee + absentDeduction + lateDeduction + loanDeduction + incomeTax;
-                const netSalary = gross + overtimePay - totalDeductions;
-
-                // Create salary slip
-                const slip = await tx.salarySlip.create({
-                    data: {
-                        employeeId: employee.id,
-                        month,
-                        year,
-                        totalWorkingDays,
-                        presentDays,
-                        absentDays,
-                        leaveDays: Math.round(leaveDays),
-                        basicSalary: Math.round(basic),
-                        houseRent: Math.round(houseRent),
-                        medicalAllowance: Math.round(medical),
-                        conveyance: Math.round(conveyance),
-                        overtime: Math.round(overtimePay),
-                        grossSalary: Math.round(gross),
-                        pfEmployee: Math.round(pfEmployee),
-                        pfEmployer: Math.round(pfEmployer),
-                        incomeTax: Math.round(incomeTax),
-                        loanDeduction: Math.round(loanDeduction),
-                        absentDeduction: Math.round(absentDeduction),
-                        lateDeduction: Math.round(lateDeduction),
-                        totalDeductions: Math.round(totalDeductions),
-                        netSalary: Math.round(netSalary),
-                        status: "draft",
-                    },
+                        await tx.loan.update({
+                            where: { id: loan.id },
+                            data: {
+                                paidAmount: newPaid,
+                                remainingAmount: newRemaining,
+                                status: newRemaining <= 0 ? "closed" : "disbursed",
+                            },
+                        });
+                    }
                 });
 
                 created.push({
                     employeeId: employee.id,
-                    name: `${employee.firstName} ${employee.lastName}`,
-                    netSalary: slip.netSalary,
-                    overtime: Math.round(overtimePay),
-                    loanDeduction: Math.round(loanDeduction),
-                    incomeTax: Math.round(incomeTax),
+                    name: empName,
+                    netSalary: salary.netSalary,
+                    overtime: salary.overtime,
+                    festivalBonus: salary.festivalBonus,
+                    lateDeduction: salary.lateDeduction,
+                    loanDeduction: salary.loanDeduction,
+                    incomeTax: salary.incomeTax,
                     status: "created",
                 });
+            } catch (calcError) {
+                skipped.push({
+                    employeeId: employee.id,
+                    name: empName,
+                    error: calcError instanceof Error ? calcError.message : "Calculation failed",
+                });
             }
-
-            return created;
-        });
+        }
 
         return NextResponse.json({
-            processed: results.length,
+            processed: created.length,
             errorCount: skipped.length,
-            results,
+            results: created,
             errors: skipped,
         });
     } catch (error) {
@@ -330,4 +241,3 @@ export async function POST(req: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
-

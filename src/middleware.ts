@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 
 // Role type for type safety
-type UserRole = "super_admin" | "admin" | "hr_admin" | "manager" | "employee";
+type UserRole = "admin" | "hr_admin" | "manager" | "employee";
 
 // Default routes based on role
 const ROLE_DEFAULT_ROUTES: Record<UserRole, string> = {
-    super_admin: "/dashboard",
     admin: "/dashboard",
     hr_admin: "/dashboard",
     manager: "/manager/dashboard",
@@ -40,7 +39,7 @@ const HR_ROUTES = [
     "/devices",
 ];
 
-// Check if user has HR level access
+// Check if user has HR level access (deprecated super_admin → treated as admin)
 function isHRLevel(role?: string): boolean {
     return ["super_admin", "admin", "hr_admin"].includes(role || "");
 }
@@ -53,6 +52,8 @@ function isManagerLevel(role?: string): boolean {
 // Get default route for role
 function getDefaultRoute(role?: string): string {
     if (!role) return "/login";
+    // Map deprecated super_admin to admin behavior
+    if (role === "super_admin") return "/dashboard";
     return ROLE_DEFAULT_ROUTES[role as UserRole] || "/ess/dashboard";
 }
 
@@ -62,34 +63,54 @@ export default withAuth(
         const token = req.nextauth.token;
         const role = token?.role as UserRole | undefined;
 
+        // ─────────────────────────────────────────────
+        // PLATFORM PLANE: /platform/* routes
+        // Handled by separate auth system (platform-auth.ts)
+        // This middleware allows them through — platform
+        // auth is enforced at the API/page level
+        // ─────────────────────────────────────────────
+        if (pathname.startsWith("/platform")) {
+            // Platform routes bypass tenant auth entirely
+            return NextResponse.next();
+        }
+
+        // ─────────────────────────────────────────────
+        // TENANT PLANE: Organization status check
+        // If the org is suspended/deactivated, redirect
+        // ─────────────────────────────────────────────
+        // Note: We can't call async Redis/DB from edge middleware.
+        // The org status check is enforced at the API layer via
+        // api-auth.ts instead. The middleware handles client-side
+        // routing only. See the /suspended page for the UX.
+
         // If authenticated and trying to access login/register
         if (token && (pathname === "/login" || pathname === "/register")) {
-            const defaultRoute = getDefaultRoute(role);
+            const defaultRoute = getDefaultRoute(role as string);
             return NextResponse.redirect(new URL(defaultRoute, req.url));
         }
 
-        // Root path - redirect to appropriate dashboard
+        // Root path - authenticated users go to dashboard, unauth see marketing page
         if (pathname === "/" && token) {
-            const defaultRoute = getDefaultRoute(role);
+            const defaultRoute = getDefaultRoute(role as string);
             return NextResponse.redirect(new URL(defaultRoute, req.url));
         }
 
         // Check HR route access
         const isHRRoute = HR_ROUTES.some((route) => pathname.startsWith(route));
-        if (isHRRoute && token && !isHRLevel(role)) {
-            // Non-HR users trying to access HR routes
-            const defaultRoute = getDefaultRoute(role);
+        if (isHRRoute && token && !isHRLevel(role as string)) {
+            const defaultRoute = getDefaultRoute(role as string);
             return NextResponse.redirect(new URL(defaultRoute, req.url));
         }
 
         // Check Manager route access
-        if (pathname.startsWith("/manager") && token && !isManagerLevel(role)) {
-            // Regular employees trying to access manager routes
+        if (pathname.startsWith("/manager") && token && !isManagerLevel(role as string)) {
             return NextResponse.redirect(new URL("/ess/dashboard", req.url));
         }
 
-        // ESS routes - all authenticated users can access
-        // No special check needed, withAuth handles authentication
+        // Suspended page — always accessible (so suspended tenants can see it)
+        if (pathname === "/suspended" || pathname === "/deactivated") {
+            return NextResponse.next();
+        }
 
         return NextResponse.next();
     },
@@ -105,16 +126,33 @@ export default withAuth(
                     "/forgot-password",
                     "/reset-password",
                     "/verify-email",
-                    "/careers", // Public career page
+                    "/careers",
+                    "/suspended",
+                    "/deactivated",
+                    "/platform/login",
                 ];
+
+                // Root path "/" is public (marketing landing page)
+                if (pathname === "/") {
+                    return true;
+                }
 
                 // Allow public routes
                 if (publicRoutes.some((route) => pathname.startsWith(route))) {
                     return true;
                 }
 
-                // API routes for auth should be public
-                if (pathname.startsWith("/api/auth")) {
+                // API routes for auth, webhooks, and health should be public
+                if (
+                    pathname.startsWith("/api/auth") ||
+                    pathname.startsWith("/api/webhooks") ||
+                    pathname.startsWith("/api/health")
+                ) {
+                    return true;
+                }
+
+                // Platform routes use their own auth system
+                if (pathname.startsWith("/platform")) {
                     return true;
                 }
 
@@ -131,14 +169,13 @@ export default withAuth(
 export const config = {
     matcher: [
         /*
-         * Match all request paths except for the ones starting with:
+         * Match all request paths except for:
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
          * - public folder files
-         * - api (API routes handle their own authentication)
+         * - api (API routes handle their own auth via api-auth.ts)
          */
         "/((?!_next/static|_next/image|favicon.ico|.*\\..*|api).*)",
     ],
 };
-

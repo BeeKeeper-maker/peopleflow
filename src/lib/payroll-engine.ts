@@ -1,20 +1,33 @@
 /**
- * PeopleFlow Payroll Calculation Engine
- * 
- * Core module for automatic salary computation, tax calculation (Bangladesh),
- * overtime, gratuity, and bank file generation.
- * 
- * ✅ Audit fixes applied:
- *  - Gratuity formula corrected to 30 days × years (Section 27, BLA 2006)
- *  - Gender-aware tax calculation from Employee.gender field
- *  - Women's tax slab cascade properly adjusted
- *  - Division-by-zero guard for totalWorkingDays
- *  - CSV injection protection in bank file generation
- *  - Minimum tax threshold uses adjusted (women's) slab
- *  - Unused variable removed
+ * PeopleFlow Payroll Calculation Engine v2
+ *
+ * Core module for automatic salary computation with full BLA 2006 compliance.
+ *
+ * v2 Upgrades:
+ *   ✅ Festival Bonus: Auto-includes pending Eid/Puja bonuses from FestivalBonusPayment
+ *   ✅ Tiered Late Deduction: Configurable severity tiers replace flat "3 lates = 1 day"
+ *   ✅ PF Ledger Integration: Auto-posts monthly contributions to double-entry ledger
+ *   ✅ Gender-aware tax calculation (women get BDT 50,000 higher threshold)
+ *   ✅ Gratuity per Section 27, BLA 2006 (30 days × years of completed service)
+ *   ✅ Division-by-zero guards
+ *   ✅ CSV injection protection in bank file generation
+ *
+ * Calculation Pipeline:
+ *   1. Load salary structure + attendance data
+ *   2. Calculate base salary components
+ *   3. Calculate overtime (2x rate per BLA 2006 Section 108)
+ *   4. Fetch pending festival bonuses
+ *   5. Calculate tiered late deductions (or legacy fallback)
+ *   6. Calculate PF deductions
+ *   7. Calculate income tax (gender-aware slabs)
+ *   8. Aggregate net salary
+ *   9. Post PF contributions to ledger (if enabled)
  */
 
 import prisma from "@/lib/prisma";
+import { getFestivalBonusForPayroll } from "@/lib/festival-bonus-engine";
+import { calculateLateDeduction, type LateDeductionResult } from "@/lib/late-deduction-engine";
+import { recordMonthlyContributions } from "@/lib/pf-ledger-engine";
 
 // ============================================
 // Bangladesh Income Tax Slabs (FY 2024-25)
@@ -28,7 +41,7 @@ const TAX_SLABS = [
     { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
 ];
 
-// ✅ Women get 50,000 higher tax-free threshold
+// Women get 50,000 higher tax-free threshold
 const TAX_SLABS_WOMEN = [
     { upTo: 400000, rate: 0 },       // First 4,00,000 — Nil (50k more)
     { upTo: 500000, rate: 0.05 },    // Next 1,00,000 — 5%
@@ -45,7 +58,6 @@ const MINIMUM_TAX = 5000; // Minimum tax for Dhaka/Chittagong city corporation
 // ============================================
 
 export function calculateAnnualTax(annualIncome: number, isWoman: boolean = false): number {
-    // ✅ FIXED: Use properly cascaded women's slabs instead of splicing
     const slabs = isWoman ? TAX_SLABS_WOMEN : TAX_SLABS;
     const taxFreeThreshold = slabs[0].upTo;
 
@@ -62,7 +74,6 @@ export function calculateAnnualTax(annualIncome: number, isWoman: boolean = fals
         previousUpTo = slab.upTo;
     }
 
-    // ✅ Minimum tax uses gender-appropriate threshold
     if (annualIncome > taxFreeThreshold && totalTax < MINIMUM_TAX) {
         totalTax = MINIMUM_TAX;
     }
@@ -93,12 +104,10 @@ export function calculateOvertime(overtimeMinutes: number, monthlyBasicSalary: n
 // ============================================
 
 /**
- * ✅ FIXED: Gratuity per Section 27, Bangladesh Labor Act 2006:
+ * Gratuity per Section 27, Bangladesh Labor Act 2006:
  * "30 days' wages for each completed year of service"
- * 
- * Previous (WRONG): lastBasicSalary × yearsOfService
- * Corrected: (lastBasicSalary / 26) × 30 × yearsOfService
- * 
+ *
+ * Formula: (lastBasicSalary / 26) × 30 × yearsOfService
  * Eligible after 5 years of continuous service.
  */
 export function calculateGratuity(lastBasicSalary: number, yearsOfService: number): number {
@@ -108,7 +117,7 @@ export function calculateGratuity(lastBasicSalary: number, yearsOfService: numbe
 }
 
 // ============================================
-// Salary Calculation Engine
+// Salary Calculation Engine v2
 // ============================================
 
 interface SalaryBreakdown {
@@ -125,7 +134,8 @@ interface SalaryBreakdown {
     conveyance: number;
     specialAllowance: number;
     overtime: number;
-    bonus: number;
+    bonus: number;           // ad-hoc bonus
+    festivalBonus: number;   // ✅ NEW: Festival bonus (Eid, Puja, etc.)
     arrears: number;
     otherEarnings: number;
     grossSalary: number;
@@ -140,6 +150,9 @@ interface SalaryBreakdown {
     otherDeductions: number;
     totalDeductions: number;
 
+    // Late deduction detail (for audit trail)
+    lateDeductionDetail: LateDeductionResult;
+
     // Net
     netSalary: number;
 }
@@ -148,14 +161,24 @@ interface CalculateSalaryInput {
     employeeId: string;
     month: number; // 1-12
     year: number;
-    bonus?: number;
+    bonus?: number;          // ad-hoc bonus
     arrears?: number;
     otherEarnings?: number;
     otherDeductions?: number;
+    postPFContributions?: boolean; // If true, auto-post PF to ledger (default: true)
 }
 
 export async function calculateSalary(input: CalculateSalaryInput): Promise<SalaryBreakdown> {
-    const { employeeId, month, year, bonus = 0, arrears = 0, otherEarnings = 0, otherDeductions = 0 } = input;
+    const {
+        employeeId,
+        month,
+        year,
+        bonus = 0,
+        arrears = 0,
+        otherEarnings = 0,
+        otherDeductions = 0,
+        postPFContributions = true,
+    } = input;
 
     // Get employee's active salary structure assignment
     const assignment = await prisma.salaryStructureAssignment.findFirst({
@@ -173,6 +196,8 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
             employee: {
                 select: {
                     gender: true,
+                    organizationId: true,
+                    pfEnabled: true,
                 },
             },
         },
@@ -184,13 +209,16 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
 
     const structure = assignment.salaryStructure;
     const grossSalaryMonthly = assignment.grossSalary;
+    const organizationId = assignment.employee?.organizationId || "";
 
     // Calculate salary components based on structure percentages
     const basicSalary = Math.round(grossSalaryMonthly * (structure.basicPercentage / 100));
     const houseRent = Math.round(basicSalary * (structure.houseRentPercent / 100));
     const medicalAllowance = Math.round(basicSalary * (structure.medicalPercent / 100));
     const conveyance = structure.conveyanceFixed;
-    const specialAllowance = grossSalaryMonthly - basicSalary - houseRent - medicalAllowance - conveyance;
+    const specialAllowance = Math.max(0,
+        grossSalaryMonthly - basicSalary - houseRent - medicalAllowance - conveyance
+    );
 
     // Get attendance data for the month
     const startDate = new Date(year, month - 1, 1);
@@ -235,19 +263,32 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     const totalOvertimeMinutes = attendanceRecords.reduce((sum, a) => sum + a.overtimeMinutes, 0);
     const overtimeAmount = calculateOvertime(totalOvertimeMinutes, basicSalary);
 
-    // ✅ FIXED: Division-by-zero guard
+    // ✅ NEW: Fetch pending festival bonuses (auto-includes Eid/Puja bonuses)
+    const festivalBonus = await getFestivalBonusForPayroll(employeeId, month, year);
+
+    // Division-by-zero guard
     const perDaySalary = totalWorkingDays > 0 ? grossSalaryMonthly / totalWorkingDays : 0;
     const absentDeduction = Math.round(absentDays * perDaySalary);
 
-    // Late deduction: 3 lates = 1 day absent (common policy)
-    const lateCount = attendanceRecords.filter(a => a.lateMinutes > 0).length;
-    const lateDeduction = Math.round(Math.floor(lateCount / 3) * perDaySalary);
+    // ✅ NEW: Tiered late deduction calculation (replaces flat "3 lates = 1 day")
+    const lateDeductionResult = await calculateLateDeduction(
+        organizationId,
+        employeeId,
+        month,
+        year,
+        perDaySalary
+    );
+    const lateDeduction = lateDeductionResult.deductionAmount;
 
     // PF deduction
-    const pfEmployee = Math.round(basicSalary * (structure.pfEmployeePercent / 100));
-    const pfEmployer = Math.round(basicSalary * (structure.pfEmployerPercent / 100));
+    const pfEmployee = assignment.employee?.pfEnabled
+        ? Math.round(basicSalary * (structure.pfEmployeePercent / 100))
+        : 0;
+    const pfEmployer = assignment.employee?.pfEnabled
+        ? Math.round(basicSalary * (structure.pfEmployerPercent / 100))
+        : 0;
 
-    // ✅ FIXED: Gender-aware tax - detect from Employee record
+    // Gender-aware tax
     const annualGross = grossSalaryMonthly * 12;
     const annualPF = pfEmployee * 12;
     const taxableIncome = annualGross - annualPF;
@@ -266,12 +307,28 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
 
     // Calculate totals
     const grossEarnings = basicSalary + houseRent + medicalAllowance + conveyance +
-        specialAllowance + overtimeAmount + bonus + arrears + otherEarnings;
+        specialAllowance + overtimeAmount + bonus + festivalBonus + arrears + otherEarnings;
 
     const totalDeductions = pfEmployee + incomeTax + loanDeduction + absentDeduction +
         lateDeduction + otherDeductions;
 
     const netSalary = grossEarnings - totalDeductions;
+
+    // ✅ NEW: Auto-post PF contributions to the PF Ledger
+    if (postPFContributions && pfEmployee > 0 && assignment.employee?.pfEnabled) {
+        try {
+            await recordMonthlyContributions({
+                employeeId,
+                month,
+                year,
+                employeeAmount: pfEmployee,
+                employerAmount: pfEmployer,
+            });
+        } catch (pfError) {
+            // PF posting failure should NOT block salary calculation
+            console.error(`[PAYROLL] Failed to post PF contribution for ${employeeId}:`, pfError);
+        }
+    }
 
     return {
         totalWorkingDays,
@@ -282,9 +339,10 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         houseRent,
         medicalAllowance,
         conveyance,
-        specialAllowance: Math.max(0, specialAllowance),
+        specialAllowance,
         overtime: overtimeAmount,
         bonus,
+        festivalBonus,
         arrears,
         otherEarnings,
         grossSalary: grossEarnings,
@@ -296,6 +354,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         lateDeduction,
         otherDeductions,
         totalDeductions,
+        lateDeductionDetail: lateDeductionResult,
         netSalary,
     };
 }
@@ -314,7 +373,7 @@ interface BankFileEntry {
     amount: number;
 }
 
-// ✅ CSV injection protection — escape values that could be interpreted as formulas
+// CSV injection protection — escape values that could be interpreted as formulas
 function escapeCsvValue(value: string | number): string {
     const str = String(value);
     // Escape values starting with formula characters

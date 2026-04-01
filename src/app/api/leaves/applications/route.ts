@@ -11,6 +11,8 @@ import {
     getWeekendDays,
     fetchHolidays,
 } from "@/lib/leave-utils";
+import { validateMaternityLeave } from "@/lib/leave-compliance-engine";
+import { createApprovalRequest } from "@/lib/approval-engine";
 
 export async function GET(req: Request) {
     // Authenticate first
@@ -118,7 +120,11 @@ export async function POST(req: Request) {
         }
 
         const json = await req.json();
-        const { leaveTypeId, fromDate, toDate, halfDay, halfDayType, reason, documents } = json;
+        const {
+            leaveTypeId, fromDate, toDate, halfDay, halfDayType, reason, documents,
+            // ✅ NEW: Maternity leave fields
+            expectedDeliveryDate, maternityPhase,
+        } = json;
 
         const start = new Date(fromDate);
         const end = new Date(toDate);
@@ -175,6 +181,40 @@ export async function POST(req: Request) {
                 `You already have overlapping leave(s): ${conflictInfo}`,
                 { status: 409 }
             );
+        }
+
+        // ── ✅ NEW: Maternity Leave Validation (BLA 2006, Section 46-47) ──
+        const isMaternityLeave = leaveType.code === "ML" || leaveType.name.toLowerCase().includes("maternity");
+        let maternityData: Record<string, unknown> = {};
+
+        if (isMaternityLeave && expectedDeliveryDate) {
+            const maternityValidation = await validateMaternityLeave({
+                employeeId: user.employee.id,
+                fromDate: start,
+                toDate: end,
+                expectedDeliveryDate: new Date(expectedDeliveryDate),
+                maternityPhase: maternityPhase || "full",
+            });
+
+            if (!maternityValidation.isValid) {
+                return NextResponse.json(
+                    {
+                        error: "Maternity leave validation failed",
+                        violations: maternityValidation.errors,
+                        warnings: maternityValidation.warnings,
+                    },
+                    { status: 400 }
+                );
+            }
+
+            // Set maternity-specific fields
+            maternityData = {
+                isMaternityLeave: true,
+                maternityPhase: maternityPhase || "full",
+                expectedDeliveryDate: new Date(expectedDeliveryDate),
+                preDeliveryDays: maternityValidation.calculation?.preDeliveryDays || 0,
+                postDeliveryDays: maternityValidation.calculation?.postDeliveryDays || 0,
+            };
         }
 
         // ── Calculate working days (excluding weekends + holidays) ──
@@ -244,7 +284,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // ── Create Application ──
+        // ── Create Application (with maternity data if applicable) ──
         const application = await prisma.leaveApplication.create({
             data: {
                 employeeId: user.employee.id,
@@ -255,8 +295,9 @@ export async function POST(req: Request) {
                 halfDay,
                 halfDayType,
                 reason,
-                documents: documents ? JSON.stringify(documents) : null,
+                documents: documents || undefined,
                 status: "pending",
+                ...maternityData,
             },
             include: {
                 leaveType: true,
@@ -265,6 +306,21 @@ export async function POST(req: Request) {
                 },
             },
         });
+
+        // ── ✅ NEW: Create Stateful Approval Request ──
+        try {
+            await createApprovalRequest({
+                entityType: "leave",
+                entityId: application.id,
+                requestTitle: `${application.leaveType.name}: ${totalDays} day(s) (${format(start, "dd MMM")} - ${format(end, "dd MMM")})`,
+                requesterId: user.employee.id,
+                organizationId: auth.organizationId,
+                priority: isMaternityLeave ? "high" : "normal",
+            });
+        } catch (approvalError) {
+            // Log but don't block — approval request creation failure shouldn't prevent submission
+            console.error("APPROVAL_REQUEST_CREATION_ERROR", approvalError);
+        }
 
         // ── Notify admin/HR users about new leave request ──
         const notificationData = {
@@ -305,4 +361,3 @@ export async function POST(req: Request) {
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
-

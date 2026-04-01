@@ -1,44 +1,55 @@
 /**
- * Rate Limiter for API Routes
- * Protects against brute force attacks and API abuse
+ * Rate Limiter for API Routes — Redis-backed
+ *
+ * Enterprise SaaS rate limiting that works across
+ * multiple containers/instances using Redis INCR + EXPIRE.
+ *
+ * Falls back to in-memory when Redis is unavailable (fail-open).
  */
 
-interface RateLimitEntry {
-    count: number;
-    resetTime: number;
-}
+import { checkRedisRateLimit } from "@/lib/redis";
+
+// ============================================
+// Configurations
+// ============================================
 
 interface RateLimitConfig {
-    windowMs: number;      // Time window in milliseconds
-    maxRequests: number;   // Max requests per window
+    windowMs: number; // Time window in milliseconds
+    maxRequests: number; // Max requests per window
 }
-
-// In-memory store (for production, use Redis)
-const rateLimitStore = new Map<string, RateLimitEntry>();
 
 // Default configurations for different route types
 export const RATE_LIMIT_CONFIGS = {
     // Strict limit for auth routes (prevent brute force)
     auth: {
         windowMs: 15 * 60 * 1000, // 15 minutes
-        maxRequests: 10,          // 10 attempts
+        maxRequests: 10, // 10 attempts
     },
     // Standard limit for authenticated API routes
     api: {
-        windowMs: 60 * 1000,      // 1 minute
-        maxRequests: 100,         // 100 requests
+        windowMs: 60 * 1000, // 1 minute
+        maxRequests: 100, // 100 requests
     },
     // Loose limit for read operations
     read: {
-        windowMs: 60 * 1000,      // 1 minute
-        maxRequests: 300,         // 300 requests
+        windowMs: 60 * 1000, // 1 minute
+        maxRequests: 300, // 300 requests
     },
     // Very strict for sensitive operations
     sensitive: {
         windowMs: 60 * 60 * 1000, // 1 hour
-        maxRequests: 5,           // 5 requests
+        maxRequests: 5, // 5 requests
+    },
+    // External API rate limit (per API key)
+    external: {
+        windowMs: 60 * 1000, // 1 minute
+        maxRequests: 1000, // 1000 requests
     },
 } as const;
+
+// ============================================
+// IP Extraction
+// ============================================
 
 /**
  * Get client IP from request
@@ -55,54 +66,9 @@ export function getClientIP(request: Request): string {
     return "127.0.0.1";
 }
 
-/**
- * Check rate limit for a given key
- * Returns true if request is allowed, false if rate limited
- */
-export function checkRateLimit(
-    key: string,
-    config: RateLimitConfig = RATE_LIMIT_CONFIGS.api
-): { allowed: boolean; remaining: number; resetIn: number } {
-    const now = Date.now();
-    const entry = rateLimitStore.get(key);
-
-    // Clean up expired entries periodically
-    if (Math.random() < 0.01) {
-        cleanupExpiredEntries();
-    }
-
-    if (!entry || now > entry.resetTime) {
-        // First request or window expired
-        rateLimitStore.set(key, {
-            count: 1,
-            resetTime: now + config.windowMs,
-        });
-        return {
-            allowed: true,
-            remaining: config.maxRequests - 1,
-            resetIn: config.windowMs,
-        };
-    }
-
-    if (entry.count >= config.maxRequests) {
-        // Rate limit exceeded
-        return {
-            allowed: false,
-            remaining: 0,
-            resetIn: entry.resetTime - now,
-        };
-    }
-
-    // Increment counter
-    entry.count++;
-    rateLimitStore.set(key, entry);
-
-    return {
-        allowed: true,
-        remaining: config.maxRequests - entry.count,
-        resetIn: entry.resetTime - now,
-    };
-}
+// ============================================
+// Core Rate Limit Check
+// ============================================
 
 /**
  * Create rate limit key from IP and optional route
@@ -112,25 +78,55 @@ export function createRateLimitKey(ip: string, route?: string): string {
 }
 
 /**
- * Middleware-style rate limiter
+ * Check rate limit for a given key — Redis-backed
+ * Returns true if request is allowed, false if rate limited
  */
-export function rateLimit(
+export async function checkRateLimit(
+    key: string,
+    config: RateLimitConfig = RATE_LIMIT_CONFIGS.api
+): Promise<{ allowed: boolean; remaining: number; resetIn: number }> {
+    const windowSeconds = Math.ceil(config.windowMs / 1000);
+
+    const result = await checkRedisRateLimit(
+        key,
+        config.maxRequests,
+        windowSeconds
+    );
+
+    return {
+        allowed: result.allowed,
+        remaining: result.remaining,
+        resetIn: result.allowed ? windowSeconds : result.retryAfter,
+    };
+}
+
+// ============================================
+// Middleware-style Rate Limiter
+// ============================================
+
+/**
+ * Middleware-style rate limiter
+ * Usage in API routes:
+ *   const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.auth, "auth/login");
+ *   if (!rl.allowed) return rl.response;
+ */
+export async function rateLimit(
     request: Request,
     config: RateLimitConfig = RATE_LIMIT_CONFIGS.api,
     route?: string
-): {
+): Promise<{
     allowed: boolean;
     headers: Record<string, string>;
     response?: Response;
-} {
+}> {
     const ip = getClientIP(request);
     const key = createRateLimitKey(ip, route);
-    const result = checkRateLimit(key, config);
+    const result = await checkRateLimit(key, config);
 
     const headers: Record<string, string> = {
         "X-RateLimit-Limit": config.maxRequests.toString(),
         "X-RateLimit-Remaining": result.remaining.toString(),
-        "X-RateLimit-Reset": Math.ceil(result.resetIn / 1000).toString(),
+        "X-RateLimit-Reset": result.resetIn.toString(),
     };
 
     if (!result.allowed) {
@@ -140,14 +136,15 @@ export function rateLimit(
             response: new Response(
                 JSON.stringify({
                     error: "Too many requests",
-                    message: "Rate limit exceeded. Please try again later.",
-                    retryAfter: Math.ceil(result.resetIn / 1000),
+                    message:
+                        "Rate limit exceeded. Please try again later.",
+                    retryAfter: result.resetIn,
                 }),
                 {
                     status: 429,
                     headers: {
                         "Content-Type": "application/json",
-                        "Retry-After": Math.ceil(result.resetIn / 1000).toString(),
+                        "Retry-After": result.resetIn.toString(),
                         ...headers,
                     },
                 }
@@ -156,33 +153,4 @@ export function rateLimit(
     }
 
     return { allowed: true, headers };
-}
-
-/**
- * Clean up expired rate limit entries
- */
-function cleanupExpiredEntries(): void {
-    const now = Date.now();
-    for (const [key, entry] of rateLimitStore.entries()) {
-        if (now > entry.resetTime) {
-            rateLimitStore.delete(key);
-        }
-    }
-}
-
-/**
- * Reset rate limit for a specific key (for testing)
- */
-export function resetRateLimit(key: string): void {
-    rateLimitStore.delete(key);
-}
-
-/**
- * Get current rate limit status (for monitoring)
- */
-export function getRateLimitStatus(): { totalEntries: number; keys: string[] } {
-    return {
-        totalEntries: rateLimitStore.size,
-        keys: Array.from(rateLimitStore.keys()),
-    };
 }
