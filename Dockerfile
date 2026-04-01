@@ -67,6 +67,7 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 
 # ── Copy Prisma schema + generated client ──
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # ── Copy i18n translation files ──
