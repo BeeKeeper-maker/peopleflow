@@ -79,7 +79,9 @@ set -e\n\
 echo "=== PeopleFlow HRMS Starting ==="\n\
 echo "-> Running database migrations..."\n\
 if npx prisma migrate deploy 2>&1; then\n\
-    echo "OK: Database migrations applied"\n\
+    echo "OK: Migrations applied"\n\
+elif npx prisma db push --accept-data-loss 2>&1; then\n\
+    echo "OK: Schema pushed (fallback)"\n\
 else\n\
     echo "WARN: Migration failed - server starting without migration"\n\
 fi\n\
