@@ -38,7 +38,10 @@ import {
     Zap,
     History,
     Users,
+    Link2,
 } from "lucide-react";
+import { BiometricMappingHub } from "@/components/biometric/mapping-hub";
+import { SyncAgentSetup } from "@/components/biometric/sync-agent-setup";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -106,6 +109,8 @@ export default function DevicesPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [expandedLogs, setExpandedLogs] = useState<SyncLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
+    const [mappingDevice, setMappingDevice] = useState<BiometricDevice | null>(null);
+    const [syncAgentOpen, setSyncAgentOpen] = useState(false);
 
     const [form, setForm] = useState<DeviceFormData>({
         name: "",
@@ -369,10 +374,20 @@ export default function DevicesPage() {
                     </h1>
                     <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
                 </div>
-                <Button onClick={handleOpenAdd} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    {t("addDevice")}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => setSyncAgentOpen(true)}
+                        className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    >
+                        <Zap className="h-4 w-4" />
+                        {t("syncAgentBtn")}
+                    </Button>
+                    <Button onClick={handleOpenAdd} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        {t("addDevice")}
+                    </Button>
+                </div>
             </div>
 
             {/* Summary Cards */}
@@ -528,6 +543,15 @@ export default function DevicesPage() {
                                                 <RefreshCw className="h-3.5 w-3.5" />
                                             )}
                                             {t("sync")}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setMappingDevice(device)}
+                                            className="gap-1"
+                                        >
+                                            <Link2 className="h-3.5 w-3.5" />
+                                            {t("viewDeviceUsers")}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -751,6 +775,24 @@ export default function DevicesPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Biometric Mapping Hub */}
+            {mappingDevice && (
+                <BiometricMappingHub
+                    open={!!mappingDevice}
+                    onOpenChange={(open) => !open && setMappingDevice(null)}
+                    deviceId={mappingDevice.id}
+                    deviceName={mappingDevice.name}
+                    deviceModel={mappingDevice.model}
+                />
+            )}
+
+            {/* Sync Agent Setup */}
+            <SyncAgentSetup
+                open={syncAgentOpen}
+                onOpenChange={setSyncAgentOpen}
+                cloudUrl={typeof window !== "undefined" ? window.location.origin : "https://drdf.ailearnersbd.com"}
+            />
         </div>
     );
 }

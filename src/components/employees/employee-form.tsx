@@ -24,7 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
-import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import Image from "next/image"
 
@@ -53,6 +53,7 @@ const formSchema = z.object({
     employmentStatus: z.string().default("active"),
     reportingManagerId: z.string().optional(),
     shiftId: z.string().optional(),
+    biometricUserId: z.string().optional(),
     pfEnabled: z.boolean().default(true),
 
     // Financial
@@ -154,6 +155,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
             employmentStatus: initialData?.employmentStatus || "active",
             reportingManagerId: initialData?.reportingManagerId || "",
             shiftId: initialData?.shiftId || "",
+            biometricUserId: initialData?.biometricUserId || "",
             pfEnabled: initialData?.pfEnabled ?? true,
             grossSalary: currentSalary?.grossSalary || initialData?.grossSalary || 0,
             salaryStructureId: currentSalary?.salaryStructureId || "",
@@ -662,6 +664,21 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                             searchPlaceholder="Search shift..."
                                             disabled={isLoading}
                                         />
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+
+                                {/* Biometric Device ID */}
+                                <FormField control={form.control} name="biometricUserId" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-foreground text-sm font-medium flex items-center gap-1.5">
+                                            <Fingerprint className="h-3.5 w-3.5 text-violet-400" />
+                                            {t("biometricId")}
+                                        </FormLabel>
+                                        <FormControl>
+                                            <Input {...field} disabled={isLoading} placeholder="e.g., 1, 2, 101" className={inputCls} />
+                                        </FormControl>
+                                        <p className="text-[11px] text-muted-foreground/70 mt-1">{t("biometricIdHint")}</p>
                                         <FormMessage />
                                     </FormItem>
                                 )} />

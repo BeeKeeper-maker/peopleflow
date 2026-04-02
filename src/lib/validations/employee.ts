@@ -33,6 +33,7 @@ export const employeeSchema = z.object({
     employmentStatus: z.enum(["active", "resigned", "terminated", "retired"]).default("active"),
     reportingManagerId: z.string().optional(),
     shiftId: z.string().optional(),
+    biometricUserId: z.string().optional(), // Maps to biometric device user ID
     pfEnabled: z.boolean().default(true),
 
     // Financial Information

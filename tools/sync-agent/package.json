@@ -1,0 +1,22 @@
+{
+  "name": "peopleflow-sync",
+  "version": "1.0.0",
+  "description": "PeopleFlow Sync Agent — Bridge local ZKTeco biometric devices to PeopleFlow HRMS Cloud",
+  "main": "peopleflow-sync.js",
+  "bin": {
+    "peopleflow-sync": "./peopleflow-sync.js"
+  },
+  "keywords": [
+    "peopleflow",
+    "biometric",
+    "zkteco",
+    "attendance",
+    "sync",
+    "hrms"
+  ],
+  "author": "PeopleFlow",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
