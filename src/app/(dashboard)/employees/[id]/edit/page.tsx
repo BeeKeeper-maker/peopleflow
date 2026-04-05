@@ -1,18 +1,29 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import Link from "next/link"
 import { EmployeeForm } from "@/components/employees/employee-form"
-import { EmployeeFormInput } from "@/lib/validations/employee"
 
+/**
+ * Edit Employee Page — CRIT-11 FIX
+ * 
+ * Previously, this page cherry-picked ~12 fields from the API response,
+ * silently dropping ~15 fields (bengaliName, passportNumber, bloodGroup,
+ * addresses, emergency contact, biometricUserId, etc.). Every edit
+ * would overwrite those fields with empty values.
+ * 
+ * Now we pass the FULL API response as initialData to the EmployeeForm,
+ * which handles all field mapping in its defaultValues. Zero data loss.
+ */
 export default function EditEmployeePage() {
     const params = useParams()
     const { addToast } = useToast()
-    const [initialData, setInitialData] = useState<EmployeeFormInput | undefined>(undefined)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [initialData, setInitialData] = useState<any>(undefined)
     const [isFetching, setIsFetching] = useState(true)
 
     useEffect(() => {
@@ -22,31 +33,8 @@ export default function EditEmployeePage() {
                 if (!response.ok) throw new Error("Failed to fetch employee")
                 const data = await response.json()
 
-                // Transform API data to form values
-                setInitialData({
-                    firstName: data.firstName,
-                    lastName: data.lastName,
-                    email: data.email,
-                    phone: data.phone || undefined,
-                    dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth).toISOString().split('T')[0] : undefined,
-                    gender: data.gender || undefined,
-                    maritalStatus: data.maritalStatus || undefined,
-                    nationality: data.nationality || "Bangladeshi",
-                    nidNumber: data.nidNumber || undefined,
-
-                    employeeCode: data.employeeCode,
-                    departmentId: data.departmentId,
-                    designationId: data.designationId,
-                    joiningDate: new Date(data.joiningDate).toISOString().split('T')[0],
-                    employmentType: data.employmentType,
-                    employmentStatus: data.employmentStatus,
-                    pfEnabled: data.pfEnabled ?? true,
-
-                    grossSalary: data.salaryAssignments?.[0]?.grossSalary || 0,
-                    bankName: data.bankName || undefined,
-                    bankAccount: data.accountNumber || undefined,
-                    photoUrl: data.photoUrl || undefined,
-                })
+                // Pass the COMPLETE API response — EmployeeForm handles all mapping
+                setInitialData(data)
             } catch (error) {
                 console.error(error)
                 addToast({

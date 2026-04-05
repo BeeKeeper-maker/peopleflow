@@ -70,7 +70,7 @@ export default function EmployeeProfilePage() {
             <ProfileHeader employee={employee} />
 
             <div className="px-6">
-                <ProfileStats joiningDate={employee.joiningDate} />
+                <ProfileStats employee={employee} />
                 <ProfileTabs employee={employee} />
             </div>
         </div>

@@ -4,7 +4,7 @@ import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Search } from "lucide-react"
+import { Check, ChevronsUpDown, Search, X } from "lucide-react"
 
 export interface ComboboxOption {
     value: string
@@ -21,6 +21,8 @@ interface SearchableSelectProps {
     emptyText?: string
     disabled?: boolean
     className?: string
+    /** When true, shows a clear button to deselect (for optional fields) */
+    clearable?: boolean
 }
 
 export function SearchableSelect({
@@ -32,6 +34,7 @@ export function SearchableSelect({
     emptyText = "No results found.",
     disabled = false,
     className,
+    clearable = false,
 }: SearchableSelectProps) {
     const [open, setOpen] = React.useState(false)
     const [search, setSearch] = React.useState("")
@@ -55,7 +58,29 @@ export function SearchableSelect({
                     <span className="truncate">
                         {selectedOption ? selectedOption.label : placeholder}
                     </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
+                        {/* Clear button for optional fields */}
+                        {clearable && selectedOption && !disabled && (
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onValueChange("")
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.stopPropagation()
+                                        onValueChange("")
+                                    }
+                                }}
+                                className="flex items-center justify-center h-5 w-5 rounded-md hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                            >
+                                <X className="h-3 w-3" />
+                            </span>
+                        )}
+                        <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                    </div>
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0 border-card-border bg-dropdown" align="start">

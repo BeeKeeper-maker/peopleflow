@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { processApprovalStep } from "@/lib/approval-engine";
+import { emit } from "@/lib/event-bus";
 
 // PUT /api/loans/[id] — Update loan status (routes through stateful approval engine)
 export async function PUT(
@@ -61,10 +62,29 @@ export async function PUT(
                     where: { id },
                     include: {
                         employee: {
-                            select: { id: true, firstName: true, lastName: true, employeeCode: true },
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                employeeCode: true,
+                                user: { select: { id: true } },
+                            },
                         },
                     },
                 });
+
+                // 🔔 Emit notification for loan approval/rejection
+                if (updatedLoan?.employee?.user?.id) {
+                    const empName = `${updatedLoan.employee.firstName} ${updatedLoan.employee.lastName}`;
+                    const eventName = json.status === "approved" ? "loan.approved" : "loan.rejected";
+                    emit(eventName, {
+                        userId: updatedLoan.employee.user.id,
+                        employeeName: empName,
+                        amount: Number(updatedLoan.amount),
+                        loanType: (updatedLoan as any).loanType || "Loan",
+                        ...(json.status === "rejected" ? { reason: json.notes || json.reason } : {}),
+                    } as any).catch((err: unknown) => console.error("[EVENT_FAIL] loan:", err));
+                }
 
                 return NextResponse.json({
                     ...updatedLoan,

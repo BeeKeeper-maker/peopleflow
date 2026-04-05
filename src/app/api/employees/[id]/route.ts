@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { employeeSchema } from "@/lib/validations/employee";
+import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from "@/lib/validations/employee";
+import { z } from "zod";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/employees/:id
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function GET(
     req: Request,
@@ -33,12 +38,15 @@ export async function GET(
             include: {
                 department: true,
                 designation: true,
+                shift: true,
+                branch: true,
                 reportingManager: {
                     select: {
                         id: true,
                         firstName: true,
                         lastName: true,
                         email: true,
+                        employeeCode: true,
                     }
                 },
                 salaryAssignments: {
@@ -64,22 +72,36 @@ export async function GET(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/employees/:id — Update Employee (CRIT-09, CRIT-10, CRIT-11 fixed)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Require HR admin role for editing employees
         const auth = await requireAdminOrHR();
-        if (!isAuthenticated(auth)) {
-            return auth;
-        }
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
         const json = await req.json();
-        const body = employeeSchema.parse(json);
 
-        // Check if employee exists
+        // Parse with shared schema — returns 422 with details, not 500 (CRIT-09)
+        let body;
+        try {
+            body = employeeSchema.parse(json);
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return NextResponse.json(
+                    { error: "Validation failed", details: error.issues },
+                    { status: 422 }
+                );
+            }
+            throw error;
+        }
+
+        // ── Verify employee exists ──────────────────────────────────────
         const existingEmployee = await prisma.employee.findUnique({
             where: { id, organizationId: auth.organizationId },
             include: {
@@ -91,42 +113,60 @@ export async function PUT(
         });
 
         if (!existingEmployee) {
-            return new NextResponse("Employee not found", { status: 404 });
+            return NextResponse.json({ error: "Employee not found" }, { status: 404 });
         }
 
-        // Destructure ALL non-Prisma fields out of body
-        const {
-            grossSalary,
-            bankAccount,
-            salaryStructureId,
-            emergencyContactName: _ecName,
-            emergencyContactPhone: _ecPhone,
-            emergencyContactRelation: _ecRel,
-            ...employeeData
-        } = body as Record<string, unknown>;
-
-        // Map bankAccount to accountNumber for Prisma (allow clearing with empty string)
-        if (bankAccount !== undefined) {
-            (employeeData as Record<string, unknown>).accountNumber = bankAccount || null;
+        // ── FK Existence Validation (CRIT-07, CRIT-08) ─────────────────
+        const department = await prisma.department.findUnique({ where: { id: body.departmentId } });
+        if (!department || department.organizationId !== auth.organizationId) {
+            return NextResponse.json({ error: "Invalid department selected" }, { status: 400 });
         }
+
+        const designation = await prisma.designation.findUnique({ where: { id: body.designationId } });
+        if (!designation || designation.organizationId !== auth.organizationId) {
+            return NextResponse.json({ error: "Invalid designation selected" }, { status: 400 });
+        }
+
+        if (body.shiftId) {
+            const shift = await prisma.shift.findUnique({ where: { id: body.shiftId } });
+            if (!shift || shift.organizationId !== auth.organizationId) {
+                return NextResponse.json({ error: "Invalid shift selected" }, { status: 400 });
+            }
+        }
+
+        if (body.reportingManagerId) {
+            if (body.reportingManagerId === id) {
+                return NextResponse.json({ error: "Employee cannot report to themselves" }, { status: 400 });
+            }
+            const manager = await prisma.employee.findUnique({ where: { id: body.reportingManagerId } });
+            if (!manager || manager.organizationId !== auth.organizationId) {
+                return NextResponse.json({ error: "Invalid reporting manager selected" }, { status: 400 });
+            }
+        }
+
+        // ── Type-safe Prisma data (CRIT-10) ─────────────────────────────
+        const prismaData = toPrismaEmployeeData(body);
+        const emergencyContact = buildEmergencyContactJson(body);
 
         const organizationId = auth.organizationId;
+        const { grossSalary, salaryStructureId } = body;
 
         const result = await prisma.$transaction(async (tx) => {
-            // Update Employee Record
             const updatedEmployee = await tx.employee.update({
                 where: { id },
-                data: employeeData as any,
+                data: {
+                    ...prismaData,
+                    emergencyContact,
+                },
             });
 
-            // Handle Salary Update
+            // ── Salary Update Logic ─────────────────────────────────────
             const currentSalary = existingEmployee.salaryAssignments[0];
 
             if (!currentSalary || currentSalary.grossSalary !== grossSalary ||
                 (salaryStructureId && currentSalary.salaryStructureId !== salaryStructureId)) {
 
-                // Determine which salary structure to use
-                const structureId = (salaryStructureId as string) || currentSalary?.salaryStructureId;
+                const structureId = salaryStructureId || currentSalary?.salaryStructureId;
 
                 if (currentSalary) {
                     const today = new Date();
@@ -136,35 +176,32 @@ export async function PUT(
                         await tx.salaryStructureAssignment.update({
                             where: { id: currentSalary.id },
                             data: {
-                                grossSalary: grossSalary as number,
-                                ...(salaryStructureId ? { salaryStructureId: salaryStructureId as string } : {}),
+                                grossSalary: grossSalary,
+                                ...(salaryStructureId ? { salaryStructureId } : {}),
                             }
                         });
                     } else {
-                        // Deactivate old assignment
                         await tx.salaryStructureAssignment.update({
                             where: { id: currentSalary.id },
                             data: { isActive: false }
                         });
 
-                        // Create new assignment with history
                         await tx.salaryStructureAssignment.create({
                             data: {
                                 employeeId: id,
                                 salaryStructureId: structureId || currentSalary.salaryStructureId,
-                                grossSalary: grossSalary as number,
+                                grossSalary: grossSalary,
                                 effectiveFrom: new Date(),
                             }
                         });
                     }
                 } else {
-                    // No previous assignment, create new
-                    let targetStructureId = salaryStructureId as string;
+                    let targetStructureId = salaryStructureId;
                     if (!targetStructureId) {
                         const defaultStructure = await tx.salaryStructure.findFirst({
                             where: { organizationId }
                         });
-                        targetStructureId = defaultStructure?.id || '';
+                        targetStructureId = defaultStructure?.id;
                     }
 
                     if (targetStructureId) {
@@ -172,7 +209,7 @@ export async function PUT(
                             data: {
                                 employeeId: id,
                                 salaryStructureId: targetStructureId,
-                                grossSalary: grossSalary as number,
+                                grossSalary: grossSalary,
                                 effectiveFrom: new Date(),
                             }
                         });
@@ -184,23 +221,26 @@ export async function PUT(
         });
 
         return NextResponse.json(result);
-
     } catch (error) {
         console.error("UPDATE_EMPLOYEE_ERROR", error);
-        return new NextResponse(error instanceof Error ? error.message : "Internal Error", { status: 500 });
+        return NextResponse.json(
+            { error: (error as Error).message || "Internal Error" },
+            { status: 500 }
+        );
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/employees/:id — Soft Delete
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        // Require HR admin role for deleting employees
         const auth = await requireAdminOrHR();
-        if (!isAuthenticated(auth)) {
-            return auth;
-        }
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
 
@@ -212,17 +252,24 @@ export async function DELETE(
             return new NextResponse("Employee not found", { status: 404 });
         }
 
-        // Soft delete
-        await prisma.employee.update({
-            where: { id },
-            data: {
-                deletedAt: new Date(),
-                employmentStatus: "terminated"
-            }
+        await prisma.$transaction(async (tx) => {
+            // Soft delete employee
+            await tx.employee.update({
+                where: { id },
+                data: {
+                    deletedAt: new Date(),
+                    employmentStatus: "terminated"
+                }
+            });
+
+            // Deactivate salary assignments (ARCH-08)
+            await tx.salaryStructureAssignment.updateMany({
+                where: { employeeId: id, isActive: true },
+                data: { isActive: false }
+            });
         });
 
         return new NextResponse(null, { status: 204 });
-
     } catch (error) {
         console.error("DELETE_EMPLOYEE_ERROR", error);
         return new NextResponse("Internal Error", { status: 500 });

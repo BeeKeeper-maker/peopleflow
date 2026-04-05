@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,55 +23,13 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
-import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint } from "lucide-react"
+import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint, Wand2, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import Image from "next/image"
+import { employeeSchema, EmployeeFormValues, DEFAULT_EMPLOYEE_VALUES } from "@/lib/validations/employee"
 
-const formSchema = z.object({
-    // Personal
-    firstName: z.string().min(2, "First name is required"),
-    lastName: z.string().min(2, "Last name is required"),
-    bengaliName: z.string().optional(),
-    email: z.string().email("Invalid email").optional().or(z.literal("")),
-    phone: z.string().optional(),
-    dateOfBirth: z.string().optional(),
-    gender: z.string().optional(),
-    bloodGroup: z.string().optional(),
-    maritalStatus: z.string().optional(),
-    nationality: z.string().optional(),
-    nidNumber: z.string().optional(),
-    passportNumber: z.string().optional(),
-    photoUrl: z.string().optional(),
-
-    // Employment
-    employeeCode: z.string().min(1, "Employee code is required"),
-    departmentId: z.string().min(1, "Department is required"),
-    designationId: z.string().min(1, "Designation is required"),
-    joiningDate: z.string().min(1, "Joining date is required"),
-    employmentType: z.string().default("permanent"),
-    employmentStatus: z.string().default("active"),
-    reportingManagerId: z.string().optional(),
-    shiftId: z.string().optional(),
-    biometricUserId: z.string().optional(),
-    pfEnabled: z.boolean().default(true),
-
-    // Financial
-    grossSalary: z.coerce.number().min(0, "Gross salary is required"),
-    salaryStructureId: z.string().optional(),
-    bankName: z.string().optional(),
-    bankAccount: z.string().optional(),
-    bankBranch: z.string().optional(),
-    routingNumber: z.string().optional(),
-    tinNumber: z.string().optional(),
-    pfNumber: z.string().optional(),
-
-    // Address & Emergency
-    presentAddress: z.string().optional(),
-    permanentAddress: z.string().optional(),
-    emergencyContactName: z.string().optional(),
-    emergencyContactPhone: z.string().optional(),
-    emergencyContactRelation: z.string().optional(),
-})
+// Draft persistence key
+const DRAFT_STORAGE_KEY = "peopleflow_employee_draft_v1"
 
 interface Department { id: string; name: string }
 interface Designation { id: string; name: string }
@@ -120,6 +77,8 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     const [managers, setManagers] = useState<ManagerOption[]>([])
     const [uploading, setUploading] = useState(false)
     const [photoPreview, setPhotoPreview] = useState<string | null>(initialData?.photoUrl || null)
+    const [hasDraft, setHasDraft] = useState(false)
+    const [generatingCode, setGeneratingCode] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const t = useTranslations("SharedComponents.employeeForm")
     const tc = useTranslations("SharedComponents.common")
@@ -131,48 +90,109 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
 
     const currentSalary = initialData?.salaryAssignments?.[0]
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const form = useForm<EmployeeFormValues>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        resolver: zodResolver(formSchema) as any,
+        resolver: zodResolver(employeeSchema) as any,
         defaultValues: {
-            firstName: initialData?.firstName || "",
-            lastName: initialData?.lastName || "",
-            bengaliName: initialData?.bengaliName || "",
-            email: initialData?.email || "",
-            phone: initialData?.phone || "",
-            dateOfBirth: initialData?.dateOfBirth ? new Date(initialData.dateOfBirth).toISOString().split("T")[0] : "",
-            gender: initialData?.gender || "",
-            bloodGroup: initialData?.bloodGroup || "",
-            maritalStatus: initialData?.maritalStatus || "",
-            nationality: initialData?.nationality || "",
-            nidNumber: initialData?.nidNumber || "",
-            passportNumber: initialData?.passportNumber || "",
-            employeeCode: initialData?.employeeCode || "",
-            departmentId: initialData?.departmentId || "",
-            designationId: initialData?.designationId || "",
-            joiningDate: initialData?.joiningDate ? new Date(initialData.joiningDate).toISOString().split("T")[0] : "",
-            employmentType: initialData?.employmentType || "permanent",
-            employmentStatus: initialData?.employmentStatus || "active",
-            reportingManagerId: initialData?.reportingManagerId || "",
-            shiftId: initialData?.shiftId || "",
-            biometricUserId: initialData?.biometricUserId || "",
-            pfEnabled: initialData?.pfEnabled ?? true,
-            grossSalary: currentSalary?.grossSalary || initialData?.grossSalary || 0,
-            salaryStructureId: currentSalary?.salaryStructureId || "",
-            bankName: initialData?.bankName || "",
-            bankAccount: initialData?.accountNumber || initialData?.bankAccount || "",
-            bankBranch: initialData?.bankBranch || "",
-            routingNumber: initialData?.routingNumber || "",
-            tinNumber: initialData?.tinNumber || "",
-            pfNumber: initialData?.pfNumber || "",
-            presentAddress: initialData?.presentAddress || "",
-            permanentAddress: initialData?.permanentAddress || "",
-            emergencyContactName: parsedEmergency.name || "",
-            emergencyContactPhone: parsedEmergency.phone || "",
-            emergencyContactRelation: parsedEmergency.relationship || "",
-            photoUrl: initialData?.photoUrl || "",
+            ...DEFAULT_EMPLOYEE_VALUES,
+            ...(initialData ? {
+                firstName: initialData.firstName || "",
+                lastName: initialData.lastName || "",
+                bengaliName: initialData.bengaliName || "",
+                email: initialData.email || "",
+                phone: initialData.phone || "",
+                dateOfBirth: initialData.dateOfBirth ? new Date(initialData.dateOfBirth).toISOString().split("T")[0] : "",
+                gender: initialData.gender || "",
+                bloodGroup: initialData.bloodGroup || "",
+                maritalStatus: initialData.maritalStatus || "",
+                nationality: initialData.nationality || "Bangladeshi",
+                nidNumber: initialData.nidNumber || "",
+                passportNumber: initialData.passportNumber || "",
+                photoUrl: initialData.photoUrl || "",
+                employeeCode: initialData.employeeCode || "",
+                departmentId: initialData.departmentId || "",
+                designationId: initialData.designationId || "",
+                joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split("T")[0] : "",
+                employmentType: initialData.employmentType || "permanent",
+                employmentStatus: initialData.employmentStatus || "active",
+                reportingManagerId: initialData.reportingManagerId || "",
+                shiftId: initialData.shiftId || "",
+                biometricUserId: initialData.biometricUserId || "",
+                pfEnabled: initialData.pfEnabled ?? true,
+                grossSalary: currentSalary?.grossSalary || initialData.grossSalary || 0,
+                salaryStructureId: currentSalary?.salaryStructureId || "",
+                bankName: initialData.bankName || "",
+                bankAccount: initialData.accountNumber || initialData.bankAccount || "",
+                bankBranch: initialData.bankBranch || "",
+                routingNumber: initialData.routingNumber || "",
+                tinNumber: initialData.tinNumber || "",
+                pfNumber: initialData.pfNumber || "",
+                presentAddress: initialData.presentAddress || "",
+                permanentAddress: initialData.permanentAddress || "",
+                emergencyContactName: parsedEmergency.name || "",
+                emergencyContactPhone: parsedEmergency.phone || "",
+                emergencyContactRelation: parsedEmergency.relationship || "",
+            } : {}),
         },
     })
+
+    // ── Draft Saving (UX-02) ──────────────────────────────────────────────
+    useEffect(() => {
+        if (initialData) return
+        try {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY)
+            if (saved) setHasDraft(true)
+        } catch { /* ignore */ }
+    }, [initialData])
+
+    const restoreDraft = useCallback(() => {
+        try {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY)
+            if (saved) {
+                const draft = JSON.parse(saved)
+                form.reset(draft)
+                setHasDraft(false)
+                addToast({ title: "Draft restored", description: "Your previous progress has been restored.", type: "success" })
+            }
+        } catch { /* ignore */ }
+    }, [form, addToast])
+
+    const dismissDraft = useCallback(() => {
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+        setHasDraft(false)
+    }, [])
+
+    // Auto-save draft on change (new employees only)
+    useEffect(() => {
+        if (initialData) return
+        const subscription = form.watch((values) => {
+            if (!values.firstName && !values.lastName) return
+            try { localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(values)) } catch { /* ignore */ }
+        })
+        return () => subscription.unsubscribe()
+    }, [form, initialData])
+
+    // ── Unsaved Changes Guard (UX-03) ────────────────────────────────────
+    useEffect(() => {
+        const handler = (e: BeforeUnloadEvent) => {
+            if (form.formState.isDirty) { e.preventDefault() }
+        }
+        window.addEventListener("beforeunload", handler)
+        return () => window.removeEventListener("beforeunload", handler)
+    }, [form.formState.isDirty])
+
+    // ── Auto-Generate Employee Code (UX-05) ──────────────────────────────
+    const generateCode = useCallback(async () => {
+        setGeneratingCode(true)
+        try {
+            const res = await fetch("/api/employees/next-code")
+            if (res.ok) {
+                const data = await res.json()
+                form.setValue("employeeCode", data.code, { shouldDirty: true })
+            }
+        } catch { /* ignore */ }
+        finally { setGeneratingCode(false) }
+    }, [form])
 
     useEffect(() => {
         fetch("/api/departments?all=true")
@@ -267,37 +287,34 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
         }
     }, [currentStep, goToStep])
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
+    async function onSubmit(values: EmployeeFormValues) {
         try {
             setIsLoading(true)
             const url = initialData ? `/api/employees/${initialData.id}` : "/api/employees"
             const method = initialData ? "PUT" : "POST"
 
-            const emergencyContact = values.emergencyContactName
-                ? JSON.stringify({
-                    name: values.emergencyContactName,
-                    phone: values.emergencyContactPhone,
-                    relationship: values.emergencyContactRelation,
-                })
-                : undefined
-
-            const {
-                emergencyContactName: _ecName,
-                emergencyContactPhone: _ecPhone,
-                emergencyContactRelation: _ecRel,
-                ...rest
-            } = values
-
+            // Send raw values — server schema handles sanitization & transforms
             const response = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...rest, emergencyContact }),
+                body: JSON.stringify(values),
             })
 
             if (!response.ok) {
-                const error = await response.text()
-                throw new Error(error || tc("somethingWentWrong"))
+                // Parse structured error from hardened API
+                let errorMsg = tc("somethingWentWrong")
+                try {
+                    const errData = await response.json()
+                    errorMsg = errData.error || errData.message || errorMsg
+                } catch {
+                    const text = await response.text()
+                    if (text) errorMsg = text
+                }
+                throw new Error(errorMsg)
             }
+
+            // Clear draft on success
+            localStorage.removeItem(DRAFT_STORAGE_KEY)
 
             addToast({
                 title: tc("success"),
@@ -324,6 +341,23 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+                {/* Draft Restoration Banner (UX-02) */}
+                {hasDraft && !initialData && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center justify-between animate-fade-in">
+                        <div className="flex items-center gap-3">
+                            <RotateCcw className="h-5 w-5 text-amber-400" />
+                            <div>
+                                <p className="text-sm font-medium text-foreground">Unsaved draft found</p>
+                                <p className="text-xs text-muted-foreground">You have a previous employee form in progress.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="ghost" size="sm" onClick={dismissDraft} className="text-muted-foreground hover:text-foreground">Discard</Button>
+                            <Button type="button" variant="outline" size="sm" onClick={restoreDraft} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/20">Restore Draft</Button>
+                        </div>
+                    </div>
+                )}
 
                 {/* ═══════════════════════════════════════════════════════════
                     STEP INDICATOR — Horizontal Stepper
@@ -555,7 +589,15 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                 <FormField control={form.control} name="employeeCode" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-foreground text-sm font-medium">{t("employeeCode")} <span className="text-red-400">*</span></FormLabel>
-                                        <FormControl><Input {...field} disabled={isLoading} placeholder="EMP-001" className={inputCls} /></FormControl>
+                                        <div className="flex gap-2">
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="EMP-001" className={`${inputCls} flex-1`} /></FormControl>
+                                            {!initialData && (
+                                                <Button type="button" variant="outline" size="icon" onClick={generateCode} disabled={generatingCode || isLoading}
+                                                    className="border-card-border bg-transparent hover:bg-hover shrink-0 h-10 w-10" title="Auto-generate code">
+                                                    {generatingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4 text-violet-400" />}
+                                                </Button>
+                                            )}
+                                        </div>
                                         <FormMessage />
                                     </FormItem>
                                 )} />
@@ -647,6 +689,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                             placeholder={t("selectManager")}
                                             searchPlaceholder="Search manager..."
                                             disabled={isLoading}
+                                            clearable
                                         />
                                         <FormMessage />
                                     </FormItem>
@@ -663,6 +706,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                             placeholder={t("selectShift")}
                                             searchPlaceholder="Search shift..."
                                             disabled={isLoading}
+                                            clearable
                                         />
                                         <FormMessage />
                                     </FormItem>
@@ -742,6 +786,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                             placeholder={t("selectStructure")}
                                             searchPlaceholder="Search structure..."
                                             disabled={isLoading}
+                                            clearable
                                         />
                                         <FormMessage />
                                     </FormItem>

@@ -134,7 +134,7 @@ export default function EmployeesPage() {
         setIsLoading(true)
         setError(null)
         try {
-            const response = await fetch("/api/employees")
+            const response = await fetch("/api/employees?limit=5000")
             if (response.ok) {
                 const result = await response.json()
                 setData(result.data || result || [])

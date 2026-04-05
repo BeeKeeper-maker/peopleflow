@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { emit } from "@/lib/event-bus";
 
 /**
  * PUT — Approve or reject a regularization request.
@@ -43,7 +44,14 @@ export async function PUT(
                 employee: { organizationId: ctx.organizationId },
             },
             include: {
-                employee: { select: { id: true, firstName: true, lastName: true } },
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        user: { select: { id: true } },
+                    },
+                },
             },
         });
 
@@ -118,6 +126,15 @@ export async function PUT(
                 data: updateData,
             });
 
+            // 🔔 Emit notification for approved regularization
+            if (attendance.employee.user?.id) {
+                emit("attendance.regularization.approved", {
+                    userId: attendance.employee.user.id,
+                    employeeName: `${attendance.employee.firstName} ${attendance.employee.lastName}`,
+                    date: attendance.date.toISOString().split("T")[0],
+                }).catch((err) => console.error("[EVENT_FAIL] regularization.approved:", err));
+            }
+
             // Log the action in audit
             try {
                 await prisma.auditLog.create({
@@ -155,6 +172,15 @@ export async function PUT(
                     notes: `[REGULARIZATION] ${JSON.stringify(regData)}`,
                 },
             });
+
+            // 🔔 Emit notification for rejected regularization
+            if (attendance.employee.user?.id) {
+                emit("attendance.regularization.rejected", {
+                    userId: attendance.employee.user.id,
+                    employeeName: `${attendance.employee.firstName} ${attendance.employee.lastName}`,
+                    date: attendance.date.toISOString().split("T")[0],
+                }).catch((err) => console.error("[EVENT_FAIL] regularization.rejected:", err));
+            }
 
             // Log the action in audit
             try {

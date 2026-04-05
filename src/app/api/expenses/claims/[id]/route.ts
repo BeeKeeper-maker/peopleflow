@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
 import { processApprovalStep } from "@/lib/approval-engine";
+import { emit } from "@/lib/event-bus";
 
 type RouteParams = {
     params: Promise<{ id: string }>;
@@ -147,9 +148,29 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                         where: { id },
                         include: {
                             category: true,
-                            employee: { select: { firstName: true, lastName: true } },
+                            employee: {
+                                select: {
+                                    firstName: true,
+                                    lastName: true,
+                                    user: { select: { id: true, email: true } },
+                                },
+                            },
                         },
                     });
+
+                    // 🔔 Emit notification for the approved/rejected expense
+                    if (updatedClaim?.employee?.user?.id) {
+                        const empName = `${updatedClaim.employee.firstName} ${updatedClaim.employee.lastName}`;
+                        const eventName = approvalData.action === "approve" ? "expense.approved" : "expense.rejected";
+                        emit(eventName, {
+                            userId: updatedClaim.employee.user.id,
+                            employeeName: empName,
+                            employeeEmail: updatedClaim.employee.user.email || undefined,
+                            title: updatedClaim.title || "Expense Claim",
+                            amount: Number(updatedClaim.amount),
+                            ...(approvalData.action === "reject" ? { reason: approvalData.notes } : {}),
+                        } as any).catch((err: unknown) => console.error("[EVENT_FAIL] expense:", err));
+                    }
 
                     return NextResponse.json({
                         ...updatedClaim,
@@ -199,10 +220,43 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 include: {
                     category: true,
                     employee: {
-                        select: { firstName: true, lastName: true },
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            user: { select: { id: true, email: true } },
+                        },
                     },
                 },
             });
+
+            // 🔔 Emit notification for fallback status changes
+            if (updated.employee?.user?.id) {
+                const empName = `${updated.employee.firstName} ${updated.employee.lastName}`;
+                if (approvalData.action === "approve") {
+                    emit("expense.approved", {
+                        userId: updated.employee.user.id,
+                        employeeName: empName,
+                        employeeEmail: updated.employee.user.email || undefined,
+                        title: updated.title || "Expense Claim",
+                        amount: Number(updated.amount),
+                    }).catch((err) => console.error("[EVENT_FAIL] expense.approved:", err));
+                } else if (approvalData.action === "reject") {
+                    emit("expense.rejected", {
+                        userId: updated.employee.user.id,
+                        employeeName: empName,
+                        title: updated.title || "Expense Claim",
+                        amount: Number(updated.amount),
+                        reason: approvalData.notes,
+                    }).catch((err) => console.error("[EVENT_FAIL] expense.rejected:", err));
+                } else if (approvalData.action === "reimburse") {
+                    emit("expense.reimbursed", {
+                        userId: updated.employee.user.id,
+                        employeeName: empName,
+                        title: updated.title || "Expense Claim",
+                        amount: Number(updated.amount),
+                    }).catch((err) => console.error("[EVENT_FAIL] expense.reimbursed:", err));
+                }
+            }
 
             return NextResponse.json(updated);
         }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { calculateSalary } from "@/lib/payroll-engine";
+import { emit } from "@/lib/event-bus";
 import * as z from "zod";
 
 const processPayrollSchema = z.object({
@@ -98,6 +99,7 @@ export async function POST(req: Request) {
                 id: true,
                 firstName: true,
                 lastName: true,
+                user: { select: { id: true, email: true } },
             },
         });
 
@@ -228,6 +230,31 @@ export async function POST(req: Request) {
                     error: calcError instanceof Error ? calcError.message : "Calculation failed",
                 });
             }
+        }
+
+        // ── 🔔 Emit payroll.processed event → triggers notifications + emails ──
+        if (created.length > 0) {
+            // Build employee results with user data for notifications
+            const employeeUserMap = new Map(
+                employees.map((e) => [e.id, { userId: e.user?.id, email: e.user?.email }])
+            );
+
+            emit("payroll.processed", {
+                organizationId: auth.organizationId,
+                month,
+                year,
+                processedCount: created.length,
+                employeeResults: created.map((c) => {
+                    const userData = employeeUserMap.get(c.employeeId);
+                    return {
+                        employeeId: c.employeeId,
+                        userId: userData?.userId,
+                        name: c.name,
+                        email: userData?.email || undefined,
+                        netSalary: c.netSalary,
+                    };
+                }),
+            }).catch((err) => console.error("[EVENT_FAIL] payroll.processed:", err));
         }
 
         return NextResponse.json({

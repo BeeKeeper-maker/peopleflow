@@ -1,167 +1,182 @@
 "use client"
 
-import { useTranslations } from "next-intl"
+import { useEffect, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoCard, InfoItem } from "./info-card"
-import { User, Briefcase, CreditCard, FileText, CalendarRange, Clock } from "lucide-react" // Icons
+import { AttendanceTab } from "./profile-attendance-tab"
+import { LeaveTab } from "./profile-leave-tab"
+import { PayrollTab } from "./profile-payroll-tab"
+import { DocumentsTab } from "./profile-documents-tab"
+import { User, Briefcase, CreditCard, FileText, CalendarRange, Clock, MapPin, Heart, Globe, Shield } from "lucide-react"
 import { format } from "date-fns"
 
-interface EmployeeData {
-    id: string
-    firstName: string
-    lastName: string
-    email: string
-    phone: string | null
-    dateOfBirth: string | null // ISO string from API
-    gender: string | null
-    maritalStatus: string | null
-    nationality: string
-    nidNumber: string | null
-
-    employeeCode: string
-    joiningDate: string // ISO string
-    employmentType: string
-    employmentStatus: string
-
-    bankName: string | null
-    accountNumber: string | null
-
-    designation: { name: string } | null
-    department: { name: string } | null
-    reportingManager: { firstName: string, lastName: string } | null
-
-    salaryAssignments: {
-        grossSalary: number,
-        salaryStructure: { name: string }
-    }[]
-}
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface ProfileTabsProps {
-    employee: EmployeeData
+    employee: any
 }
+
+// Tab configuration for the premium pill-style tabs
+const TAB_CONFIG = [
+    { value: "overview", label: "Overview", icon: User },
+    { value: "attendance", label: "Attendance", icon: Clock },
+    { value: "leave", label: "Leave", icon: CalendarRange },
+    { value: "payroll", label: "Payroll", icon: CreditCard },
+    { value: "documents", label: "Documents", icon: Shield },
+] as const
 
 export function ProfileTabs({ employee }: ProfileTabsProps) {
-    const t = useTranslations("SharedComponents.profileTabs")
-    const tc = useTranslations("SharedComponents.common")
+    const [profileData, setProfileData] = useState<any>(null)
+    const [profileLoading, setProfileLoading] = useState(false)
+    const [activeTab, setActiveTab] = useState("overview")
+
+    // Fetch profile data when switching to a data tab
+    useEffect(() => {
+        if (activeTab === "overview" || activeTab === "documents") return
+        if (profileData) return // Already fetched
+
+        setProfileLoading(true)
+        fetch(`/api/employees/${employee.id}/profile-data`)
+            .then((res) => res.json())
+            .then((data) => setProfileData(data))
+            .catch(console.error)
+            .finally(() => setProfileLoading(false))
+    }, [activeTab, employee.id, profileData])
 
     // Helper to format date
     const formatDate = (dateString?: string | null) => {
-        if (!dateString) return tc("na")
-        try {
-            return format(new Date(dateString), "MMM dd, yyyy")
-        } catch (e) {
-            return t("invalidDate")
-        }
+        if (!dateString) return "N/A"
+        try { return format(new Date(dateString), "MMM dd, yyyy") }
+        catch { return "Invalid date" }
     }
+
+    // Parse emergency contact
+    const emergency = employee.emergencyContact
+        ? (() => { try { return JSON.parse(employee.emergencyContact) } catch { return null } })()
+        : null
 
     const currentSalary = employee.salaryAssignments?.[0]
 
     return (
-        <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="bg-hover border-b border-card-border w-full justify-start rounded-none h-auto p-0 mb-6 overflow-x-auto">
-                <TabsTrigger
-                    value="overview"
-                    className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 rounded-none px-6 py-3 border-b-2 border-transparent"
-                >
-                    {t("overview")}
-                </TabsTrigger>
-                <TabsTrigger
-                    value="leave"
-                    className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 rounded-none px-6 py-3 border-b-2 border-transparent"
-                >
-                    {t("leave")}
-                </TabsTrigger>
-                <TabsTrigger
-                    value="attendance"
-                    className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 rounded-none px-6 py-3 border-b-2 border-transparent"
-                >
-                    {t("attendance")}
-                </TabsTrigger>
-                <TabsTrigger
-                    value="payroll"
-                    className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 rounded-none px-6 py-3 border-b-2 border-transparent"
-                >
-                    {t("payroll")}
-                </TabsTrigger>
-                <TabsTrigger
-                    value="documents"
-                    className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 rounded-none px-6 py-3 border-b-2 border-transparent"
-                >
-                    {t("documents")}
-                </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            {/* ── Premium Pill-Style Tab Bar ───────────────────────────── */}
+            <TabsList className="bg-hover/50 border border-card-border rounded-xl w-full justify-start h-auto p-1.5 mb-8 overflow-x-auto gap-1 backdrop-blur-sm">
+                {TAB_CONFIG.map((tab) => (
+                    <TabsTrigger
+                        key={tab.value}
+                        value={tab.value}
+                        className="data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-400 data-[state=active]:border-blue-500/30 rounded-lg px-4 py-2.5 border border-transparent text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center gap-2"
+                    >
+                        <tab.icon className="h-4 w-4" />
+                        <span className="text-sm font-medium">{tab.label}</span>
+                    </TabsTrigger>
+                ))}
             </TabsList>
 
+            {/* ─────────────────────────────────────────────────────────────
+                 OVERVIEW TAB — The Command Center
+               ───────────────────────────────────────────────────────────── */}
             <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Personal Info */}
-                    <InfoCard title={t("personalInfo")} icon={<User className="h-5 w-5" />}>
+                    <InfoCard title="Personal Information" icon={<User className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                            <InfoItem label={t("fullName")} value={`${employee.firstName} ${employee.lastName}`} />
-                            <InfoItem label={t("email")} value={employee.email} />
-                            <InfoItem label={t("phone")} value={employee.phone} />
-                            <InfoItem label={t("dateOfBirth")} value={formatDate(employee.dateOfBirth)} />
-                            <InfoItem label={t("gender")} value={employee.gender} />
-                            <InfoItem label={t("maritalStatus")} value={employee.maritalStatus} />
-                            <InfoItem label={t("nationality")} value={employee.nationality} />
-                            <InfoItem label={t("nid")} value={employee.nidNumber} />
+                            <InfoItem label="Full Name" value={`${employee.firstName} ${employee.lastName}`} />
+                            {employee.bengaliName && <InfoItem label="Bengali Name" value={employee.bengaliName} />}
+                            <InfoItem label="Email" value={employee.email} />
+                            <InfoItem label="Phone" value={employee.phone} />
+                            <InfoItem label="Date of Birth" value={formatDate(employee.dateOfBirth)} />
+                            <InfoItem label="Gender" value={employee.gender} />
+                            <InfoItem label="Blood Group" value={employee.bloodGroup} />
+                            <InfoItem label="Marital Status" value={employee.maritalStatus} />
+                            <InfoItem label="Nationality" value={employee.nationality} />
                         </div>
                     </InfoCard>
 
-                    {/* Employment Info */}
-                    <InfoCard title={t("employmentDetails")} icon={<Briefcase className="h-5 w-5" />}>
+                    {/* Employment Details */}
+                    <InfoCard title="Employment Details" icon={<Briefcase className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                            <InfoItem label={t("employeeCode")} value={employee.employeeCode} />
-                            <InfoItem label={t("joiningDate")} value={formatDate(employee.joiningDate)} />
-                            <InfoItem label={t("department")} value={employee.department?.name} />
-                            <InfoItem label={t("designation")} value={employee.designation?.name} />
-                            <InfoItem label={t("employmentType")} value={employee.employmentType} />
-                            <InfoItem label={t("status")} value={employee.employmentStatus} />
-                            <InfoItem label={t("reportingManager")} value={employee.reportingManager ? `${employee.reportingManager.firstName} ${employee.reportingManager.lastName}` : tc("na")} />
+                            <InfoItem label="Employee Code" value={employee.employeeCode} />
+                            <InfoItem label="Joining Date" value={formatDate(employee.joiningDate)} />
+                            <InfoItem label="Department" value={employee.department?.name} />
+                            <InfoItem label="Designation" value={employee.designation?.name} />
+                            <InfoItem label="Employment Type" value={employee.employmentType} />
+                            <InfoItem label="Status" value={employee.employmentStatus} />
+                            <InfoItem label="Shift" value={employee.shift?.name} />
+                            <InfoItem label="Reporting Manager" value={employee.reportingManager ? `${employee.reportingManager.firstName} ${employee.reportingManager.lastName}` : undefined} />
                         </div>
                     </InfoCard>
 
                     {/* Financial Info */}
-                    <InfoCard title={t("financialDetails")} icon={<CreditCard className="h-5 w-5" />}>
+                    <InfoCard title="Financial Details" icon={<CreditCard className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                            <InfoItem label={t("grossSalary")} value={currentSalary ? `৳${currentSalary.grossSalary.toLocaleString()}` : tc("notSet")} />
-                            <InfoItem label={t("salaryStructure")} value={currentSalary?.salaryStructure.name} />
-                            <InfoItem label={t("bankName")} value={employee.bankName} />
-                            <InfoItem label={t("accountNumber")} value={employee.accountNumber} />
+                            <InfoItem label="Gross Salary" value={currentSalary ? `৳${currentSalary.grossSalary.toLocaleString()}` : undefined} />
+                            <InfoItem label="Salary Structure" value={currentSalary?.salaryStructure?.name} />
+                            <InfoItem label="Bank Name" value={employee.bankName} />
+                            <InfoItem label="Account Number" value={employee.accountNumber} />
+                            <InfoItem label="Bank Branch" value={employee.bankBranch} />
+                            <InfoItem label="Routing Number" value={employee.routingNumber} />
+                            <InfoItem label="TIN Number" value={employee.tinNumber} />
+                            <InfoItem label="PF" value={employee.pfEnabled ? `Enabled${employee.pfNumber ? ` (${employee.pfNumber})` : ""}` : "Disabled"} />
                         </div>
                     </InfoCard>
+
+                    {/* Address & Emergency */}
+                    <div className="space-y-6">
+                        <InfoCard title="Address" icon={<MapPin className="h-5 w-5" />}>
+                            <div className="space-y-4">
+                                <InfoItem label="Present Address" value={employee.presentAddress} />
+                                <InfoItem label="Permanent Address" value={employee.permanentAddress} />
+                            </div>
+                        </InfoCard>
+
+                        {emergency && (
+                            <InfoCard title="Emergency Contact" icon={<Heart className="h-5 w-5" />}>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                                    <InfoItem label="Name" value={emergency.name} />
+                                    <InfoItem label="Phone" value={emergency.phone} />
+                                    <InfoItem label="Relationship" value={emergency.relationship} />
+                                </div>
+                            </InfoCard>
+                        )}
+
+                        {/* Identity Docs Quick Glance */}
+                        <InfoCard title="Identity Documents" icon={<Globe className="h-5 w-5" />}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                                <InfoItem label="NID Number" value={employee.nidNumber} />
+                                <InfoItem label="Passport" value={employee.passportNumber} />
+                                <InfoItem label="Biometric ID" value={employee.biometricUserId} />
+                            </div>
+                        </InfoCard>
+                    </div>
                 </div>
             </TabsContent>
 
-            <TabsContent value="leave">
-                <div className="p-12 text-center text-tertiary-foreground border border-dashed border-card-border rounded-xl">
-                    <CalendarRange className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium text-foreground">{t("leaveManagement")}</h3>
-                    <p>{t("leaveManagementDesc")}</p>
-                </div>
-            </TabsContent>
-
+            {/* ─────────────────────────────────────────────────────────────
+                 ATTENDANCE TAB
+               ───────────────────────────────────────────────────────────── */}
             <TabsContent value="attendance">
-                <div className="p-12 text-center text-tertiary-foreground border border-dashed border-card-border rounded-xl">
-                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium text-foreground">{t("attendanceRecords")}</h3>
-                    <p>{t("attendanceRecordsDesc")}</p>
-                </div>
+                <AttendanceTab data={profileData?.attendance || null} loading={profileLoading} />
             </TabsContent>
 
+            {/* ─────────────────────────────────────────────────────────────
+                 LEAVE TAB
+               ───────────────────────────────────────────────────────────── */}
+            <TabsContent value="leave">
+                <LeaveTab data={profileData?.leave || null} loading={profileLoading} />
+            </TabsContent>
+
+            {/* ─────────────────────────────────────────────────────────────
+                 PAYROLL TAB
+               ───────────────────────────────────────────────────────────── */}
             <TabsContent value="payroll">
-                <div className="p-12 text-center text-tertiary-foreground border border-dashed border-card-border rounded-xl">
-                    <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium text-foreground">{t("payrollInfo")}</h3>
-                    <p>{t("payrollInfoDesc")}</p>
-                </div>
+                <PayrollTab data={profileData?.payroll || null} loading={profileLoading} />
             </TabsContent>
 
+            {/* ─────────────────────────────────────────────────────────────
+                 DOCUMENTS TAB
+               ───────────────────────────────────────────────────────────── */}
             <TabsContent value="documents">
-                <div className="p-12 text-center text-tertiary-foreground border border-dashed border-card-border rounded-xl">
-                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-medium text-foreground">{t("documentsTitle")}</h3>
-                    <p>{t("documentsDesc")}</p>
-                </div>
+                <DocumentsTab employee={employee} />
             </TabsContent>
         </Tabs>
     )

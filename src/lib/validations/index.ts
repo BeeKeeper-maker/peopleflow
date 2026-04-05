@@ -4,7 +4,7 @@
  */
 
 // Employee
-export { employeeSchema, type EmployeeFormValues, type EmployeeFormInput } from "./employee";
+export { employeeSchema, type EmployeeFormValues, type EmployeeData, DEFAULT_EMPLOYEE_VALUES, toPrismaEmployeeData, buildEmergencyContactJson } from "./employee";
 
 // Department
 export { departmentSchema, type DepartmentFormValues } from "./department";
