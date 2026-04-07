@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
-import { withSentryConfig } from "@sentry/nextjs";
 
 const withNextIntl = createNextIntlPlugin();
 
@@ -174,10 +173,20 @@ const sentryConfig = {
   tunnelRoute: "/monitoring",
 };
 
-// Only wrap with Sentry when auth token is available (CI/production with Sentry).
-// Without it, the Sentry plugin fails silently and the auto-generated
-// _global-error causes useContext prerender crashes.
+// Only wrap with Sentry when auth token AND the module are available.
+// Uses dynamic require() to avoid crashing when @sentry/nextjs is not installed.
 const baseConfig = withNextIntl(nextConfig);
-export default process.env.SENTRY_AUTH_TOKEN
-  ? withSentryConfig(baseConfig, sentryConfig)
-  : baseConfig;
+
+let finalConfig = baseConfig;
+if (process.env.SENTRY_AUTH_TOKEN) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { withSentryConfig } = require("@sentry/nextjs");
+    finalConfig = withSentryConfig(baseConfig, sentryConfig);
+  } catch {
+    // @sentry/nextjs not installed — skip Sentry wrapping
+    console.warn("⚠ @sentry/nextjs not found, skipping Sentry instrumentation");
+  }
+}
+
+export default finalConfig;
