@@ -10,6 +10,10 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
+# CRITICAL: Force development mode for npm ci so devDependencies (TypeScript) are installed.
+# Coolify injects NODE_ENV=production as a build arg which would skip them.
+ENV NODE_ENV=development
+
 COPY .npmrc* ./
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -20,6 +24,9 @@ RUN npm ci
 FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
+
+# Keep development mode for build (TypeScript, Tailwind, etc. are devDeps)
+ENV NODE_ENV=development
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -74,18 +81,44 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/messages ./messages
 
 # ── Create entrypoint script (DB migration + server start) ──
+# SECURITY: No --accept-data-loss. If migrations fail, the container
+# stops and the orchestrator (Docker/K8s) reports the failure.
+# This prevents silent data destruction in production.
 RUN printf '#!/bin/sh\n\
 set -e\n\
-echo "=== PeopleFlow HRMS Starting ==="\n\
-echo "-> Running database migrations..."\n\
+echo "══════════════════════════════════════════════"\n\
+echo "  PeopleFlow HRMS — Production Server"\n\
+echo "══════════════════════════════════════════════"\n\
+echo "  Node:  $(node --version)"\n\
+echo "  Time:  $(date -u +\"%%Y-%%m-%%dT%%H:%%M:%%SZ\")"\n\
+echo "══════════════════════════════════════════════"\n\
+echo ""\n\
+echo "[BOOT] Step 1/2: Running database migrations..."\n\
 if npx prisma migrate deploy 2>&1; then\n\
-    echo "OK: Migrations applied"\n\
-elif npx prisma db push --accept-data-loss 2>&1; then\n\
-    echo "OK: Schema pushed (fallback)"\n\
+    echo "[BOOT] ✅ Database migrations applied successfully"\n\
 else\n\
-    echo "WARN: Migration failed - server starting without migration"\n\
+    MIGRATE_EXIT=$?\n\
+    echo ""\n\
+    echo "╔══════════════════════════════════════════════════════════╗"\n\
+    echo "║  FATAL: Database migration failed (exit code: $MIGRATE_EXIT)  ║"\n\
+    echo "╚══════════════════════════════════════════════════════════╝"\n\
+    echo ""\n\
+    echo "  Possible causes:"\n\
+    echo "    1. DATABASE_URL is incorrect or database is unreachable"\n\
+    echo "    2. Migration files are corrupted or out of sync"\n\
+    echo "    3. Database user lacks ALTER/CREATE permissions"\n\
+    echo ""\n\
+    echo "  To fix:"\n\
+    echo "    - Check DATABASE_URL environment variable"\n\
+    echo "    - Run: npx prisma migrate status"\n\
+    echo "    - Run: npx prisma migrate resolve --applied <migration>"\n\
+    echo ""\n\
+    echo "  Server will NOT start with an inconsistent database."\n\
+    echo "  This is a safety measure to prevent data corruption."\n\
+    exit 1\n\
 fi\n\
-echo "-> Starting Next.js server..."\n\
+echo ""\n\
+echo "[BOOT] Step 2/2: Starting Next.js server..."\n\
 exec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Set file ownership
