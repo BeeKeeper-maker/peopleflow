@@ -16,6 +16,9 @@ ENV NODE_ENV=development
 
 COPY .npmrc* ./
 COPY package.json package-lock.json ./
+
+# Cache-buster: change this value to force npm ci re-run
+ARG CACHEBUST=2
 RUN npm ci
 
 # ───────────────────────────────────────
