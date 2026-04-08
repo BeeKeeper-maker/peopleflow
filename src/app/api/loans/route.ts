@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/loans — List loans for the organization
 export async function GET(req: Request) {
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(loans);
     } catch (error) {
-        console.error("GET_LOANS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_LOANS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -114,12 +115,12 @@ export async function POST(req: Request) {
                 priority: amount >= 500000 ? "high" : "normal",
             });
         } catch (approvalError) {
-            console.error("LOAN_APPROVAL_REQUEST_ERROR", approvalError);
+            apiLogger.error({ err: approvalError }, "LOAN_APPROVAL_REQUEST_ERROR");
         }
 
         return NextResponse.json(loan);
     } catch (error) {
-        console.error("CREATE_LOAN_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_LOAN_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

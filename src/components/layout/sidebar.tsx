@@ -33,12 +33,15 @@ import {
     HandCoins,
     GitPullRequest,
     Fingerprint,
-
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { CommandPalette } from "@/components/command-palette";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
+import { PREFETCH_CONFIGS } from "@/hooks/use-prefetch";
 import { useTranslations } from 'next-intl';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -207,6 +210,7 @@ export function Sidebar() {
                         <p className="text-[9px] font-medium text-tertiary-foreground tracking-widest uppercase">HRMS Platform</p>
                     </div>
                 </Link>
+                <CommandPalette />
                 <NotificationCenter />
             </div>
 
@@ -278,7 +282,7 @@ export function Sidebar() {
                                             const Icon = item.icon;
                                             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                                             return (
-                                                <Link
+                                                <PrefetchLink
                                                     key={item.href}
                                                     href={item.href}
                                                     className={cn(
@@ -309,7 +313,7 @@ export function Sidebar() {
                                                     {isActive && (
                                                         <ChevronRight className="h-3.5 w-3.5 text-blue-400/60" />
                                                     )}
-                                                </Link>
+                                                </PrefetchLink>
                                             );
                                         })}
                                     </div>
@@ -355,6 +359,33 @@ export function Sidebar() {
                 </div>
             </nav>
         </aside>
+    );
+}
+
+// ─── Prefetch Link ──────────────────────────────────────────────────────────────
+
+/**
+ * A Link component that prefetches API data on mouse hover.
+ * Uses the PREFETCH_CONFIGS map keyed by href.
+ */
+function PrefetchLink({ href, children, ...props }: React.ComponentProps<typeof Link>) {
+    const queryClient = useQueryClient();
+
+    const handleMouseEnter = useCallback(() => {
+        const config = PREFETCH_CONFIGS[href as string];
+        if (config) {
+            queryClient.prefetchQuery({
+                queryKey: config.queryKey,
+                queryFn: () => api.get(config.endpoint),
+                staleTime: 30_000,
+            });
+        }
+    }, [href, queryClient]);
+
+    return (
+        <Link href={href} onMouseEnter={handleMouseEnter} {...props}>
+            {children}
+        </Link>
     );
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/approval-workflows — List workflows for the organization
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
 
         return NextResponse.json(workflows);
     } catch (error) {
-        console.error("Failed to fetch workflows:", error);
+        apiLogger.error({ err: error }, "Failed to fetch workflows:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(workflow, { status: 201 });
     } catch (error) {
-        console.error("Failed to create workflow:", error);
+        apiLogger.error({ err: error }, "Failed to create workflow:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

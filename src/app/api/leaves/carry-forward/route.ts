@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { leaveLogger } from "@/lib/logger";
 
 /**
  * Year-End Leave Carry Forward API
@@ -139,7 +140,7 @@ export async function POST(req: Request) {
             details: results,
         });
     } catch (error) {
-        console.error("CARRY_FORWARD_ERROR", error);
+        leaveLogger.error({ err: error }, "CARRY_FORWARD_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

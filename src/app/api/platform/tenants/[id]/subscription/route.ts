@@ -21,6 +21,7 @@ import {
     logPlatformAction,
 } from "@/lib/platform-auth";
 import { invalidateSubscription } from "@/lib/redis";
+import { apiLogger } from "@/lib/logger";
 
 export async function PATCH(
     request: NextRequest,
@@ -247,7 +248,7 @@ export async function PATCH(
             subscription: result,
         });
     } catch (error) {
-        console.error("[PLATFORM_SUBSCRIPTION] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_SUBSCRIPTION] Error:");
         return NextResponse.json(
             { error: "Failed to update subscription" },
             { status: 500 }

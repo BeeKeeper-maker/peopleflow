@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { authLogger } from "@/lib/logger";
 
 export async function GET(request: Request) {
     try {
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
             { status: 200 }
         );
     } catch (error) {
-        console.error("Email verification error:", error);
+        authLogger.error({ err: error }, "Email verification error:");
         return NextResponse.json(
             { error: "An error occurred during verification" },
             { status: 500 }
@@ -139,11 +140,11 @@ export async function POST(request: Request) {
         sendTemplateEmail(normalizedEmail, "verifyEmail", {
             userName: user.name || "User",
             verifyUrl,
-        }).catch((err) => console.error("Failed to send verification email:", err));
+        }).catch((err) => authLogger.error({ err: err }, "Failed to send verification email:"));
 
         return successResponse;
     } catch (error) {
-        console.error("Resend verification error:", error);
+        authLogger.error({ err: error }, "Resend verification error:");
         return NextResponse.json(
             { error: "An error occurred. Please try again." },
             { status: 500 }

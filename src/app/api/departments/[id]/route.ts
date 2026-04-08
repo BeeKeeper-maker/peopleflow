@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -42,7 +42,7 @@ export async function GET(
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error("GET_DEPARTMENT_ERROR", error);
+        apiLogger.error({ err: error }, "GET_DEPARTMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -95,7 +95,7 @@ export async function PUT(
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error("UPDATE_DEPARTMENT_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_DEPARTMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -136,7 +136,7 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error("DELETE_DEPARTMENT_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_DEPARTMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

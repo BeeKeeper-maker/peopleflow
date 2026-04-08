@@ -15,6 +15,7 @@
  */
 
 import { Queue, type ConnectionOptions } from "bullmq";
+import { queueLogger } from "@/lib/logger";
 
 // ── Redis Connection (shared with existing redis.ts) ──
 
@@ -71,6 +72,16 @@ export const notificationQueue = new Queue("notifications", {
         backoff: { type: "exponential", delay: 10000 },
         removeOnComplete: { count: 2000 },
         removeOnFail: { count: 5000 },
+    },
+});
+
+export const eventPipelineQueue = new Queue("event-pipeline", {
+    connection: redisConnection,
+    defaultJobOptions: {
+        attempts: 5,
+        backoff: { type: "exponential", delay: 10_000 }, // 10s → 20s → 40s → 80s → 160s
+        removeOnComplete: { count: 5000 },
+        removeOnFail: { count: 10_000 }, // Keep failed events for DLQ analysis
     },
 });
 
@@ -182,7 +193,7 @@ export interface ReconciliationJobData {
 // Call this once on application startup
 
 export async function registerCronJobs(): Promise<void> {
-    console.log("[QUEUE] Registering CRON jobs...");
+    queueLogger.info("Registering CRON jobs...");
 
     // Every 15 minutes: Clean up expired impersonation sessions
     await impersonationQueue.upsertJobScheduler(
@@ -278,5 +289,5 @@ export async function registerCronJobs(): Promise<void> {
         }
     );
 
-    console.log("[QUEUE] ✅ All CRON jobs registered (including biometric)");
+    queueLogger.info("All CRON jobs registered (including biometric)");
 }

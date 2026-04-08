@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { randomBytes, createHash } from "crypto";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * POST /api/sync-agent/keys — Generate a new Sync API Key
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
             },
         });
     } catch (error) {
-        console.error("CREATE_SYNC_KEY_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_SYNC_KEY_ERROR");
         return new NextResponse("Failed to create API key", { status: 500 });
     }
 }
@@ -85,7 +86,7 @@ export async function GET() {
 
         return NextResponse.json({ success: true, keys });
     } catch (error) {
-        console.error("LIST_SYNC_KEYS_ERROR", error);
+        apiLogger.error({ err: error }, "LIST_SYNC_KEYS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

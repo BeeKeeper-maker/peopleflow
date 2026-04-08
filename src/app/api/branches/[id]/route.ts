@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/branches/[id] — Get a single branch
 export async function GET(
@@ -26,7 +27,7 @@ export async function GET(
 
         return NextResponse.json(branch);
     } catch (error) {
-        console.error("GET_BRANCH_ERROR", error);
+        apiLogger.error({ err: error }, "GET_BRANCH_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -68,7 +69,7 @@ export async function PUT(
 
         return NextResponse.json(branch);
     } catch (error) {
-        console.error("UPDATE_BRANCH_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_BRANCH_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -96,7 +97,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_BRANCH_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_BRANCH_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

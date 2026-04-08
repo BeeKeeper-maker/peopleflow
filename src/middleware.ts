@@ -1,11 +1,18 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
-import type { NextRequestWithAuth } from "next-auth/middleware";
+/**
+ * PeopleFlow Middleware — Auth.js v5 Edge-Safe
+ *
+ * Imports from auth.config.ts (NO Prisma/Node.js APIs) to avoid
+ * Edge Runtime incompatibilities. JWT decoding only — no DB access.
+ */
 
-// Role type for type safety
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
+import { NextResponse } from "next/server";
+
+// ── Role types and route definitions ─────────────────────────────
+
 type UserRole = "admin" | "hr_admin" | "manager" | "employee";
 
-// Default routes based on role
 const ROLE_DEFAULT_ROUTES: Record<UserRole, string> = {
     admin: "/dashboard",
     hr_admin: "/dashboard",
@@ -13,169 +20,103 @@ const ROLE_DEFAULT_ROUTES: Record<UserRole, string> = {
     employee: "/ess/dashboard",
 };
 
-// Routes HR/Admin can access
 const HR_ROUTES = [
-    "/dashboard",
-    "/employees",
-    "/departments",
-    "/designations",
-    "/leaves",
-    "/attendance",
-    "/payroll",
-    "/recruitment",
-    "/performance",
-    "/reports",
-    "/settings",
-    "/notifications",
-    "/shifts",
-    "/organization",
-    "/expenses",
-    "/documents",
-    "/audit-logs",
-    "/compliance",
-    "/announcements",
-    "/loans",
-    "/approval-workflows",
-    "/devices",
+    "/dashboard", "/employees", "/departments", "/designations",
+    "/leaves", "/attendance", "/payroll", "/recruitment",
+    "/performance", "/reports", "/settings", "/notifications",
+    "/shifts", "/organization", "/expenses", "/documents",
+    "/audit-logs", "/compliance", "/announcements", "/loans",
+    "/approval-workflows", "/devices",
 ];
 
-// Check if user has HR level access (deprecated super_admin → treated as admin)
+const PUBLIC_ROUTES = [
+    "/login", "/register", "/forgot-password", "/reset-password",
+    "/verify-email", "/careers", "/suspended", "/deactivated",
+    "/platform/login",
+];
+
 function isHRLevel(role?: string): boolean {
     return ["super_admin", "admin", "hr_admin"].includes(role || "");
 }
 
-// Check if user has Manager level access
 function isManagerLevel(role?: string): boolean {
     return ["super_admin", "admin", "hr_admin", "manager"].includes(role || "");
 }
 
-// Get default route for role
 function getDefaultRoute(role?: string): string {
     if (!role) return "/login";
-    // Map deprecated super_admin to admin behavior
     if (role === "super_admin") return "/dashboard";
     return ROLE_DEFAULT_ROUTES[role as UserRole] || "/ess/dashboard";
 }
 
-export default withAuth(
-    function middleware(req: NextRequestWithAuth) {
-        const pathname = req.nextUrl.pathname;
-        const token = req.nextauth.token;
-        const role = token?.role as UserRole | undefined;
+// ── Create Edge-safe auth instance from base config ──────────────
 
-        // ─────────────────────────────────────────────
-        // PLATFORM PLANE: /platform/* routes
-        // Handled by separate auth system (platform-auth.ts)
-        // This middleware allows them through — platform
-        // auth is enforced at the API/page level
-        // ─────────────────────────────────────────────
-        if (pathname.startsWith("/platform")) {
-            // Platform routes bypass tenant auth entirely
-            return NextResponse.next();
-        }
+const { auth } = NextAuth(authConfig);
 
-        // ─────────────────────────────────────────────
-        // TENANT PLANE: Organization status check
-        // If the org is suspended/deactivated, redirect
-        // ─────────────────────────────────────────────
-        // Note: We can't call async Redis/DB from edge middleware.
-        // The org status check is enforced at the API layer via
-        // api-auth.ts instead. The middleware handles client-side
-        // routing only. See the /suspended page for the UX.
+// ── Auth.js v5 Middleware ────────────────────────────────────────
 
-        // If authenticated and trying to access login/register
-        if (token && (pathname === "/login" || pathname === "/register")) {
-            const defaultRoute = getDefaultRoute(role as string);
-            return NextResponse.redirect(new URL(defaultRoute, req.url));
-        }
+export default auth((req: any) => {
+    const pathname = req.nextUrl.pathname;
+    const session = req.auth;
+    const role = session?.user?.role as UserRole | undefined;
 
-        // Root path - authenticated users go to dashboard, unauth see marketing page
-        if (pathname === "/" && token) {
-            const defaultRoute = getDefaultRoute(role as string);
-            return NextResponse.redirect(new URL(defaultRoute, req.url));
-        }
-
-        // Check HR route access
-        const isHRRoute = HR_ROUTES.some((route) => pathname.startsWith(route));
-        if (isHRRoute && token && !isHRLevel(role as string)) {
-            const defaultRoute = getDefaultRoute(role as string);
-            return NextResponse.redirect(new URL(defaultRoute, req.url));
-        }
-
-        // Check Manager route access
-        if (pathname.startsWith("/manager") && token && !isManagerLevel(role as string)) {
-            return NextResponse.redirect(new URL("/ess/dashboard", req.url));
-        }
-
-        // Suspended page — always accessible (so suspended tenants can see it)
-        if (pathname === "/suspended" || pathname === "/deactivated") {
-            return NextResponse.next();
-        }
-
+    // Platform routes — handled by separate auth system
+    if (pathname.startsWith("/platform")) {
         return NextResponse.next();
-    },
-    {
-        callbacks: {
-            authorized: ({ token, req }) => {
-                const pathname = req.nextUrl.pathname;
-
-                // Public routes that don't require authentication
-                const publicRoutes = [
-                    "/login",
-                    "/register",
-                    "/forgot-password",
-                    "/reset-password",
-                    "/verify-email",
-                    "/careers",
-                    "/suspended",
-                    "/deactivated",
-                    "/platform/login",
-                ];
-
-                // Root path "/" is public (marketing landing page)
-                if (pathname === "/") {
-                    return true;
-                }
-
-                // Allow public routes
-                if (publicRoutes.some((route) => pathname.startsWith(route))) {
-                    return true;
-                }
-
-                // API routes for auth, webhooks, and health should be public
-                if (
-                    pathname.startsWith("/api/auth") ||
-                    pathname.startsWith("/api/webhooks") ||
-                    pathname.startsWith("/api/health")
-                ) {
-                    return true;
-                }
-
-                // Platform routes use their own auth system
-                if (pathname.startsWith("/platform")) {
-                    return true;
-                }
-
-                // All other routes require authentication
-                return !!token;
-            },
-        },
-        pages: {
-            signIn: "/login",
-        },
     }
-);
+
+    // Public routes — always accessible
+    if (pathname === "/" && !session) return NextResponse.next();
+    if (PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route))) {
+        return NextResponse.next();
+    }
+
+    // API routes for auth, webhooks, health — always accessible
+    if (
+        pathname.startsWith("/api/auth") ||
+        pathname.startsWith("/api/webhooks") ||
+        pathname.startsWith("/api/health") ||
+        pathname.startsWith("/api/cron")
+    ) {
+        return NextResponse.next();
+    }
+
+    // Unauthenticated users → login
+    if (!session) {
+        return NextResponse.redirect(new URL("/login", req.url));
+    }
+
+    // Authenticated users accessing login/register → dashboard
+    if (pathname === "/login" || pathname === "/register") {
+        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
+    }
+
+    // Root path → role-based dashboard
+    if (pathname === "/") {
+        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
+    }
+
+    // HR route access check
+    const isHRRoute = HR_ROUTES.some((route) => pathname.startsWith(route));
+    if (isHRRoute && !isHRLevel(role)) {
+        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
+    }
+
+    // Manager route access check
+    if (pathname.startsWith("/manager") && !isManagerLevel(role)) {
+        return NextResponse.redirect(new URL("/ess/dashboard", req.url));
+    }
+
+    // Suspended/deactivated pages — always accessible
+    if (pathname === "/suspended" || pathname === "/deactivated") {
+        return NextResponse.next();
+    }
+
+    return NextResponse.next();
+});
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - public folder files
-         * - api (API routes handle their own auth via api-auth.ts)
-         */
-        "/((?!_next/static|_next/image|favicon.ico|.*\\..*|api).*)",
+        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)",
     ],
 };

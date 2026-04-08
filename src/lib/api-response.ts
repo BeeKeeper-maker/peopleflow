@@ -4,6 +4,8 @@
  */
 
 import { NextResponse } from "next/server";
+import { apiLogger } from "@/lib/logger";
+import * as Sentry from "@sentry/nextjs";
 
 export interface ApiSuccessResponse<T = unknown> {
     success: true;
@@ -177,7 +179,8 @@ export function noContentResponse(): NextResponse {
  * Handle common errors
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
-    console.error("API Error:", error);
+    apiLogger.error({ err: error }, "Unhandled API error");
+    Sentry.captureException(error);
 
     // Prisma unique constraint violation
     if (error && typeof error === "object" && "code" in error) {

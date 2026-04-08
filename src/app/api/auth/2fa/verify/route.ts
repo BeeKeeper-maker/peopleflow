@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { verify as verifyTOTP } from "otplib";
+import { authLogger } from "@/lib/logger";
 
 /**
  * POST — Verify TOTP code to enable 2FA
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
             enabled: true,
         });
     } catch (error) {
-        console.error("2FA verify error:", error);
+        authLogger.error({ err: error }, "2FA verify error:");
         return NextResponse.json(
             { error: "Failed to verify two-factor authentication" },
             { status: 500 }

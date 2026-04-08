@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { sendTemplateEmail } from "@/lib/email";
 import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import crypto from "crypto";
+import { authLogger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     try {
@@ -63,12 +64,12 @@ export async function POST(request: Request) {
             userName: user.name || "User",
             resetUrl,
         }).catch((err) => {
-            console.error("Failed to send password reset email:", err);
+            authLogger.error({ err: err }, "Failed to send password reset email:");
         });
 
         return successResponse;
     } catch (error) {
-        console.error("Forgot password error:", error);
+        authLogger.error({ err: error }, "Forgot password error:");
         return NextResponse.json(
             { error: "An error occurred. Please try again later." },
             { status: 500 }

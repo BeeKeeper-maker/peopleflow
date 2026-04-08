@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAdapter } from "./device-adapter";
 import { differenceInMinutes, addDays, subDays } from "date-fns";
+import { biometricLogger } from "@/lib/logger";
 
 // Import ZKTeco adapter to register it
 import "./zkteco-adapter";
@@ -429,7 +430,7 @@ export async function syncDevice(deviceId: string): Promise<SyncDeviceResult> {
             }),
         ]);
     } catch (logError) {
-        console.error("[BIOMETRIC_SYNC] Failed to save sync log:", logError);
+        biometricLogger.error({ err: logError, deviceId }, "Failed to save sync log");
     }
 
     return {

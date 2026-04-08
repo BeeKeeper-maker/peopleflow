@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import * as z from "zod";
+import { payrollLogger } from "@/lib/logger";
 
 const assignmentSchema = z.object({
     employeeId: z.string().min(1, "Employee is required"),
@@ -15,7 +15,7 @@ const assignmentSchema = z.object({
 // GET - List all salary assignments
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(assignmentsWithBreakdown);
     } catch (error) {
-        console.error("GET_ASSIGNMENTS_ERROR", error);
+        payrollLogger.error({ err: error }, "GET_ASSIGNMENTS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
 // POST - Create new salary assignment
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -192,7 +192,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(assignment);
     } catch (error) {
-        console.error("CREATE_ASSIGNMENT_ERROR", error);
+        payrollLogger.error({ err: error }, "CREATE_ASSIGNMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

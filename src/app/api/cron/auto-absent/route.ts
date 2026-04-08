@@ -13,6 +13,7 @@ import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { autoMarkAbsent } from "@/lib/attendance-engine";
 import { emit } from "@/lib/event-bus";
 import { prisma } from "@/lib/prisma";
+import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60s for large orgs
@@ -110,7 +111,7 @@ export async function GET(req: Request) {
             errors.length > 0 ? "partial" : "success"
         );
     } catch (error) {
-        console.error("[CRON] auto-absent FATAL:", error);
+        cronLogger.error({ err: error }, "[CRON] auto-absent FATAL:");
         return cronResponse(
             {
                 job: "auto-absent",

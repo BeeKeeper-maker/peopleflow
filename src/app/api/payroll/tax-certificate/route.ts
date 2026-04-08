@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { calculateAnnualTax } from "@/lib/payroll-engine";
+import { payrollLogger } from "@/lib/logger";
 
 /**
  * POST - Generate annual tax certificate data for an employee
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
             })),
         });
     } catch (error) {
-        console.error("Tax certificate error:", error);
+        payrollLogger.error({ err: error }, "Tax certificate error:");
         return NextResponse.json(
             { error: "Failed to generate tax certificate" },
             { status: 500 }

@@ -15,6 +15,7 @@
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { emit } from "@/lib/event-bus";
 import { prisma } from "@/lib/prisma";
+import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -192,7 +193,7 @@ export async function GET(req: Request) {
             errors.length > 0 ? "partial" : "success"
         );
     } catch (error) {
-        console.error("[CRON] escalation FATAL:", error);
+        cronLogger.error({ err: error }, "[CRON] escalation FATAL:");
         return cronResponse(
             {
                 job: "approval-escalation",

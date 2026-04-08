@@ -4,6 +4,7 @@ import { hashPassword, isValidEmail, validatePassword } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
 import { sendTemplateEmail } from "@/lib/email";
 import crypto from "crypto";
+import { authLogger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     try {
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
         sendTemplateEmail(email.toLowerCase(), "verifyEmail", {
             userName: name,
             verifyUrl,
-        }).catch((err) => console.error("Failed to send verification email:", err));
+        }).catch((err) => authLogger.error({ err: err }, "Failed to send verification email:"));
 
         return NextResponse.json(
             {
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
             { status: 201 }
         );
     } catch (error) {
-        console.error("Registration error:", error);
+        authLogger.error({ err: error }, "Registration error:");
         return NextResponse.json(
             { error: "An error occurred during registration" },
             { status: 500 }

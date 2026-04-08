@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { biometricLogger } from "@/lib/logger";
 
 /**
  * POST /api/biometric-devices/auto-map
@@ -273,7 +274,7 @@ export async function POST(req: Request) {
                 })),
         });
     } catch (error) {
-        console.error("AUTO_MAP_ERROR", error);
+        biometricLogger.error({ err: error }, "AUTO_MAP_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

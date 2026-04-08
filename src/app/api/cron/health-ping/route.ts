@@ -12,6 +12,7 @@
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { emit } from "@/lib/event-bus";
 import { prisma } from "@/lib/prisma";
+import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -101,7 +102,7 @@ export async function GET(req: Request) {
             staleDevices.length > 0 ? "partial" : "success"
         );
     } catch (error) {
-        console.error("[CRON] health-ping FATAL:", error);
+        cronLogger.error({ err: error }, "[CRON] health-ping FATAL:");
         return cronResponse(
             {
                 job: "device-health-ping",

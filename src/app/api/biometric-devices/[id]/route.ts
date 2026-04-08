@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { biometricLogger } from "@/lib/logger";
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -33,7 +34,7 @@ export async function GET(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(device);
     } catch (error) {
-        console.error("GET_DEVICE_DETAIL_ERROR", error);
+        biometricLogger.error({ err: error }, "GET_DEVICE_DETAIL_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -100,7 +101,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(updated);
     } catch (error) {
-        console.error("UPDATE_DEVICE_ERROR", error);
+        biometricLogger.error({ err: error }, "UPDATE_DEVICE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -131,7 +132,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_DEVICE_ERROR", error);
+        biometricLogger.error({ err: error }, "DELETE_DEVICE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

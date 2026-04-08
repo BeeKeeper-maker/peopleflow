@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from "@/lib/validations/employee";
 import { z } from "zod";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/employees/:id
@@ -15,7 +15,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -67,7 +67,7 @@ export async function GET(
 
         return NextResponse.json(employee);
     } catch (error) {
-        console.error("GET_EMPLOYEE_ERROR", error);
+        apiLogger.error({ err: error }, "GET_EMPLOYEE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -222,7 +222,7 @@ export async function PUT(
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error("UPDATE_EMPLOYEE_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_EMPLOYEE_ERROR");
         return NextResponse.json(
             { error: (error as Error).message || "Internal Error" },
             { status: 500 }
@@ -271,7 +271,7 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error("DELETE_EMPLOYEE_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_EMPLOYEE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { successResponse, errorResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
+import { apiLogger } from "@/lib/logger";
 
 // GET - List all job postings
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
         return successResponse(jobs);
     } catch (error) {
-        console.error("GET_JOBS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_JOBS_ERROR");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch jobs");
     }
 }
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
 // POST - Create a new job posting
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(job);
     } catch (error) {
-        console.error("CREATE_JOB_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_JOB_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

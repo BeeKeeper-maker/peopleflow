@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { biometricLogger } from "@/lib/logger";
 
 /**
  * GET /api/biometric-devices — List all devices for organization
@@ -21,7 +22,7 @@ export async function GET() {
 
         return NextResponse.json(devices);
     } catch (error) {
-        console.error("GET_BIOMETRIC_DEVICES_ERROR", error);
+        biometricLogger.error({ err: error }, "GET_BIOMETRIC_DEVICES_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(device, { status: 201 });
     } catch (error) {
-        console.error("CREATE_BIOMETRIC_DEVICE_ERROR", error);
+        biometricLogger.error({ err: error }, "CREATE_BIOMETRIC_DEVICE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

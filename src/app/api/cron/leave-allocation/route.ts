@@ -15,6 +15,7 @@ import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { processCarryForward } from "@/lib/leave-engine";
 import { emit } from "@/lib/event-bus";
 import { prisma } from "@/lib/prisma";
+import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // Large orgs with many leave types may take time
@@ -104,7 +105,7 @@ export async function GET(req: Request) {
             totalErrors > 0 ? "partial" : "success"
         );
     } catch (error) {
-        console.error("[CRON] leave-allocation FATAL:", error);
+        cronLogger.error({ err: error }, "[CRON] leave-allocation FATAL:");
         return cronResponse(
             {
                 job: "leave-allocation",
@@ -198,7 +199,7 @@ async function provisionAllocations(
                 created++;
             } catch (error) {
                 // Unique constraint or other DB error — skip
-                console.error(`[ALLOC] Skip ${employee.id}×${lt.name}:`, error);
+                cronLogger.error({ err: error }, `[ALLOC] Skip ${employee.id}×${lt.name}:`);
             }
         }
     }

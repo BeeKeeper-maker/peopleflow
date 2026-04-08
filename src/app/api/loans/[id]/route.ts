@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { processApprovalStep } from "@/lib/approval-engine";
 import { emit } from "@/lib/event-bus";
+import { apiLogger } from "@/lib/logger";
 
 // PUT /api/loans/[id] — Update loan status (routes through stateful approval engine)
 export async function PUT(
@@ -83,7 +84,7 @@ export async function PUT(
                         amount: Number(updatedLoan.amount),
                         loanType: (updatedLoan as any).loanType || "Loan",
                         ...(json.status === "rejected" ? { reason: json.notes || json.reason } : {}),
-                    } as any).catch((err: unknown) => console.error("[EVENT_FAIL] loan:", err));
+                    } as any).catch((err: unknown) => apiLogger.error({ err: err }, "[EVENT_FAIL] loan:"));
                 }
 
                 return NextResponse.json({
@@ -121,7 +122,7 @@ export async function PUT(
 
         return NextResponse.json(loan);
     } catch (error) {
-        console.error("UPDATE_LOAN_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_LOAN_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -155,7 +156,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_LOAN_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_LOAN_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

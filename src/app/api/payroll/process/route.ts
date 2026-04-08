@@ -4,6 +4,7 @@ import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { calculateSalary } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
 import * as z from "zod";
+import { payrollLogger } from "@/lib/logger";
 
 const processPayrollSchema = z.object({
     month: z.number().min(1).max(12),
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(slips);
     } catch (error) {
-        console.error("GET_SLIPS_ERROR", error);
+        payrollLogger.error({ err: error }, "GET_SLIPS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -254,7 +255,7 @@ export async function POST(req: Request) {
                         netSalary: c.netSalary,
                     };
                 }),
-            }).catch((err) => console.error("[EVENT_FAIL] payroll.processed:", err));
+            }).catch((err) => payrollLogger.error({ err: err }, "[EVENT_FAIL] payroll.processed:"));
         }
 
         return NextResponse.json({
@@ -264,7 +265,7 @@ export async function POST(req: Request) {
             errors: skipped,
         });
     } catch (error) {
-        console.error("PROCESS_PAYROLL_ERROR", error);
+        payrollLogger.error({ err: error }, "PROCESS_PAYROLL_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

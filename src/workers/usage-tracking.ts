@@ -9,15 +9,16 @@
 import { Worker } from "bullmq";
 import { prisma } from "@/lib/prisma";
 import { redisConnection, type UsageTrackingJobData } from "@/lib/queue";
+import { log } from "@/lib/logger";
+
+const usageLogger = log.child({ domain: "usage-tracking" });
 
 const worker = new Worker<UsageTrackingJobData>(
     "usage-tracking",
     async (job) => {
         const { type, organizationId } = job.data;
 
-        console.log(
-            `[WORKER:usage] Processing: ${type} (Job ${job.id})`
-        );
+        usageLogger.info({ type, jobId: job.id }, `Processing: ${type}`);
 
         if (type === "snapshot-org" && organizationId) {
             await snapshotOrganization(organizationId);
@@ -40,9 +41,7 @@ async function snapshotAll(): Promise<void> {
         select: { id: true },
     });
 
-    console.log(
-        `[WORKER:usage] Snapshotting ${activeOrgs.length} organizations`
-    );
+    usageLogger.info({ count: activeOrgs.length }, `Snapshotting ${activeOrgs.length} organizations`);
 
     let processed = 0;
 
@@ -51,9 +50,7 @@ async function snapshotAll(): Promise<void> {
         processed++;
     }
 
-    console.log(
-        `[WORKER:usage] Completed ${processed}/${activeOrgs.length} snapshots`
-    );
+    usageLogger.info({ processed, total: activeOrgs.length }, "Snapshots completed");
 }
 
 /**
@@ -121,24 +118,16 @@ async function snapshotOrganization(orgId: string): Promise<void> {
             ],
         });
     } catch (error) {
-        console.error(
-            `[WORKER:usage] Failed to snapshot org ${orgId}:`,
-            error
-        );
+        usageLogger.error({ err: error, orgId }, "Failed to snapshot organization");
     }
 }
 
 worker.on("completed", (job) => {
-    console.log(
-        `[WORKER:usage] Job ${job.id} completed`
-    );
+    usageLogger.debug({ jobId: job.id }, "Job completed");
 });
 
 worker.on("failed", (job, err) => {
-    console.error(
-        `[WORKER:usage] Job ${job?.id} failed:`,
-        err.message
-    );
+    usageLogger.error({ jobId: job?.id, err }, "Job failed");
 });
 
 export default worker;

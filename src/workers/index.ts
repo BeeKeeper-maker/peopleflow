@@ -11,6 +11,9 @@
  */
 
 import { registerCronJobs } from "@/lib/queue";
+import { log } from "@/lib/logger";
+
+const workerLogger = log.child({ domain: "worker-service" });
 
 // Import workers to activate them
 import "./subscription-lifecycle";
@@ -23,33 +26,30 @@ import "./device-health";
 import "./attendance-reconciliation";
 
 async function main() {
-    console.log("════════════════════════════════════════════════");
-    console.log("  PeopleFlow SaaS — Background Worker Service  ");
-    console.log("════════════════════════════════════════════════");
-    console.log(`  Started at: ${new Date().toISOString()}`);
-    console.log(`  Redis URL:  ${process.env.REDIS_URL || "redis://localhost:6379"}`);
-    console.log("  Workers:    subscription, impersonation, usage,");
-    console.log("              biometric-sync, device-health, reconciliation");
-    console.log("════════════════════════════════════════════════");
+    workerLogger.info({
+        startedAt: new Date().toISOString(),
+        redisUrl: process.env.REDIS_URL ? "[redacted]" : "redis://localhost:6379",
+        workers: ["subscription", "impersonation", "usage", "biometric-sync", "device-health", "reconciliation"],
+    }, "PeopleFlow SaaS — Background Worker Service started");
 
     // Register CRON schedules
     await registerCronJobs();
 
-    console.log("\n✅ All workers started. Listening for jobs...\n");
+    workerLogger.info("All workers started. Listening for jobs.");
 
     // Keep the process alive
     process.on("SIGTERM", async () => {
-        console.log("[WORKER] Received SIGTERM. Gracefully shutting down...");
+        workerLogger.info("Received SIGTERM. Gracefully shutting down.");
         process.exit(0);
     });
 
     process.on("SIGINT", async () => {
-        console.log("[WORKER] Received SIGINT. Gracefully shutting down...");
+        workerLogger.info("Received SIGINT. Gracefully shutting down.");
         process.exit(0);
     });
 }
 
 main().catch((err) => {
-    console.error("[WORKER] Fatal error:", err);
+    workerLogger.fatal({ err }, "Fatal worker error");
     process.exit(1);
 });

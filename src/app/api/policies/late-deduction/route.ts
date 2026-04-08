@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/policies/late-deduction — Get active late deduction policy with tiers
 export async function GET(req: NextRequest) {
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ data: policies });
     } catch (error) {
-        console.error("LATE_POLICY_GET_ERROR", error);
+        apiLogger.error({ err: error }, "LATE_POLICY_GET_ERROR");
         return NextResponse.json({ error: "Failed to fetch late deduction policy" }, { status: 500 });
     }
 }
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: policy }, { status: 201 });
     } catch (error) {
-        console.error("LATE_POLICY_CREATE_ERROR", error);
+        apiLogger.error({ err: error }, "LATE_POLICY_CREATE_ERROR");
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to create policy" },
             { status: 500 }

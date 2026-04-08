@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { getAdapter } from "@/lib/biometric/device-adapter";
 import "@/lib/biometric/zkteco-adapter";
+import { biometricLogger } from "@/lib/logger";
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -88,7 +89,7 @@ export async function GET(req: Request, { params }: RouteParams) {
             await adapter.disconnect();
         }
     } catch (error) {
-        console.error("GET_DEVICE_USERS_ERROR", error);
+        biometricLogger.error({ err: error }, "GET_DEVICE_USERS_ERROR");
         const errMsg = error instanceof Error ? error.message : "Unknown error";
         return NextResponse.json(
             { success: false, message: errMsg, users: [] },

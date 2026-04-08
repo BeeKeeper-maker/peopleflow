@@ -9,10 +9,10 @@
  */
 
 import { NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getStorageService, FILE_TYPES } from "@/lib/storage";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
+import { storageLogger } from "@/lib/logger";
 
 // Folder to file type mapping
 const FOLDER_TYPE_MAP: Record<string, keyof typeof FILE_TYPES> = {
@@ -26,7 +26,7 @@ const FOLDER_TYPE_MAP: Record<string, keyof typeof FILE_TYPES> = {
 export async function POST(req: NextRequest) {
     try {
         // Auth check
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         }, { message: "File uploaded successfully" });
 
     } catch (error) {
-        console.error("UPLOAD_ERROR:", error);
+        storageLogger.error({ err: error }, "UPLOAD_ERROR:");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to upload file");
     }
 }
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 // Handle file deletion
 export async function DELETE(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -97,7 +97,7 @@ export async function DELETE(req: NextRequest) {
         return successResponse({ deleted: true }, { message: "File deleted successfully" });
 
     } catch (error) {
-        console.error("DELETE_ERROR:", error);
+        storageLogger.error({ err: error }, "DELETE_ERROR:");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to delete file");
     }
 }

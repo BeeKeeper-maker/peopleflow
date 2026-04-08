@@ -17,13 +17,14 @@ import {
     type SubscriptionJobData,
 } from "@/lib/queue";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
+import { subscriptionLogger } from "@/lib/logger";
 
 const worker = new Worker<SubscriptionJobData>(
     "subscription-lifecycle",
     async (job) => {
         const { type } = job.data;
 
-        console.log(`[WORKER:subscription] Processing: ${type} (Job ${job.id})`);
+        subscriptionLogger.info({ jobType: type, jobId: job.id }, `Processing: ${type}`);
 
         switch (type) {
             case "check-trial-expiry":
@@ -47,9 +48,7 @@ const worker = new Worker<SubscriptionJobData>(
                 break;
 
             default:
-                console.warn(
-                    `[WORKER:subscription] Unknown job type: ${type}`
-                );
+                subscriptionLogger.warn(`Unknown job type: ${type as string}`);
         }
     },
     {
@@ -84,9 +83,7 @@ async function handleTrialExpiry(): Promise<void> {
         },
     });
 
-    console.log(
-        `[WORKER:subscription] Found ${expiringTrials.length} trials expiring soon`
-    );
+    subscriptionLogger.info({ count: expiringTrials.length }, `Found ${expiringTrials.length} trials expiring soon`);
 
     for (const sub of expiringTrials) {
         // Find the org admin to notify
@@ -144,9 +141,7 @@ async function handleTrialExpiry(): Promise<void> {
         await invalidateSubscription(sub.organizationId);
     }
 
-    console.log(
-        `[WORKER:subscription] Expired ${expiredTrials.length} overdue trials`
-    );
+    subscriptionLogger.info({ count: expiredTrials.length }, `Expired ${expiredTrials.length} overdue trials`);
 }
 
 /**
@@ -214,9 +209,7 @@ async function handleEnforceSuspensions(): Promise<void> {
         }
     }
 
-    console.log(
-        `[WORKER:subscription] Suspended ${suspended} past-due accounts`
-    );
+    subscriptionLogger.info({ suspended }, `Suspended ${suspended} past-due accounts`);
 }
 
 /**
@@ -254,9 +247,7 @@ async function handlePaymentReminders(): Promise<void> {
         }
     }
 
-    console.log(
-        `[WORKER:subscription] Queued ${pastDueSubs.length} payment reminders`
-    );
+    subscriptionLogger.info({ count: pastDueSubs.length }, `Queued ${pastDueSubs.length} payment reminders`);
 }
 
 /**
@@ -315,9 +306,7 @@ async function handlePlanLimitAudit(): Promise<void> {
         for (const check of checks) {
             if (check.limit !== -1 && check.current > check.limit) {
                 violations++;
-                console.warn(
-                    `[AUDIT] Org ${org.name} (${org.id}): ${check.resource} over limit (${check.current}/${check.limit})`
-                );
+                subscriptionLogger.warn({ orgId: org.id, orgName: org.name, resource: check.resource, current: check.current, limit: check.limit }, "Plan limit violation detected");
 
                 // Record the violation as a usage record
                 await prisma.usageRecord.create({
@@ -331,9 +320,7 @@ async function handlePlanLimitAudit(): Promise<void> {
         }
     }
 
-    console.log(
-        `[WORKER:subscription] Plan limit audit complete. ${violations} violations found.`
-    );
+    subscriptionLogger.info({ violations }, `Plan limit audit complete. ${violations} violations found.`);
 }
 
 /**
@@ -358,16 +345,12 @@ async function handleCleanupDeactivated(): Promise<void> {
         },
     });
 
-    console.log(
-        `[WORKER:subscription] Found ${candidates.length} deactivated tenants older than 30 days`
-    );
+    subscriptionLogger.info({ count: candidates.length }, `Found ${candidates.length} deactivated tenants older than 30 days`);
 
     // Log candidates for platform admin review
     // In production, this would send a digest email to platform admins
     for (const org of candidates) {
-        console.log(
-            `[CLEANUP_CANDIDATE] ${org.name} (${org.id}) — suspended: ${org.suspendedAt?.toISOString()}, employees: ${org._count.employees}`
-        );
+        subscriptionLogger.info({ orgId: org.id, orgName: org.name, suspendedAt: org.suspendedAt?.toISOString(), employees: org._count.employees }, "Cleanup candidate identified");
 
         await prisma.usageRecord.create({
             data: {
@@ -382,16 +365,11 @@ async function handleCleanupDeactivated(): Promise<void> {
 // ── Worker Event Handlers ──
 
 worker.on("completed", (job) => {
-    console.log(
-        `[WORKER:subscription] Job ${job.id} (${job.name}) completed`
-    );
+    subscriptionLogger.debug({ jobId: job.id, jobName: job.name }, "Job completed");
 });
 
 worker.on("failed", (job, err) => {
-    console.error(
-        `[WORKER:subscription] Job ${job?.id} (${job?.name}) failed:`,
-        err.message
-    );
+    subscriptionLogger.error({ jobId: job?.id, jobName: job?.name, err }, "Job failed");
 });
 
 export default worker;

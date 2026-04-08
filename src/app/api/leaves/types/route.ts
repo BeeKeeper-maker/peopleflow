@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { leaveLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(leaveTypes);
     } catch (error) {
-        console.error("GET_LEAVE_TYPES_ERROR", error);
+        leaveLogger.error({ err: error }, "GET_LEAVE_TYPES_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(leaveType);
     } catch (error) {
-        console.error("CREATE_LEAVE_TYPE_ERROR", error);
+        leaveLogger.error({ err: error }, "CREATE_LEAVE_TYPE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

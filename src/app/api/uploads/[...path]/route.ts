@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import mime from 'mime';
+import { storageLogger } from "@/lib/logger";
 
 export async function GET(
     req: NextRequest,
@@ -38,7 +39,7 @@ export async function GET(
             },
         });
     } catch (error) {
-        console.error("SERVE_FILE_ERROR", error);
+        storageLogger.error({ err: error }, "SERVE_FILE_ERROR");
         return new NextResponse("Internal Server Error", { status: 500 });
     }
 }

@@ -13,6 +13,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { storageLogger } from "@/lib/logger";
 
 // ============================================
 // Configuration
@@ -147,7 +148,7 @@ class LocalStorageProvider implements StorageProvider {
         try {
             await fs.unlink(fullPath);
         } catch (error) {
-            console.error("Failed to delete file:", error);
+            storageLogger.error({ err: error, filePath }, "Failed to delete file");
         }
     }
 }
@@ -312,7 +313,7 @@ export class FileStorageService {
                 },
             };
         } catch (error) {
-            console.error("Upload failed:", error);
+            storageLogger.error({ err: error, fileName: file.name }, "Upload failed");
             return {
                 success: false,
                 error: {

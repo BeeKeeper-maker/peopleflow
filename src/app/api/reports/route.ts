@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Bangladesh Labour Act 2006 (BLA 2006) Compliance Engine
@@ -44,7 +45,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ error: `Unknown report type: ${reportType}` }, { status: 400 });
     } catch (error) {
-        console.error("Reports API error:", error);
+        apiLogger.error({ err: error }, "Reports API error:");
         return NextResponse.json({ error: "Failed to generate report" }, { status: 500 });
     }
 }

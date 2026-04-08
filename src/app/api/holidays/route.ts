@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/holidays — List holiday lists (filter by year)
 export async function GET(req: Request) {
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(holidayLists);
     } catch (error) {
-        console.error("GET_HOLIDAYS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_HOLIDAYS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(holidayList);
     } catch (error) {
-        console.error("CREATE_HOLIDAY_LIST_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_HOLIDAY_LIST_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

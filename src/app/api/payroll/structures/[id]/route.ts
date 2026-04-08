@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
+import { payrollLogger } from "@/lib/logger";
 
 const structureSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -21,7 +21,7 @@ export async function PUT(
 ) {
     const params = await props.params;
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -41,7 +41,7 @@ export async function PUT(
 
         return NextResponse.json(structure);
     } catch (error) {
-        console.error("SALARY_STRUCTURE_PUT_ERROR", error);
+        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_PUT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -52,7 +52,7 @@ export async function DELETE(
 ) {
     const params = await props.params;
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -77,7 +77,7 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 200 });
     } catch (error) {
-        console.error("SALARY_STRUCTURE_DELETE_ERROR", error);
+        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_DELETE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -6,16 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCheckoutSession, createPortalSession } from "@/lib/stripe";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * POST: Create a Stripe Checkout session for subscribing or upgrading
  */
 export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
 
     if (!session?.user?.email) {
         return NextResponse.json(
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ url: checkoutSession.url });
     } catch (error) {
-        console.error("[BILLING_CHECKOUT] Error:", error);
+        apiLogger.error({ err: error }, "[BILLING_CHECKOUT] Error:");
         return NextResponse.json(
             { error: "Failed to create checkout session" },
             { status: 500 }

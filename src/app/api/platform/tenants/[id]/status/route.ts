@@ -13,6 +13,7 @@ import {
     logPlatformAction,
 } from "@/lib/platform-auth";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
+import { apiLogger } from "@/lib/logger";
 
 // ============================================
 // SUSPEND a tenant
@@ -175,7 +176,7 @@ export async function PATCH(
             });
         }
     } catch (error) {
-        console.error("[KILL_SWITCH] Error:", error);
+        apiLogger.error({ err: error }, "[KILL_SWITCH] Error:");
         return NextResponse.json(
             { error: "Failed to update tenant status" },
             { status: 500 }

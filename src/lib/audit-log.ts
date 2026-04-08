@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "./prisma";
+import { auditLogger } from "@/lib/logger";
 
 export type AuditAction =
     | "login"
@@ -51,11 +52,11 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
 
         // Log sensitive events to console
         if (["login_failed", "delete", "password_change"].includes(entry.action)) {
-            console.log(`[AUDIT] ${entry.action} - ${entry.entityType}:${entry.entityId} by user:${entry.userId}`);
+            auditLogger.warn({ action: entry.action, entityType: entry.entityType, entityId: entry.entityId, userId: entry.userId }, "Sensitive audit event");
         }
     } catch (error) {
         // Don't let audit logging failures break the main operation
-        console.error("Failed to create audit log:", error);
+        auditLogger.error({ err: error }, "Failed to create audit log entry");
     }
 }
 

@@ -25,6 +25,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getAdapter } from "@/lib/biometric/device-adapter";
 import { createBulkNotifications } from "@/lib/notifications";
+import { biometricLogger } from "@/lib/logger";
 
 // Import ZKTeco adapter to register it
 import "@/lib/biometric/zkteco-adapter";
@@ -40,7 +41,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
 
         switch (type) {
             case "ping-all-devices": {
-                console.log(`[${WORKER_NAME}] Starting health check for all active devices...`);
+                biometricLogger.info("Starting health check for all active devices");
 
                 const devices = await prisma.biometricDevice.findMany({
                     where: { isActive: true },
@@ -61,7 +62,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                 });
 
                 if (devices.length === 0) {
-                    console.log(`[${WORKER_NAME}] No active devices found.`);
+                    biometricLogger.info("No active devices found");
                     return { checked: 0, online: 0, offline: 0 };
                 }
 
@@ -101,7 +102,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
 
                 // Send recovery notifications
                 if (recovered.length > 0) {
-                    console.log(`[${WORKER_NAME}] 🟢 ${recovered.length} device(s) recovered`);
+                    biometricLogger.info({ count: recovered.length }, "Device(s) recovered");
                     for (const recoveredDeviceId of recovered) {
                         await handleDeviceRecovery(recoveredDeviceId);
                     }
@@ -109,7 +110,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
 
                 // Send offline alerts (only for newly offline devices)
                 if (newlyOffline.length > 0) {
-                    console.log(`[${WORKER_NAME}] 🔴 ${newlyOffline.length} device(s) newly offline`);
+                    biometricLogger.warn({ count: newlyOffline.length }, "Device(s) newly offline");
                 }
 
                 // Trigger sync for online devices that are overdue
@@ -136,7 +137,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                     newlyOffline: newlyOffline.length,
                 };
 
-                console.log(`[${WORKER_NAME}] ✅ Health check complete:`, summary);
+                biometricLogger.info(summary, "Health check complete");
                 return summary;
             }
 
@@ -259,7 +260,7 @@ async function pingDevice(device: DeviceForPing): Promise<PingResult> {
             await alertDeviceOffline(device, errorMsg || "Device unreachable");
         }
     } catch (dbError) {
-        console.error(`[${WORKER_NAME}] Failed to save health log for ${device.name}:`, dbError);
+        biometricLogger.error({ err: dbError, deviceName: device.name }, "Failed to save health log");
     }
 
     return { online, latencyMs, error: errorMsg, status };
@@ -305,7 +306,7 @@ async function alertDeviceOffline(device: DeviceForPing, error: string): Promise
         data: { alertSentAt: new Date() },
     });
 
-    console.log(`[${WORKER_NAME}] ⚠️ Offline alert sent for "${device.name}"`);
+    biometricLogger.info({ deviceName: device.name }, "Offline alert sent");
 }
 
 /**
@@ -361,23 +362,23 @@ async function handleDeviceRecovery(deviceId: string): Promise<void> {
         data: { alertSentAt: null, consecutiveFailures: 0 },
     });
 
-    console.log(`[${WORKER_NAME}] 🟢 Device "${device.name}" recovered. Backfill sync queued.`);
+    biometricLogger.info({ deviceName: device.name }, "Device recovered. Backfill sync queued.");
 }
 
 // ── Event Handlers ──────────────────────────────────────────────────
 
 deviceHealthWorker.on("completed", (job) => {
-    console.log(`[${WORKER_NAME}] Job ${job.name} completed`);
+    biometricLogger.debug({ jobName: job.name }, "Job completed");
 });
 
 deviceHealthWorker.on("failed", (job, err) => {
-    console.error(`[${WORKER_NAME}] Job ${job?.name} failed: ${err.message}`);
+    biometricLogger.error({ jobName: job?.name, err }, "Job failed");
 });
 
 deviceHealthWorker.on("error", (err) => {
-    console.error(`[${WORKER_NAME}] Worker error:`, err.message);
+    biometricLogger.error({ err }, "Worker error");
 });
 
-console.log(`[${WORKER_NAME}] Worker started`);
+biometricLogger.info("Device health worker started");
 
 export default deviceHealthWorker;

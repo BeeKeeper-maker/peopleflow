@@ -13,6 +13,7 @@ import {
 } from "@/lib/leave-utils";
 import { validateMaternityLeave } from "@/lib/leave-compliance-engine";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { leaveLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     // Authenticate first
@@ -88,7 +89,7 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        console.error("GET_LEAVE_APPLICATIONS_ERROR", error);
+        leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATIONS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -319,7 +320,7 @@ export async function POST(req: Request) {
             });
         } catch (approvalError) {
             // Log but don't block — approval request creation failure shouldn't prevent submission
-            console.error("APPROVAL_REQUEST_CREATION_ERROR", approvalError);
+            leaveLogger.error({ err: approvalError }, "APPROVAL_REQUEST_CREATION_ERROR");
         }
 
         // ── Notify admin/HR users about new leave request ──
@@ -357,7 +358,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(application);
     } catch (error) {
-        console.error("CREATE_LEAVE_APPLICATION_ERROR", error);
+        leaveLogger.error({ err: error }, "CREATE_LEAVE_APPLICATION_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

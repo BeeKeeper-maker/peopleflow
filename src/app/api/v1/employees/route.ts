@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateApiKey, hasPermission } from "@/lib/api-key-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
     const auth = await authenticateApiKey(request);
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
             },
         });
     } catch (error) {
-        console.error("[API_V1_EMPLOYEES] Error:", error);
+        apiLogger.error({ err: error }, "[API_V1_EMPLOYEES] Error:");
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * GET /api/sync-agent/download — Serves the sync agent script as a download
@@ -78,7 +79,7 @@ async function getConfig() {
     }
 
     // Interactive setup with pre-configured values
-    console.log(\`\\n\${c.yellow}\${c.bold}─── First-Time Setup ───\${c.reset}\\n\`);
+    apiLogger.info(\`\\n\${c.yellow}\${c.bold}─── First-Time Setup ───\${c.reset}\\n\`);
 
     const defaultUrl = PRE_CONFIGURED_URL || "";
     const defaultKey = PRE_CONFIGURED_KEY || "";
@@ -125,7 +126,7 @@ async function getConfig() {
             },
         });
     } catch (error) {
-        console.error("DOWNLOAD_AGENT_ERROR", error);
+        apiLogger.error({ err: error }, "DOWNLOAD_AGENT_ERROR");
         return new NextResponse("Failed to generate agent script", { status: 500 });
     }
 }
@@ -133,8 +134,8 @@ async function getConfig() {
 function generateInlineAgent(): string {
     // Minimal fallback — shouldn't normally be needed
     return `#!/usr/bin/env node
-console.log("PeopleFlow Sync Agent");
-console.log("Error: Agent template not found. Please contact support.");
+apiLogger.info("PeopleFlow Sync Agent");
+apiLogger.info("Error: Agent template not found. Please contact support.");
 process.exit(1);
 `;
 }

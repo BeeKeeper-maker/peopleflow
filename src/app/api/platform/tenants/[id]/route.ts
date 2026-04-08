@@ -17,6 +17,7 @@ import {
     logPlatformAction,
 } from "@/lib/platform-auth";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
+import { apiLogger } from "@/lib/logger";
 
 // ============================================
 // GET: Full tenant detail
@@ -181,7 +182,7 @@ export async function GET(
             impersonationHistory,
         });
     } catch (error) {
-        console.error("[PLATFORM_TENANT_DETAIL] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_TENANT_DETAIL] Error:");
         return NextResponse.json(
             { error: "Failed to fetch tenant details" },
             { status: 500 }
@@ -254,7 +255,7 @@ export async function PATCH(
             },
         });
     } catch (error) {
-        console.error("[PLATFORM_TENANT_UPDATE] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_TENANT_UPDATE] Error:");
         return NextResponse.json(
             { error: "Failed to update tenant" },
             { status: 500 }
@@ -335,7 +336,7 @@ export async function DELETE(
             message: `Tenant '${org.name}' has been deactivated`,
         });
     } catch (error) {
-        console.error("[PLATFORM_TENANT_DELETE] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_TENANT_DELETE] Error:");
         return NextResponse.json(
             { error: "Failed to deactivate tenant" },
             { status: 500 }

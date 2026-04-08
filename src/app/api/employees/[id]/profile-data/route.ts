@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * GET /api/employees/:id/profile-data
@@ -191,7 +192,7 @@ export async function GET(
             },
         });
     } catch (error) {
-        console.error("PROFILE_DATA_ERROR", error);
+        apiLogger.error({ err: error }, "PROFILE_DATA_ERROR");
         return NextResponse.json({ error: "Failed to load profile data" }, { status: 500 });
     }
 }

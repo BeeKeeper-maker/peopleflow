@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { apiLogger } from "@/lib/logger";
 
 const claimSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -45,7 +45,7 @@ async function generateClaimNumber(organizationId: string): Promise<string> {
 // GET - List expense claims
 export async function GET(request: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(claims);
     } catch (error) {
-        console.error("Error fetching expense claims:", error);
+        apiLogger.error({ err: error }, "Error fetching expense claims:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
 // POST - Create expense claim
 export async function POST(request: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
                     priority: validatedData.amount >= 50000 ? "high" : "normal",
                 });
             } catch (approvalError) {
-                console.error("EXPENSE_APPROVAL_REQUEST_ERROR", approvalError);
+                apiLogger.error({ err: approvalError }, "EXPENSE_APPROVAL_REQUEST_ERROR");
             }
         }
 
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 });
         }
-        console.error("Error creating expense claim:", error);
+        apiLogger.error({ err: error }, "Error creating expense claim:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

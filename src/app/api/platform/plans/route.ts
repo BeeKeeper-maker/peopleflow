@@ -15,6 +15,7 @@ import {
     isPlatformAuthenticated,
     logPlatformAction,
 } from "@/lib/platform-auth";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * GET: List all plans with subscriber counts
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
             })),
         });
     } catch (error) {
-        console.error("[PLATFORM_PLANS_LIST] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_PLANS_LIST] Error:");
         return NextResponse.json(
             { error: "Failed to fetch plans" },
             { status: 500 }
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, plan }, { status: 201 });
     } catch (error) {
-        console.error("[PLATFORM_PLANS_CREATE] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_PLANS_CREATE] Error:");
         return NextResponse.json(
             { error: "Failed to create plan" },
             { status: 500 }
@@ -212,7 +213,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ success: true, plan });
     } catch (error) {
-        console.error("[PLATFORM_PLANS_UPDATE] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_PLANS_UPDATE] Error:");
         return NextResponse.json(
             { error: "Failed to update plan" },
             { status: 500 }

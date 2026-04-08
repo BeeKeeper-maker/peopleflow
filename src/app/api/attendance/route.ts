@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { attendanceLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     const auth = await requireAuth();
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
         return NextResponse.json(attendances);
 
     } catch (error) {
-        console.error("GET_ATTENDANCE_HISTORY_ERROR", error);
+        attendanceLogger.error({ err: error }, "GET_ATTENDANCE_HISTORY_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,19 +1,19 @@
 /**
- * API Authentication Utilities
- * 
- * Centralized authentication for API routes
- * Industry-standard approach with:
- * - Type-safe session handling
- * - Consistent error responses
- * - Role-based access control foundation
+ * API Authentication — Auth.js v5 + RLS Integration
+ *
+ * Centralized authentication for API routes with:
+ *   - Auth.js v5 `auth()` (replaces getServerSession)
+ *   - RLS-scoped DB access via `withDB()`
+ *   - Type-safe role-based access control
  */
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { prisma, withTenant, type TxClient } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { authLogger } from "@/lib/logger";
 
-// Standard error responses
+// ── Error Responses ──────────────────────────────────────────────
+
 export const AuthErrors = {
     UNAUTHORIZED: () => new NextResponse(
         JSON.stringify({ error: "Unauthorized", code: "AUTH_REQUIRED" }),
@@ -33,25 +33,25 @@ export const AuthErrors = {
     ),
 };
 
-// User role type
+// ── Types ────────────────────────────────────────────────────────
+
 export type UserRole = "super_admin" | "admin" | "hr_admin" | "manager" | "employee";
 
-// Authenticated user context
 export interface AuthContext {
     userId: string;
     email: string;
     role: UserRole;
     organizationId: string;
     employeeId?: string;
+    /** Execute DB operations within RLS-enforced tenant scope */
+    withDB: <T>(fn: (db: TxClient) => Promise<T>) => Promise<T>;
 }
 
-/**
- * Require authentication for API route
- * Returns AuthContext if authenticated, or NextResponse error
- */
+// ── Auth Functions ───────────────────────────────────────────────
+
 export async function requireAuth(): Promise<AuthContext | NextResponse> {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
 
         if (!session?.user?.email) {
             return AuthErrors.UNAUTHORIZED();
@@ -70,72 +70,47 @@ export async function requireAuth(): Promise<AuthContext | NextResponse> {
             return AuthErrors.NO_ORGANIZATION();
         }
 
+        const organizationId = user.organizationId;
+
         return {
             userId: user.id,
             email: user.email!,
             role: user.role as UserRole,
-            organizationId: user.organizationId,
+            organizationId,
             employeeId: user.employee?.id,
+            withDB: <T>(fn: (db: TxClient) => Promise<T>) =>
+                withTenant(organizationId, fn),
         };
     } catch (error) {
-        console.error("AUTH_ERROR", error);
+        authLogger.error({ err: error }, "Authentication error");
         return AuthErrors.UNAUTHORIZED();
     }
 }
 
-/**
- * Require authentication with employee profile
- */
 export async function requireEmployee(): Promise<(AuthContext & { employeeId: string }) | NextResponse> {
-    const auth = await requireAuth();
-
-    if (auth instanceof NextResponse) {
-        return auth;
-    }
-
-    if (!auth.employeeId) {
-        return AuthErrors.NO_EMPLOYEE();
-    }
-
-    return auth as AuthContext & { employeeId: string };
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
+    if (!authResult.employeeId) return AuthErrors.NO_EMPLOYEE();
+    return authResult as AuthContext & { employeeId: string };
 }
 
-/**
- * Require specific role(s) for API access
- */
 export async function requireRole(
     allowedRoles: UserRole[]
 ): Promise<AuthContext | NextResponse> {
-    const auth = await requireAuth();
-
-    if (auth instanceof NextResponse) {
-        return auth;
-    }
-
-    if (!allowedRoles.includes(auth.role)) {
-        return AuthErrors.FORBIDDEN();
-    }
-
-    return auth;
+    const authResult = await requireAuth();
+    if (authResult instanceof NextResponse) return authResult;
+    if (!allowedRoles.includes(authResult.role)) return AuthErrors.FORBIDDEN();
+    return authResult;
 }
 
-/**
- * Require admin or HR role
- */
 export async function requireAdminOrHR(): Promise<AuthContext | NextResponse> {
     return requireRole(["super_admin", "admin", "hr_admin"]);
 }
 
-/**
- * Require admin, HR, or manager role
- */
 export async function requireManagerOrAbove(): Promise<AuthContext | NextResponse> {
     return requireRole(["super_admin", "admin", "hr_admin", "manager"]);
 }
 
-/**
- * Type guard to check if result is AuthContext (not error)
- */
 export function isAuthenticated(result: AuthContext | NextResponse): result is AuthContext {
     return !(result instanceof NextResponse);
 }

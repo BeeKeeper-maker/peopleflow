@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * DELETE /api/sync-agent/keys/[id] — Revoke (soft-delete) an API Key
@@ -33,7 +34,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("REVOKE_SYNC_KEY_ERROR", error);
+        apiLogger.error({ err: error }, "REVOKE_SYNC_KEY_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * GET /api/employees/next-code
@@ -50,7 +51,7 @@ export async function GET() {
 
         return NextResponse.json({ code: nextCode });
     } catch (error) {
-        console.error("NEXT_CODE_ERROR", error);
+        apiLogger.error({ err: error }, "NEXT_CODE_ERROR");
         return NextResponse.json({ error: "Failed to generate code" }, { status: 500 });
     }
 }

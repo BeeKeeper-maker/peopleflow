@@ -1,8 +1,13 @@
 "use client";
 
+// Force dynamic rendering — never prerender this page.
+// This prevents the useContext(null) error during Next.js static export.
+export const dynamic = "force-dynamic";
+
 /**
  * Global Error Boundary — Must NOT use any providers (next-intl, session, etc.)
- * This page renders outside <html> providers, so no useContext() is available.
+ * This page renders OUTSIDE <html> providers, so no useContext() is available.
+ * Uses inline styles only (no Tailwind, no CSS imports).
  */
 export default function GlobalError({
     error,

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { leaveLogger } from "@/lib/logger";
 
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -36,7 +36,7 @@ export async function GET(
 
         return NextResponse.json(leaveType);
     } catch (error) {
-        console.error("GET_LEAVE_TYPE_ERROR", error);
+        leaveLogger.error({ err: error }, "GET_LEAVE_TYPE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -46,7 +46,7 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -91,7 +91,7 @@ export async function PUT(
 
         return NextResponse.json(leaveType);
     } catch (error) {
-        console.error("UPDATE_LEAVE_TYPE_ERROR", error);
+        leaveLogger.error({ err: error }, "UPDATE_LEAVE_TYPE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -101,7 +101,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -140,7 +140,7 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        console.error("DELETE_LEAVE_TYPE_ERROR", error);
+        leaveLogger.error({ err: error }, "DELETE_LEAVE_TYPE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { createGoalSchema } from "@/lib/validations/goal";
 import { errorResponse, successResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
+import { apiLogger } from "@/lib/logger";
 
 // GET - List goals
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
         return successResponse(goals);
     } catch (error) {
-        console.error("GET_GOALS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_GOALS_ERROR");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch goals");
     }
 }
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
 // POST - Create a new goal
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
         return createdResponse(goal, "Goal created successfully");
     } catch (error) {
-        console.error("CREATE_GOAL_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_GOAL_ERROR");
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         return errorResponse(ErrorCodes.INTERNAL_ERROR, `Failed to create goal: ${errorMessage}`);
     }

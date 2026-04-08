@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { hashPassword, validatePassword } from "@/lib/auth";
 import { sendEmail, emailTemplates } from "@/lib/email";
 import bcrypt from "bcryptjs";
+import { authLogger } from "@/lib/logger";
 
 const PASSWORD_HISTORY_LIMIT = 5;
 
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
                         </div>
                     </div>
                 `,
-            }).catch((err) => console.error("Failed to send password change email:", err));
+            }).catch((err) => authLogger.error({ err: err }, "Failed to send password change email:"));
         }
 
         return NextResponse.json(
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
             { status: 200 }
         );
     } catch (error) {
-        console.error("Reset password error:", error);
+        authLogger.error({ err: error }, "Reset password error:");
         return NextResponse.json(
             { error: "An error occurred. Please try again later." },
             { status: 500 }
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({ valid: true });
     } catch (error) {
-        console.error("Token validation error:", error);
+        authLogger.error({ err: error }, "Token validation error:");
         return NextResponse.json(
             { valid: false, error: "An error occurred" },
             { status: 500 }

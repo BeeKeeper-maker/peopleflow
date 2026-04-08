@@ -4,6 +4,7 @@ import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { generateDocumentHTML, getDocumentTypes, getRequiredFields } from "@/lib/document-templates";
 import type { DocumentType } from "@/lib/document-templates";
+import { apiLogger } from "@/lib/logger";
 
 // Valid document types for validation
 const VALID_DOC_TYPES = [
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
             requiredFields,
         });
     } catch (error) {
-        console.error("Document generation error:", error);
+        apiLogger.error({ err: error }, "Document generation error:");
         return NextResponse.json(
             { error: "Failed to generate document" },
             { status: 500 }
@@ -131,7 +132,7 @@ export async function GET(req: Request) {
             })),
         });
     } catch (error) {
-        console.error("Document types error:", error);
+        apiLogger.error({ err: error }, "Document types error:");
         return NextResponse.json(
             { error: "Failed to fetch document types" },
             { status: 500 }

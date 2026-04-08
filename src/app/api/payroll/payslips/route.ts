@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { payrollLogger } from "@/lib/logger";
 
 // GET /api/payroll/payslips - Get current employee's salary slips
 export async function GET(req: Request) {
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
             total: salarySlips.length,
         });
     } catch (error) {
-        console.error("GET_PAYSLIPS_ERROR", error);
+        payrollLogger.error({ err: error }, "GET_PAYSLIPS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

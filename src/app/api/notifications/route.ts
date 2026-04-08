@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET - List notifications for current user
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ notifications, unreadCount });
     } catch (error) {
-        console.error("GET_NOTIFICATIONS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_NOTIFICATIONS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
 // POST - Create a notification (internal use)
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(notification);
     } catch (error) {
-        console.error("CREATE_NOTIFICATION_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_NOTIFICATION_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
 // PATCH - Mark notifications as read
 export async function PATCH(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -116,7 +116,7 @@ export async function PATCH(req: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("MARK_READ_ERROR", error);
+        apiLogger.error({ err: error }, "MARK_READ_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

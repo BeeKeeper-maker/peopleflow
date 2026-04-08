@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPDF, SalarySlipData } from "@/components/payroll/salary-slip-pdf";
+import { payrollLogger } from "@/lib/logger";
 
 type RouteParams = {
     params: Promise<{ id: string }>;
@@ -12,7 +12,7 @@ type RouteParams = {
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             },
         });
     } catch (error) {
-        console.error("Error generating salary slip PDF:", error);
+        payrollLogger.error({ err: error }, "Error generating salary slip PDF:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

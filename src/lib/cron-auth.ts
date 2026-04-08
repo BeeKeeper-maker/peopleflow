@@ -11,6 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { cronLogger } from "@/lib/logger";
 
 /**
  * Validate cron request authentication.
@@ -22,14 +23,14 @@ export function verifyCronAuth(req: Request): NextResponse | null {
     // If no CRON_SECRET is set, allow in development but block in production
     if (!secret) {
         if (process.env.NODE_ENV === "production") {
-            console.error("[CRON] CRON_SECRET is not set in production!");
+            cronLogger.fatal("CRON_SECRET is not set in production!");
             return NextResponse.json(
                 { error: "Cron endpoint not configured" },
                 { status: 503 }
             );
         }
         // Allow in development without secret
-        console.warn("[CRON] Running without CRON_SECRET (dev mode)");
+        cronLogger.warn("Running without CRON_SECRET (dev mode)");
         return null;
     }
 

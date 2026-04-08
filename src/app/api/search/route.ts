@@ -10,10 +10,10 @@
  */
 
 import { NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
+import { apiLogger } from "@/lib/logger";
 
 interface SearchResult {
     id: string;
@@ -36,7 +36,7 @@ interface SearchResponse {
 
 export async function GET(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
         return successResponse(response);
 
     } catch (error) {
-        console.error("SEARCH_ERROR:", error);
+        apiLogger.error({ err: error }, "SEARCH_ERROR:");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Search failed");
     }
 }

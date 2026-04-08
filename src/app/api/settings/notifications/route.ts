@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/settings/notifications - Get notification preferences
 export async function GET(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions)
+        const session = await auth()
         if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ notifications })
     } catch (error) {
-        console.error("GET_NOTIFICATION_SETTINGS_ERROR", error)
+        apiLogger.error({ err: error }, "GET_NOTIFICATION_SETTINGS_ERROR")
         return NextResponse.json(
             { error: "Failed to fetch notification settings" },
             { status: 500 }
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 // PATCH /api/settings/notifications - Update notification preferences
 export async function PATCH(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions)
+        const session = await auth()
         if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json({ success: true, notifications: currentSettings.notifications })
     } catch (error) {
-        console.error("UPDATE_NOTIFICATION_SETTINGS_ERROR", error)
+        apiLogger.error({ err: error }, "UPDATE_NOTIFICATION_SETTINGS_ERROR")
         return NextResponse.json(
             { error: "Failed to update notification settings" },
             { status: 500 }

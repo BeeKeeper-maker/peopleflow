@@ -19,6 +19,7 @@
 import { prisma } from "@/lib/prisma";
 import { logPlatformAction } from "@/lib/platform-auth";
 import crypto from "crypto";
+import { platformLogger } from "@/lib/logger";
 
 // ============================================
 // Constants
@@ -300,9 +301,7 @@ export async function cleanupExpiredSessions(): Promise<number> {
     });
 
     if (result.count > 0) {
-        console.log(
-            `[IMPERSONATION] Expired ${result.count} stale session(s)`
-        );
+        platformLogger.info({ count: result.count }, `Expired ${result.count} stale impersonation session(s)`);
     }
 
     return result.count;

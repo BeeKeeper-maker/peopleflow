@@ -148,45 +148,11 @@ const nextConfig: NextConfig = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// Sentry Webpack Plugin — Uploads source maps during build
-// Only active when SENTRY_AUTH_TOKEN is set (prevents build
-// failures from auto-generated _global-error page)
+// Export Configuration
+// Sentry is currently disabled. To re-enable:
+// 1. npm install @sentry/nextjs
+// 2. Uncomment sentry configs in sentry.*.config.ts
+// 3. Add withSentryConfig wrapping here
 // ══════════════════════════════════════════════════════════════
-const sentryConfig = {
-  org: process.env.SENTRY_ORG || "peopleflow",
-  project: process.env.SENTRY_PROJECT || "peopleflow-hrms",
+export default withNextIntl(nextConfig);
 
-  silent: !process.env.CI,
-
-  widenClientFileUpload: true,
-  hideSourceMaps: true,
-  disableLogger: true,
-
-  autoInstrumentServerFunctions: true,
-  autoInstrumentMiddleware: true,
-
-  // CRITICAL: Disable auto-generation of _global-error page.
-  // We provide our own at src/app/global-error.tsx that is
-  // provider-free and safe for prerendering.
-  autoInstrumentAppDirectory: false,
-
-  tunnelRoute: "/monitoring",
-};
-
-// Only wrap with Sentry when auth token AND the module are available.
-// Uses dynamic require() to avoid crashing when @sentry/nextjs is not installed.
-const baseConfig = withNextIntl(nextConfig);
-
-let finalConfig = baseConfig;
-if (process.env.SENTRY_AUTH_TOKEN) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { withSentryConfig } = require("@sentry/nextjs");
-    finalConfig = withSentryConfig(baseConfig, sentryConfig);
-  } catch {
-    // @sentry/nextjs not installed — skip Sentry wrapping
-    console.warn("⚠ @sentry/nextjs not found, skipping Sentry instrumentation");
-  }
-}
-
-export default finalConfig;

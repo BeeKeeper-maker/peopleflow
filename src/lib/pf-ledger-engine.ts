@@ -267,7 +267,8 @@ export async function calculateAndCreditInterest(
 
     // Calculate interest on the total balance (employee + employer)
     const calculationBasis = account.employeeBalance + account.employerBalance;
-    const interestAmount = Math.round(calculationBasis * (account.interestRate / 100));
+    // IEEE 754 FIX: multiply first, divide last
+    const interestAmount = Math.round((calculationBasis * account.interestRate) / 100);
 
     if (interestAmount <= 0) {
         return {

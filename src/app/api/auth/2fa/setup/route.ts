@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { generateSecret, generateURI, verify as verifyTOTP } from "otplib";
 import QRCode from "qrcode";
+import { authLogger } from "@/lib/logger";
 
 /**
  * POST — Generate 2FA secret and QR code for setup
@@ -50,7 +51,7 @@ export async function POST() {
             message: "Scan the QR code with your authenticator app, then verify with a code.",
         });
     } catch (error) {
-        console.error("2FA setup error:", error);
+        authLogger.error({ err: error }, "2FA setup error:");
         return NextResponse.json(
             { error: "Failed to set up two-factor authentication" },
             { status: 500 }
@@ -83,7 +84,7 @@ export async function DELETE() {
             message: "Two-factor authentication has been disabled",
         });
     } catch (error) {
-        console.error("2FA disable error:", error);
+        authLogger.error({ err: error }, "2FA disable error:");
         return NextResponse.json(
             { error: "Failed to disable two-factor authentication" },
             { status: 500 }

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { emit } from "@/lib/event-bus";
+import { attendanceLogger } from "@/lib/logger";
 
 /**
  * PUT — Approve or reject a regularization request.
@@ -132,7 +133,7 @@ export async function PUT(
                     userId: attendance.employee.user.id,
                     employeeName: `${attendance.employee.firstName} ${attendance.employee.lastName}`,
                     date: attendance.date.toISOString().split("T")[0],
-                }).catch((err) => console.error("[EVENT_FAIL] regularization.approved:", err));
+                }).catch((err) => attendanceLogger.error({ err: err }, "[EVENT_FAIL] regularization.approved:"));
             }
 
             // Log the action in audit
@@ -179,7 +180,7 @@ export async function PUT(
                     userId: attendance.employee.user.id,
                     employeeName: `${attendance.employee.firstName} ${attendance.employee.lastName}`,
                     date: attendance.date.toISOString().split("T")[0],
-                }).catch((err) => console.error("[EVENT_FAIL] regularization.rejected:", err));
+                }).catch((err) => attendanceLogger.error({ err: err }, "[EVENT_FAIL] regularization.rejected:"));
             }
 
             // Log the action in audit
@@ -209,7 +210,7 @@ export async function PUT(
             });
         }
     } catch (error) {
-        console.error("Regularization process error:", error);
+        attendanceLogger.error({ err: error }, "Regularization process error:");
         return NextResponse.json(
             { error: "Failed to process regularization" },
             { status: 500 }

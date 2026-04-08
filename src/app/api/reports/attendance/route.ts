@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { startOfDay, endOfDay, subDays, format } from "date-fns";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -132,7 +132,7 @@ export async function GET(req: Request) {
         });
 
     } catch (error) {
-        console.error("REPORTS_API_ERROR", error);
+        apiLogger.error({ err: error }, "REPORTS_API_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

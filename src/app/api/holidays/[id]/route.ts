@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // POST /api/holidays/[id] — Add holiday(s) to a list
 export async function POST(
@@ -72,7 +73,7 @@ export async function POST(
 
         return NextResponse.json(holiday);
     } catch (error) {
-        console.error("ADD_HOLIDAY_ERROR", error);
+        apiLogger.error({ err: error }, "ADD_HOLIDAY_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -135,7 +136,7 @@ export async function PUT(
 
         return NextResponse.json(holidayList);
     } catch (error) {
-        console.error("UPDATE_HOLIDAY_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_HOLIDAY_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -196,7 +197,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_HOLIDAY_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_HOLIDAY_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // PUT /api/announcements/[id] — Update an announcement
 export async function PUT(
@@ -43,7 +44,7 @@ export async function PUT(
 
         return NextResponse.json(announcement);
     } catch (error) {
-        console.error("UPDATE_ANNOUNCEMENT_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_ANNOUNCEMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -76,7 +77,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_ANNOUNCEMENT_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_ANNOUNCEMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

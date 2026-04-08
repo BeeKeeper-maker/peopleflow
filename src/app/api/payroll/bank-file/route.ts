@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { generateBankFileCSV } from "@/lib/payroll-engine";
+import { payrollLogger } from "@/lib/logger";
 
 /**
  * POST - Generate bank transfer file for bulk salary payment
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
             },
         });
     } catch (error) {
-        console.error("Bank file generation error:", error);
+        payrollLogger.error({ err: error }, "Bank file generation error:");
         return NextResponse.json(
             { error: "Failed to generate bank file" },
             { status: 500 }

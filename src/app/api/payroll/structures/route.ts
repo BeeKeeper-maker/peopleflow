@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { successResponse, errorResponse, ErrorCodes } from "@/lib/api-response";
+import { payrollLogger } from "@/lib/logger";
 
 const structureSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 
         return successResponse(structures);
     } catch (error) {
-        console.error("SALARY_STRUCTURES_GET_ERROR", error);
+        payrollLogger.error({ err: error }, "SALARY_STRUCTURES_GET_ERROR");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch salary structures");
     }
 }
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(structure);
     } catch (error) {
-        console.error("SALARY_STRUCTURES_POST_ERROR", error);
+        payrollLogger.error({ err: error }, "SALARY_STRUCTURES_POST_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

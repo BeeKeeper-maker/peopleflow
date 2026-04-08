@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { calculateEncashment } from "@/lib/leave-engine";
+import { leaveLogger } from "@/lib/logger";
 
 /**
  * POST - Calculate leave encashment for an employee
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error("Leave encashment error:", error);
+        leaveLogger.error({ err: error }, "Leave encashment error:");
         return NextResponse.json(
             { error: "Failed to calculate leave encashment" },
             { status: 500 }
@@ -165,7 +166,7 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        console.error("Encashment report error:", error);
+        leaveLogger.error({ err: error }, "Encashment report error:");
         return NextResponse.json(
             { error: "Failed to generate encashment report" },
             { status: 500 }

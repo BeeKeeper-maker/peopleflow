@@ -23,6 +23,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── BullMQ Worker (scales independently) ──
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run worker
+    environment:
+      - DATABASE_URL=postgresql://peopleflow:peopleflow@db:5432/peopleflow
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SECRET=${AUTH_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 1  # Scale up: docker-compose up --scale worker=3
+
   db:
     image: postgres:16-alpine
     environment:

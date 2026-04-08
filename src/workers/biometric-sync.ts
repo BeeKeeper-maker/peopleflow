@@ -25,6 +25,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { syncDevice, syncAllDevices } from "@/lib/biometric/sync-engine";
 import { createBulkNotifications } from "@/lib/notifications";
+import { biometricLogger } from "@/lib/logger";
 
 const WORKER_NAME = "BIOMETRIC_SYNC";
 
@@ -35,7 +36,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
     async (job: Job<BiometricSyncJobData>) => {
         const { type, deviceId, organizationId } = job.data;
 
-        console.log(`[${WORKER_NAME}] Processing job: ${type} (attempt ${job.attemptsMade + 1}/${job.opts?.attempts || 5})`);
+        biometricLogger.info({ type, attempt: job.attemptsMade + 1, maxAttempts: job.opts?.attempts || 5 }, `Processing job: ${type}`);
 
         switch (type) {
             case "sync-device": {
@@ -46,7 +47,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                 if (!result.success) {
                     // If the error is not retriable, don't let BullMQ retry
                     if (!result.retriable) {
-                        console.error(`[${WORKER_NAME}] Non-retriable error for device ${result.deviceName}: ${result.error}`);
+                        biometricLogger.error({ deviceName: result.deviceName, error: result.error }, "Non-retriable sync error");
                         // Alert admins about config issue
                         await alertAdminsAboutDevice(deviceId, result.error || "Non-retriable sync error");
                         return result; // Return instead of throw — marks job as complete
@@ -56,7 +57,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                     throw new Error(`Device ${result.deviceName} sync failed: ${result.error}`);
                 }
 
-                console.log(`[${WORKER_NAME}] ✅ Device "${result.deviceName}" synced: ${result.recordsSynced} records in ${result.duration}ms`);
+                biometricLogger.info({ deviceName: result.deviceName, recordsSynced: result.recordsSynced, duration: result.duration }, "Device synced successfully");
                 return result;
             }
 
@@ -67,7 +68,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                 const failed = results.filter((r) => !r.success);
                 const succeeded = results.filter((r) => r.success);
 
-                console.log(`[${WORKER_NAME}] ✅ Org sync complete: ${succeeded.length} succeeded, ${failed.length} failed`);
+                biometricLogger.info({ succeeded: succeeded.length, failed: failed.length }, "Org sync complete");
 
                 // Re-queue retriable failures as individual device sync jobs
                 for (const failure of failed) {
@@ -84,7 +85,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                                 attempts: 3,  // Fewer retries for re-queued jobs
                             }
                         );
-                        console.log(`[${WORKER_NAME}] Re-queued device "${failure.deviceName}" for retry`);
+                        biometricLogger.info({ deviceName: failure.deviceName }, "Re-queued device for retry");
                     }
                 }
 
@@ -94,7 +95,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
             case "retry-failed-device": {
                 if (!deviceId) throw new Error("deviceId is required for retry-failed-device");
 
-                console.log(`[${WORKER_NAME}] Retrying failed device ${deviceId} (previous error: ${job.data.previousError})`);
+                biometricLogger.info({ deviceId, previousError: job.data.previousError }, "Retrying failed device");
                 const result = await syncDevice(deviceId);
 
                 if (!result.success) {
@@ -105,7 +106,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                     });
 
                     if (device && device.consecutiveFailures >= device.maxRetries) {
-                        console.error(`[${WORKER_NAME}] 🔴 Device "${device.name}" has exceeded max retries (${device.consecutiveFailures}/${device.maxRetries}). Marking offline.`);
+                        biometricLogger.error({ deviceName: device.name, consecutiveFailures: device.consecutiveFailures, maxRetries: device.maxRetries }, "Device exceeded max retries, marking offline");
 
                         // Mark device as offline
                         await prisma.biometricDevice.update({
@@ -123,7 +124,7 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
                     throw new Error(`Retry failed: ${result.error}`);
                 }
 
-                console.log(`[${WORKER_NAME}] ✅ Retry succeeded for device "${result.deviceName}"`);
+                biometricLogger.info({ deviceName: result.deviceName }, "Retry succeeded");
                 return result;
             }
 
@@ -144,15 +145,15 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
 // ── Event Handlers ──────────────────────────────────────────────────
 
 biometricSyncWorker.on("completed", (job) => {
-    console.log(`[${WORKER_NAME}] Job ${job.name} completed`);
+    biometricLogger.debug({ jobName: job.name }, "Job completed");
 });
 
 biometricSyncWorker.on("failed", (job, err) => {
-    console.error(`[${WORKER_NAME}] Job ${job?.name} failed (attempt ${job?.attemptsMade}): ${err.message}`);
+    biometricLogger.error({ jobName: job?.name, attempt: job?.attemptsMade, err }, "Job failed");
 });
 
 biometricSyncWorker.on("error", (err) => {
-    console.error(`[${WORKER_NAME}] Worker error:`, err.message);
+    biometricLogger.error({ err }, "Worker error");
 });
 
 // ── Admin Alert Utility ─────────────────────────────────────────────
@@ -211,9 +212,9 @@ async function alertAdminsAboutDevice(deviceId: string, errorMessage: string): P
             data: { alertSentAt: new Date() },
         });
 
-        console.log(`[${WORKER_NAME}] Alert sent to ${admins.length} admins for device "${device.name}"`);
+        biometricLogger.info({ admins: admins.length, deviceName: device.name }, "Alert sent to admins");
     } catch (error) {
-        console.error(`[${WORKER_NAME}] Failed to send alert:`, error);
+        biometricLogger.error({ err: error, deviceId }, "Failed to send admin alert");
     }
 }
 
@@ -241,6 +242,6 @@ export async function enqueueSyncAllDevices(organizationId: string): Promise<voi
     });
 }
 
-console.log(`[${WORKER_NAME}] Worker started`);
+biometricLogger.info("Biometric sync worker started");
 
 export default biometricSyncWorker;

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(designations);
     } catch (error) {
-        console.error("GET_DESIGNATIONS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_DESIGNATIONS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(designation);
     } catch (error) {
-        console.error("CREATE_DESIGNATION_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_DESIGNATION_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

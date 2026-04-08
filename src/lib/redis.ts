@@ -10,6 +10,7 @@
  */
 
 import Redis from "ioredis";
+import { redisLogger } from "@/lib/logger";
 
 let redis: Redis | null = null;
 
@@ -24,7 +25,7 @@ export function getRedis(): Redis {
             maxRetriesPerRequest: 3,
             retryStrategy(times) {
                 if (times > 5) {
-                    console.error("[REDIS] Max retries reached. Giving up.");
+                    redisLogger.fatal("Max retries reached. Giving up.");
                     return null; // Stop retrying
                 }
                 const delay = Math.min(times * 200, 2000);
@@ -36,15 +37,15 @@ export function getRedis(): Redis {
         });
 
         redis.on("error", (err) => {
-            console.error("[REDIS] Connection error:", err.message);
+            redisLogger.error({ err }, "Connection error");
         });
 
         redis.on("connect", () => {
-            console.log("[REDIS] Connected successfully");
+            redisLogger.info("Connected successfully");
         });
 
         redis.on("ready", () => {
-            console.log("[REDIS] Ready to accept commands");
+            redisLogger.info("Ready to accept commands");
         });
     }
     return redis;
@@ -62,7 +63,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
         const data = await getRedis().get(key);
         return data ? JSON.parse(data) : null;
     } catch (error) {
-        console.error("[REDIS] cacheGet error:", error);
+        redisLogger.error({ err: error, key: JSON.stringify(key).substring(0, 50) }, "cacheGet error");
         return null;
     }
 }
@@ -78,7 +79,7 @@ export async function cacheSet(
     try {
         await getRedis().setex(key, ttlSeconds, JSON.stringify(value));
     } catch (error) {
-        console.error("[REDIS] cacheSet error:", error);
+        redisLogger.error({ err: error }, "cacheSet error");
     }
 }
 
@@ -89,7 +90,7 @@ export async function cacheDel(key: string): Promise<void> {
     try {
         await getRedis().del(key);
     } catch (error) {
-        console.error("[REDIS] cacheDel error:", error);
+        redisLogger.error({ err: error }, "cacheDel error");
     }
 }
 
@@ -104,7 +105,7 @@ export async function cacheInvalidate(pattern: string): Promise<void> {
             await getRedis().del(...keys);
         }
     } catch (error) {
-        console.error("[REDIS] cacheInvalidate error:", error);
+        redisLogger.error({ err: error }, "cacheInvalidate error");
     }
 }
 
@@ -153,7 +154,7 @@ export async function checkRedisRateLimit(
     } catch (error) {
         // On Redis failure, ALLOW the request (fail-open)
         // Better to allow some extra requests than block all users
-        console.error("[REDIS] Rate limit check failed, allowing request:", error);
+        redisLogger.error({ err: error }, "Rate limit check failed, allowing request (fail-open)");
         return { allowed: true, remaining: maxRequests, retryAfter: 0 };
     }
 }

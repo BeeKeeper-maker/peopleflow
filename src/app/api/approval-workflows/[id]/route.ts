@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // PUT /api/approval-workflows/[id] — Update a workflow
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +38,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         return NextResponse.json(updated);
     } catch (error) {
-        console.error("Failed to update workflow:", error);
+        apiLogger.error({ err: error }, "Failed to update workflow:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
@@ -67,7 +68,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("Failed to delete workflow:", error);
+        apiLogger.error({ err: error }, "Failed to delete workflow:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

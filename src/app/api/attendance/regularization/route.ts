@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth, requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { attendanceLogger } from "@/lib/logger";
 
 /**
  * GET — List regularization requests.
@@ -87,7 +88,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json({ requests });
     } catch (error) {
-        console.error("Regularization list error:", error);
+        attendanceLogger.error({ err: error }, "Regularization list error:");
         return NextResponse.json({ error: "Failed to fetch requests" }, { status: 500 });
     }
 }
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
             message: "Regularization request submitted. Pending manager approval.",
         });
     } catch (error) {
-        console.error("Regularization submit error:", error);
+        attendanceLogger.error({ err: error }, "Regularization submit error:");
         return NextResponse.json({ error: "Failed to submit request" }, { status: 500 });
     }
 }

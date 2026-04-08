@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * POST /api/v1/sync/heartbeat — Agent Health Check
@@ -67,7 +68,7 @@ export async function POST(req: Request) {
             agentName: apiKey.name,
         });
     } catch (error) {
-        console.error("HEARTBEAT_ERROR", error);
+        apiLogger.error({ err: error }, "HEARTBEAT_ERROR");
         return NextResponse.json(
             { success: false, error: "Internal error" },
             { status: 500 }

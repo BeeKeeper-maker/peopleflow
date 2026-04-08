@@ -15,6 +15,7 @@ import {
     AttendanceLog,
     registerAdapter,
 } from "./device-adapter";
+import { biometricLogger } from "@/lib/logger";
 
 class ZKTecoAdapter implements BiometricDeviceAdapter {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +135,7 @@ class ZKTecoAdapter implements BiometricDeviceAdapter {
                 })
             );
         } catch (error) {
-            console.error("ZKTeco getUsers error:", error);
+            biometricLogger.error({ err: error }, "ZKTeco getUsers error");
             return [];
         }
     }

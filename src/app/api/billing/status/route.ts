@@ -11,12 +11,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
 
     if (!session?.user?.email) {
         return NextResponse.json(
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
             })),
         });
     } catch (error) {
-        console.error("[BILLING_STATUS] Error:", error);
+        apiLogger.error({ err: error }, "[BILLING_STATUS] Error:");
         return NextResponse.json(
             { error: "Failed to fetch billing status" },
             { status: 500 }

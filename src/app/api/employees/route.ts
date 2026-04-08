@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from "@/lib/validations/employee";
 import { z } from "zod";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employees — Create Employee
@@ -114,7 +115,7 @@ export async function POST(req: Request) {
                 { status: 422 }
             );
         }
-        console.error("CREATE_EMPLOYEE_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_EMPLOYEE_ERROR");
         return NextResponse.json(
             { error: (error as Error).message || "Internal Error" },
             { status: 500 }
@@ -186,7 +187,7 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        console.error("GET_EMPLOYEES_ERROR", error);
+        apiLogger.error({ err: error }, "GET_EMPLOYEES_ERROR");
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     // Authenticate first
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(departments);
     } catch (error) {
-        console.error("GET_DEPARTMENTS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_DEPARTMENTS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(department);
     } catch (error) {
-        console.error("CREATE_DEPARTMENT_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_DEPARTMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

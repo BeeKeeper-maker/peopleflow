@@ -20,6 +20,7 @@ import {
     requirePlatformAuth,
     isPlatformAuthenticated,
 } from "@/lib/platform-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
     const auth = await requirePlatformAuth();
@@ -275,7 +276,7 @@ export async function GET(request: NextRequest) {
             generatedAt: now.toISOString(),
         });
     } catch (error) {
-        console.error("[PLATFORM_ANALYTICS] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_ANALYTICS] Error:");
         return NextResponse.json(
             { error: "Failed to generate analytics" },
             { status: 500 }

@@ -14,6 +14,7 @@ import {
     requirePlatformAuth,
     isPlatformAuthenticated,
 } from "@/lib/platform-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
     const auth = await requirePlatformAuth();
@@ -121,7 +122,7 @@ export async function GET(request: NextRequest) {
             },
         });
     } catch (error) {
-        console.error("[PLATFORM_TENANTS_LIST] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_TENANTS_LIST] Error:");
         return NextResponse.json(
             { error: "Failed to fetch tenants" },
             { status: 500 }

@@ -13,6 +13,7 @@
  */
 
 import { eachDayOfInterval, isWeekend, differenceInDays } from "date-fns";
+import { leaveLogger } from "@/lib/logger";
 
 // ============================================
 // Types
@@ -279,7 +280,7 @@ export async function createLeaveNotification(
         });
     } catch (error) {
         // Don't fail the main operation if notification fails
-        console.error("LEAVE_NOTIFICATION_ERROR:", error);
+        leaveLogger.error({ err: error, recipientUserId, type }, "Failed to create leave notification");
     }
 }
 

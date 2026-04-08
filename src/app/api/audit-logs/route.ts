@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { auditLogger } from "@/lib/logger";
 
 // ✅ CSV injection protection
 function escapeCsvField(value: string): string {
@@ -192,7 +193,7 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        console.error("Audit log error:", error);
+        auditLogger.error({ err: error }, "Audit log error:");
         return NextResponse.json(
             { error: "Failed to fetch audit logs" },
             { status: 500 }

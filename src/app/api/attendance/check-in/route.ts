@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { startOfDay, differenceInMinutes, parse, set } from "date-fns";
+import { attendanceLogger } from "@/lib/logger";
 
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -72,14 +72,14 @@ export async function POST(req: Request) {
         return NextResponse.json(attendance);
 
     } catch (error) {
-        console.error("CHECK_IN_ERROR", error);
+        attendanceLogger.error({ err: error }, "CHECK_IN_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
 
 export async function PUT(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -146,7 +146,7 @@ export async function PUT(req: Request) {
         return NextResponse.json(updated);
 
     } catch (error) {
-        console.error("CHECK_OUT_ERROR", error);
+        attendanceLogger.error({ err: error }, "CHECK_OUT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/branches — List all branches
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
 
         return NextResponse.json(branches);
     } catch (error) {
-        console.error("GET_BRANCHES_ERROR", error);
+        apiLogger.error({ err: error }, "GET_BRANCHES_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(branch);
     } catch (error) {
-        console.error("CREATE_BRANCH_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_BRANCH_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

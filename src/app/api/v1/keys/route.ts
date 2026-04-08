@@ -9,13 +9,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateApiKey, hashApiKey } from "@/lib/api-key-auth";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.email) {
         return NextResponse.json({ error: "Auth required" }, { status: 401 });
     }
@@ -75,13 +75,13 @@ export async function POST(request: NextRequest) {
             warning: "Save this key securely. It cannot be retrieved again.",
         }, { status: 201 });
     } catch (error) {
-        console.error("[API_KEYS] Error:", error);
+        apiLogger.error({ err: error }, "[API_KEYS] Error:");
         return NextResponse.json({ error: "Failed to create API key" }, { status: 500 });
     }
 }
 
 export async function GET() {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.email) return NextResponse.json({ error: "Auth required" }, { status: 401 });
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });
@@ -105,7 +105,7 @@ export async function GET() {
 }
 
 export async function DELETE(request: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.email) return NextResponse.json({ error: "Auth required" }, { status: 401 });
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });

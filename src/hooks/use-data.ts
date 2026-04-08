@@ -200,6 +200,196 @@ export function useDeleteResource(
 }
 
 // ============================================
+// Optimistic Mutation Hooks
+// ============================================
+
+/**
+ * Optimistic create: instantly appends to a list cache, rolls back on error.
+ */
+export function useOptimisticCreate<TData, TVariables>(
+    endpoint: string,
+    options: {
+        listQueryKey: readonly unknown[];
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+        /** Transform variables into the optimistic cache entry */
+        optimisticEntry?: (variables: TVariables) => Partial<TData>;
+    }
+) {
+    const queryClient = useQueryClient();
+    const { addToast } = useToast();
+
+    return useMutation<ApiResponse<TData>, ApiError, TVariables, { previousData: unknown }>({
+        mutationFn: (data) => api.post<TData>(endpoint, data),
+
+        onMutate: async (variables) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: options.listQueryKey });
+
+            // Snapshot previous value
+            const previousData = queryClient.getQueryData(options.listQueryKey);
+
+            // Optimistically add to list
+            if (options.optimisticEntry) {
+                queryClient.setQueryData(options.listQueryKey, (old: any) => {
+                    if (!old) return old;
+                    const entry = {
+                        id: `temp-${Date.now()}`,
+                        ...options.optimisticEntry!(variables),
+                        _optimistic: true,
+                    };
+                    // Handle paginated vs flat responses
+                    if (old?.data && Array.isArray(old.data)) {
+                        return { ...old, data: [entry, ...old.data] };
+                    }
+                    if (Array.isArray(old)) {
+                        return [entry, ...old];
+                    }
+                    return old;
+                });
+            }
+
+            return { previousData };
+        },
+
+        onError: (_error, _variables, context) => {
+            // Rollback to snapshot
+            if (context?.previousData) {
+                queryClient.setQueryData(options.listQueryKey, context.previousData);
+            }
+            addToast({ title: options.errorMessage || _error.message, type: "error" });
+        },
+
+        onSuccess: () => {
+            if (options.successMessage) {
+                addToast({ title: options.successMessage, type: "success" });
+            }
+        },
+
+        onSettled: () => {
+            // Always refetch for server truth
+            queryClient.invalidateQueries({ queryKey: options.listQueryKey });
+            options.invalidateKeys?.forEach((key) => {
+                queryClient.invalidateQueries({ queryKey: key });
+            });
+        },
+    });
+}
+
+/**
+ * Optimistic update: instantly mutates an item in cache, rolls back on error.
+ */
+export function useOptimisticUpdate<TData, TVariables>(
+    endpoint: string,
+    options: {
+        listQueryKey: readonly unknown[];
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+        /** How to apply the update optimistically */
+        applyUpdate?: (existing: TData, variables: TVariables) => TData;
+    }
+) {
+    const queryClient = useQueryClient();
+    const { addToast } = useToast();
+
+    return useMutation<ApiResponse<TData>, ApiError, { id: string; data: TVariables }, { previousData: unknown }>({
+        mutationFn: ({ id, data }) => api.put<TData>(`${endpoint}/${id}`, data),
+
+        onMutate: async ({ id, data }) => {
+            await queryClient.cancelQueries({ queryKey: options.listQueryKey });
+            const previousData = queryClient.getQueryData(options.listQueryKey);
+
+            if (options.applyUpdate) {
+                queryClient.setQueryData(options.listQueryKey, (old: any) => {
+                    if (!old) return old;
+                    const items = old?.data && Array.isArray(old.data) ? old.data : Array.isArray(old) ? old : null;
+                    if (!items) return old;
+
+                    const updated = items.map((item: any) =>
+                        item.id === id ? options.applyUpdate!(item, data) : item
+                    );
+
+                    if (old?.data) return { ...old, data: updated };
+                    return updated;
+                });
+            }
+
+            return { previousData };
+        },
+
+        onError: (_error, _variables, context) => {
+            if (context?.previousData) {
+                queryClient.setQueryData(options.listQueryKey, context.previousData);
+            }
+            addToast({ title: options.errorMessage || _error.message, type: "error" });
+        },
+
+        onSuccess: () => {
+            if (options.successMessage) addToast({ title: options.successMessage, type: "success" });
+        },
+
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: options.listQueryKey });
+            options.invalidateKeys?.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+        },
+    });
+}
+
+/**
+ * Optimistic delete: instantly removes from list, rolls back on error.
+ */
+export function useOptimisticDelete(
+    endpoint: string,
+    options: {
+        listQueryKey: readonly unknown[];
+        invalidateKeys?: readonly unknown[][];
+        successMessage?: string;
+        errorMessage?: string;
+    }
+) {
+    const queryClient = useQueryClient();
+    const { addToast } = useToast();
+
+    return useMutation<ApiResponse<void>, ApiError, string, { previousData: unknown }>({
+        mutationFn: (id) => api.delete<void>(`${endpoint}/${id}`),
+
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: options.listQueryKey });
+            const previousData = queryClient.getQueryData(options.listQueryKey);
+
+            queryClient.setQueryData(options.listQueryKey, (old: any) => {
+                if (!old) return old;
+                const items = old?.data && Array.isArray(old.data) ? old.data : Array.isArray(old) ? old : null;
+                if (!items) return old;
+                const filtered = items.filter((item: any) => item.id !== id);
+                if (old?.data) return { ...old, data: filtered };
+                return filtered;
+            });
+
+            return { previousData };
+        },
+
+        onError: (_error, _id, context) => {
+            if (context?.previousData) {
+                queryClient.setQueryData(options.listQueryKey, context.previousData);
+            }
+            addToast({ title: options.errorMessage || _error.message, type: "error" });
+        },
+
+        onSuccess: () => {
+            if (options.successMessage) addToast({ title: options.successMessage, type: "success" });
+        },
+
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: options.listQueryKey });
+            options.invalidateKeys?.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+        },
+    });
+}
+
+// ============================================
 // Specific Hooks
 // ============================================
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/employees/me - Get current employee's profile
 export async function GET() {
@@ -75,7 +76,7 @@ export async function GET() {
             },
         });
     } catch (error) {
-        console.error("Error fetching employee profile:", error);
+        apiLogger.error({ err: error }, "Error fetching employee profile:");
         return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
     }
 }
@@ -143,7 +144,7 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json({ data: updatedEmployee });
     } catch (error) {
-        console.error("Error updating employee profile:", error);
+        apiLogger.error({ err: error }, "Error updating employee profile:");
         return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
     }
 }

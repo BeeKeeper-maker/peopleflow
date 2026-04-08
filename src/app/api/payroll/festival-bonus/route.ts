@@ -6,6 +6,7 @@ import {
     getFestivalBonusSummary,
 } from "@/lib/festival-bonus-engine";
 import { prisma } from "@/lib/prisma";
+import { payrollLogger } from "@/lib/logger";
 
 // GET /api/payroll/festival-bonus — List all bonus configs for the org
 export async function GET(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
         );
         return NextResponse.json({ data: configs });
     } catch (error) {
-        console.error("FESTIVAL_BONUS_LIST_ERROR", error);
+        payrollLogger.error({ err: error }, "FESTIVAL_BONUS_LIST_ERROR");
         return NextResponse.json({ error: "Failed to fetch festival bonus configs" }, { status: 500 });
     }
 }
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: config }, { status: 201 });
     } catch (error) {
-        console.error("FESTIVAL_BONUS_CREATE_ERROR", error);
+        payrollLogger.error({ err: error }, "FESTIVAL_BONUS_CREATE_ERROR");
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to create bonus config" },
             { status: 500 }

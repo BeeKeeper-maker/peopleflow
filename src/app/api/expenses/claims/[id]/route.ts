@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { processApprovalStep } from "@/lib/approval-engine";
 import { emit } from "@/lib/event-bus";
+import { apiLogger } from "@/lib/logger";
 
 type RouteParams = {
     params: Promise<{ id: string }>;
@@ -32,7 +32,7 @@ const approvalSchema = z.object({
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json(claim);
     } catch (error) {
-        console.error("Error fetching expense claim:", error);
+        apiLogger.error({ err: error }, "Error fetching expense claim:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -169,7 +169,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                             title: updatedClaim.title || "Expense Claim",
                             amount: Number(updatedClaim.amount),
                             ...(approvalData.action === "reject" ? { reason: approvalData.notes } : {}),
-                        } as any).catch((err: unknown) => console.error("[EVENT_FAIL] expense:", err));
+                        } as any).catch((err: unknown) => apiLogger.error({ err: err }, "[EVENT_FAIL] expense:"));
                     }
 
                     return NextResponse.json({
@@ -239,7 +239,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                         employeeEmail: updated.employee.user.email || undefined,
                         title: updated.title || "Expense Claim",
                         amount: Number(updated.amount),
-                    }).catch((err) => console.error("[EVENT_FAIL] expense.approved:", err));
+                    }).catch((err) => apiLogger.error({ err: err }, "[EVENT_FAIL] expense.approved:"));
                 } else if (approvalData.action === "reject") {
                     emit("expense.rejected", {
                         userId: updated.employee.user.id,
@@ -247,14 +247,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                         title: updated.title || "Expense Claim",
                         amount: Number(updated.amount),
                         reason: approvalData.notes,
-                    }).catch((err) => console.error("[EVENT_FAIL] expense.rejected:", err));
+                    }).catch((err) => apiLogger.error({ err: err }, "[EVENT_FAIL] expense.rejected:"));
                 } else if (approvalData.action === "reimburse") {
                     emit("expense.reimbursed", {
                         userId: updated.employee.user.id,
                         employeeName: empName,
                         title: updated.title || "Expense Claim",
                         amount: Number(updated.amount),
-                    }).catch((err) => console.error("[EVENT_FAIL] expense.reimbursed:", err));
+                    }).catch((err) => apiLogger.error({ err: err }, "[EVENT_FAIL] expense.reimbursed:"));
                 }
             }
 
@@ -289,7 +289,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 });
         }
-        console.error("Error updating expense claim:", error);
+        apiLogger.error({ err: error }, "Error updating expense claim:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
@@ -298,7 +298,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -333,7 +333,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("Error deleting expense claim:", error);
+        apiLogger.error({ err: error }, "Error deleting expense claim:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

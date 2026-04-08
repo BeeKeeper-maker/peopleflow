@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET - Get goal details
 export async function GET(
@@ -10,7 +10,7 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -40,7 +40,7 @@ export async function GET(
 
         return NextResponse.json(goal);
     } catch (error) {
-        console.error("GET_GOAL_ERROR", error);
+        apiLogger.error({ err: error }, "GET_GOAL_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -52,7 +52,7 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -110,7 +110,7 @@ export async function PATCH(
 
         return NextResponse.json(goal);
     } catch (error) {
-        console.error("UPDATE_GOAL_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_GOAL_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -122,7 +122,7 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params;
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -147,7 +147,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("DELETE_GOAL_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_GOAL_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

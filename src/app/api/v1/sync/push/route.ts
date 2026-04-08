@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * POST /api/v1/sync/push — Cloud Ingest Endpoint
@@ -246,7 +247,7 @@ export async function POST(req: Request) {
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
-        console.error("SYNC_PUSH_ERROR", error);
+        apiLogger.error({ err: error }, "SYNC_PUSH_ERROR");
         return NextResponse.json(
             { success: false, error: "Internal server error" },
             { status: 500 }

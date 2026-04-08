@@ -4,6 +4,7 @@
  */
 
 import nodemailer from "nodemailer";
+import { emailLogger } from "@/lib/logger";
 
 // Email configuration from environment
 const emailConfig = {
@@ -265,7 +266,7 @@ export async function sendEmail(options: {
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     // Skip in development if SMTP not configured
     if (!emailConfig.auth.user && process.env.NODE_ENV !== "production") {
-        console.log("[EMAIL] Skipped (SMTP not configured):", options.subject);
+        emailLogger.debug({ subject: options.subject }, "Skipped email (SMTP not configured)");
         return { success: true, messageId: "dev-skipped" };
     }
 
@@ -279,10 +280,10 @@ export async function sendEmail(options: {
             attachments: options.attachments,
         });
 
-        console.log("[EMAIL] Sent:", options.subject, "to", options.to);
+        emailLogger.info({ subject: options.subject, to: options.to }, "Email sent");
         return { success: true, messageId: info.messageId };
     } catch (error) {
-        console.error("[EMAIL] Failed:", error);
+        emailLogger.error({ err: error, subject: options.subject }, "Email send failed");
         return {
             success: false,
             error: error instanceof Error ? error.message : "Unknown error"

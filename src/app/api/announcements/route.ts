@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/announcements — List announcements
 export async function GET(req: Request) {
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(announcements);
     } catch (error) {
-        console.error("GET_ANNOUNCEMENTS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_ANNOUNCEMENTS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(announcement);
     } catch (error) {
-        console.error("CREATE_ANNOUNCEMENT_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_ANNOUNCEMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

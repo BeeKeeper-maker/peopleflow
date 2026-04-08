@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // Valid document types for employee self-service
 const VALID_DOC_TYPES = [
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 
         return NextResponse.json(requests);
     } catch (error) {
-        console.error("GET_DOCUMENT_REQUESTS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_DOCUMENT_REQUESTS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -137,7 +138,7 @@ export async function POST(req: Request) {
             });
         } catch {
             // If generation fails, leave as processing for HR to handle
-            console.warn("Auto-generation not available for:", type);
+            apiLogger.warn("Auto-generation not available for:", type);
         }
 
         // Re-fetch the request to return the latest status (may have been updated to 'ready')
@@ -153,7 +154,7 @@ export async function POST(req: Request) {
             employeeName: employee.user?.name,
         });
     } catch (error) {
-        console.error("ESS Document request error:", error);
+        apiLogger.error({ err: error }, "ESS Document request error:");
         return NextResponse.json(
             { error: "Failed to process document request" },
             { status: 500 }

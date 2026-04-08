@@ -30,6 +30,9 @@ import {
 import { prisma } from "@/lib/prisma";
 import { createBulkNotifications } from "@/lib/notifications";
 import { subDays } from "date-fns";
+import { log } from "@/lib/logger";
+
+const attendanceLogger = log.child({ domain: "attendance-reconciliation" });
 
 const WORKER_NAME = "ATTENDANCE_RECONCILIATION";
 
@@ -55,13 +58,13 @@ const reconciliationWorker = new Worker<ReconciliationJobData>(
         // Skip weekends (Friday=5, Saturday=6 for Bangladesh)
         const dayOfWeek = reconciliationDate.getDay();
         if (dayOfWeek === 5 || dayOfWeek === 6) {
-            console.log(`[${WORKER_NAME}] Skipping ${reconciliationDate.toISOString().split("T")[0]} — weekend (BD)`);
+            attendanceLogger.info({ date: reconciliationDate.toISOString().split("T")[0] }, "Skipping weekend");
             return { skipped: true, reason: "weekend" };
         }
 
         switch (type) {
             case "daily-reconciliation": {
-                console.log(`[${WORKER_NAME}] Starting daily reconciliation for ${reconciliationDate.toISOString().split("T")[0]}...`);
+                attendanceLogger.info({ date: reconciliationDate.toISOString().split("T")[0] }, "Starting daily reconciliation");
 
                 // Get all active organizations
                 const organizations = await prisma.organization.findMany({
@@ -78,7 +81,7 @@ const reconciliationWorker = new Worker<ReconciliationJobData>(
 
                 const anomalies = results.filter((r) => r.isAnomaly);
 
-                console.log(`[${WORKER_NAME}] ✅ Daily reconciliation complete: ${organizations.length} orgs checked, ${anomalies.length} anomalies found`);
+                attendanceLogger.info({ orgsChecked: organizations.length, anomalies: anomalies.length }, "Daily reconciliation complete");
                 return {
                     date: reconciliationDate.toISOString().split("T")[0],
                     orgsChecked: organizations.length,
@@ -264,23 +267,23 @@ async function alertReconciliationAnomaly(
         }
     );
 
-    console.log(`[${WORKER_NAME}] ⚠️ Anomaly alert sent for "${organizationName}" — ${gap} missing records (${gapPercent}%)`);
+    attendanceLogger.warn({ organizationName, gap, gapPercent }, "Anomaly alert sent");
 }
 
 // ── Event Handlers ──────────────────────────────────────────────────
 
 reconciliationWorker.on("completed", (job) => {
-    console.log(`[${WORKER_NAME}] Job ${job.name} completed`);
+    attendanceLogger.debug({ jobName: job.name }, "Job completed");
 });
 
 reconciliationWorker.on("failed", (job, err) => {
-    console.error(`[${WORKER_NAME}] Job ${job?.name} failed: ${err.message}`);
+    attendanceLogger.error({ jobName: job?.name, err }, "Job failed");
 });
 
 reconciliationWorker.on("error", (err) => {
-    console.error(`[${WORKER_NAME}] Worker error:`, err.message);
+    attendanceLogger.error({ err }, "Worker error");
 });
 
-console.log(`[${WORKER_NAME}] Worker started`);
+attendanceLogger.info("Attendance reconciliation worker started");
 
 export default reconciliationWorker;

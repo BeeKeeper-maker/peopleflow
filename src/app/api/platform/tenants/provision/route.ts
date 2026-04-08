@@ -16,6 +16,7 @@ import {
 } from "@/lib/platform-auth";
 import { hashPassword } from "@/lib/auth";
 import crypto from "crypto";
+import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
     // Require platform admin
@@ -253,7 +254,7 @@ export async function POST(request: NextRequest) {
             { status: 201 }
         );
     } catch (error) {
-        console.error("[TENANT_PROVISION] Error:", error);
+        apiLogger.error({ err: error }, "[TENANT_PROVISION] Error:");
         return NextResponse.json(
             { error: "Failed to provision tenant" },
             { status: 500 }

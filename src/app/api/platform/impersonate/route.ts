@@ -14,6 +14,7 @@ import {
     createImpersonationSession,
     endImpersonationSession,
 } from "@/lib/impersonation";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * POST: Start an impersonation session
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
             sessionId: result.session!.id,
         });
     } catch (error) {
-        console.error("[IMPERSONATION] Start error:", error);
+        apiLogger.error({ err: error }, "[IMPERSONATION] Start error:");
         return NextResponse.json(
             { error: "Failed to start impersonation" },
             { status: 500 }
@@ -105,7 +106,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true, message: "Impersonation session ended" });
     } catch (error) {
-        console.error("[IMPERSONATION] End error:", error);
+        apiLogger.error({ err: error }, "[IMPERSONATION] End error:");
         return NextResponse.json(
             { error: "Failed to end impersonation" },
             { status: 500 }

@@ -28,6 +28,7 @@ import prisma from "@/lib/prisma";
 import { getFestivalBonusForPayroll } from "@/lib/festival-bonus-engine";
 import { calculateLateDeduction, type LateDeductionResult } from "@/lib/late-deduction-engine";
 import { recordMonthlyContributions } from "@/lib/pf-ledger-engine";
+import { payrollLogger } from "@/lib/logger";
 
 // ============================================
 // Bangladesh Income Tax Slabs (FY 2024-25)
@@ -94,9 +95,10 @@ export function calculateMonthlyTax(annualIncome: number, isWoman: boolean = fal
  */
 export function calculateOvertime(overtimeMinutes: number, monthlyBasicSalary: number): number {
     if (overtimeMinutes <= 0 || monthlyBasicSalary <= 0) return 0;
-    const hourlyRate = monthlyBasicSalary / (26 * 8); // 26 working days, 8 hours
-    const overtimeHours = overtimeMinutes / 60;
-    return Math.round(overtimeHours * hourlyRate * 2); // 2x rate
+    // IEEE 754 FIX: multiply first, divide last to maximize integer precision.
+    // Formula: (OT_minutes / 60) × (basic / (26 × 8)) × 2
+    // Rewritten: (basic × 2 × OT_minutes) / (26 × 8 × 60) = (basic × OT_minutes) / 6240
+    return Math.round((monthlyBasicSalary * 2 * overtimeMinutes) / (26 * 8 * 60));
 }
 
 // ============================================
@@ -112,8 +114,9 @@ export function calculateOvertime(overtimeMinutes: number, monthlyBasicSalary: n
  */
 export function calculateGratuity(lastBasicSalary: number, yearsOfService: number): number {
     if (yearsOfService < 5) return 0;
-    const dailyWage = lastBasicSalary / 26; // 26 working days per month
-    return Math.round(dailyWage * 30 * yearsOfService);
+    // IEEE 754 FIX: multiply first, divide last.
+    // Formula: (basic / 26) × 30 × years → (basic × 30 × years) / 26
+    return Math.round((lastBasicSalary * 30 * yearsOfService) / 26);
 }
 
 // ============================================
@@ -326,7 +329,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
             });
         } catch (pfError) {
             // PF posting failure should NOT block salary calculation
-            console.error(`[PAYROLL] Failed to post PF contribution for ${employeeId}:`, pfError);
+            payrollLogger.error({ err: pfError, employeeId }, "Failed to post PF contribution");
         }
     }
 

@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 import { sign, verify } from "jsonwebtoken";
+import { apiLogger } from "@/lib/logger";
 
 const PLATFORM_JWT_SECRET =
     process.env.PLATFORM_JWT_SECRET ||
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
 
         return response;
     } catch (error) {
-        console.error("[PLATFORM_LOGIN] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_LOGIN] Error:");
         return NextResponse.json(
             { error: "Login failed" },
             { status: 500 }
@@ -156,7 +157,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ admin });
     } catch (error) {
-        console.error("[PLATFORM_AUTH_ME] Error:", error);
+        apiLogger.error({ err: error }, "[PLATFORM_AUTH_ME] Error:");
         return NextResponse.json(
             { error: "Authentication failed" },
             { status: 401 }

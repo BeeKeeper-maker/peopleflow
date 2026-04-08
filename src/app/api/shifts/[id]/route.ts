@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { z } from "zod";
+import { apiLogger } from "@/lib/logger";
 
 const shiftSchema = z.object({
     name: z.string().min(1, "Name is required"),
@@ -17,7 +17,7 @@ const shiftSchema = z.object({
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -50,14 +50,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         return NextResponse.json(shift);
 
     } catch (error) {
-        console.error("UPDATE_SHIFT_ERROR", error);
+        apiLogger.error({ err: error }, "UPDATE_SHIFT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
@@ -90,7 +90,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         return new NextResponse(null, { status: 204 });
 
     } catch (error) {
-        console.error("DELETE_SHIFT_ERROR", error);
+        apiLogger.error({ err: error }, "DELETE_SHIFT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyWebhookSignature, generateInvoiceNumber } from "@/lib/stripe";
 import { invalidateSubscription, invalidateOrgStatus } from "@/lib/redis";
 import type Stripe from "stripe";
+import { billingLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
     const body = await request.text();
@@ -32,14 +33,14 @@ export async function POST(request: NextRequest) {
     try {
         event = verifyWebhookSignature(body, signature);
     } catch (err) {
-        console.error("[STRIPE_WEBHOOK] Signature verification failed:", err);
+        billingLogger.error({ err: err }, "[STRIPE_WEBHOOK] Signature verification failed:");
         return NextResponse.json(
             { error: "Invalid signature" },
             { status: 400 }
         );
     }
 
-    console.log(`[STRIPE_WEBHOOK] Received: ${event.type}`);
+    billingLogger.info(`[STRIPE_WEBHOOK] Received: ${event.type}`);
 
     try {
         switch (event.type) {
@@ -80,12 +81,12 @@ export async function POST(request: NextRequest) {
                 break;
 
             default:
-                console.log(
+                billingLogger.info(
                     `[STRIPE_WEBHOOK] Unhandled event type: ${event.type}`
                 );
         }
     } catch (error) {
-        console.error(`[STRIPE_WEBHOOK] Handler error for ${event.type}:`, error);
+        billingLogger.error({ err: error }, `[STRIPE_WEBHOOK] Handler error for ${event.type}:`);
         // Return 200 to prevent Stripe retries on application errors
         // The error is logged for investigation
     }
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const organizationId = session.metadata?.organizationId;
     if (!organizationId) {
-        console.error("[STRIPE_WEBHOOK] No organizationId in checkout metadata");
+        billingLogger.error("[STRIPE_WEBHOOK] No organizationId in checkout metadata");
         return;
     }
 
@@ -138,7 +139,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     await invalidateSubscription(organizationId);
     await invalidateOrgStatus(organizationId);
 
-    console.log(
+    billingLogger.info(
         `[STRIPE_WEBHOOK] Checkout completed for org: ${organizationId}`
     );
 }
@@ -156,7 +157,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     });
 
     if (!subscription) {
-        console.error(
+        billingLogger.error(
             `[STRIPE_WEBHOOK] No subscription found for Stripe sub: ${stripeSubId}`
         );
         return;
@@ -168,7 +169,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     });
 
     if (existingInvoice) {
-        console.log(`[STRIPE_WEBHOOK] Invoice ${invoice.id} already recorded`);
+        billingLogger.info(`[STRIPE_WEBHOOK] Invoice ${invoice.id} already recorded`);
         return;
     }
 
@@ -216,7 +217,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     await invalidateSubscription(subscription.organizationId);
     await invalidateOrgStatus(subscription.organizationId);
 
-    console.log(
+    billingLogger.info(
         `[STRIPE_WEBHOOK] Payment succeeded for org: ${subscription.organizationId}`
     );
 }
@@ -289,7 +290,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
             }),
         ]);
 
-        console.log(
+        billingLogger.info(
             `[STRIPE_WEBHOOK] SUSPENDED org: ${subscription.organizationId} (payment failed ${attemptCount} times)`
         );
     } else {
@@ -299,7 +300,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
             data: { status: "past_due" },
         });
 
-        console.log(
+        billingLogger.info(
             `[STRIPE_WEBHOOK] Payment failed (attempt ${attemptCount}) for org: ${subscription.organizationId}`
         );
     }
@@ -354,7 +355,7 @@ async function handleSubscriptionUpdated(stripeSub: Stripe.Subscription) {
                 },
             });
 
-            console.log(
+            billingLogger.info(
                 `[STRIPE_WEBHOOK] Subscription updated for org: ${subscription.organizationId}, new plan: ${plan.slug}`
             );
         }
@@ -383,7 +384,7 @@ async function handleSubscriptionDeleted(stripeSub: Stripe.Subscription) {
     // Don't suspend immediately — data preserved for 30 days
     // A background CRON will handle deactivation after 30 days
 
-    console.log(
+    billingLogger.info(
         `[STRIPE_WEBHOOK] Subscription canceled for org: ${subscription.organizationId}`
     );
 
@@ -401,7 +402,7 @@ async function handleTrialWillEnd(stripeSub: Stripe.Subscription) {
 
     if (!subscription) return;
 
-    console.log(
+    billingLogger.info(
         `[STRIPE_WEBHOOK] Trial ending in 3 days for org: ${subscription.organizationId}`
     );
 

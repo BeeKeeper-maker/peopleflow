@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, isAuthenticated } from "@/lib/api-auth"
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
     try {
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
             }))
         })
     } catch (error) {
-        console.error("Dashboard stats error:", error)
+        apiLogger.error({ err: error }, "Dashboard stats error:")
         return NextResponse.json(
             { error: "Failed to fetch dashboard stats" },
             { status: 500 }

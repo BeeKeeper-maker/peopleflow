@@ -144,3 +144,194 @@ export function FormSkeleton() {
         </div>
     )
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// Domain-Specific Skeletons (zero-CLS, dimension-accurate)
+// ════════════════════════════════════════════════════════════════════════
+
+export function LeaveListSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Header: Title + Apply Button */}
+            <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-72" />
+                </div>
+                <Skeleton className="h-10 w-36 rounded-lg" />
+            </div>
+
+            {/* Filter bar */}
+            <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-48 rounded-lg" />
+                <Skeleton className="h-10 w-32 rounded-lg" />
+                <Skeleton className="h-10 w-32 rounded-lg" />
+            </div>
+
+            {/* Leave cards */}
+            {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-card-border bg-card-bg p-5">
+                    <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <div className="space-y-2">
+                                <Skeleton className="h-5 w-32" />
+                                <Skeleton className="h-4 w-48" />
+                            </div>
+                        </div>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                    <div className="mt-3 flex items-center gap-4">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+export function AttendanceSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-40" />
+                    <Skeleton className="h-4 w-64" />
+                </div>
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-32 rounded-lg" />
+                    <Skeleton className="h-10 w-10 rounded-lg" />
+                </div>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-card-border bg-card-bg p-4">
+                        <Skeleton className="h-4 w-16 mb-2" />
+                        <Skeleton className="h-8 w-12" />
+                    </div>
+                ))}
+            </div>
+
+            {/* Attendance table */}
+            <TableSkeleton rows={8} columns={6} />
+        </div>
+    )
+}
+
+export function PayrollSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-4 w-56" />
+                </div>
+                <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-40 rounded-lg" />
+                    <Skeleton className="h-10 w-36 rounded-lg" />
+                </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CardSkeleton />
+                <CardSkeleton />
+                <CardSkeleton />
+            </div>
+
+            {/* Payroll table */}
+            <TableSkeleton rows={10} columns={7} />
+        </div>
+    )
+}
+
+export function EmployeeListSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-36" />
+                    <Skeleton className="h-4 w-64" />
+                </div>
+                <Skeleton className="h-10 w-40 rounded-lg" />
+            </div>
+
+            {/* Search + Filters */}
+            <div className="flex items-center gap-3">
+                <Skeleton className="h-10 flex-1 max-w-sm rounded-lg" />
+                <Skeleton className="h-10 w-36 rounded-lg" />
+                <Skeleton className="h-10 w-28 rounded-lg" />
+            </div>
+
+            {/* Employee table */}
+            <TableSkeleton rows={10} columns={6} />
+        </div>
+    )
+}
+
+export function ESSDashboardSkeleton() {
+    return (
+        <div className="space-y-6">
+            {/* Welcome bar */}
+            <div className="rounded-xl border border-card-border bg-card-bg p-6">
+                <div className="flex items-center gap-4">
+                    <Skeleton className="h-14 w-14 rounded-full" />
+                    <div className="space-y-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                    </div>
+                    <div className="ml-auto flex items-center gap-3">
+                        <Skeleton className="h-12 w-32 rounded-xl" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <CardSkeleton />
+                <CardSkeleton />
+                <CardSkeleton />
+                <CardSkeleton />
+            </div>
+
+            {/* Two columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent leaves */}
+                <div className="rounded-xl border border-card-border bg-card-bg p-6">
+                    <Skeleton className="h-6 w-32 mb-4" />
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 py-3 border-b border-card-border last:border-0">
+                            <Skeleton className="h-8 w-8 rounded-full" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-3 w-24" />
+                            </div>
+                            <Skeleton className="h-6 w-16 rounded-full" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Upcoming */}
+                <div className="rounded-xl border border-card-border bg-card-bg p-6">
+                    <Skeleton className="h-6 w-28 mb-4" />
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 py-3 border-b border-card-border last:border-0">
+                            <Skeleton className="h-10 w-10 rounded-lg" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-4 w-40" />
+                                <Skeleton className="h-3 w-20" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+}

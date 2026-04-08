@@ -159,14 +159,14 @@ export function calculateGratuity(
         };
     }
 
-    // ✅ 30 days wages × years of service (daily wage = basic / 26 working days)
-    const dailyWage = lastBasicSalary / 26;
-    const gratuityAmount = Math.round(dailyWage * 30 * yearsOfService);
+    // IEEE 754 FIX: multiply first, divide last.
+    // Formula: (basic / 26) × 30 × years → (basic × 30 × years) / 26
+    const gratuityAmount = Math.round((lastBasicSalary * 30 * yearsOfService) / 26);
 
     return {
         eligible: true,
         amount: gratuityAmount,
-        basis: `30 days' wages (${Math.round(dailyWage * 30)} BDT) × ${yearsOfService} years = ${gratuityAmount} BDT (Section 27, BLA 2006)`,
+        basis: `30 days' wages (${Math.round((lastBasicSalary * 30) / 26)} BDT) × ${yearsOfService} years = ${gratuityAmount} BDT (Section 27, BLA 2006)`,
     };
 }
 

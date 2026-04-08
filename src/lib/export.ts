@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
+import { exportLogger } from "@/lib/logger"
 
 interface ExportOptions {
     filename: string
@@ -55,7 +56,7 @@ export function exportToCSV<T extends Record<string, any>>(
     const { filename } = options
 
     if (data.length === 0) {
-        console.warn("No data to export")
+        exportLogger.warn("No data to export")
         return
     }
 
@@ -165,7 +166,7 @@ export function exportToPDF<T extends Record<string, any>>(
     const { filename, title = "Report" } = options
 
     if (data.length === 0) {
-        console.warn("No data to export")
+        exportLogger.warn("No data to export")
         return
     }
 

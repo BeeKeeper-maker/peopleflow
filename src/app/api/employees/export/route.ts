@@ -6,14 +6,14 @@
  */
 
 import { NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { errorResponse, ErrorCodes } from "@/lib/api-response";
+import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session?.user?.email) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
         });
 
     } catch (error) {
-        console.error("EXPORT_ERROR:", error);
+        apiLogger.error({ err: error }, "EXPORT_ERROR:");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Export failed");
     }
 }

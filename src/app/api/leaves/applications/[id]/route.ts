@@ -8,6 +8,7 @@ import {
     fetchHolidays,
 } from "@/lib/leave-utils";
 import { processApprovalStep, cancelApprovalRequest } from "@/lib/approval-engine";
+import { leaveLogger } from "@/lib/logger";
 
 export async function GET(
     req: Request,
@@ -45,7 +46,7 @@ export async function GET(
 
         return NextResponse.json(application);
     } catch (error) {
-        console.error("GET_LEAVE_APPLICATION_ERROR", error);
+        leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATION_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -349,7 +350,7 @@ export async function PUT(
         return NextResponse.json(updatedApp);
 
     } catch (error) {
-        console.error("UPDATE_LEAVE_APPLICATION_ERROR", error);
+        leaveLogger.error({ err: error }, "UPDATE_LEAVE_APPLICATION_ERROR");
         return new NextResponse(error instanceof Error ? error.message : "Internal Error", { status: 500 });
     }
 }
@@ -433,7 +434,7 @@ async function handleApproval(leaveApplicationId: string, organizationId: string
             });
         }
     } catch (error) {
-        console.error("HANDLE_APPROVAL_ERROR", error);
+        leaveLogger.error({ err: error }, "HANDLE_APPROVAL_ERROR");
     }
 }
 
@@ -482,7 +483,7 @@ async function handleCancellation(leaveApplicationId: string, organizationId: st
             });
         }
     } catch (error) {
-        console.error("HANDLE_CANCELLATION_ERROR", error);
+        leaveLogger.error({ err: error }, "HANDLE_CANCELLATION_ERROR");
     }
 }
 
@@ -520,6 +521,6 @@ async function notifyApplicant(leaveApplicationId: string, status: string, comme
             application.id
         );
     } catch (error) {
-        console.error("NOTIFY_APPLICANT_ERROR", error);
+        leaveLogger.error({ err: error }, "NOTIFY_APPLICANT_ERROR");
     }
 }

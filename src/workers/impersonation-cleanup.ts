@@ -9,13 +9,12 @@
 import { Worker } from "bullmq";
 import { prisma } from "@/lib/prisma";
 import { redisConnection, type ImpersonationJobData } from "@/lib/queue";
+import { platformLogger } from "@/lib/logger";
 
 const worker = new Worker<ImpersonationJobData>(
     "impersonation-cleanup",
     async (job) => {
-        console.log(
-            `[WORKER:impersonation] Processing: ${job.data.type} (Job ${job.id})`
-        );
+        platformLogger.info({ jobType: job.data.type, jobId: job.id }, `Processing: ${job.data.type}`);
 
         const now = new Date();
 
@@ -33,13 +32,11 @@ const worker = new Worker<ImpersonationJobData>(
         });
 
         if (expiredSessions.length === 0) {
-            console.log("[WORKER:impersonation] No expired sessions found");
+            platformLogger.debug("No expired impersonation sessions found");
             return;
         }
 
-        console.log(
-            `[WORKER:impersonation] Found ${expiredSessions.length} expired sessions`
-        );
+        platformLogger.info({ count: expiredSessions.length }, `Found ${expiredSessions.length} expired sessions`);
 
         // Batch update all expired sessions
         await prisma.impersonationSession.updateMany({
@@ -74,9 +71,7 @@ const worker = new Worker<ImpersonationJobData>(
             });
         }
 
-        console.log(
-            `[WORKER:impersonation] Expired ${expiredSessions.length} sessions with audit logs`
-        );
+        platformLogger.info({ count: expiredSessions.length }, `Expired ${expiredSessions.length} sessions with audit logs`);
     },
     {
         connection: redisConnection,
@@ -85,16 +80,11 @@ const worker = new Worker<ImpersonationJobData>(
 );
 
 worker.on("completed", (job) => {
-    console.log(
-        `[WORKER:impersonation] Job ${job.id} completed`
-    );
+    platformLogger.debug({ jobId: job.id }, "Impersonation cleanup job completed");
 });
 
 worker.on("failed", (job, err) => {
-    console.error(
-        `[WORKER:impersonation] Job ${job?.id} failed:`,
-        err.message
-    );
+    platformLogger.error({ jobId: job?.id, err }, "Impersonation cleanup job failed");
 });
 
 export default worker;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 // Module-level constant — no re-allocation per request
 const MONTH_NAMES = [
@@ -303,7 +304,7 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        console.error("Dashboard analytics error:", error);
+        apiLogger.error({ err: error }, "Dashboard analytics error:");
         return NextResponse.json(
             { error: "Failed to fetch analytics" },
             { status: 500 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { apiLogger } from "@/lib/logger";
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -32,7 +33,7 @@ export async function GET(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(repayments);
     } catch (error) {
-        console.error("GET_LOAN_REPAYMENTS_ERROR", error);
+        apiLogger.error({ err: error }, "GET_LOAN_REPAYMENTS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }
@@ -108,7 +109,7 @@ export async function POST(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(repayment);
     } catch (error) {
-        console.error("CREATE_LOAN_REPAYMENT_ERROR", error);
+        apiLogger.error({ err: error }, "CREATE_LOAN_REPAYMENT_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
     }
 }

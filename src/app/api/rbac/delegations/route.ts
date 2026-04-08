@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { apiLogger } from "@/lib/logger";
 
 // GET /api/rbac/delegations — List delegations for the current user's organization
 export async function GET(req: NextRequest) {
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
-        console.error("DELEGATION_LIST_ERROR", error);
+        apiLogger.error({ err: error }, "DELEGATION_LIST_ERROR");
         return NextResponse.json({ error: "Failed to fetch delegations" }, { status: 500 });
     }
 }
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: delegation }, { status: 201 });
     } catch (error) {
-        console.error("DELEGATION_CREATE_ERROR", error);
+        apiLogger.error({ err: error }, "DELEGATION_CREATE_ERROR");
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to create delegation" },
             { status: 500 }
@@ -102,7 +103,7 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ message: "Delegation revoked" });
     } catch (error) {
-        console.error("DELEGATION_DELETE_ERROR", error);
+        apiLogger.error({ err: error }, "DELEGATION_DELETE_ERROR");
         return NextResponse.json({ error: "Failed to revoke delegation" }, { status: 500 });
     }
 }

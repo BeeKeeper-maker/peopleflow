@@ -1,5 +1,5 @@
 /**
- * Platform Admin Authentication — Separate Security Plane
+ * Platform Admin Authentication — Auth.js v5 (Separate Security Plane)
  *
  * Completely decoupled from tenant auth (src/lib/auth.ts).
  * Uses its own:
@@ -9,18 +9,21 @@
  *   - Login page (/platform/login)
  */
 
-import { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
-import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+import { platformLogger } from "@/lib/logger";
 
-// ============================================
-// Platform Auth Configuration
-// ============================================
+// ── Auth.js v5 Platform Instance ─────────────────────────────────
 
-export const platformAuthOptions: NextAuthOptions = {
+const {
+    handlers: platformHandlers,
+    auth: platformAuth,
+    signIn: platformSignIn,
+    signOut: platformSignOut,
+} = NextAuth({
     session: {
         strategy: "jwt",
         maxAge: 8 * 60 * 60, // 8 hours — tighter than tenant sessions
@@ -41,7 +44,7 @@ export const platformAuthOptions: NextAuthOptions = {
         },
     },
     providers: [
-        CredentialsProvider({
+        Credentials({
             id: "platform-credentials",
             name: "Platform Admin",
             credentials: {
@@ -54,7 +57,7 @@ export const platformAuthOptions: NextAuthOptions = {
                 }
 
                 const admin = await prisma.platformAdmin.findUnique({
-                    where: { email: credentials.email },
+                    where: { email: credentials.email as string },
                 });
 
                 if (!admin || !admin.password) {
@@ -65,16 +68,11 @@ export const platformAuthOptions: NextAuthOptions = {
                     throw new Error("Account is disabled");
                 }
 
-                const isValid = await compare(
-                    credentials.password,
-                    admin.password
-                );
-
+                const isValid = await compare(credentials.password as string, admin.password);
                 if (!isValid) {
                     throw new Error("Invalid credentials");
                 }
 
-                // Update last login
                 await prisma.platformAdmin.update({
                     where: { id: admin.id },
                     data: { lastLogin: new Date() },
@@ -86,20 +84,20 @@ export const platformAuthOptions: NextAuthOptions = {
                     name: admin.name,
                     role: admin.role,
                     isPlatform: true,
-                };
+                } as any;
             },
         }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
-                token.role = (user as unknown as Record<string, unknown>).role as string;
+                token.role = (user as any).role;
                 token.isPlatform = true;
             }
             return token;
         },
-        async session({ session, token }) {
+        session({ session, token }) {
             return {
                 ...session,
                 user: {
@@ -111,11 +109,11 @@ export const platformAuthOptions: NextAuthOptions = {
             };
         },
     },
-};
+});
 
-// ============================================
-// Platform Auth Context
-// ============================================
+export { platformHandlers, platformAuth, platformSignIn, platformSignOut };
+
+// ── Platform Auth Context ────────────────────────────────────────
 
 export interface PlatformAuthContext {
     adminId: string;
@@ -125,12 +123,8 @@ export interface PlatformAuthContext {
     isPlatform: true;
 }
 
-/**
- * Get the current platform admin session.
- * Returns null if not authenticated as platform admin.
- */
 export async function getPlatformSession(): Promise<PlatformAuthContext | null> {
-    const session = await getServerSession(platformAuthOptions);
+    const session = await platformAuth();
 
     if (!session?.user?.email) return null;
 
@@ -149,45 +143,25 @@ export async function getPlatformSession(): Promise<PlatformAuthContext | null> 
     };
 }
 
-/**
- * Require platform admin authentication for API routes.
- * Returns PlatformAuthContext or NextResponse 401/403.
- */
-export async function requirePlatformAuth(): Promise<
-    PlatformAuthContext | NextResponse
-> {
+export async function requirePlatformAuth(): Promise<PlatformAuthContext | NextResponse> {
     const ctx = await getPlatformSession();
-
     if (!ctx) {
         return new NextResponse(
-            JSON.stringify({
-                error: "Platform authentication required",
-                code: "PLATFORM_AUTH_REQUIRED",
-            }),
+            JSON.stringify({ error: "Platform authentication required", code: "PLATFORM_AUTH_REQUIRED" }),
             { status: 401, headers: { "Content-Type": "application/json" } }
         );
     }
-
     return ctx;
 }
 
-/**
- * Type guard to check if result is PlatformAuthContext
- */
 export function isPlatformAuthenticated(
     result: PlatformAuthContext | NextResponse
 ): result is PlatformAuthContext {
     return !(result instanceof NextResponse);
 }
 
-// ============================================
-// Platform Audit Logging
-// ============================================
+// ── Platform Audit Logging ───────────────────────────────────────
 
-/**
- * Log a platform admin action to the audit trail.
- * Every sensitive operation MUST call this.
- */
 export async function logPlatformAction(params: {
     adminId: string;
     action: string;
@@ -210,8 +184,6 @@ export async function logPlatformAction(params: {
             },
         });
     } catch (error) {
-        // Audit log failure should NEVER break the operation
-        // but MUST be reported
-        console.error("[PLATFORM_AUDIT] Failed to log action:", error);
+        platformLogger.error({ err: error, action: params.action }, "Failed to log platform audit action");
     }
 }
