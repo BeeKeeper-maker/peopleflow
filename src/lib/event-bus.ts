@@ -162,6 +162,19 @@ export interface EventMap {
         employeesProcessed: number;
         allocationsCreated: number;
     };
+
+    // ── Sales Events ──
+    "sales.lead_captured": {
+        leadId: string;
+        name: string;
+        email: string;
+        phone?: string;
+        companyName: string;
+        companySize: string;
+        sector: string;
+        source: string;
+        message?: string;
+    };
 }
 
 export type EventName = keyof EventMap;

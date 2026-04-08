@@ -1819,3 +1819,29 @@ model SyncApiKey {
   @@index([organizationId])
   @@index([key])
 }
+
+// ============================================
+// SALES: Lead Capture Pipeline
+// ============================================
+
+model SalesLead {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  companyName String
+  companySize String   // "1-50", "51-200", "201-500", "500+"
+  sector      String   // "rmg", "corporate", "ngo", "other"
+  message     String?
+  source      String   @default("website") // "website", "pricing_page", "hero_cta", "referral"
+  status      String   @default("new") // "new", "contacted", "qualified", "demo_scheduled", "converted", "lost"
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+}
