@@ -147,12 +147,24 @@ const nextConfig: NextConfig = {
   },
 };
 
-// ══════════════════════════════════════════════════════════════
-// Export Configuration
-// Sentry is currently disabled. To re-enable:
-// 1. npm install @sentry/nextjs
-// 2. Uncomment sentry configs in sentry.*.config.ts
-// 3. Add withSentryConfig wrapping here
-// ══════════════════════════════════════════════════════════════
-export default withNextIntl(nextConfig);
+import { withSentryConfig } from "@sentry/nextjs";
 
+// ══════════════════════════════════════════════════════════════
+// Export Configuration — Sentry + next-intl wrapping
+// ══════════════════════════════════════════════════════════════
+export default withSentryConfig(withNextIntl(nextConfig), {
+    // Sentry Organization & Project (set via env vars)
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+
+    // Suppress noisy build-time Sentry logs
+    silent: !process.env.CI,
+
+    // Route Sentry events through the app to bypass ad blockers
+    tunnelRoute: "/monitoring",
+
+    // Source map management — upload for debugging, delete after upload
+    sourcemaps: {
+        deleteSourcemapsAfterUpload: true,
+    },
+});
