@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { P } from "./_components/shared";
+import { P, GlobalKeyframes } from "./_components/shared";
 import Navbar from "./_components/navbar";
-import HeroSection from "./_components/hero";
+import HeroCinematic from "./_components/hero";
 import { CostOfInaction, TrustBadges, StatsBanner } from "./_components/trust-sections";
 import BentoFeatures from "./_components/bento-features";
 import { WhySection, PricingSection, CTASection, Footer } from "./_components/bottom-sections";
 import DemoModal from "./_components/demo-modal";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PeopleFlow — Enterprise Landing Page v3.0
-   Aesthetic: Vercel/Linear Dark × Gradient Mesh × Framer Motion
+   PeopleFlow — Enterprise Landing Page v4.0 (100x Rebuild)
+   Aesthetic: Aceternity × Linear × Stripe Dark
    Target: B2B Enterprise (RMG, Corporate, NGO) — Bangladesh
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -21,15 +21,9 @@ export default function MarketingPage() {
 
     return (
         <main className="min-h-screen" style={{ background: P.bg, color: "white" }}>
-            <style jsx global>{`
-                @keyframes float {
-                    0%, 100% { transform: translateY(0px); }
-                    50% { transform: translateY(-12px); }
-                }
-            `}</style>
-
+            <GlobalKeyframes />
             <Navbar onBookDemo={openDemo} />
-            <HeroSection onBookDemo={openDemo} />
+            <HeroCinematic onBookDemo={openDemo} />
             <StatsBanner />
             <CostOfInaction />
             <TrustBadges />
@@ -38,8 +32,6 @@ export default function MarketingPage() {
             <PricingSection onBookDemo={openDemo} />
             <CTASection onBookDemo={openDemo} />
             <Footer />
-
-            {/* Demo Modal — Global */}
             <DemoModal isOpen={demoOpen} onClose={() => setDemoOpen(false)} />
         </main>
     );
