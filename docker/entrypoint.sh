@@ -10,7 +10,7 @@ echo "════════════════════════�
 echo ""
 
 echo "[BOOT] Step 1/3: Resolving any failed migrations..."
-npx prisma migrate resolve --rolled-back 20260407104500_rls_tenant_isolation 2>/dev/null || true
+npx prisma migrate resolve --applied 20260407104500_rls_tenant_isolation 2>/dev/null || true
 
 echo "[BOOT] Step 2/3: Running database migrations..."
 if npx prisma migrate deploy 2>&1; then
