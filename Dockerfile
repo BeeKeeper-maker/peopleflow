@@ -28,9 +28,8 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
 
-# Keep development mode for build (TypeScript, Tailwind, etc. are devDeps)
-ENV NODE_ENV=development
-
+# node_modules are already installed from deps stage (with devDeps)
+# No need to set NODE_ENV here — deps already have TypeScript, Tailwind, etc.
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -38,7 +37,10 @@ COPY . .
 ENV DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma"
 RUN npx prisma generate
 
-# Build Next.js in standalone mode
+# CRITICAL: next build MUST run with NODE_ENV=production
+# NODE_ENV=development causes React's internal dispatcher to be null
+# during static prerendering of _global-error, crashing the build.
+ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
