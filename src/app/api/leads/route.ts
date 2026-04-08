@@ -85,56 +85,63 @@ export async function POST(request: NextRequest) {
 
         const data = result.data;
 
-        // Check for duplicate (same email within last 24h)
-        const recentLead = await prisma.salesLead.findFirst({
-            where: {
-                email: data.email,
-                createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        // Attempt DB save — gracefully handle if SalesLead table hasn't migrated yet
+        let leadId = "pending";
+        try {
+            // Check for duplicate (same email within last 24h)
+            const recentLead = await prisma.salesLead.findFirst({
+                where: {
+                    email: data.email,
+                    createdAt: {
+                        gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                    },
                 },
-            },
-        });
+            });
 
-        if (recentLead) {
-            return NextResponse.json(
-                {
-                    success: true,
-                    message:
-                        "Thank you! We already have your request and our team will reach out within 24 hours.",
+            if (recentLead) {
+                return NextResponse.json(
+                    {
+                        success: true,
+                        message:
+                            "Thank you! We already have your request and our team will reach out within 24 hours.",
+                    },
+                    { status: 200 }
+                );
+            }
+
+            const lead = await prisma.salesLead.create({
+                data: {
+                    name: data.name,
+                    email: data.email,
+                    phone: data.phone,
+                    companyName: data.companyName,
+                    companySize: data.companySize,
+                    sector: data.sector,
+                    message: data.message,
+                    source: data.source || "website",
+                    utmSource: data.utmSource,
+                    utmMedium: data.utmMedium,
+                    utmCampaign: data.utmCampaign,
                 },
-                { status: 200 }
-            );
+            });
+            leadId = lead.id;
+        } catch (dbError) {
+            // Table may not exist yet — log and continue so the user gets a success response
+            console.error("[Lead DB Save Failed — migration pending?]", dbError);
         }
 
-        // Create lead
-        const lead = await prisma.salesLead.create({
-            data: {
-                name: data.name,
-                email: data.email,
-                phone: data.phone,
-                companyName: data.companyName,
-                companySize: data.companySize,
-                sector: data.sector,
-                message: data.message,
-                source: data.source || "website",
-                utmSource: data.utmSource,
-                utmMedium: data.utmMedium,
-                utmCampaign: data.utmCampaign,
-            },
-        });
-
-        // Fire event → BullMQ → Sales team notification
-        await emit("sales.lead_captured", {
-            leadId: lead.id,
-            name: lead.name,
-            email: lead.email,
-            phone: lead.phone ?? undefined,
-            companyName: lead.companyName,
-            companySize: lead.companySize,
-            sector: lead.sector,
-            source: lead.source,
-            message: lead.message ?? undefined,
-        });
+        // Fire-and-forget → BullMQ (never block the response)
+        emit("sales.lead_captured", {
+            leadId,
+            name: data.name,
+            email: data.email,
+            phone: data.phone ?? undefined,
+            companyName: data.companyName,
+            companySize: data.companySize,
+            sector: data.sector,
+            source: data.source || "website",
+            message: data.message ?? undefined,
+        }).catch((err) => console.error("[Lead Event Emit Failed]", err));
 
         return NextResponse.json(
             {
