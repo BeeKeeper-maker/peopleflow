@@ -18,7 +18,7 @@ COPY .npmrc* ./
 COPY package.json package-lock.json ./
 
 # Cache-buster: change this value to force npm ci re-run
-ARG CACHEBUST=2
+ARG CACHEBUST=3
 RUN npm ci
 
 # ───────────────────────────────────────
@@ -29,17 +29,14 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 # node_modules are already installed from deps stage (with devDeps)
-# No need to set NODE_ENV here — deps already have TypeScript, Tailwind, etc.
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Prisma generate needs a DATABASE_URL (dummy — not used for actual connection)
+# Prisma generate
 ENV DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma"
 RUN npx prisma generate
 
 # CRITICAL: next build MUST run with NODE_ENV=production
-# NODE_ENV=development causes React's internal dispatcher to be null
-# during static prerendering of _global-error, crashing the build.
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
@@ -56,7 +53,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ───────────────────────────────────────
-# Stage 4: Final production image
+# Stage 4: Final production image (LEAN)
 # ───────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache openssl curl
@@ -69,67 +66,25 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# ── Copy standalone server output ──
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# ── Copy with --chown to avoid expensive "RUN chown -R" layer ──
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# ── Copy production node_modules (includes prisma CLI for db push) ──
-COPY --from=prod-deps /app/node_modules ./node_modules
+# Production node_modules
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 
-# ── Copy Prisma schema + generated client ──
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Prisma schema + generated client
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 
-# ── Copy i18n translation files ──
-COPY --from=builder /app/messages ./messages
+# i18n translation files
+COPY --from=builder --chown=nextjs:nodejs /app/messages ./messages
 
-# ── Create entrypoint script (DB migration + server start) ──
-# SECURITY: No --accept-data-loss. If migrations fail, the container
-# stops and the orchestrator (Docker/K8s) reports the failure.
-# This prevents silent data destruction in production.
-RUN printf '#!/bin/sh\n\
-set -e\n\
-echo "══════════════════════════════════════════════"\n\
-echo "  PeopleFlow HRMS — Production Server"\n\
-echo "══════════════════════════════════════════════"\n\
-echo "  Node:  $(node --version)"\n\
-echo "  Time:  $(date -u +\"%%Y-%%m-%%dT%%H:%%M:%%SZ\")"\n\
-echo "══════════════════════════════════════════════"\n\
-echo ""\n\
-echo "[BOOT] Step 1/3: Resolving any failed migrations..."\n\
-npx prisma migrate resolve --rolled-back 20260407104500_rls_tenant_isolation 2>/dev/null || true\n\
-echo "[BOOT] Step 2/3: Running database migrations..."\n\
-if npx prisma migrate deploy 2>&1; then\n\
-    echo "[BOOT] ✅ Database migrations applied successfully"\n\
-else\n\
-    MIGRATE_EXIT=$?\n\
-    echo ""\n\
-    echo "╔══════════════════════════════════════════════════════════╗"\n\
-    echo "║  FATAL: Database migration failed (exit code: $MIGRATE_EXIT)  ║"\n\
-    echo "╚══════════════════════════════════════════════════════════╝"\n\
-    echo ""\n\
-    echo "  Possible causes:"\n\
-    echo "    1. DATABASE_URL is incorrect or database is unreachable"\n\
-    echo "    2. Migration files are corrupted or out of sync"\n\
-    echo "    3. Database user lacks ALTER/CREATE permissions"\n\
-    echo ""\n\
-    echo "  To fix:"\n\
-    echo "    - Check DATABASE_URL environment variable"\n\
-    echo "    - Run: npx prisma migrate status"\n\
-    echo "    - Run: npx prisma migrate resolve --applied <migration>"\n\
-    echo ""\n\
-    echo "  Server will NOT start with an inconsistent database."\n\
-    echo "  This is a safety measure to prevent data corruption."\n\
-    exit 1\n\
-fi\n\
-echo ""\n\
-echo "[BOOT] Step 3/3: Starting Next.js server..."\n\
-exec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
-
-# Set file ownership
-RUN chown -R nextjs:nodejs /app
+# Entrypoint script
+COPY --chown=nextjs:nodejs docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER nextjs
 
@@ -137,7 +92,7 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Health check with generous startup time for DB migration
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
