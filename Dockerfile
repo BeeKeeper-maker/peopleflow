@@ -98,7 +98,9 @@ echo "  Node:  $(node --version)"\n\
 echo "  Time:  $(date -u +\"%%Y-%%m-%%dT%%H:%%M:%%SZ\")"\n\
 echo "══════════════════════════════════════════════"\n\
 echo ""\n\
-echo "[BOOT] Step 1/2: Running database migrations..."\n\
+echo "[BOOT] Step 1/3: Resolving any failed migrations..."\n\
+npx prisma migrate resolve --rolled-back 20260407104500_rls_tenant_isolation 2>/dev/null || true\n\
+echo "[BOOT] Step 2/3: Running database migrations..."\n\
 if npx prisma migrate deploy 2>&1; then\n\
     echo "[BOOT] ✅ Database migrations applied successfully"\n\
 else\n\
@@ -123,7 +125,7 @@ else\n\
     exit 1\n\
 fi\n\
 echo ""\n\
-echo "[BOOT] Step 2/2: Starting Next.js server..."\n\
+echo "[BOOT] Step 3/3: Starting Next.js server..."\n\
 exec node server.js\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Set file ownership
