@@ -10,18 +10,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-    requirePlatformAuth,
-    isPlatformAuthenticated,
-    logPlatformAction,
-} from "@/lib/platform-auth";
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
+import { logPlatformAction } from "@/lib/platform-auth";
 import { hashPassword } from "@/lib/auth";
 import crypto from "crypto";
 import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
     // Require platform admin
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
 
         // Audit log (outside transaction — audit failure shouldn't block provisioning)
         await logPlatformAction({
-            adminId: auth.adminId,
+            adminId: auth.admin.id,
             action: "tenant.provision",
             targetType: "organization",
             targetId: result.org.id,

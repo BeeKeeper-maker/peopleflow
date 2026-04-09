@@ -16,10 +16,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-    requirePlatformAuth,
-    isPlatformAuthenticated,
-    logPlatformAction,
-} from "@/lib/platform-auth";
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
+import { logPlatformAction } from "@/lib/platform-auth";
 import { invalidateSubscription } from "@/lib/redis";
 import { apiLogger } from "@/lib/logger";
 
@@ -27,8 +27,8 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     const { id: orgId } = await params;
 
@@ -86,7 +86,7 @@ export async function PATCH(
                 });
 
                 await logPlatformAction({
-                    adminId: auth.adminId,
+                    adminId: auth.admin.id,
                     action: "subscription.plan_change",
                     targetType: "subscription",
                     targetId: subscription.id,
@@ -137,7 +137,7 @@ export async function PATCH(
                 });
 
                 await logPlatformAction({
-                    adminId: auth.adminId,
+                    adminId: auth.admin.id,
                     action: "subscription.override_limits",
                     targetType: "subscription",
                     targetId: subscription.id,
@@ -186,7 +186,7 @@ export async function PATCH(
                 ]);
 
                 await logPlatformAction({
-                    adminId: auth.adminId,
+                    adminId: auth.admin.id,
                     action: "subscription.extend_trial",
                     targetType: "subscription",
                     targetId: subscription.id,
@@ -212,7 +212,7 @@ export async function PATCH(
                 });
 
                 await logPlatformAction({
-                    adminId: auth.adminId,
+                    adminId: auth.admin.id,
                     action: "subscription.force_cancel",
                     targetType: "subscription",
                     targetId: subscription.id,

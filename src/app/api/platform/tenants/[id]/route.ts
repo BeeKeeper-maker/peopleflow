@@ -12,10 +12,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-    requirePlatformAuth,
-    isPlatformAuthenticated,
-    logPlatformAction,
-} from "@/lib/platform-auth";
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
+import { logPlatformAction } from "@/lib/platform-auth";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
 import { apiLogger } from "@/lib/logger";
 
@@ -27,8 +27,8 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     const { id: orgId } = await params;
 
@@ -198,8 +198,8 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     const { id: orgId } = await params;
 
@@ -237,7 +237,7 @@ export async function PATCH(
 
         // Audit log
         await logPlatformAction({
-            adminId: auth.adminId,
+            adminId: auth.admin.id,
             action: "tenant.update",
             targetType: "organization",
             targetId: orgId,
@@ -271,8 +271,8 @@ export async function DELETE(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     const { id: orgId } = await params;
 
@@ -315,7 +315,7 @@ export async function DELETE(
         ]);
 
         await logPlatformAction({
-            adminId: auth.adminId,
+            adminId: auth.admin.id,
             action: "tenant.deactivate",
             targetType: "organization",
             targetId: orgId,

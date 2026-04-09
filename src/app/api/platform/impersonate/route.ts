@@ -7,9 +7,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-    requirePlatformAuth,
-    isPlatformAuthenticated,
-} from "@/lib/platform-auth";
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
 import {
     createImpersonationSession,
     endImpersonationSession,
@@ -20,8 +20,8 @@ import { apiLogger } from "@/lib/logger";
  * POST: Start an impersonation session
  */
 export async function POST(request: NextRequest) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await createImpersonationSession({
-            platformAdminId: auth.adminId,
+            platformAdminId: auth.admin.id,
             targetUserId,
             targetOrganizationId,
             reason,
@@ -76,8 +76,8 @@ export async function POST(request: NextRequest) {
  * DELETE: End an impersonation session
  */
 export async function DELETE(request: NextRequest) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -92,7 +92,7 @@ export async function DELETE(request: NextRequest) {
 
         const result = await endImpersonationSession({
             sessionId,
-            platformAdminId: auth.adminId,
+            platformAdminId: auth.admin.id,
             ipAddress: request.headers.get("x-forwarded-for") || undefined,
             userAgent: request.headers.get("user-agent") || undefined,
         });

@@ -11,18 +11,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-    requirePlatformAuth,
-    isPlatformAuthenticated,
-    logPlatformAction,
-} from "@/lib/platform-auth";
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
+import { logPlatformAction } from "@/lib/platform-auth";
 import { apiLogger } from "@/lib/logger";
 
 /**
  * GET: List all plans with subscriber counts
  */
 export async function GET(request: NextRequest) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const plans = await prisma.plan.findMany({
@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
  * POST: Create a new plan
  */
 export async function POST(request: NextRequest) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
         });
 
         await logPlatformAction({
-            adminId: auth.adminId,
+            adminId: auth.admin.id,
             action: "plan.create",
             targetType: "plan",
             targetId: plan.id,
@@ -143,8 +143,8 @@ export async function POST(request: NextRequest) {
  * PATCH: Update an existing plan
  */
 export async function PATCH(request: NextRequest) {
-    const auth = await requirePlatformAuth();
-    if (!isPlatformAuthenticated(auth)) return auth;
+    const auth = await verifyPlatformRequest(request);
+    if (!isPlatformVerified(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -199,7 +199,7 @@ export async function PATCH(request: NextRequest) {
         });
 
         await logPlatformAction({
-            adminId: auth.adminId,
+            adminId: auth.admin.id,
             action: "plan.update",
             targetType: "plan",
             targetId: id,
