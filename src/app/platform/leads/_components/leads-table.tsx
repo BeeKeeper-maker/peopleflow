@@ -334,7 +334,7 @@ function LeadDetailDrawer({
                 </div>
             </div>
 
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes slideInRight {
                     from {
                         transform: translateX(100%);
@@ -345,7 +345,7 @@ function LeadDetailDrawer({
                         opacity: 1;
                     }
                 }
-            `}</style>
+            `}} />
         </div>
     );
 }
