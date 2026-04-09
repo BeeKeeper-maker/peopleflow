@@ -302,7 +302,7 @@ function DashboardMockup3D() {
                 </div>
 
                 {/* ── Cards Grid ── */}
-                <div className="p-6 grid grid-cols-4 gap-4">
+                <div className="p-4 sm:p-6 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                     {[
                         { label: "Total Employees", value: "1,247", change: "+12%", icon: Users, color: P.blue },
                         { label: "Attendance Rate", value: "96.8%", change: "+2.4%", icon: BarChart3, color: P.emerald },
@@ -326,14 +326,14 @@ function DashboardMockup3D() {
                                     {m.change}
                                 </span>
                             </div>
-                            <p className="text-2xl font-bold text-white">{m.value}</p>
-                            <p className="text-xs mt-1" style={{ color: P.subtle }}>{m.label}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-white">{m.value}</p>
+                            <p className="text-[10px] sm:text-xs mt-1" style={{ color: P.subtle }}>{m.label}</p>
                         </div>
                     ))}
 
                     {/* ── Chart Area ── */}
                     <div
-                        className="col-span-3 rounded-xl p-5"
+                        className="col-span-2 md:col-span-3 rounded-xl p-4 sm:p-5"
                         style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${P.border}` }}
                     >
                         <div className="flex justify-between items-center mb-4">
@@ -346,7 +346,7 @@ function DashboardMockup3D() {
                                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full" style={{ background: P.emerald }} />Net</span>
                             </div>
                         </div>
-                        <div className="flex items-end gap-2 h-28">
+                        <div className="flex items-end gap-1.5 sm:gap-2 h-20 sm:h-28">
                             {[35, 55, 45, 65, 50, 70, 60, 80, 68, 85, 75, 92].map((h, i) => (
                                 <div key={i} className="flex-1 flex flex-col gap-0.5">
                                     <div
@@ -375,7 +375,7 @@ function DashboardMockup3D() {
 
                     {/* ── Quick Actions ── */}
                     <div
-                        className="rounded-xl p-4"
+                        className="col-span-2 md:col-span-1 rounded-xl p-4"
                         style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${P.border}` }}
                     >
                         <p className="text-xs font-medium text-white mb-3">Quick Actions</p>
@@ -406,7 +406,7 @@ function DashboardMockup3D() {
 
             {/* ── Floating Status Badge — Top Right ── */}
             <div
-                className="absolute -top-4 -right-4 px-4 py-2.5 rounded-xl flex items-center gap-2"
+                className="absolute -top-4 -right-4 px-4 py-2.5 rounded-xl hidden sm:flex items-center gap-2"
                 style={{
                     background: `${P.emeraldDim}`,
                     border: `1px solid ${P.emerald}30`,
@@ -424,7 +424,7 @@ function DashboardMockup3D() {
 
             {/* ── Floating Compliance Badge — Bottom Left ── */}
             <div
-                className="absolute -bottom-4 -left-4 px-4 py-2.5 rounded-xl flex items-center gap-2"
+                className="absolute -bottom-4 -left-4 px-4 py-2.5 rounded-xl hidden sm:flex items-center gap-2"
                 style={{
                     background: P.indigoDim,
                     border: `1px solid ${P.indigo}30`,
