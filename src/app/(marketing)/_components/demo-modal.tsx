@@ -70,7 +70,7 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                    className="fixed inset-0 z-100 flex items-center justify-center p-4"
                     onClick={onClose}
                 >
                     {/* Backdrop */}
@@ -82,11 +82,11 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ duration: 0.3 }}
-                        className="relative w-full max-w-lg rounded-2xl bg-[#0C0C14] border border-white/[0.08] shadow-[0_40px_120px_rgba(0,0,0,0.6)] overflow-hidden"
+                        className="relative w-full max-w-lg rounded-2xl bg-[#0C0C14] border border-white/8 shadow-[0_40px_120px_rgba(0,0,0,0.6)] overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Glow */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-gradient-to-b from-[#3B82F6]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-linear-to-b from-[#3B82F6]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
                         {/* Close */}
                         <button onClick={onClose} className="absolute top-4 right-4 z-10 p-2 rounded-lg hover:bg-white/5 text-[#71717A] hover:text-white transition-colors cursor-pointer">
@@ -103,7 +103,7 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                     <h3 className="text-2xl font-bold text-white mb-3">Demo Request Received!</h3>
                                     <p className="text-[#9CA3AF] mb-2">Our enterprise team will contact you within <span className="text-white font-semibold">2 business hours</span>.</p>
                                     <p className="text-sm text-[#52525B]">Check {form.email} for a confirmation.</p>
-                                    <button onClick={onClose} className="mt-8 px-8 py-3 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all cursor-pointer">
+                                    <button onClick={onClose} className="mt-8 px-8 py-3 rounded-xl bg-linear-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all cursor-pointer">
                                         Done
                                     </button>
                                 </motion.div>
@@ -111,7 +111,7 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                 <>
                                     {/* Header */}
                                     <div className="flex items-center gap-3 mb-2">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-[#3B82F6] to-[#8B5CF6] flex items-center justify-center">
                                             <Zap className="w-5 h-5 text-white" />
                                         </div>
                                         <div>
@@ -122,8 +122,8 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
 
                                     {/* Progress */}
                                     <div className="flex gap-2 my-6">
-                                        <div className="flex-1 h-1 rounded-full bg-gradient-to-r from-[#3B82F6] to-[#6366F1]" />
-                                        <div className={`flex-1 h-1 rounded-full transition-all duration-500 ${step >= 2 ? "bg-gradient-to-r from-[#6366F1] to-[#8B5CF6]" : "bg-white/[0.06]"}`} />
+                                        <div className="flex-1 h-1 rounded-full bg-linear-to-r from-[#3B82F6] to-[#6366F1]" />
+                                        <div className={`flex-1 h-1 rounded-full transition-all duration-500 ${step >= 2 ? "bg-linear-to-r from-[#6366F1] to-[#8B5CF6]" : "bg-white/6"}`} />
                                     </div>
 
                                     {step === 1 ? (
@@ -133,7 +133,7 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                             <div className="grid grid-cols-2 gap-3 mb-6">
                                                 {sectorOptions.map((opt) => (
                                                     <button key={opt.value} onClick={() => setForm({ ...form, sector: opt.value })}
-                                                        className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 text-left cursor-pointer ${form.sector === opt.value ? "border-[#3B82F6]/50 bg-[#3B82F6]/8" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"}`}>
+                                                        className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 text-left cursor-pointer ${form.sector === opt.value ? "border-[#3B82F6]/50 bg-[#3B82F6]/8" : "border-white/6 bg-white/2 hover:bg-white/4"}`}>
                                                         <opt.icon className={`w-5 h-5 ${form.sector === opt.value ? "text-[#3B82F6]" : "text-[#52525B]"}`} />
                                                         <span className={`text-sm font-medium ${form.sector === opt.value ? "text-white" : "text-[#A1A1AA]"}`}>{opt.label}</span>
                                                     </button>
@@ -145,14 +145,14 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                             <div className="flex gap-2 mb-8">
                                                 {sizeOptions.map((size) => (
                                                     <button key={size} onClick={() => setForm({ ...form, companySize: size })}
-                                                        className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all cursor-pointer ${form.companySize === size ? "border-[#3B82F6]/50 bg-[#3B82F6]/8 text-white" : "border-white/[0.06] text-[#71717A] hover:text-white hover:bg-white/[0.04]"}`}>
+                                                        className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all cursor-pointer ${form.companySize === size ? "border-[#3B82F6]/50 bg-[#3B82F6]/8 text-white" : "border-white/6 text-[#71717A] hover:text-white hover:bg-white/4"}`}>
                                                         {size}
                                                     </button>
                                                 ))}
                                             </div>
 
                                             <button onClick={() => setStep(2)} disabled={!canProceedStep1}
-                                                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all cursor-pointer">
+                                                className="w-full py-3.5 rounded-xl bg-linear-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all cursor-pointer">
                                                 Continue
                                             </button>
                                         </motion.div>
@@ -170,7 +170,7 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                                         <input type={field.type} placeholder={field.placeholder}
                                                             value={form[field.key as keyof typeof form]}
                                                             onChange={(e) => setForm({ ...form, [field.key]: e.target.value })}
-                                                            className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm placeholder:text-[#3F3F46] focus:outline-none focus:border-[#3B82F6]/50 focus:ring-1 focus:ring-[#3B82F6]/30 transition-all" />
+                                                            className="w-full px-4 py-3 rounded-xl bg-white/4 border border-white/8 text-white text-sm placeholder:text-[#3F3F46] focus:outline-none focus:border-[#3B82F6]/50 focus:ring-1 focus:ring-[#3B82F6]/30 transition-all" />
                                                     </div>
                                                 ))}
                                                 <div>
@@ -179,18 +179,18 @@ export default function DemoModal({ isOpen, onClose }: DemoModalProps) {
                                                         value={form.message}
                                                         onChange={(e) => setForm({ ...form, message: e.target.value })}
                                                         rows={2}
-                                                        className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm placeholder:text-[#3F3F46] focus:outline-none focus:border-[#3B82F6]/50 focus:ring-1 focus:ring-[#3B82F6]/30 transition-all resize-none" />
+                                                        className="w-full px-4 py-3 rounded-xl bg-white/4 border border-white/8 text-white text-sm placeholder:text-[#3F3F46] focus:outline-none focus:border-[#3B82F6]/50 focus:ring-1 focus:ring-[#3B82F6]/30 transition-all resize-none" />
                                                 </div>
                                             </div>
 
                                             {error && <p className="text-sm text-[#F43F5E] mb-4">{error}</p>}
 
                                             <div className="flex gap-3">
-                                                <button onClick={() => setStep(1)} className="px-6 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[#A1A1AA] font-medium hover:bg-white/[0.08] transition-all cursor-pointer">
+                                                <button onClick={() => setStep(1)} className="px-6 py-3.5 rounded-xl bg-white/4 border border-white/8 text-[#A1A1AA] font-medium hover:bg-white/8 transition-all cursor-pointer">
                                                     Back
                                                 </button>
                                                 <button onClick={handleSubmit} disabled={!canProceedStep2 || loading}
-                                                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                                    className="flex-1 py-3.5 rounded-xl bg-linear-to-r from-[#3B82F6] to-[#6366F1] text-white font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_0_30px_rgba(59,130,246,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer">
                                                     {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : "Request VIP Demo"}
                                                 </button>
                                             </div>

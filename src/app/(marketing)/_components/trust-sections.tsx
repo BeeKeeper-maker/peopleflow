@@ -45,7 +45,7 @@ export function CostOfInaction() {
                     </div>
                     <h2 className="text-3xl sm:text-4xl lg:text-[3.25rem] font-bold text-white tracking-tight leading-[1.15] mb-5">
                         Every Month Without PeopleFlow{" "}
-                        <span className="bg-gradient-to-r from-[#F43F5E] to-[#F59E0B] bg-clip-text text-transparent">Costs You</span>
+                        <span className="bg-linear-to-r from-[#F43F5E] to-[#F59E0B] bg-clip-text text-transparent">Costs You</span>
                     </h2>
                 </motion.div>
 
@@ -56,7 +56,7 @@ export function CostOfInaction() {
                             initial={{ opacity: 0, y: 30 }}
                             animate={isInView ? { opacity: 1, y: 0 } : {}}
                             transition={{ duration: 0.7, delay: index * 0.15 }}
-                            className="group relative rounded-2xl bg-white/[0.02] border border-white/[0.06] p-7 hover:border-opacity-20 transition-all duration-500"
+                            className="group relative rounded-2xl bg-white/2 border border-white/6 p-7 hover:border-opacity-20 transition-all duration-500"
                             style={{ borderColor: `${cost.color}15` }}
                         >
                             <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
@@ -89,7 +89,7 @@ export function TrustBadges() {
     ];
 
     return (
-        <section ref={ref} className="py-16 border-y border-white/[0.04]" style={{ background: P.surface }}>
+        <section ref={ref} className="py-16 border-y border-white/4" style={{ background: P.surface }}>
             <div className="max-w-6xl mx-auto px-6">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                     {badges.map((badge, i) => (
@@ -98,7 +98,7 @@ export function TrustBadges() {
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={isInView ? { opacity: 1, scale: 1 } : {}}
                             transition={{ duration: 0.5, delay: i * 0.1 }}
-                            className="flex flex-col items-center text-center p-5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.1] transition-all duration-300 group"
+                            className="flex flex-col items-center text-center p-5 rounded-xl bg-white/2 border border-white/4 hover:border-white/10 transition-all duration-300 group"
                         >
                             <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"
                                 style={{ background: `${badge.color}12` }}>
@@ -125,13 +125,13 @@ export function StatsBanner() {
     ];
 
     return (
-        <section ref={ref} className={`py-20 border-y border-white/[0.04] transition-all duration-1000 ${isInView ? "opacity-100" : "opacity-0"}`}
+        <section ref={ref} className={`py-20 border-y border-white/4 transition-all duration-1000 ${isInView ? "opacity-100" : "opacity-0"}`}
             style={{ background: `linear-gradient(180deg, ${P.bg}, ${P.surface}, ${P.bg})` }}>
             <div className="max-w-7xl mx-auto px-6">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                     {stats.map((stat, i) => (
                         <div key={stat.label} className="text-center group" style={{ transitionDelay: `${i * 100}ms` }}>
-                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white/[0.04] border border-white/[0.06] mb-4 group-hover:border-[#3B82F6]/30 group-hover:bg-[#3B82F6]/5 transition-all duration-300">
+                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white/4 border border-white/6 mb-4 group-hover:border-[#3B82F6]/30 group-hover:bg-[#3B82F6]/5 transition-all duration-300">
                                 <stat.icon className="w-5 h-5 text-[#52525B] group-hover:text-[#3B82F6] transition-colors" />
                             </div>
                             <p className="text-3xl sm:text-4xl font-bold text-white mb-1">
