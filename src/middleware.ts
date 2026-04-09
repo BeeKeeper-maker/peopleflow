@@ -71,12 +71,14 @@ export default auth((req: any) => {
         return NextResponse.next();
     }
 
-    // API routes for auth, webhooks, health — always accessible
+    // API routes for auth, webhooks, health, leads, platform — always accessible
     if (
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/webhooks") ||
         pathname.startsWith("/api/health") ||
-        pathname.startsWith("/api/cron")
+        pathname.startsWith("/api/cron") ||
+        pathname.startsWith("/api/leads") ||
+        pathname.startsWith("/api/platform")
     ) {
         return NextResponse.next();
     }
