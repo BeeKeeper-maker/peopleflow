@@ -4,15 +4,16 @@ import { useState } from "react";
 import { P, GlobalKeyframes } from "./_components/shared";
 import Navbar from "./_components/navbar";
 import HeroCinematic from "./_components/hero";
-import { CostOfInaction, TrustBadges, StatsBanner } from "./_components/trust-sections";
+import LogoMarquee from "./_components/logo-marquee";
+import PainSection from "./_components/pain-section";
+import TrustBadgesSection from "./_components/trust-badges";
 import BentoFeatures from "./_components/bento-features";
 import { WhySection, PricingSection, CTASection, Footer } from "./_components/bottom-sections";
 import DemoModal from "./_components/demo-modal";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PeopleFlow — Enterprise Landing Page v4.0 (100x Rebuild)
+   PeopleFlow — Enterprise Landing Page v4.1 (100x Rebuild — Seq 2)
    Aesthetic: Aceternity × Linear × Stripe Dark
-   Target: B2B Enterprise (RMG, Corporate, NGO) — Bangladesh
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function MarketingPage() {
@@ -24,9 +25,9 @@ export default function MarketingPage() {
             <GlobalKeyframes />
             <Navbar onBookDemo={openDemo} />
             <HeroCinematic onBookDemo={openDemo} />
-            <StatsBanner />
-            <CostOfInaction />
-            <TrustBadges />
+            <LogoMarquee />
+            <PainSection />
+            <TrustBadgesSection />
             <BentoFeatures />
             <WhySection />
             <PricingSection onBookDemo={openDemo} />
