@@ -6,11 +6,19 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { verifyPlatformCookie } from "@/lib/platform-token";
+import { redirect } from "next/navigation";
 import { LeadsCRMTable } from "./_components/leads-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeadsPage() {
+    // ── Server-side auth gate — prevents data leak before client redirect ──
+    const session = await verifyPlatformCookie();
+    if (!session) {
+        redirect("/platform/login");
+    }
+
     const leads = await prisma.salesLead.findMany({
         orderBy: { createdAt: "desc" },
     });

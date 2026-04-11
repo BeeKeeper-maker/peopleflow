@@ -541,7 +541,7 @@ describe("PF Batch Interest — creditInterestForOrganization", () => {
         ] as never);
 
         let callNum = 0;
-        vi.mocked(prisma.pFAccount.findUnique).mockImplementation(async () => {
+        vi.mocked(prisma.pFAccount.findUnique).mockImplementation((async () => {
             callNum++;
             if (callNum <= 2) {
                 return {
@@ -553,7 +553,7 @@ describe("PF Batch Interest — creditInterestForOrganization", () => {
                 } as never;
             }
             return null;  // pf-bad → will throw
-        });
+        }) as any);
 
         const txMock = {
             pFTransaction: { create: vi.fn().mockResolvedValue({}) },
