@@ -22,6 +22,7 @@ export async function GET(
 
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
+            select: { id: true, organizationId: true, role: true, employee: { select: { id: true } } },
         });
 
         if (!user?.organizationId) {
@@ -29,34 +30,80 @@ export async function GET(
         }
 
         const { id } = await params;
+        const userRole = user.role as string;
+        const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(userRole);
+        const isManager = userRole === "manager";
+        const isSelf = user.employee?.id === id;
 
+        // Full data: HR-level roles, managers, or the employee themselves
+        if (isHRLevel || isManager || isSelf) {
+            const employee = await prisma.employee.findUnique({
+                where: {
+                    id,
+                    organizationId: user.organizationId,
+                },
+                include: {
+                    department: true,
+                    designation: true,
+                    shift: true,
+                    branch: true,
+                    reportingManager: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                            employeeCode: true,
+                        }
+                    },
+                    salaryAssignments: {
+                        include: {
+                            salaryStructure: true,
+                        },
+                        orderBy: {
+                            effectiveFrom: 'desc',
+                        },
+                        take: 1,
+                    },
+                },
+            });
+
+            if (!employee) {
+                return new NextResponse("Employee not found", { status: 404 });
+            }
+
+            return NextResponse.json(employee);
+        }
+
+        // Regular employees viewing others: public fields only (no salary, NID, bank details)
         const employee = await prisma.employee.findUnique({
             where: {
                 id,
                 organizationId: user.organizationId,
             },
-            include: {
-                department: true,
-                designation: true,
-                shift: true,
-                branch: true,
+            select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                photoUrl: true,
+                gender: true,
+                joiningDate: true,
+                employmentType: true,
+                employmentStatus: true,
+                department: { select: { id: true, name: true, code: true } },
+                designation: { select: { id: true, name: true, grade: true } },
+                branch: { select: { id: true, name: true } },
+                shift: { select: { id: true, name: true, startTime: true, endTime: true } },
                 reportingManager: {
                     select: {
                         id: true,
                         firstName: true,
                         lastName: true,
-                        email: true,
                         employeeCode: true,
                     }
-                },
-                salaryAssignments: {
-                    include: {
-                        salaryStructure: true,
-                    },
-                    orderBy: {
-                        effectiveFrom: 'desc',
-                    },
-                    take: 1,
                 },
             },
         });

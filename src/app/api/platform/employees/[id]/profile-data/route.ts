@@ -4,7 +4,7 @@
  * Mirror of `/api/employees/:id/profile-data` but with platform admin auth.
  * Returns attendance, leave, and payroll aggregated data for the profile tabs.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
     verifyPlatformRequest,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/platform-token";
 
 export async function GET(
-    req: Request,
+    req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const auth = await verifyPlatformRequest(req);

@@ -11,9 +11,10 @@ import { NextResponse } from "next/server";
 
 // ── Role types and route definitions ─────────────────────────────
 
-type UserRole = "admin" | "hr_admin" | "manager" | "employee";
+type UserRole = "super_admin" | "admin" | "hr_admin" | "manager" | "employee";
 
 const ROLE_DEFAULT_ROUTES: Record<UserRole, string> = {
+    super_admin: "/dashboard",
     admin: "/dashboard",
     hr_admin: "/dashboard",
     manager: "/manager/dashboard",
@@ -45,7 +46,6 @@ function isManagerLevel(role?: string): boolean {
 
 function getDefaultRoute(role?: string): string {
     if (!role) return "/login";
-    if (role === "super_admin") return "/dashboard";
     return ROLE_DEFAULT_ROUTES[role as UserRole] || "/ess/dashboard";
 }
 

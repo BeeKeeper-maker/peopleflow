@@ -12,7 +12,7 @@ const processPayrollSchema = z.object({
     employeeIds: z.array(z.string()).optional(), // If empty, process all
 });
 
-// GET - List salary slips
+// GET - List salary slips (paginated)
 export async function GET(req: Request) {
     try {
         // Require HR admin role for viewing salary slips
@@ -27,6 +27,11 @@ export async function GET(req: Request) {
         const employeeId = searchParams.get("employeeId");
         const status = searchParams.get("status");
 
+        // Pagination with hard cap
+        const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+        const limit = Math.min(200, Math.max(1, parseInt(searchParams.get("limit") || "50", 10)));
+        const skip = (page - 1) * limit;
+
         const where: any = {
             employee: {
                 organizationId: auth.organizationId,
@@ -38,24 +43,38 @@ export async function GET(req: Request) {
         if (employeeId) where.employeeId = employeeId;
         if (status) where.status = status;
 
-        const slips = await prisma.salarySlip.findMany({
-            where,
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        employeeCode: true,
-                        designation: { select: { name: true } },
-                        department: { select: { name: true } },
+        const [slips, totalCount] = await Promise.all([
+            prisma.salarySlip.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            employeeCode: true,
+                            designation: { select: { name: true } },
+                            department: { select: { name: true } },
+                        },
                     },
                 },
-            },
-            orderBy: [{ year: "desc" }, { month: "desc" }],
-        });
+                orderBy: [{ year: "desc" }, { month: "desc" }],
+                skip,
+                take: limit,
+            }),
+            prisma.salarySlip.count({ where }),
+        ]);
 
-        return NextResponse.json(slips);
+        return NextResponse.json({
+            data: slips,
+            pagination: {
+                page,
+                limit,
+                totalCount,
+                totalPages: Math.ceil(totalCount / limit),
+                hasMore: page * limit < totalCount,
+            },
+        });
     } catch (error) {
         payrollLogger.error({ err: error }, "GET_SLIPS_ERROR");
         return new NextResponse("Internal Error", { status: 500 });
@@ -104,6 +123,39 @@ export async function POST(req: Request) {
             },
         });
 
+        const allEmployeeIds = employees.map((e) => e.id);
+
+        // ─── GATHER PHASE: Batch-fetch all data in 2 queries (not N) ───────
+        const [existingSlips, allActiveLoans] = await Promise.all([
+            // 1. Existing slips for this month/year — prevents per-employee findUnique
+            prisma.salarySlip.findMany({
+                where: {
+                    employeeId: { in: allEmployeeIds },
+                    month,
+                    year,
+                },
+                select: { employeeId: true },
+            }),
+            // 2. All active loans for all employees — prevents N+1 in the loop
+            prisma.loan.findMany({
+                where: {
+                    employeeId: { in: allEmployeeIds },
+                    status: "disbursed",
+                    remainingAmount: { gt: 0 },
+                },
+            }),
+        ]);
+
+        // ─── BUILD INDEXES: O(1) lookup per employee ───────────────────────
+        const existingSlipSet = new Set(existingSlips.map((s) => s.employeeId));
+        const loansByEmployee = new Map<string, typeof allActiveLoans>();
+        for (const loan of allActiveLoans) {
+            if (!loansByEmployee.has(loan.employeeId)) {
+                loansByEmployee.set(loan.employeeId, []);
+            }
+            loansByEmployee.get(loan.employeeId)!.push(loan);
+        }
+
         const skipped: { employeeId: string; name: string; error: string }[] = [];
         const created: {
             employeeId: string;
@@ -120,18 +172,9 @@ export async function POST(req: Request) {
         for (const employee of employees) {
             const empName = `${employee.firstName} ${employee.lastName}`;
 
-            // Check if slip already exists
-            const existingSlip = await prisma.salarySlip.findUnique({
-                where: {
-                    employeeId_month_year: {
-                        employeeId: employee.id,
-                        month,
-                        year,
-                    },
-                },
-            });
-
-            if (existingSlip) {
+            // ─── MATCH PHASE: O(1) lookup from pre-built indexes ───────────
+            // Skip if slip already exists (from batch-fetched Set)
+            if (existingSlipSet.has(employee.id)) {
                 skipped.push({
                     employeeId: employee.id,
                     name: empName,
@@ -151,14 +194,8 @@ export async function POST(req: Request) {
                     postPFContributions: true,
                 });
 
-                // Get active loans for auto-deduction within transaction
-                const activeLoans = await prisma.loan.findMany({
-                    where: {
-                        employeeId: employee.id,
-                        status: "disbursed",
-                        remainingAmount: { gt: 0 },
-                    },
-                });
+                // Get active loans from pre-built Map (O(1) instead of DB query)
+                const activeLoans = loansByEmployee.get(employee.id) || [];
 
                 // Atomic: create slip + update loan balances
                 await prisma.$transaction(async (tx) => {

@@ -20,11 +20,28 @@ interface ComplianceCheck {
     details?: string;
 }
 
+// ── Pagination defaults & hard caps ─────────────────────────────────
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+const COMPLIANCE_ATTENDANCE_CAP = 5000; // Max rows for compliance aggregate
+
+function parsePagination(searchParams: URLSearchParams) {
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(
+        MAX_PAGE_SIZE,
+        Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10))
+    );
+    const skip = (page - 1) * limit;
+    return { page, limit, skip };
+}
+
 /**
  * GET /api/reports?type=compliance
- * GET /api/reports?type=attendance&month=...&year=...
+ * GET /api/reports?type=attendance&month=..&year=..&page=1&limit=50
+ * GET /api/reports?type=payroll&month=..&year=..&page=1&limit=50
  *
  * Dispatches to the appropriate report engine.
+ * All data-heavy reports require `page` and `limit` parameters.
  */
 export async function GET(req: Request) {
     try {
@@ -38,9 +55,18 @@ export async function GET(req: Request) {
 
         const { searchParams } = new URL(req.url);
         const reportType = searchParams.get("type") || "compliance";
+        const pagination = parsePagination(searchParams);
 
         if (reportType === "compliance") {
             return await runComplianceEngine(ctx);
+        }
+
+        if (reportType === "attendance") {
+            return await runAttendanceReport(ctx, searchParams, pagination);
+        }
+
+        if (reportType === "payroll") {
+            return await runPayrollReport(ctx, searchParams, pagination);
         }
 
         return NextResponse.json({ error: `Unknown report type: ${reportType}` }, { status: 400 });
@@ -112,7 +138,7 @@ async function runComplianceEngine(ctx: AuthContext) {
             where: { organizationId: orgId, isActive: true },
             select: { id: true, fullDayHours: true, startTime: true, endTime: true },
         }),
-        // Last 30 days of attendance for working hours checks
+        // Last 30 days of attendance for working hours checks (capped)
         prisma.attendance.findMany({
             where: {
                 employee: { organizationId: orgId },
@@ -128,6 +154,8 @@ async function runComplianceEngine(ctx: AuthContext) {
                 overtimeMinutes: true,
                 lateMinutes: true,
             },
+            orderBy: { date: "desc" },
+            take: COMPLIANCE_ATTENDANCE_CAP,
         }),
     ]);
 
@@ -411,5 +439,158 @@ async function runComplianceEngine(ctx: AuthContext) {
             warnings,
             totalEmployees,
         },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Paginated Attendance Report
+// GET /api/reports?type=attendance&month=4&year=2026&page=1&limit=50
+// ═══════════════════════════════════════════════════════════════════════
+
+async function runAttendanceReport(
+    ctx: AuthContext,
+    searchParams: URLSearchParams,
+    pagination: { page: number; limit: number; skip: number }
+) {
+    const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1), 10);
+    const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()), 10);
+    const status = searchParams.get("status"); // present, absent, late, leave
+    const departmentId = searchParams.get("departmentId");
+
+    // Build date range for the target month
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const where: any = {
+        employee: {
+            organizationId: ctx.organizationId,
+            ...(departmentId ? { departmentId } : {}),
+        },
+        date: { gte: startDate, lte: endDate },
+    };
+    if (status) where.status = status;
+
+    // Parallel: fetch paginated data + total count
+    const [records, totalCount] = await Promise.all([
+        prisma.attendance.findMany({
+            where,
+            select: {
+                id: true,
+                date: true,
+                status: true,
+                checkIn: true,
+                checkOut: true,
+                overtimeMinutes: true,
+                lateMinutes: true,
+                earlyLeaveMinutes: true,
+                employee: {
+                    select: {
+                        id: true,
+                        employeeCode: true,
+                        firstName: true,
+                        lastName: true,
+                        department: { select: { name: true } },
+                    },
+                },
+            },
+            orderBy: [{ date: "desc" }, { employee: { firstName: "asc" } }],
+            skip: pagination.skip,
+            take: pagination.limit,
+        }),
+        prisma.attendance.count({ where }),
+    ]);
+
+    return NextResponse.json({
+        data: records,
+        pagination: {
+            page: pagination.page,
+            limit: pagination.limit,
+            totalCount,
+            totalPages: Math.ceil(totalCount / pagination.limit),
+            hasMore: pagination.page * pagination.limit < totalCount,
+        },
+        filters: { month, year, status, departmentId },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Paginated Payroll Report
+// GET /api/reports?type=payroll&month=4&year=2026&page=1&limit=50
+// ═══════════════════════════════════════════════════════════════════════
+
+async function runPayrollReport(
+    ctx: AuthContext,
+    searchParams: URLSearchParams,
+    pagination: { page: number; limit: number; skip: number }
+) {
+    const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1), 10);
+    const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()), 10);
+    const payrollStatus = searchParams.get("status"); // draft, approved, paid
+
+    const where: any = {
+        month,
+        year,
+        employee: { organizationId: ctx.organizationId },
+    };
+    if (payrollStatus) where.status = payrollStatus;
+
+    const [slips, totalCount, aggregates] = await Promise.all([
+        prisma.salarySlip.findMany({
+            where,
+            include: {
+                employee: {
+                    select: {
+                        id: true,
+                        employeeCode: true,
+                        firstName: true,
+                        lastName: true,
+                        department: { select: { name: true } },
+                        designation: { select: { name: true } },
+                    },
+                },
+            },
+            orderBy: { employee: { firstName: "asc" } },
+            skip: pagination.skip,
+            take: pagination.limit,
+        }),
+        prisma.salarySlip.count({ where }),
+        // Aggregate totals for the summary header
+        prisma.salarySlip.aggregate({
+            where,
+            _sum: {
+                grossSalary: true,
+                totalDeductions: true,
+                netSalary: true,
+                pfEmployee: true,
+                pfEmployer: true,
+                incomeTax: true,
+                loanDeduction: true,
+                festivalBonus: true,
+            },
+            _count: true,
+        }),
+    ]);
+
+    return NextResponse.json({
+        data: slips,
+        summary: {
+            totalSlips: aggregates._count,
+            totalGross: aggregates._sum.grossSalary || 0,
+            totalDeductions: aggregates._sum.totalDeductions || 0,
+            totalNet: aggregates._sum.netSalary || 0,
+            totalPFEmployee: aggregates._sum.pfEmployee || 0,
+            totalPFEmployer: aggregates._sum.pfEmployer || 0,
+            totalIncomeTax: aggregates._sum.incomeTax || 0,
+            totalLoanDeduction: aggregates._sum.loanDeduction || 0,
+            totalFestivalBonus: aggregates._sum.festivalBonus || 0,
+        },
+        pagination: {
+            page: pagination.page,
+            limit: pagination.limit,
+            totalCount,
+            totalPages: Math.ceil(totalCount / pagination.limit),
+            hasMore: pagination.page * pagination.limit < totalCount,
+        },
+        filters: { month, year, status: payrollStatus },
     });
 }

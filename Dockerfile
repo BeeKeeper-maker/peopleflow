@@ -82,6 +82,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modul
 # i18n translation files
 COPY --from=builder --chown=nextjs:nodejs /app/messages ./messages
 
+# Worker source files (tsx runs TypeScript at runtime)
+COPY --from=builder --chown=nextjs:nodejs /app/src/workers ./src/workers
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib ./src/lib
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
 # Entrypoint script
 COPY --chown=nextjs:nodejs docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

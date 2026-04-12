@@ -303,7 +303,7 @@ model User {
   twoFactorSecret  String?
 
   organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   // Relations
   employee         Employee?

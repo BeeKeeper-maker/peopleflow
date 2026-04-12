@@ -145,10 +145,8 @@ async function main() {
                 id: "lt-annual",
                 name: "Annual Leave",
                 code: "AL",
-                description: "Paid annual vacation leave",
-                defaultDays: 15,
-                isPaid: true,
-                requiresApproval: true,
+                annualAllocation: 15,
+                requiresDocument: false,
                 organizationId: organization.id,
             },
         }),
@@ -159,10 +157,8 @@ async function main() {
                 id: "lt-sick",
                 name: "Sick Leave",
                 code: "SL",
-                description: "Medical leave for illness",
-                defaultDays: 10,
-                isPaid: true,
-                requiresApproval: true,
+                annualAllocation: 10,
+                requiresDocument: true,
                 organizationId: organization.id,
             },
         }),
@@ -173,10 +169,8 @@ async function main() {
                 id: "lt-casual",
                 name: "Casual Leave",
                 code: "CL",
-                description: "Short notice leave for personal matters",
-                defaultDays: 10,
-                isPaid: true,
-                requiresApproval: true,
+                annualAllocation: 10,
+                requiresDocument: false,
                 organizationId: organization.id,
             },
         }),
@@ -244,7 +238,7 @@ async function main() {
             startTime: "09:00",
             endTime: "18:00",
             breakDuration: 60,
-            workingHours: 8,
+            fullDayHours: 8,
             organizationId: organization.id,
         },
     });
@@ -252,7 +246,7 @@ async function main() {
 
     // 8. Create HR Manager Employee
     const hrManager = await prisma.employee.upsert({
-        where: { employeeCode: "EMP-001" },
+        where: { organizationId_employeeCode: { organizationId: organization.id, employeeCode: "EMP-001" } },
         update: {},
         create: {
             employeeCode: "EMP-001",
@@ -264,7 +258,7 @@ async function main() {
             dateOfBirth: new Date("1985-05-15"),
             joiningDate: new Date("2020-01-01"),
             employmentType: "permanent",
-            status: "active",
+            employmentStatus: "active",
             organizationId: organization.id,
             departmentId: departments[0].id, // HR
             designationId: designations[1].id, // Manager
@@ -272,8 +266,8 @@ async function main() {
         },
     });
 
-    // Create user for HR Manager
-    await prisma.user.upsert({
+    // Create user for HR Manager, then link Employee → User
+    const hrUser = await prisma.user.upsert({
         where: { email: "rahim@demo.com" },
         update: {},
         create: {
@@ -282,8 +276,12 @@ async function main() {
             password: hashedPassword,
             role: "hr_admin",
             organizationId: organization.id,
-            employeeId: hrManager.id,
         },
+    });
+    // Link employee to user (FK is on Employee.userId, not User.employeeId)
+    await prisma.employee.update({
+        where: { id: hrManager.id },
+        data: { userId: hrUser.id },
     });
     console.log("✅ HR Manager created:", hrManager.firstName, hrManager.lastName);
 
@@ -323,7 +321,7 @@ async function main() {
 
     for (const emp of employees) {
         const employee = await prisma.employee.upsert({
-            where: { employeeCode: emp.code },
+            where: { organizationId_employeeCode: { organizationId: organization.id, employeeCode: emp.code } },
             update: {},
             create: {
                 employeeCode: emp.code,
@@ -334,16 +332,16 @@ async function main() {
                 dateOfBirth: new Date("1990-01-01"),
                 joiningDate: new Date("2022-01-01"),
                 employmentType: "permanent",
-                status: "active",
+                employmentStatus: "active",
                 organizationId: organization.id,
                 departmentId: departments[emp.department].id,
                 designationId: designations[emp.designation].id,
                 shiftId: shift.id,
-                reportingToId: emp.role === "employee" ? hrManager.id : undefined,
+                reportingManagerId: emp.role === "employee" ? hrManager.id : undefined,
             },
         });
 
-        await prisma.user.upsert({
+        const empUser = await prisma.user.upsert({
             where: { email: emp.email },
             update: {},
             create: {
@@ -352,8 +350,12 @@ async function main() {
                 password: hashedPassword,
                 role: emp.role,
                 organizationId: organization.id,
-                employeeId: employee.id,
             },
+        });
+        // Link employee to user (FK is on Employee.userId)
+        await prisma.employee.update({
+            where: { id: employee.id },
+            data: { userId: empUser.id },
         });
     }
     console.log("✅ Sample employees created:", employees.length);

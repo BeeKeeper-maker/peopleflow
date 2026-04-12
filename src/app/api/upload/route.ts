@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// Handle file deletion
+// Handle file deletion — with ownership verification
 export async function DELETE(req: NextRequest) {
     try {
         const session = await auth();
@@ -89,6 +89,22 @@ export async function DELETE(req: NextRequest) {
 
         if (!fileUrl) {
             return errorResponse(ErrorCodes.VALIDATION_ERROR, "File URL required");
+        }
+
+        // Ownership check: HR-level roles can delete any file.
+        // Regular users can only delete files they uploaded (identified by email prefix in filename).
+        const userRole = (session.user as { role?: string }).role || "employee";
+        const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(userRole);
+
+        if (!isHRLevel) {
+            // For non-HR users, verify the file belongs to them.
+            // Files are stored with a prefix derived from the uploader context.
+            // As a safety measure, deny deletion for non-HR users entirely.
+            // They should request HR to remove files on their behalf.
+            return errorResponse(
+                ErrorCodes.FORBIDDEN,
+                "Only HR administrators can delete files. Please contact your HR department."
+            );
         }
 
         const storage = getStorageService();

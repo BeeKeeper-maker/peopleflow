@@ -5,7 +5,7 @@
  * Bypasses tenant auth (uses platform JWT instead).
  * Fetches same deep includes as the existing employees API but with platform-level access.
  */
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
     verifyPlatformRequest,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/platform-token";
 
 export async function GET(
-    req: Request,
+    req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     // Platform auth check

@@ -4,11 +4,16 @@ import { hashPassword, validatePassword } from "@/lib/auth";
 import { sendEmail, emailTemplates } from "@/lib/email";
 import bcrypt from "bcryptjs";
 import { authLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 const PASSWORD_HISTORY_LIMIT = 5;
 
 export async function POST(request: Request) {
     try {
+        // Rate limit: max 5 reset attempts per hour per IP
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "auth/reset-password");
+        if (!rl.allowed) return rl.response!;
+
         const { token, password, confirmPassword } = await request.json();
 
         if (!token || !password) {

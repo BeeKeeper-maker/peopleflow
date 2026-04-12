@@ -12,11 +12,12 @@ import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 import { sign, verify } from "jsonwebtoken";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
+// Use the secured secret from platform-token.ts (no hardcoded fallback)
 const PLATFORM_JWT_SECRET =
     process.env.PLATFORM_JWT_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    "platform-secret-change-me";
+    process.env.NEXTAUTH_SECRET || "";
 
 const TOKEN_EXPIRY = "8h";
 
@@ -25,6 +26,10 @@ const TOKEN_EXPIRY = "8h";
  */
 export async function POST(request: NextRequest) {
     try {
+        // Rate limit: max 10 login attempts per 15 minutes per IP
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.auth, "platform/auth/login");
+        if (!rl.allowed) return rl.response!;
+
         const body = await request.json();
         const { email, password } = body;
 

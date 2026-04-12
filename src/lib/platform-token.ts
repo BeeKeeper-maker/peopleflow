@@ -12,10 +12,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { verify } from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 
-const PLATFORM_JWT_SECRET =
-    process.env.PLATFORM_JWT_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    "platform-secret-change-me";
+const PLATFORM_JWT_SECRET = (() => {
+    const secret = process.env.PLATFORM_JWT_SECRET || process.env.NEXTAUTH_SECRET;
+    if (!secret) {
+        const msg = [
+            "",
+            "╔══════════════════════════════════════════════════════════════╗",
+            "║  FATAL: No JWT secret configured for Platform Admin auth   ║",
+            "╚══════════════════════════════════════════════════════════════╝",
+            "",
+            "  Set PLATFORM_JWT_SECRET or NEXTAUTH_SECRET in your environment.",
+            "  Without this, platform admin tokens cannot be verified securely.",
+            "",
+        ].join("\n");
+        // In production, crash immediately. In dev, log a loud warning.
+        if (process.env.NODE_ENV === "production") {
+            throw new Error(msg);
+        }
+        console.error(msg);
+        // Return a runtime-only dev fallback that is NOT a static string
+        return `dev-only-${Date.now()}-${Math.random().toString(36)}`;
+    }
+    return secret;
+})();
 
 export interface PlatformTokenPayload {
     id: string;
