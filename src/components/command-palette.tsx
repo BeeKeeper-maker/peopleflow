@@ -128,131 +128,150 @@ export function CommandPalette() {
 
     return (
         <>
-            {/* Trigger button */}
+            {/* Sidebar Trigger — compact pill */}
             <button
                 onClick={() => setOpen(true)}
-                className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors"
-                aria-label="Open command palette"
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-item-hover transition-all duration-200"
+                aria-label="Open command palette (⌘K)"
+                title="Search (⌘K)"
             >
                 <Search className="w-4 h-4" />
-                <span>Search...</span>
-                <kbd className="ml-2 px-1.5 py-0.5 text-[10px] font-mono bg-background border border-border rounded">
-                    ⌘K
-                </kbd>
             </button>
 
             {/* Command Dialog */}
             {open && (
-                <div className="fixed inset-0 z-100">
+                <div className="fixed inset-0 z-[100]">
+                    {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/60 backdrop-blur-md"
                         onClick={() => setOpen(false)}
                     />
 
-                    <div className="absolute left-1/2 top-[20%] -translate-x-1/2 w-full max-w-[640px] px-4">
+                    {/* Dialog Container */}
+                    <div className="absolute left-1/2 top-[18%] -translate-x-1/2 w-full max-w-2xl px-4">
                         <Command
-                            className="rounded-xl border border-border bg-background shadow-2xl overflow-hidden"
+                            className="rounded-2xl border border-white/[0.08] bg-[#161621] shadow-[0_24px_80px_-12px_rgba(0,0,0,0.8),0_0_0_1px_rgba(99,102,241,0.05)] overflow-hidden"
                             loop
                         >
-                            <div className="flex items-center gap-2 px-4 border-b border-border">
-                                <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                            {/* ── Search Input ── */}
+                            <div className="flex items-center gap-3 px-5 border-b border-white/[0.06]">
+                                <Search className="w-[18px] h-[18px] text-zinc-500 shrink-0" />
                                 <Command.Input
                                     value={searchQuery}
                                     onValueChange={setSearchQuery}
                                     placeholder={isPlatformPlane ? "Search platform..." : "Search actions, pages, employees..."}
-                                    className="flex-1 h-12 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none"
+                                    className="flex-1 h-14 bg-transparent text-[15px] text-white placeholder-zinc-500 outline-none border-none focus:ring-0 focus:outline-none caret-indigo-400"
                                     autoFocus
                                 />
-                                <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-card border border-border rounded">
+                                <kbd className="flex items-center px-2 py-1 text-[10px] font-mono text-zinc-500 bg-white/[0.04] border border-white/[0.08] rounded-md shrink-0">
                                     ESC
                                 </kbd>
                             </div>
 
-                            <Command.List className="max-h-[360px] overflow-y-auto p-2">
-                                <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
-                                    No results found.
+                            {/* ── Results List ── */}
+                            <Command.List className="max-h-[400px] overflow-y-auto p-2 scrollbar-thin">
+                                <Command.Empty className="py-12 text-center text-sm text-zinc-500">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Search className="w-8 h-8 text-zinc-700" />
+                                        <span>No results found</span>
+                                    </div>
                                 </Command.Empty>
 
+                                {/* Quick Actions */}
                                 {actions.length > 0 && (
-                                    <CmdGroup heading="Quick Actions" className="mb-1">
+                                    <CmdGroup
+                                        heading="Quick Actions"
+                                        className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500 mb-1"
+                                    >
                                         {actions.map((item) => (
                                             <Command.Item
                                                 key={item.href}
                                                 value={`${item.label} ${item.keywords.join(" ")}`}
                                                 onSelect={() => navigate(item.href)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground cursor-pointer data-[selected=true]:bg-muted transition-colors"
+                                                className="group flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl text-sm text-zinc-300 cursor-pointer transition-all duration-150 data-[selected=true]:bg-indigo-500/[0.12] data-[selected=true]:text-white hover:bg-white/[0.03]"
                                             >
-                                                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-blue-500/10">
-                                                    <item.icon className="w-4 h-4 text-blue-500" />
+                                                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/15 transition-colors group-data-[selected=true]:bg-indigo-500/20 group-data-[selected=true]:border-indigo-500/25">
+                                                    <item.icon className="w-4 h-4 text-indigo-400" />
                                                 </div>
-                                                <span className="flex-1">{item.label}</span>
-                                                <ArrowRight className="w-3 h-3 text-muted-foreground opacity-0 group-data-[selected=true]:opacity-100" />
+                                                <span className="flex-1 font-medium">{item.label}</span>
+                                                <ArrowRight className="w-3.5 h-3.5 text-zinc-600 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity" />
                                             </Command.Item>
                                         ))}
                                     </CmdGroup>
                                 )}
 
-                                <CmdGroup heading="Navigation" className="mb-1">
+                                {/* Navigation */}
+                                <CmdGroup
+                                    heading="Navigation"
+                                    className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500 mb-1"
+                                >
                                     {navigation.map((item) => (
                                         <Command.Item
                                             key={item.href}
                                             value={`${item.label} ${item.keywords.join(" ")}`}
                                             onSelect={() => navigate(item.href)}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground cursor-pointer data-[selected=true]:bg-muted transition-colors"
+                                            className="group flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl text-sm text-zinc-300 cursor-pointer transition-all duration-150 data-[selected=true]:bg-white/[0.06] data-[selected=true]:text-white hover:bg-white/[0.03]"
                                         >
-                                            <div className="flex items-center justify-center w-8 h-8 rounded-md bg-card">
-                                                <item.icon className="w-4 h-4 text-muted-foreground" />
+                                            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/[0.04] border border-white/[0.06] transition-colors group-data-[selected=true]:bg-white/[0.08] group-data-[selected=true]:border-white/[0.1]">
+                                                <item.icon className="w-4 h-4 text-zinc-400 group-data-[selected=true]:text-zinc-200" />
                                             </div>
                                             <span className="flex-1">{item.label}</span>
                                             {pathname === item.href && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">
+                                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">
                                                     Current
                                                 </span>
                                             )}
+                                            <ArrowRight className="w-3.5 h-3.5 text-zinc-600 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity" />
                                         </Command.Item>
                                     ))}
                                 </CmdGroup>
 
+                                {/* Search Results */}
                                 {searchQuery.length >= 2 && Array.isArray((searchResults as any)?.data) && (
-                                    <CmdGroup heading="Search Results">
+                                    <CmdGroup
+                                        heading="Search Results"
+                                        className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500"
+                                    >
                                         {(searchResults!.data as any[]).slice(0, 5).map((result: any, i: number) => (
                                             <Command.Item
                                                 key={result.id || i}
                                                 value={`search ${result.name || result.title || ""}`}
                                                 onSelect={() => navigate(result.href || `/employees/${result.id}`)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground cursor-pointer data-[selected=true]:bg-muted transition-colors"
+                                                className="group flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl text-sm text-zinc-300 cursor-pointer transition-all duration-150 data-[selected=true]:bg-white/[0.06] data-[selected=true]:text-white hover:bg-white/[0.03]"
                                             >
-                                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-card">
-                                                    <Users className="w-4 h-4 text-muted-foreground" />
+                                                <div className="flex items-center justify-center w-9 h-9 rounded-full bg-white/[0.04] border border-white/[0.06]">
+                                                    <Users className="w-4 h-4 text-zinc-400" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="truncate">{result.name || result.title}</p>
+                                                    <p className="truncate font-medium">{result.name || result.title}</p>
                                                     {result.department && (
-                                                        <p className="text-xs text-muted-foreground truncate">{result.department}</p>
+                                                        <p className="text-xs text-zinc-500 truncate">{result.department}</p>
                                                     )}
                                                 </div>
+                                                <ArrowRight className="w-3.5 h-3.5 text-zinc-600 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity" />
                                             </Command.Item>
                                         ))}
                                     </CmdGroup>
                                 )}
                             </Command.List>
 
-                            <div className="flex items-center justify-between px-4 py-2 border-t border-border text-[10px] text-muted-foreground">
-                                <div className="flex items-center gap-3">
-                                    <span className="flex items-center gap-1">
-                                        <kbd className="px-1 py-0.5 bg-card border border-border rounded">↑↓</kbd>
+                            {/* ── Footer ── */}
+                            <div className="flex items-center justify-between px-5 py-2.5 border-t border-white/[0.06] bg-white/[0.01]">
+                                <div className="flex items-center gap-4">
+                                    <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                                        <kbd className="px-1.5 py-0.5 font-mono bg-white/[0.04] border border-white/[0.08] rounded">↑↓</kbd>
                                         Navigate
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <kbd className="px-1 py-0.5 bg-card border border-border rounded">↵</kbd>
+                                    <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                                        <kbd className="px-1.5 py-0.5 font-mono bg-white/[0.04] border border-white/[0.08] rounded">↵</kbd>
                                         Select
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                        <kbd className="px-1 py-0.5 bg-card border border-border rounded">esc</kbd>
+                                    <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+                                        <kbd className="px-1.5 py-0.5 font-mono bg-white/[0.04] border border-white/[0.08] rounded">esc</kbd>
                                         Close
                                     </span>
                                 </div>
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1.5 text-[10px] text-zinc-600">
                                     <CommandIcon className="w-3 h-3" />
                                     PeopleFlow
                                 </span>
@@ -264,3 +283,4 @@ export function CommandPalette() {
         </>
     );
 }
+

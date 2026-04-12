@@ -29,8 +29,19 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
     return (
         <div className="relative mb-6">
             {/* Cover Image */}
-            <div className="h-48 w-full rounded-t-2xl bg-linear-to-r from-blue-600 to-purple-600 opacity-90 relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
+            <div className="h-48 w-full rounded-t-2xl relative overflow-hidden" style={{
+                background: 'linear-gradient(135deg, #1e3a5f 0%, #2d1b69 25%, #1a1a2e 50%, #16213e 75%, #0f3460 100%)',
+            }}>
+                {/* Layered gradient overlay for depth */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-indigo-500/15 to-purple-600/20" />
+                {/* Subtle geometric grid pattern */}
+                <div className="absolute inset-0 opacity-[0.04]" style={{
+                    backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
+                    backgroundSize: '24px 24px',
+                }} />
+                {/* Accent glow */}
+                <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-indigo-500/10 blur-3xl" />
+                <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full bg-blue-500/10 blur-3xl" />
             </div>
 
             {/* Profile Info */}

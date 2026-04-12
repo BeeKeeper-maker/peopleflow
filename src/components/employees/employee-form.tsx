@@ -25,7 +25,8 @@ import {
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint, Wand2, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
-import Image from "next/image"
+// Photo preview uses native <img> instead of next/image for defensive rendering
+// (any unknown external domain would crash next/image without remotePatterns)
 import { employeeSchema, EmployeeFormValues, DEFAULT_EMPLOYEE_VALUES } from "@/lib/validations/employee"
 
 // Draft persistence key
@@ -436,7 +437,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                 <div className="relative group">
                                     <div className="relative h-20 w-20 rounded-2xl overflow-hidden border-2 border-card-border bg-hover ring-2 ring-blue-500/10 transition-all duration-300 group-hover:ring-blue-500/30">
                                         {photoPreview ? (
-                                            <Image src={photoPreview} alt="Profile" fill className="object-cover" />
+                                            <img src={photoPreview} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
                                         ) : (
                                             <div className="h-full w-full flex items-center justify-center text-muted-foreground">
                                                 <User className="h-8 w-8" />

@@ -1,0 +1,195 @@
+/**
+ * Platform Admin API: GET /api/platform/employees/:id/profile-data
+ *
+ * Mirror of `/api/employees/:id/profile-data` but with platform admin auth.
+ * Returns attendance, leave, and payroll aggregated data for the profile tabs.
+ */
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+    verifyPlatformRequest,
+    isPlatformVerified,
+} from "@/lib/platform-token";
+
+export async function GET(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const auth = await verifyPlatformRequest(req);
+    if (!isPlatformVerified(auth)) return auth;
+
+    const { id } = await params;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    try {
+        const [attendance90d, leaveAllocations, leaveApplications, salarySlips] =
+            await prisma.$transaction([
+                prisma.attendance.findMany({
+                    where: { employeeId: id, date: { gte: ninetyDaysAgo } },
+                    orderBy: { date: "desc" },
+                }),
+                prisma.leaveAllocation.findMany({
+                    where: { employeeId: id, year: currentYear },
+                    include: { leaveType: true },
+                }),
+                prisma.leaveApplication.findMany({
+                    where: {
+                        employeeId: id,
+                        fromDate: { gte: new Date(currentYear - 1, currentMonth - 1, 1) },
+                    },
+                    include: { leaveType: true },
+                    orderBy: { fromDate: "desc" },
+                    take: 20,
+                }),
+                prisma.salarySlip.findMany({
+                    where: { employeeId: id },
+                    orderBy: [{ year: "desc" }, { month: "desc" }],
+                    take: 12,
+                }),
+            ]);
+
+        // ── Attendance Summary (30-day) ────────────────────────────────
+        const attendance30d = attendance90d.filter(
+            (a) => new Date(a.date) >= thirtyDaysAgo
+        );
+        const presentDays = attendance30d.filter((a) => a.status === "present").length;
+        const absentDays = attendance30d.filter((a) => a.status === "absent").length;
+        const lateDays = attendance30d.filter((a) => a.lateMinutes > 0).length;
+        const onTimeDays = attendance30d.filter(
+            (a) => a.status === "present" && a.lateMinutes === 0
+        ).length;
+        const totalTracked = attendance30d.length;
+        const attendanceRate =
+            totalTracked > 0 ? Math.round((presentDays / totalTracked) * 100) : 0;
+        const punctualityRate =
+            presentDays > 0 ? Math.round((onTimeDays / presentDays) * 100) : 0;
+        const avgLateMinutes =
+            lateDays > 0
+                ? Math.round(
+                      attendance30d.reduce((sum, a) => sum + a.lateMinutes, 0) / lateDays
+                  )
+                : 0;
+
+        // Weekly data (12 weeks)
+        const weeklyData = [];
+        for (let i = 11; i >= 0; i--) {
+            const weekEnd = new Date(now);
+            weekEnd.setDate(weekEnd.getDate() - i * 7);
+            const weekStart = new Date(weekEnd);
+            weekStart.setDate(weekStart.getDate() - 7);
+            const weekRecords = attendance90d.filter((a) => {
+                const d = new Date(a.date);
+                return d >= weekStart && d < weekEnd;
+            });
+            weeklyData.push({
+                week: `W${12 - i}`,
+                present: weekRecords.filter((a) => a.status === "present").length,
+                absent: weekRecords.filter((a) => a.status === "absent").length,
+                late: weekRecords.filter((a) => a.lateMinutes > 0).length,
+                leave: weekRecords.filter((a) => a.status === "on_leave").length,
+            });
+        }
+
+        // Punch timeline (14 days)
+        const punchTimeline = attendance90d.slice(0, 14).map((a) => ({
+            date: a.date,
+            checkIn: a.checkIn,
+            checkOut: a.checkOut,
+            status: a.status,
+            lateMinutes: a.lateMinutes,
+            earlyLeaveMinutes: a.earlyLeaveMinutes,
+            overtimeMinutes: a.overtimeMinutes,
+            source: a.source,
+        }));
+
+        // ── Leave Summary ──────────────────────────────────────────────
+        const leaveBalances = leaveAllocations.map((alloc) => ({
+            type: alloc.leaveType.name,
+            color: alloc.leaveType.color || "#3b82f6",
+            allocated: alloc.allocatedDays,
+            used: alloc.usedDays,
+            carried: alloc.carriedForward,
+            remaining: alloc.allocatedDays + alloc.carriedForward - alloc.usedDays,
+        }));
+
+        const leaveHistory = leaveApplications.map((app) => ({
+            id: app.id,
+            type: app.leaveType.name,
+            from: app.fromDate,
+            to: app.toDate,
+            days: app.totalDays,
+            status: app.status,
+            reason: app.reason,
+            halfDay: app.halfDay,
+        }));
+
+        // ── Payroll Summary ────────────────────────────────────────────
+        const latestSlip = salarySlips[0] || null;
+        const payrollHistory = salarySlips.map((s) => ({
+            month: s.month,
+            year: s.year,
+            gross: s.grossSalary,
+            net: s.netSalary,
+            deductions: s.totalDeductions,
+            basic: s.basicSalary,
+            hra: s.houseRent,
+            medical: s.medicalAllowance,
+            conveyance: s.conveyance,
+            pf: s.pfEmployee,
+            tax: s.incomeTax,
+            status: s.status,
+        }));
+
+        return NextResponse.json({
+            attendance: {
+                rate: attendanceRate,
+                punctualityRate,
+                present: presentDays,
+                absent: absentDays,
+                late: lateDays,
+                onTime: onTimeDays,
+                totalTracked,
+                avgLateMinutes,
+                weeklyData,
+                punchTimeline,
+            },
+            leave: {
+                balances: leaveBalances,
+                history: leaveHistory,
+                totalUsed: leaveBalances.reduce((s, b) => s + b.used, 0),
+                totalRemaining: leaveBalances.reduce((s, b) => s + b.remaining, 0),
+            },
+            payroll: {
+                current: latestSlip
+                    ? {
+                          gross: latestSlip.grossSalary,
+                          net: latestSlip.netSalary,
+                          deductions: latestSlip.totalDeductions,
+                          basic: latestSlip.basicSalary,
+                          hra: latestSlip.houseRent,
+                          medical: latestSlip.medicalAllowance,
+                          conveyance: latestSlip.conveyance,
+                          pf: latestSlip.pfEmployee,
+                          tax: latestSlip.incomeTax,
+                          month: latestSlip.month,
+                          year: latestSlip.year,
+                      }
+                    : null,
+                history: payrollHistory,
+            },
+        });
+    } catch (error) {
+        console.error("[PLATFORM_PROFILE_DATA_ERROR]", error);
+        return NextResponse.json(
+            { error: "Failed to load profile data" },
+            { status: 500 }
+        );
+    }
+}

@@ -4,9 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Search, ChevronDown, Menu, X, LogOut, User, Settings as SettingsIcon } from "lucide-react";
+import { Search, ChevronDown, Menu, X, LogOut, User, Settings as SettingsIcon, Command as CommandIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useTranslations } from 'next-intl';
@@ -15,6 +14,20 @@ import { cn } from "@/lib/utils";
 interface HeaderProps {
     onMenuClick?: () => void;
     isSidebarOpen?: boolean;
+}
+
+/**
+ * Detect dynamic route segments that should NOT be translated.
+ * Matches CUIDs (cuid2), UUIDs, and purely numeric IDs.
+ */
+function isDynamicSegment(segment: string): boolean {
+    // CUID / CUID2 (e.g. cmnu696pr001unfbos9cgzrde or clx7...)
+    if (/^c[a-z0-9]{20,}$/i.test(segment)) return true;
+    // UUID (e.g. 550e8400-e29b-41d4-a716-446655440000)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return true;
+    // Purely numeric IDs (e.g. 123, 42)
+    if (/^\d+$/.test(segment)) return true;
+    return false;
 }
 
 export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
@@ -34,16 +47,32 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
         .toUpperCase()
         .slice(0, 2);
 
-    // Generate breadcrumb from pathname with i18n
+    // Generate breadcrumb from pathname with i18n (safe for dynamic IDs)
     const getBreadcrumb = () => {
         const paths = pathname.split("/").filter(Boolean);
         return paths.map((path, index) => {
-            // Use translated label from Breadcrumb namespace
-            const translated = tb(path as any);
-            // If next-intl returns the full key path (e.g. "Breadcrumb.xyz"), it means key is missing
-            const label = translated.includes('.')
-                ? path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ")
-                : translated;
+            // Skip translation for dynamic IDs — show "Details" instead
+            if (isDynamicSegment(path)) {
+                return {
+                    label: "Details",
+                    href: "/" + paths.slice(0, index + 1).join("/"),
+                    isLast: index === paths.length - 1,
+                };
+            }
+
+            // Try translation, with safe fallback for unknown keys
+            let label: string;
+            try {
+                const translated = tb(path as any);
+                // If next-intl returns the full key path (e.g. "Breadcrumb.xyz"), it means key is missing
+                label = translated.includes('.')
+                    ? path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ")
+                    : translated;
+            } catch {
+                // Fallback: capitalize and de-hyphenate
+                label = path.charAt(0).toUpperCase() + path.slice(1).replace(/-/g, " ");
+            }
+
             return {
                 label,
                 href: "/" + paths.slice(0, index + 1).join("/"),
@@ -91,14 +120,26 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
 
                 {/* Right Section */}
                 <div className="flex items-center gap-3">
-                    {/* Search */}
-                    <div className="hidden md:block w-64">
-                        <Input
-                            placeholder={t('search')}
-                            leftIcon={<Search className="h-4 w-4" />}
-                            className="h-9 text-sm"
-                        />
-                    </div>
+                    {/* ⌘K Command Palette Trigger (Vercel/Linear style) */}
+                    <button
+                        onClick={() => {
+                            // Dispatch Cmd+K to open the command palette
+                            const event = new KeyboardEvent('keydown', {
+                                key: 'k',
+                                metaKey: true,
+                                bubbles: true,
+                            });
+                            document.dispatchEvent(event);
+                        }}
+                        className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground bg-card border border-border rounded-lg hover:bg-hover hover:text-foreground transition-all duration-200 cursor-pointer"
+                        aria-label="Open command palette"
+                    >
+                        <Search className="h-3.5 w-3.5" />
+                        <span className="text-xs">Search...</span>
+                        <kbd className="ml-1.5 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-background border border-border rounded text-muted-foreground">
+                            <CommandIcon className="h-2.5 w-2.5" />K
+                        </kbd>
+                    </button>
 
                     {/* Language Switcher */}
                     <LanguageSwitcher variant="compact" />

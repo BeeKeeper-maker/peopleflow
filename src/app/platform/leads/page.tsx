@@ -2,7 +2,7 @@
  * Lead Management Dashboard — PeopleFlow CRM
  *
  * Platform Admin route to manage incoming SalesLead records.
- * Server Component that fetches leads and renders the client CRM table.
+ * Server Component that fetches paginated leads and renders the client CRM table.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -12,26 +12,53 @@ import { LeadsCRMTable } from "./_components/leads-table";
 
 export const dynamic = "force-dynamic";
 
-export default async function LeadsPage() {
+const PAGE_SIZE = 25;
+
+export default async function LeadsPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ page?: string }>;
+}) {
     // ── Server-side auth gate — prevents data leak before client redirect ──
     const session = await verifyPlatformCookie();
     if (!session) {
         redirect("/platform/login");
     }
 
-    const leads = await prisma.salesLead.findMany({
-        orderBy: { createdAt: "desc" },
+    // ── Pagination ───────────────────────────────────────────────
+    const params = await searchParams;
+    const currentPage = Math.max(1, parseInt(params.page || "1", 10) || 1);
+
+    const [leads, totalCount] = await Promise.all([
+        prisma.salesLead.findMany({
+            orderBy: { createdAt: "desc" },
+            take: PAGE_SIZE,
+            skip: (currentPage - 1) * PAGE_SIZE,
+        }),
+        prisma.salesLead.count(),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    // Compute pipeline stats from ALL leads (not just current page)
+    const allStatuses = await prisma.salesLead.groupBy({
+        by: ["status"],
+        _count: { status: true },
     });
 
-    // Compute pipeline stats
+    const statusCounts: Record<string, number> = {};
+    for (const row of allStatuses) {
+        statusCounts[row.status] = row._count.status;
+    }
+
     const stats = {
-        total: leads.length,
-        new: leads.filter((l) => l.status === "new").length,
-        contacted: leads.filter((l) => l.status === "contacted").length,
-        qualified: leads.filter((l) => l.status === "qualified").length,
-        demo_scheduled: leads.filter((l) => l.status === "demo_scheduled").length,
-        converted: leads.filter((l) => l.status === "converted").length,
-        lost: leads.filter((l) => l.status === "lost").length,
+        total: totalCount,
+        new: statusCounts["new"] || 0,
+        contacted: statusCounts["contacted"] || 0,
+        qualified: statusCounts["qualified"] || 0,
+        demo_scheduled: statusCounts["demo_scheduled"] || 0,
+        converted: statusCounts["converted"] || 0,
+        lost: statusCounts["lost"] || 0,
     };
 
     return (
@@ -71,6 +98,12 @@ export default async function LeadsPage() {
                     createdAt: lead.createdAt.toISOString(),
                     updatedAt: lead.updatedAt.toISOString(),
                 }))}
+                pagination={{
+                    page: currentPage,
+                    pageSize: PAGE_SIZE,
+                    totalCount,
+                    totalPages,
+                }}
             />
         </div>
     );

@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { AuthProvider } from "@/components/providers";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { LocaleProvider } from "@/components/providers/locale-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PWARegister } from "@/components/pwa/register";
@@ -92,16 +93,18 @@ export default async function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
         <AuthProvider>
-          <ThemeProvider>
-            <NextIntlClientProvider messages={messages} locale={locale}>
-              <LocaleProvider>
-                <ToastProvider>
-                  <PWARegister />
-                  {children}
-                </ToastProvider>
-              </LocaleProvider>
-            </NextIntlClientProvider>
-          </ThemeProvider>
+          <QueryProvider>
+            <ThemeProvider>
+              <NextIntlClientProvider messages={messages} locale={locale}>
+                <LocaleProvider>
+                  <ToastProvider>
+                    <PWARegister />
+                    {children}
+                  </ToastProvider>
+                </LocaleProvider>
+              </NextIntlClientProvider>
+            </ThemeProvider>
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

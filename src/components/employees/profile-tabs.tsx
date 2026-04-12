@@ -13,6 +13,7 @@ import { format } from "date-fns"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface ProfileTabsProps {
     employee: any
+    apiBasePath?: string // Override for platform admin context
 }
 
 // Tab configuration for the premium pill-style tabs
@@ -24,7 +25,7 @@ const TAB_CONFIG = [
     { value: "documents", label: "Documents", icon: Shield },
 ] as const
 
-export function ProfileTabs({ employee }: ProfileTabsProps) {
+export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
     const [profileData, setProfileData] = useState<any>(null)
     const [profileLoading, setProfileLoading] = useState(false)
     const [activeTab, setActiveTab] = useState("overview")
@@ -35,12 +36,13 @@ export function ProfileTabs({ employee }: ProfileTabsProps) {
         if (profileData) return // Already fetched
 
         setProfileLoading(true)
-        fetch(`/api/employees/${employee.id}/profile-data`)
+        const basePath = apiBasePath || "/api/employees"
+        fetch(`${basePath}/${employee.id}/profile-data`)
             .then((res) => res.json())
             .then((data) => setProfileData(data))
             .catch(console.error)
             .finally(() => setProfileLoading(false))
-    }, [activeTab, employee.id, profileData])
+    }, [activeTab, employee.id, profileData, apiBasePath])
 
     // Helper to format date
     const formatDate = (dateString?: string | null) => {

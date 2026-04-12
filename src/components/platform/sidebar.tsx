@@ -12,10 +12,12 @@ import {
     ChevronRight,
     Zap,
     Target,
+    Users,
 } from "lucide-react";
 
 const NAV_ITEMS = [
     { href: "/platform/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/platform/employees", label: "Employees", icon: Users },
     { href: "/platform/leads", label: "Leads", icon: Target },
     { href: "/platform/tenants", label: "Tenants", icon: Building2 },
     { href: "/platform/plans", label: "Plans", icon: CreditCard },

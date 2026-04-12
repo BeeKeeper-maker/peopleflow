@@ -6,17 +6,19 @@ import { Clock, Calendar, Briefcase, Award, TrendingUp, Wallet } from "lucide-re
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface ProfileStatsProps {
     employee: any
+    apiBasePath?: string // Override for platform admin context
 }
 
-export function ProfileStats({ employee }: ProfileStatsProps) {
+export function ProfileStats({ employee, apiBasePath }: ProfileStatsProps) {
     const [profileData, setProfileData] = useState<any>(null)
 
     useEffect(() => {
-        fetch(`/api/employees/${employee.id}/profile-data`)
+        const basePath = apiBasePath || "/api/employees"
+        fetch(`${basePath}/${employee.id}/profile-data`)
             .then((res) => res.json())
             .then(setProfileData)
             .catch(console.error)
-    }, [employee.id])
+    }, [employee.id, apiBasePath])
 
     // Calculate years of service
     const servicePeriod = useMemo(() => {
