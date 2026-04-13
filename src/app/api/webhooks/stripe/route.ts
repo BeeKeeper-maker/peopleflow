@@ -149,7 +149,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * Called when an invoice is paid. Updates subscription period.
  */
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
-    const stripeSubId = (invoice as any).subscription as string;
+    const stripeSubId = typeof invoice.subscription === "string"
+        ? invoice.subscription
+        : invoice.subscription?.toString();
     if (!stripeSubId) return;
 
     const subscription = await prisma.subscription.findFirst({
@@ -227,7 +229,9 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
  * Called when a payment attempt fails. Starts the grace period cascade.
  */
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
-    const stripeSubId = (invoice as any).subscription as string;
+    const stripeSubId = typeof invoice.subscription === "string"
+        ? invoice.subscription
+        : invoice.subscription?.toString();
     if (!stripeSubId) return;
 
     const subscription = await prisma.subscription.findFirst({
@@ -406,6 +410,28 @@ async function handleTrialWillEnd(stripeSub: Stripe.Subscription) {
         `[STRIPE_WEBHOOK] Trial ending in 3 days for org: ${subscription.organizationId}`
     );
 
-    // TODO: Send email notification about trial ending
-    // await sendTemplateEmail(orgAdminEmail, "trialEnding", { daysLeft: 3 });
+    // Send trial ending notification email to org admin
+    try {
+        const org = await prisma.organization.findUnique({
+            where: { id: subscription.organizationId },
+            select: { name: true },
+        });
+        const adminUser = await prisma.user.findFirst({
+            where: { organizationId: subscription.organizationId, role: "admin" },
+            select: { email: true, name: true },
+        });
+        if (adminUser?.email) {
+            const { sendTemplateEmail } = await import("@/lib/email");
+            await sendTemplateEmail(adminUser.email, "trialEnding", {
+                userName: adminUser.name || "Admin",
+                orgName: org?.name || "your organization",
+                daysLeft: 3,
+            });
+            billingLogger.info(
+                `[STRIPE_WEBHOOK] Trial ending email sent to ${adminUser.email}`
+            );
+        }
+    } catch (emailErr) {
+        billingLogger.error({ err: emailErr }, "[STRIPE_WEBHOOK] Failed to send trial ending email");
+    }
 }

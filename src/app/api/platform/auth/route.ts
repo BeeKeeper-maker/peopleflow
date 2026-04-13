@@ -13,11 +13,7 @@ import { compare } from "bcryptjs";
 import { sign, verify } from "jsonwebtoken";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
-
-// Use the secured secret from platform-token.ts (no hardcoded fallback)
-const PLATFORM_JWT_SECRET =
-    process.env.PLATFORM_JWT_SECRET ||
-    process.env.NEXTAUTH_SECRET || "";
+import { PLATFORM_JWT_SECRET } from "@/lib/platform-token";
 
 const TOKEN_EXPIRY = "8h";
 

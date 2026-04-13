@@ -5,6 +5,7 @@
 
 import nodemailer from "nodemailer";
 import { emailLogger } from "@/lib/logger";
+import { escapeHtml } from "@/lib/sanitize";
 
 // Email configuration from environment
 const emailConfig = {
@@ -37,7 +38,9 @@ function getTransporter(): nodemailer.Transporter {
  * Email templates
  */
 export const emailTemplates = {
-    leaveApproved: (data: { employeeName: string; leaveType: string; dates: string }) => ({
+    leaveApproved: (rawData: { employeeName: string; leaveType: string; dates: string }) => {
+        const data = { employeeName: escapeHtml(rawData.employeeName), leaveType: escapeHtml(rawData.leaveType), dates: escapeHtml(rawData.dates) };
+        return {
         subject: "Leave Request Approved",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -62,9 +65,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    leaveRejected: (data: { employeeName: string; leaveType: string; dates: string; reason?: string }) => ({
+    leaveRejected: (rawData: { employeeName: string; leaveType: string; dates: string; reason?: string }) => {
+        const data = { employeeName: escapeHtml(rawData.employeeName), leaveType: escapeHtml(rawData.leaveType), dates: escapeHtml(rawData.dates), reason: rawData.reason ? escapeHtml(rawData.reason) : undefined };
+        return {
         subject: "Leave Request Rejected",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -92,9 +97,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    expenseApproved: (data: { employeeName: string; title: string; amount: string }) => ({
+    expenseApproved: (rawData: { employeeName: string; title: string; amount: string }) => {
+        const data = { employeeName: escapeHtml(rawData.employeeName), title: escapeHtml(rawData.title), amount: escapeHtml(rawData.amount) };
+        return {
         subject: "Expense Claim Approved",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -119,9 +126,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    payslipReady: (data: { employeeName: string; month: string; year: number }) => ({
+    payslipReady: (rawData: { employeeName: string; month: string; year: number }) => {
+        const data = { employeeName: escapeHtml(rawData.employeeName), month: escapeHtml(rawData.month), year: rawData.year };
+        return {
         subject: `Payslip for ${data.month} ${data.year}`,
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -146,9 +155,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    welcomeEmployee: (data: { employeeName: string; loginUrl: string; tempPassword?: string }) => ({
+    welcomeEmployee: (rawData: { employeeName: string; loginUrl: string; tempPassword?: string }) => {
+        const data = { employeeName: escapeHtml(rawData.employeeName), loginUrl: rawData.loginUrl, tempPassword: rawData.tempPassword };
+        return {
         subject: "Welcome to PeopleFlow HRMS",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -182,9 +193,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    passwordReset: (data: { userName: string; resetUrl: string }) => ({
+    passwordReset: (rawData: { userName: string; resetUrl: string }) => {
+        const data = { userName: escapeHtml(rawData.userName), resetUrl: rawData.resetUrl };
+        return {
         subject: "Reset Your PeopleFlow Password",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -218,9 +231,11 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
 
-    verifyEmail: (data: { userName: string; verifyUrl: string }) => ({
+    verifyEmail: (rawData: { userName: string; verifyUrl: string }) => {
+        const data = { userName: escapeHtml(rawData.userName), verifyUrl: rawData.verifyUrl };
+        return {
         subject: "Verify Your PeopleFlow Email Address",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -248,7 +263,45 @@ export const emailTemplates = {
                 </div>
             </div>
         `,
-    }),
+    }; },
+
+    trialEnding: (rawData: { userName: string; orgName: string; daysLeft: number }) => {
+        const data = { userName: escapeHtml(rawData.userName), orgName: escapeHtml(rawData.orgName), daysLeft: rawData.daysLeft };
+        return {
+        subject: `Your PeopleFlow Trial Ends in ${data.daysLeft} Days`,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 30px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">⏰ Trial Ending Soon</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <h2 style="color: #1f2937;">Hi ${data.userName},</h2>
+                    <p style="color: #4b5563;">
+                        Your free trial for <strong>${data.orgName}</strong> on PeopleFlow HRMS ends in
+                        <strong>${data.daysLeft} days</strong>. After the trial period, your team will lose access
+                        to all premium features.
+                    </p>
+                    <div style="margin: 25px 0; padding: 20px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                        <p style="color: #92400e; margin: 0;">
+                            <strong>What happens after the trial?</strong><br/>
+                            • Your data will be safely preserved for 30 days<br/>
+                            • Access to HR modules will be restricted<br/>
+                            • Upgrade anytime to restore full access
+                        </p>
+                    </div>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${process.env.NEXTAUTH_URL || 'https://hr.ailearnersbd.com'}/dashboard/settings/billing"
+                           style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #10B981, #059669); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                            Upgrade Now
+                        </a>
+                    </div>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p>© ${new Date().getFullYear()} PeopleFlow HRMS. All rights reserved.</p>
+                </div>
+            </div>
+        `,
+    }; },
 };
 /**
  * Send an email
