@@ -17,6 +17,16 @@ import { invalidateSubscription, invalidateOrgStatus } from "@/lib/redis";
 import type Stripe from "stripe";
 import { billingLogger } from "@/lib/logger";
 
+/** Extract subscription ID from an invoice — handles both old and new Stripe API shapes */
+function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined {
+    // New Stripe API (2025+): subscription lives under parent.subscription_details
+    const subDetail = invoice.parent?.subscription_details?.subscription;
+    if (subDetail) {
+        return typeof subDetail === "string" ? subDetail : subDetail.id;
+    }
+    return undefined;
+}
+
 export async function POST(request: NextRequest) {
     const body = await request.text();
     const signature = request.headers.get("stripe-signature");
@@ -149,9 +159,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * Called when an invoice is paid. Updates subscription period.
  */
 async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
-    const stripeSubId = typeof invoice.subscription === "string"
-        ? invoice.subscription
-        : invoice.subscription?.toString();
+    const stripeSubId = getSubscriptionIdFromInvoice(invoice);
     if (!stripeSubId) return;
 
     const subscription = await prisma.subscription.findFirst({
@@ -229,9 +237,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
  * Called when a payment attempt fails. Starts the grace period cascade.
  */
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
-    const stripeSubId = typeof invoice.subscription === "string"
-        ? invoice.subscription
-        : invoice.subscription?.toString();
+    const stripeSubId = getSubscriptionIdFromInvoice(invoice);
     if (!stripeSubId) return;
 
     const subscription = await prisma.subscription.findFirst({
