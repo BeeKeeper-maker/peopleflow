@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users } from "lucide-react"
+import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users, Navigation, Shield, ShieldOff, CheckCircle2, Settings2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
 
@@ -17,7 +17,15 @@ interface Branch {
     email?: string | null
     isHeadOffice: boolean
     isActive: boolean
+    latitude?: number | null
+    longitude?: number | null
+    geoFenceRadius?: number
     _count?: { employees: number }
+}
+
+interface GeoFenceConfig {
+    geoFenceEnabled: boolean
+    geoFenceEnforcement: string
 }
 
 export default function BranchesPage() {
@@ -28,17 +36,31 @@ export default function BranchesPage() {
     const [showForm, setShowForm] = useState(false)
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null)
     const [saving, setSaving] = useState(false)
+    const [geoConfig, setGeoConfig] = useState<GeoFenceConfig>({ geoFenceEnabled: false, geoFenceEnforcement: "soft" })
+    const [savingGeo, setSavingGeo] = useState(false)
+    const [fetchingLocation, setFetchingLocation] = useState(false)
 
     const [form, setForm] = useState({
-        name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false
+        name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false,
+        latitude: "" as string, longitude: "" as string, geoFenceRadius: "200"
     })
 
     const fetchData = useCallback(async () => {
         try {
-            const res = await fetch("/api/branches")
-            if (res.ok) {
-                const data = await res.json()
+            const [branchRes, geoRes] = await Promise.all([
+                fetch("/api/branches"),
+                fetch("/api/settings/geo-fence"),
+            ])
+            if (branchRes.ok) {
+                const data = await branchRes.json()
                 setBranches(data)
+            }
+            if (geoRes.ok) {
+                const geoData = await geoRes.json()
+                setGeoConfig({
+                    geoFenceEnabled: geoData.geoFenceEnabled || false,
+                    geoFenceEnforcement: geoData.geoFenceEnforcement || "soft",
+                })
             }
         } catch (error) {
             console.error("Failed to fetch branches", error)
@@ -51,7 +73,7 @@ export default function BranchesPage() {
 
     const openCreate = () => {
         setEditingBranch(null)
-        setForm({ name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false })
+        setForm({ name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false, latitude: "", longitude: "", geoFenceRadius: "200" })
         setShowForm(true)
     }
 
@@ -65,6 +87,9 @@ export default function BranchesPage() {
             phone: branch.phone || "",
             email: branch.email || "",
             isHeadOffice: branch.isHeadOffice,
+            latitude: branch.latitude?.toString() || "",
+            longitude: branch.longitude?.toString() || "",
+            geoFenceRadius: (branch.geoFenceRadius || 200).toString(),
         })
         setShowForm(true)
     }
@@ -78,7 +103,12 @@ export default function BranchesPage() {
             const res = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: JSON.stringify({
+                    ...form,
+                    latitude: form.latitude ? parseFloat(form.latitude) : null,
+                    longitude: form.longitude ? parseFloat(form.longitude) : null,
+                    geoFenceRadius: parseInt(form.geoFenceRadius) || 200,
+                }),
             })
             if (res.ok) {
                 addToast({ title: editingBranch ? t('updated') : t('created'), type: "success" })
@@ -103,6 +133,91 @@ export default function BranchesPage() {
         } catch { addToast({ title: t('deleteFailed'), type: "error" }) }
     }
 
+    // ── GPS: Use My Current Location ──────────────────────────────
+    const handleUseMyLocation = async () => {
+        if (!("geolocation" in navigator)) {
+            addToast({ title: "আপনার ব্রাউজারে GPS সাপোর্ট নেই", type: "error" })
+            return
+        }
+        setFetchingLocation(true)
+        try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                })
+            })
+            setForm(prev => ({
+                ...prev,
+                latitude: pos.coords.latitude.toFixed(6),
+                longitude: pos.coords.longitude.toFixed(6),
+            }))
+            addToast({ title: "✅ আপনার অবস্থান সফলভাবে নেওয়া হয়েছে!", type: "success" })
+        } catch (e: unknown) {
+            const err = e as GeolocationPositionError
+            if (err?.code === 1) {
+                addToast({ title: "📍 Location permission দিতে হবে। Browser-এ allow করুন।", type: "error" })
+            } else {
+                addToast({ title: "📍 Location নেওয়া যায়নি। আবার চেষ্টা করুন।", type: "error" })
+            }
+        } finally {
+            setFetchingLocation(false)
+        }
+    }
+
+    // ── Toggle Geo-Fence ─────────────────────────────────────────
+    const handleToggleGeoFence = async () => {
+        setSavingGeo(true)
+        try {
+            const res = await fetch("/api/settings/geo-fence", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    geoFenceEnabled: !geoConfig.geoFenceEnabled,
+                    geoFenceEnforcement: geoConfig.geoFenceEnforcement,
+                }),
+            })
+            if (res.ok) {
+                setGeoConfig(prev => ({ ...prev, geoFenceEnabled: !prev.geoFenceEnabled }))
+                addToast({
+                    title: !geoConfig.geoFenceEnabled
+                        ? "✅ GPS Attendance চালু হয়েছে"
+                        : "GPS Attendance বন্ধ করা হয়েছে",
+                    type: "success"
+                })
+            }
+        } catch {
+            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+        } finally {
+            setSavingGeo(false)
+        }
+    }
+
+    const handleChangeEnforcement = async (mode: string) => {
+        setSavingGeo(true)
+        try {
+            const res = await fetch("/api/settings/geo-fence", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    geoFenceEnabled: geoConfig.geoFenceEnabled,
+                    geoFenceEnforcement: mode,
+                }),
+            })
+            if (res.ok) {
+                setGeoConfig(prev => ({ ...prev, geoFenceEnforcement: mode }))
+                addToast({ title: `মোড পরিবর্তন: ${mode === "strict" ? "Strict (অফিসের বাইরে block)" : "Soft (warning দিবে)"}`, type: "success" })
+            }
+        } catch {
+            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+        } finally {
+            setSavingGeo(false)
+        }
+    }
+
+    // Count branches with GPS configured
+    const gpsConfiguredCount = branches.filter(b => b.latitude && b.longitude).length
+
     if (isLoading) {
         return (
             <div className="flex h-64 items-center justify-center rounded-xl border border-card-border bg-hover">
@@ -123,6 +238,84 @@ export default function BranchesPage() {
                     <Plus className="h-4 w-4" />
                     {t('addBranch')}
                 </Button>
+            </div>
+
+            {/* ── GPS Attendance Control Panel ───────────────────────── */}
+            <div className="rounded-xl border border-card-border bg-card-bg p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className={cn(
+                            "h-10 w-10 rounded-lg flex items-center justify-center",
+                            geoConfig.geoFenceEnabled ? "bg-emerald-500/10" : "bg-zinc-500/10"
+                        )}>
+                            {geoConfig.geoFenceEnabled ? <Shield className="h-5 w-5 text-emerald-400" /> : <ShieldOff className="h-5 w-5 text-zinc-400" />}
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground">
+                                GPS Attendance Verification
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                {geoConfig.geoFenceEnabled
+                                    ? `চালু আছে • ${gpsConfiguredCount}/${branches.length} ব্রাঞ্চে GPS সেট করা হয়েছে`
+                                    : "বন্ধ আছে • কর্মীরা যেকোনো জায়গা থেকে check-in করতে পারবে"
+                                }
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {geoConfig.geoFenceEnabled && (
+                            <div className="flex items-center gap-1 border border-card-border rounded-lg p-0.5">
+                                <button
+                                    onClick={() => handleChangeEnforcement("soft")}
+                                    disabled={savingGeo}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                                        geoConfig.geoFenceEnforcement === "soft"
+                                            ? "bg-amber-500/20 text-amber-400"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Soft
+                                </button>
+                                <button
+                                    onClick={() => handleChangeEnforcement("strict")}
+                                    disabled={savingGeo}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                                        geoConfig.geoFenceEnforcement === "strict"
+                                            ? "bg-red-500/20 text-red-400"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Strict
+                                </button>
+                            </div>
+                        )}
+                        <button
+                            onClick={handleToggleGeoFence}
+                            disabled={savingGeo}
+                            className={cn(
+                                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                                geoConfig.geoFenceEnabled ? "bg-emerald-500" : "bg-zinc-600"
+                            )}
+                        >
+                            <span className={cn(
+                                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                geoConfig.geoFenceEnabled ? "translate-x-6" : "translate-x-1"
+                            )} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Helpful tips */}
+                {geoConfig.geoFenceEnabled && gpsConfiguredCount < branches.length && (
+                    <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                        <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                            <Settings2 className="h-3.5 w-3.5 shrink-0" />
+                            {branches.length - gpsConfiguredCount}টি ব্রাঞ্চে GPS location সেট করা হয়নি। Edit বাটনে ক্লিক করে "📍 আমার অবস্থান ব্যবহার করুন" বাটন চাপুন।
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* No branches */}
@@ -195,6 +388,34 @@ export default function BranchesPage() {
                                     <span>{branch._count?.employees || 0} {t('employees')}</span>
                                 </div>
                             </div>
+
+                            {/* GPS Status Badge */}
+                            <div className="mt-3 pt-3 border-t border-card-border">
+                                {branch.latitude && branch.longitude ? (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            <span>GPS সেট করা হয়েছে</span>
+                                        </div>
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                            {branch.geoFenceRadius || 200}m radius
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                                            <Navigation className="h-3.5 w-3.5" />
+                                            <span>GPS সেট করা হয়নি</span>
+                                        </div>
+                                        <button
+                                            onClick={() => openEdit(branch)}
+                                            className="text-[10px] text-blue-400 hover:text-blue-300 underline"
+                                        >
+                                            সেট করুন →
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -203,7 +424,7 @@ export default function BranchesPage() {
             {/* Create/Edit Modal */}
             {showForm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay backdrop-blur-sm">
-                    <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card-bg p-6 shadow-xl">
+                    <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card-bg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
                         <h2 className="text-lg font-semibold text-foreground mb-4">
                             {editingBranch ? t('editBranch') : t('addBranch')}
                         </h2>
@@ -248,6 +469,62 @@ export default function BranchesPage() {
                                     placeholder={t('emailPlaceholder')}
                                     className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground" />
                             </div>
+
+                            {/* ── GPS Location Section ── */}
+                            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Navigation className="h-4 w-4 text-blue-400" />
+                                        <span className="text-sm font-medium text-foreground">Office Location (GPS)</span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleUseMyLocation}
+                                        disabled={fetchingLocation}
+                                        className="gap-1.5 text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
+                                    >
+                                        {fetchingLocation ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                            <MapPin className="h-3 w-3" />
+                                        )}
+                                        {fetchingLocation ? "নিচ্ছে..." : "📍 আমার অবস্থান ব্যবহার করুন"}
+                                    </Button>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground mb-3">
+                                    অফিসে বসে থাকা অবস্থায় "আমার অবস্থান ব্যবহার করুন" চাপুন। এটি আপনার অফিসের GPS coordinate সেভ করবে, যাতে কর্মীদের attendance location verify করা যায়।
+                                </p>
+                                <div className="grid grid-cols-5 gap-3">
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-muted-foreground block mb-1">Latitude</label>
+                                        <input type="text" value={form.latitude} onChange={e => setForm(p => ({ ...p, latitude: e.target.value }))}
+                                            placeholder="23.8103"
+                                            className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-xs text-muted-foreground block mb-1">Longitude</label>
+                                        <input type="text" value={form.longitude} onChange={e => setForm(p => ({ ...p, longitude: e.target.value }))}
+                                            placeholder="90.4125"
+                                            className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-muted-foreground block mb-1">Radius (m)</label>
+                                        <input type="number" value={form.geoFenceRadius} onChange={e => setForm(p => ({ ...p, geoFenceRadius: e.target.value }))}
+                                            placeholder="200"
+                                            min="50" max="5000"
+                                            className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
+                                    </div>
+                                </div>
+                                {form.latitude && form.longitude && (
+                                    <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        <span>Location সেট করা হয়েছে — কর্মীরা {form.geoFenceRadius}m এর মধ্যে থেকে check-in করতে পারবে</span>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" id="isHeadOffice" checked={form.isHeadOffice}
                                     onChange={e => setForm(p => ({ ...p, isHeadOffice: e.target.checked }))} className="rounded" />
