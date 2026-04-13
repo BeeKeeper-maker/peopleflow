@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { Shield, ShieldAlert, MapPin } from "lucide-react";
 
 type AttendanceRecord = {
     id: string;
@@ -24,6 +25,8 @@ type AttendanceRecord = {
     lateMinutes: number;
     earlyLeaveMinutes: number;
     overtimeMinutes: number;
+    notes: string | null;
+    source: string | null;
 };
 
 export function AttendanceHistory() {
@@ -46,6 +49,18 @@ export function AttendanceHistory() {
         };
         fetchHistory();
     }, []);
+
+    // Parse GPS status from notes
+    const getGpsIndicator = (notes: string | null) => {
+        if (!notes) return null;
+        if (notes.includes("✅") || notes.includes("within geo-fence")) {
+            return { status: "inside", icon: Shield, color: "text-emerald-400" };
+        }
+        if (notes.includes("⚠️") || notes.includes("outside geo-fence")) {
+            return { status: "outside", icon: ShieldAlert, color: "text-amber-400" };
+        }
+        return null;
+    };
 
     if (loading) {
         return <div className="h-48 animate-pulse bg-hover rounded-xl border border-card-border" />;
@@ -76,44 +91,62 @@ export function AttendanceHistory() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                history.map((record) => (
-                                    <TableRow key={record.id} className="border-card-border hover:bg-hover">
-                                        <TableCell className="font-medium text-foreground">
-                                            {format(new Date(record.date), "dd MMM yyyy")}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                    "border-0",
-                                                    record.status === 'present' && "bg-emerald-500/10 text-emerald-500",
-                                                    record.status === 'late' && "bg-amber-500/10 text-amber-500",
-                                                    record.status === 'absent' && "bg-red-500/10 text-red-500",
-                                                    record.status === 'half_day' && "bg-blue-500/10 text-blue-500",
-                                                )}
-                                            >
-                                                {record.status.replace('_', ' ')}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-foreground">
-                                            {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "-"}
-                                            {record.lateMinutes > 0 && (
-                                                <span className="text-amber-500 text-xs ml-2">
-                                                    (+{record.lateMinutes}m)
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-foreground">
-                                            {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "-"}
-                                        </TableCell>
-                                        <TableCell className="text-right text-foreground font-mono">
-                                            {record.checkIn && record.checkOut
-                                                ? ((new Date(record.checkOut).getTime() - new Date(record.checkIn).getTime()) / 3600000).toFixed(1) + "h"
-                                                : "-"
-                                            }
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                history.map((record) => {
+                                    const gps = getGpsIndicator(record.notes);
+                                    return (
+                                        <TableRow key={record.id} className="border-card-border hover:bg-hover">
+                                            <TableCell className="font-medium text-foreground">
+                                                {format(new Date(record.date), "dd MMM yyyy")}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "border-0",
+                                                            record.status === 'present' && "bg-emerald-500/10 text-emerald-500",
+                                                            record.status === 'late' && "bg-amber-500/10 text-amber-500",
+                                                            record.status === 'absent' && "bg-red-500/10 text-red-500",
+                                                            record.status === 'half_day' && "bg-blue-500/10 text-blue-500",
+                                                        )}
+                                                    >
+                                                        {record.status.replace('_', ' ')}
+                                                    </Badge>
+                                                    {/* GPS indicator */}
+                                                    {gps && (
+                                                        <span title={gps.status === "inside" ? "GPS: Office-এর মধ্যে" : "GPS: Office-এর বাইরে"}>
+                                                            <gps.icon className={cn("h-3.5 w-3.5", gps.color)} />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-foreground">
+                                                <div className="flex items-center gap-1">
+                                                    {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "-"}
+                                                    {record.lateMinutes > 0 && (
+                                                        <span className="text-amber-500 text-xs">
+                                                            (+{record.lateMinutes}m)
+                                                        </span>
+                                                    )}
+                                                    {record.source === "web" && record.checkIn && (
+                                                        <span title="Web GPS check-in">
+                                                            <MapPin className="h-3 w-3 text-blue-400 ml-0.5" />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-foreground">
+                                                {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "-"}
+                                            </TableCell>
+                                            <TableCell className="text-right text-foreground font-mono">
+                                                {record.checkIn && record.checkOut
+                                                    ? ((new Date(record.checkOut).getTime() - new Date(record.checkIn).getTime()) / 3600000).toFixed(1) + "h"
+                                                    : "-"
+                                                }
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>

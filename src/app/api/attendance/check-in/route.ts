@@ -176,7 +176,25 @@ export async function PUT(req: Request) {
 
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
-            include: { employee: { include: { shift: true } } },
+            include: {
+                employee: {
+                    include: {
+                        shift: true,
+                        branch: {
+                            select: {
+                                id: true,
+                                name: true,
+                                latitude: true,
+                                longitude: true,
+                                geoFenceRadius: true,
+                            },
+                        },
+                    },
+                },
+                organization: {
+                    select: { settings: true },
+                },
+            },
         });
 
         if (!user?.employee) {
@@ -220,6 +238,38 @@ export async function PUT(req: Request) {
             }
         }
 
+        // ── Checkout Geo-Fence Validation (log only, never blocks) ──
+        const geoSettings = getGeoFenceSettings(user.organization?.settings);
+        let checkoutGeoNote = "";
+
+        if (geoSettings.enabled && location?.lat && location?.lng) {
+            const branch = user.employee.branch;
+            if (branch?.latitude && branch?.longitude) {
+                const geoResult = validateGeoFence(
+                    { latitude: location.lat, longitude: location.lng },
+                    { latitude: branch.latitude, longitude: branch.longitude },
+                    branch.geoFenceRadius || 200
+                );
+
+                checkoutGeoNote = geoResult.isWithinFence
+                    ? ` | ✅ Checked out within geo-fence (${geoResult.distanceMeters}m)`
+                    : ` | ⚠️ Checked out from outside geo-fence (${geoResult.distanceMeters}m away)`;
+
+                if (!geoResult.isWithinFence) {
+                    attendanceLogger.info({
+                        employeeId: user.employee.id,
+                        distance: geoResult.distanceMeters,
+                        branchName: branch.name,
+                    }, "GEO_FENCE_CHECKOUT_OUTSIDE");
+                }
+            }
+        }
+
+        // Append checkout geo note to existing notes
+        const updatedNotes = attendance.notes
+            ? `${attendance.notes}${checkoutGeoNote}`
+            : checkoutGeoNote ? checkoutGeoNote.replace(" | ", "") : undefined;
+
         const updated = await prisma.attendance.update({
             where: { id: attendance.id },
             data: {
@@ -227,6 +277,7 @@ export async function PUT(req: Request) {
                 checkOutLocation: location ? JSON.stringify(location) : null,
                 earlyLeaveMinutes,
                 overtimeMinutes,
+                ...(updatedNotes && { notes: updatedNotes }),
             }
         });
 

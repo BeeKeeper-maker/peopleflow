@@ -49,6 +49,9 @@ import {
     Fingerprint,
     KeyRound,
     ArrowRight,
+    MapPin,
+    Navigation,
+    ShieldOff,
 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useToast } from "@/components/ui/toast"
@@ -161,6 +164,12 @@ export default function SettingsPage() {
     const [newSecretKey, setNewSecretKey] = useState<string | null>(null)
     const [copiedKey, setCopiedKey] = useState(false)
 
+    // Geo-fence state
+    const [geoConfig, setGeoConfig] = useState({ geoFenceEnabled: false, geoFenceEnforcement: "soft" })
+    const [geoBranches, setGeoBranches] = useState<Array<{ id: string; name: string; latitude: number | null; longitude: number | null; geoFenceRadius: number; _count: { employees: number } }>>([])
+    const [savingGeo, setSavingGeo] = useState(false)
+    const [geoLoaded, setGeoLoaded] = useState(false)
+
     useEffect(() => {
         fetchSettings()
     }, [])
@@ -169,6 +178,7 @@ export default function SettingsPage() {
     useEffect(() => {
         if (activeTab === "billing" && !billing) fetchBilling()
         if (activeTab === "api-keys" && apiKeys.length === 0) fetchApiKeys()
+        if (activeTab === "attendance" && !geoLoaded) fetchGeoFenceSettings()
     }, [activeTab])
 
     const fetchSettings = async () => {
@@ -214,6 +224,67 @@ export default function SettingsPage() {
             setKeysLoading(false)
         }
     }, [])
+
+    const fetchGeoFenceSettings = async () => {
+        try {
+            const res = await fetch("/api/settings/geo-fence")
+            if (res.ok) {
+                const data = await res.json()
+                setGeoConfig({
+                    geoFenceEnabled: data.geoFenceEnabled || false,
+                    geoFenceEnforcement: data.geoFenceEnforcement || "soft",
+                })
+                setGeoBranches(data.branches || [])
+                setGeoLoaded(true)
+            }
+        } catch (error) {
+            console.error("Failed to fetch geo-fence settings:", error)
+        }
+    }
+
+    const handleToggleGeoFence = async () => {
+        setSavingGeo(true)
+        try {
+            const res = await fetch("/api/settings/geo-fence", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    geoFenceEnabled: !geoConfig.geoFenceEnabled,
+                    geoFenceEnforcement: geoConfig.geoFenceEnforcement,
+                }),
+            })
+            if (res.ok) {
+                setGeoConfig(prev => ({ ...prev, geoFenceEnabled: !prev.geoFenceEnabled }))
+                addToast({ title: !geoConfig.geoFenceEnabled ? "GPS Attendance চালু হয়েছে" : "GPS Attendance বন্ধ করা হয়েছে", type: "success" })
+            }
+        } catch {
+            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+        } finally {
+            setSavingGeo(false)
+        }
+    }
+
+    const handleGeoEnforcementChange = async (mode: string) => {
+        setSavingGeo(true)
+        try {
+            const res = await fetch("/api/settings/geo-fence", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    geoFenceEnabled: geoConfig.geoFenceEnabled,
+                    geoFenceEnforcement: mode,
+                }),
+            })
+            if (res.ok) {
+                setGeoConfig(prev => ({ ...prev, geoFenceEnforcement: mode }))
+                addToast({ title: `মোড পরিবর্তন: ${mode === "strict" ? "Strict" : "Soft"}`, type: "success" })
+            }
+        } catch {
+            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+        } finally {
+            setSavingGeo(false)
+        }
+    }
 
     const handleCreateKey = async () => {
         if (!newKeyName.trim()) return
@@ -435,6 +506,10 @@ export default function SettingsPage() {
                     <TabsTrigger value="api-keys" className="gap-2" id="settings-tab-api-keys">
                         <Code2 className="h-4 w-4" />
                         {t('tabApiKeys')}
+                    </TabsTrigger>
+                    <TabsTrigger value="attendance" className="gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Attendance
                     </TabsTrigger>
                     <TabsTrigger value="delegations" className="gap-2">
                         <KeyRound className="h-4 w-4" />
@@ -902,6 +977,153 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \\
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* ════════════════ Attendance / GPS Tab ════════════════ */}
+                <TabsContent value="attendance" className="space-y-6">
+                    {/* GPS Toggle Card */}
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground flex items-center gap-2">
+                                {geoConfig.geoFenceEnabled ? <Shield className="h-5 w-5 text-emerald-400" /> : <ShieldOff className="h-5 w-5 text-zinc-400" />}
+                                GPS Attendance Verification
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">
+                                কর্মীদের অফিসে উপস্থিত থেকে check-in করতে বাধ্য করুন। GPS দিয়ে তাদের location verify করা হবে।
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {/* Enable/Disable Toggle */}
+                            <div className="flex items-center justify-between rounded-lg border border-card-border bg-hover p-4">
+                                <div className="space-y-0.5">
+                                    <Label className="text-foreground">GPS Geo-Fence চালু/বন্ধ</Label>
+                                    <p className="text-sm text-tertiary-foreground">
+                                        {geoConfig.geoFenceEnabled
+                                            ? "চালু আছে — কর্মীদের check-in location verify হবে"
+                                            : "বন্ধ আছে — কর্মীরা যেকোনো জায়গা থেকে check-in করতে পারবে"
+                                        }
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={geoConfig.geoFenceEnabled}
+                                    onCheckedChange={handleToggleGeoFence}
+                                    disabled={savingGeo}
+                                />
+                            </div>
+
+                            {/* Enforcement Mode */}
+                            {geoConfig.geoFenceEnabled && (
+                                <div className="space-y-3">
+                                    <Label className="text-foreground">Enforcement Mode</Label>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <label
+                                            className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                                                geoConfig.geoFenceEnforcement === "soft"
+                                                    ? "border-amber-500/50 bg-amber-500/5"
+                                                    : "border-card-border bg-hover hover:bg-hover/80"
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="enforcement"
+                                                value="soft"
+                                                checked={geoConfig.geoFenceEnforcement === "soft"}
+                                                onChange={() => handleGeoEnforcementChange("soft")}
+                                                className="accent-amber-500 mt-1"
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium text-foreground">⚡ Soft Mode</p>
+                                                <p className="text-xs text-tertiary-foreground mt-0.5">
+                                                    অফিসের বাইরে থেকেও check-in করতে পারবে, কিন্তু warning দিবে এবং record রাখবে।
+                                                </p>
+                                            </div>
+                                        </label>
+                                        <label
+                                            className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                                                geoConfig.geoFenceEnforcement === "strict"
+                                                    ? "border-red-500/50 bg-red-500/5"
+                                                    : "border-card-border bg-hover hover:bg-hover/80"
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="enforcement"
+                                                value="strict"
+                                                checked={geoConfig.geoFenceEnforcement === "strict"}
+                                                onChange={() => handleGeoEnforcementChange("strict")}
+                                                className="accent-red-500 mt-1"
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium text-foreground">🔒 Strict Mode</p>
+                                                <p className="text-xs text-tertiary-foreground mt-0.5">
+                                                    অফিসের বাইরে থেকে check-in করতে পারবে না — সম্পূর্ণ block করবে।
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Branch GPS Status */}
+                    {geoConfig.geoFenceEnabled && (
+                        <Card className="bg-card border-card-border">
+                            <CardHeader>
+                                <CardTitle className="text-foreground flex items-center gap-2">
+                                    <Navigation className="h-5 w-5 text-blue-400" />
+                                    Branch GPS Status
+                                </CardTitle>
+                                <CardDescription className="text-muted-foreground">
+                                    প্রতিটি ব্রাঞ্চের GPS location সেটআপ করুন। Organization → Branches-এ গিয়ে "📍 আমার অবস্থান ব্যবহার করুন" বাটন চাপুন।
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    {geoBranches.map(branch => (
+                                        <div key={branch.id} className="flex items-center justify-between rounded-lg border border-card-border bg-hover px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                                                    branch.latitude && branch.longitude
+                                                        ? "bg-emerald-500/10"
+                                                        : "bg-amber-500/10"
+                                                }`}>
+                                                    <MapPin className={`h-4 w-4 ${
+                                                        branch.latitude && branch.longitude
+                                                            ? "text-emerald-400"
+                                                            : "text-amber-400"
+                                                    }`} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-foreground">{branch.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{branch._count.employees} employees</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                {branch.latitude && branch.longitude ? (
+                                                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-xs">
+                                                        ✅ GPS সেট করা হয়েছে ({branch.geoFenceRadius}m)
+                                                    </Badge>
+                                                ) : (
+                                                    <Link href="/organization/branches">
+                                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs cursor-pointer hover:bg-amber-500/20">
+                                                            ⚠️ সেটআপ করুন →
+                                                        </Badge>
+                                                    </Link>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {geoBranches.length === 0 && (
+                                        <div className="text-center py-8 text-muted-foreground">
+                                            <MapPin className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                                            <p className="text-sm">কোনো branch পাওয়া যায়নি</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </TabsContent>
 
                 {/* ════════════════ Delegations Tab ════════════════ */}
