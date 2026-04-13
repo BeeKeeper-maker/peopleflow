@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     try {
         const json = await req.json();
-        const { name, code, address, city, phone, email, isHeadOffice } = json;
+        const { name, code, address, city, phone, email, isHeadOffice, latitude, longitude, geoFenceRadius } = json;
 
         if (!name) {
             return NextResponse.json(
@@ -70,6 +70,9 @@ export async function POST(req: Request) {
                 phone: phone || null,
                 email: email || null,
                 isHeadOffice: isHeadOffice || false,
+                latitude: latitude != null ? parseFloat(latitude) : null,
+                longitude: longitude != null ? parseFloat(longitude) : null,
+                geoFenceRadius: geoFenceRadius ? parseInt(geoFenceRadius) : 200,
                 organizationId: auth.organizationId,
             },
         });

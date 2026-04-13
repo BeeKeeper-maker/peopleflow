@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Square, Clock, MapPin, AlertCircle } from "lucide-react";
+import { Play, Square, Clock, MapPin, AlertCircle, Shield, ShieldAlert, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { differenceInSeconds, format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,11 @@ interface AttendanceState {
     shiftStartTime: string | null;
     shiftEndTime: string | null;
     lateMinutes: number;
+}
+
+interface GeoFenceInfo {
+    status: "inside" | "outside" | "unchecked" | "fetching" | "denied" | "unavailable";
+    distance: number | null;
 }
 
 export function AttendanceDashboardCard() {
@@ -33,6 +38,7 @@ export function AttendanceDashboardCard() {
         lateMinutes: 0
     });
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [geoInfo, setGeoInfo] = useState<GeoFenceInfo>({ status: "unchecked", distance: null });
 
     const fetchAttendance = useCallback(async () => {
         try {
@@ -94,26 +100,46 @@ export function AttendanceDashboardCard() {
         return `${h}h ${m}m ${s}s`;
     };
 
+    // ── Get location helper ──────────────────────────────────────
+    const getLocation = async (): Promise<{ lat: number; lng: number } | null> => {
+        if (!("geolocation" in navigator)) {
+            setGeoInfo({ status: "unavailable", distance: null });
+            return null;
+        }
+
+        setGeoInfo({ status: "fetching", distance: null });
+
+        try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 30000, // Accept cached position up to 30s old
+                });
+            });
+            return {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+            };
+        } catch (e: unknown) {
+            const err = e as GeolocationPositionError;
+            if (err?.code === 1) { // PERMISSION_DENIED
+                setGeoInfo({ status: "denied", distance: null });
+                addToast({ title: "📍 Location permission denied. Please allow location access for GPS check-in.", type: "warning" });
+            } else {
+                setGeoInfo({ status: "unavailable", distance: null });
+                addToast({ title: "📍 Could not fetch location. Checking in without GPS.", type: "warning" });
+            }
+            return null;
+        }
+    };
+
     const handleCheckIn = async () => {
         try {
             setActionLoading(true);
 
             // Get Location
-            let location = null;
-            if ("geolocation" in navigator) {
-                try {
-                    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-                    });
-                    location = {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude
-                    };
-                } catch (e) {
-                    console.warn("Geolocation failed", e);
-                    addToast({ title: "Could not fetch location, checking in anyway.", type: "warning" });
-                }
-            }
+            const location = await getLocation();
 
             const res = await fetch("/api/attendance/check-in", {
                 method: "POST",
@@ -122,8 +148,26 @@ export function AttendanceDashboardCard() {
             });
 
             if (!res.ok) {
-                const msg = await res.text();
-                throw new Error(msg);
+                const data = await res.json().catch(() => null);
+                if (data?.code === "GEO_FENCE_VIOLATION") {
+                    setGeoInfo({ status: "outside", distance: data.distance });
+                    addToast({
+                        title: `🚫 Office থেকে ${data.distance}m দূরে আছেন (সর্বোচ্চ ${data.maxAllowed}m)`,
+                        type: "error"
+                    });
+                    return;
+                }
+                throw new Error(data?.error || "Check-in failed");
+            }
+
+            const result = await res.json();
+
+            // Update geo-fence display
+            if (result.geoFence) {
+                setGeoInfo({
+                    status: result.geoFence.status,
+                    distance: result.geoFence.distance,
+                });
             }
 
             addToast({ title: t('checkIn') + ' ✓', type: 'success' });
@@ -141,20 +185,7 @@ export function AttendanceDashboardCard() {
             setActionLoading(true);
 
             // Get Location
-            let location = null;
-            if ("geolocation" in navigator) {
-                try {
-                    const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject);
-                    });
-                    location = {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude
-                    };
-                } catch (e) {
-                    console.warn(e);
-                }
-            }
+            const location = await getLocation();
 
             const res = await fetch("/api/attendance/check-in", { // Same route, PUT method
                 method: "PUT",
@@ -231,6 +262,49 @@ export function AttendanceDashboardCard() {
                     </div>
                 </div>
 
+                {/* GPS Status Indicator */}
+                {geoInfo.status !== "unchecked" && (
+                    <div className={cn(
+                        "mb-4 p-2.5 rounded-lg border flex items-center gap-2 text-xs",
+                        geoInfo.status === "inside" && "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
+                        geoInfo.status === "outside" && "bg-amber-500/10 border-amber-500/20 text-amber-400",
+                        geoInfo.status === "fetching" && "bg-blue-500/10 border-blue-500/20 text-blue-400",
+                        geoInfo.status === "denied" && "bg-red-500/10 border-red-500/20 text-red-400",
+                        geoInfo.status === "unavailable" && "bg-gray-500/10 border-gray-500/20 text-gray-400",
+                    )}>
+                        {geoInfo.status === "inside" && (
+                            <>
+                                <Shield className="h-3.5 w-3.5" />
+                                <span>Office-এর মধ্যে আছেন ({geoInfo.distance}m দূরত্ব)</span>
+                            </>
+                        )}
+                        {geoInfo.status === "outside" && (
+                            <>
+                                <ShieldAlert className="h-3.5 w-3.5" />
+                                <span>Office-এর বাইরে ({geoInfo.distance}m দূরে)</span>
+                            </>
+                        )}
+                        {geoInfo.status === "fetching" && (
+                            <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>GPS location নেওয়া হচ্ছে...</span>
+                            </>
+                        )}
+                        {geoInfo.status === "denied" && (
+                            <>
+                                <ShieldAlert className="h-3.5 w-3.5" />
+                                <span>Location permission দেওয়া হয়নি</span>
+                            </>
+                        )}
+                        {geoInfo.status === "unavailable" && (
+                            <>
+                                <MapPin className="h-3.5 w-3.5" />
+                                <span>GPS available নেই</span>
+                            </>
+                        )}
+                    </div>
+                )}
+
                 {state.status === 'checked-in' && (
                     <div className="mb-6">
                         <div className="flex justify-between text-sm mb-2">
@@ -251,7 +325,12 @@ export function AttendanceDashboardCard() {
                             onClick={handleCheckIn}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? t('checkingIn') : (
+                            {actionLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    GPS Location নিচ্ছে...
+                                </>
+                            ) : (
                                 <>
                                     <MapPin className="mr-2 h-5 w-5" /> {t('checkIn')}
                                 </>
@@ -266,7 +345,12 @@ export function AttendanceDashboardCard() {
                             onClick={handleCheckOut}
                             disabled={actionLoading}
                         >
-                            {actionLoading ? t('checkingOut') : (
+                            {actionLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    {t('checkingOut')}
+                                </>
+                            ) : (
                                 <>
                                     <Square className="mr-2 h-5 w-5 fill-current" /> {t('checkOut')}
                                 </>

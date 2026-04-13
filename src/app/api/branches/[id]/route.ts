@@ -64,6 +64,9 @@ export async function PUT(
                 email: json.email || null,
                 isHeadOffice: json.isHeadOffice ?? existing.isHeadOffice,
                 isActive: json.isActive ?? existing.isActive,
+                latitude: json.latitude !== undefined ? (json.latitude != null ? parseFloat(json.latitude) : null) : existing.latitude,
+                longitude: json.longitude !== undefined ? (json.longitude != null ? parseFloat(json.longitude) : null) : existing.longitude,
+                geoFenceRadius: json.geoFenceRadius !== undefined ? parseInt(json.geoFenceRadius) : existing.geoFenceRadius,
             },
         });
 

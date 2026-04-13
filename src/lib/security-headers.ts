@@ -17,7 +17,7 @@ export const securityHeaders: Record<string, string> = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
 
     // Permissions policy (disable sensitive browser features)
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), interest-cohort=()",
 
     // Content Security Policy
     "Content-Security-Policy": [
