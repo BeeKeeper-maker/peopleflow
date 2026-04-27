@@ -111,7 +111,7 @@ async function handlePayrollProcessed(p: EventMap["payroll.processed"]) {
         }
     }
     const admins = await prisma.user.findMany({
-        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "superadmin"] } },
+        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "super_admin"] } },
         select: { id: true },
     });
     if (admins.length > 0) {
@@ -161,7 +161,7 @@ async function handleRegularizationRejected(p: EventMap["attendance.regularizati
 async function handleAutoAbsentCompleted(p: EventMap["attendance.auto_absent.completed"]) {
     if (p.markedAbsent === 0) return;
     const admins = await prisma.user.findMany({
-        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "superadmin"] } },
+        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "super_admin"] } },
         select: { id: true },
     });
     if (admins.length > 0) {
@@ -199,7 +199,7 @@ async function handleLoanRejected(p: EventMap["loan.rejected"]) {
 
 async function handleDeviceOffline(p: EventMap["device.offline"]) {
     const admins = await prisma.user.findMany({
-        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "superadmin"] } },
+        where: { organizationId: p.organizationId, role: { in: ["admin", "hr_admin", "super_admin"] } },
         select: { id: true },
     });
     if (admins.length > 0) {

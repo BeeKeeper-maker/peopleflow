@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         }
 
         // Check if user has permission
-        if (!["admin", "hr_admin", "superadmin"].includes(user.role)) {
+        if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
 

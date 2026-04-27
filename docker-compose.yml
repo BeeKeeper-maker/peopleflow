@@ -25,6 +25,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
     restart: unless-stopped
 
   # ── BullMQ Worker (scales independently) ──
@@ -48,6 +50,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
     restart: unless-stopped
     deploy:
       replicas: 1  # Scale up: docker-compose up --scale worker=3
@@ -86,3 +90,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

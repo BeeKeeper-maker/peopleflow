@@ -67,7 +67,7 @@ export async function notifyLeaveRequest(
     const admins = await prisma.user.findMany({
         where: {
             organizationId,
-            role: { in: ["admin", "hr_admin", "superadmin"] },
+            role: { in: ["admin", "hr_admin", "super_admin"] },
         },
         select: { id: true },
     })

@@ -68,7 +68,7 @@ export async function PATCH(
             return new NextResponse("Organization not found", { status: 404 });
         }
 
-        if (!["admin", "hr_admin", "superadmin"].includes(user.role)) {
+        if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
 
@@ -143,7 +143,7 @@ export async function DELETE(
             return new NextResponse("Organization not found", { status: 404 });
         }
 
-        if (!["admin", "hr_admin", "superadmin"].includes(user.role)) {
+        if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
 

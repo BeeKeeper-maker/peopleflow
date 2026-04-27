@@ -282,7 +282,7 @@ async function alertDeviceOffline(device: DeviceForPing, error: string): Promise
     const admins = await prisma.user.findMany({
         where: {
             organizationId: device.organizationId,
-            role: { in: ["admin", "hr_admin", "superadmin"] },
+            role: { in: ["admin", "hr_admin", "super_admin"] },
         },
         select: { id: true },
     });
@@ -330,7 +330,7 @@ async function handleDeviceRecovery(deviceId: string): Promise<void> {
     const admins = await prisma.user.findMany({
         where: {
             organizationId: device.organizationId,
-            role: { in: ["admin", "hr_admin", "superadmin"] },
+            role: { in: ["admin", "hr_admin", "super_admin"] },
         },
         select: { id: true },
     });

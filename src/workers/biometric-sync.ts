@@ -187,7 +187,7 @@ async function alertAdminsAboutDevice(deviceId: string, errorMessage: string): P
         const admins = await prisma.user.findMany({
             where: {
                 organizationId: device.organizationId,
-                role: { in: ["admin", "hr_admin", "superadmin"] },
+                role: { in: ["admin", "hr_admin", "super_admin"] },
             },
             select: { id: true },
         });

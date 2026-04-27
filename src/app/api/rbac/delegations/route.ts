@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 
@@ -41,15 +41,16 @@ export async function GET(req: NextRequest) {
 
 // POST /api/rbac/delegations — Create a new time-bounded delegation
 export async function POST(req: NextRequest) {
-    const auth = await requireAuth();
+    // Only admin/HR can create permission delegations
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
 
     try {
         const body = await req.json();
 
-        // Find the target employee's user ID
-        const targetEmployee = await prisma.employee.findUnique({
-            where: { id: body.targetEmployeeId },
+        // Find the target employee's user ID — must belong to same org
+        const targetEmployee = await prisma.employee.findFirst({
+            where: { id: body.targetEmployeeId, organizationId: auth.organizationId },
             select: { userId: true, firstName: true, lastName: true },
         });
 
@@ -87,13 +88,22 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/rbac/delegations — Revoke a delegation
 export async function DELETE(req: NextRequest) {
-    const auth = await requireAuth();
+    // Only admin/HR can revoke delegations
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
 
     try {
         const id = req.nextUrl.searchParams.get("id");
         if (!id) {
             return NextResponse.json({ error: "Delegation ID required" }, { status: 400 });
+        }
+
+        // Verify the delegation belongs to caller's organization
+        const existing = await prisma.rBACPermission.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!existing) {
+            return NextResponse.json({ error: "Delegation not found" }, { status: 404 });
         }
 
         await prisma.rBACPermission.update({
