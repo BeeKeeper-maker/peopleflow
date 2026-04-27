@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { apiLogger } from "@/lib/logger";
 
@@ -17,18 +17,8 @@ const shiftSchema = z.object({
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
         const json = await req.json();
@@ -37,13 +27,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         // If setting as default, unset others
         if (body.isDefault) {
             await prisma.shift.updateMany({
-                where: { organizationId: user.organizationId, isDefault: true, id: { not: id } },
+                where: { organizationId: auth.organizationId, isDefault: true, id: { not: id } },
                 data: { isDefault: false }
             });
         }
 
         const shift = await prisma.shift.update({
-            where: { id, organizationId: user.organizationId },
+            where: { id, organizationId: auth.organizationId },
             data: body
         });
 
@@ -57,24 +47,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
 
         // Check if assigned to any employees
         const assignedCount = await prisma.employee.count({
-            where: { shiftId: id }
+            where: { shiftId: id, organizationId: auth.organizationId }
         });
 
         if (assignedCount > 0) {
@@ -84,7 +64,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         // Soft delete or hard delete? Schema says isActive, so let's use that or hard delete if no relations.
         // Actually, let's hard delete since we checked relations.
         await prisma.shift.delete({
-            where: { id, organizationId: user.organizationId }
+            where: { id, organizationId: auth.organizationId }
         });
 
         return new NextResponse(null, { status: 204 });

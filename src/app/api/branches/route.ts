@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/branches — List all branches
@@ -28,7 +28,7 @@ export async function GET() {
 
 // POST /api/branches — Create a new branch
 export async function POST(req: Request) {
-    const auth = await requireAuth();
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
 
     try {

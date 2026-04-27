@@ -1,25 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { startOfDay, endOfDay, subDays, format } from "date-fns";
 import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
-
-        const orgId = user.organizationId;
+        const orgId = auth.organizationId;
         const todayStart = startOfDay(new Date());
         const todayEnd = endOfDay(new Date());
         const thirtyDaysAgo = subDays(todayStart, 30);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { payrollLogger } from "@/lib/logger";
 
@@ -21,10 +21,8 @@ export async function PUT(
 ) {
     const params = await props.params;
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = params;
         const body = await req.json();
@@ -32,6 +30,13 @@ export async function PUT(
 
         if (!validation.success) {
             return new NextResponse(validation.error.issues[0].message, { status: 400 });
+        }
+
+        const existing = await prisma.salaryStructure.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!existing) {
+            return new NextResponse("Salary structure not found", { status: 404 });
         }
 
         const structure = await prisma.salaryStructure.update({
@@ -52,12 +57,17 @@ export async function DELETE(
 ) {
     const params = await props.params;
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = params;
+
+        const structure = await prisma.salaryStructure.findFirst({
+            where: { id, organizationId: auth.organizationId },
+        });
+        if (!structure) {
+            return new NextResponse("Salary structure not found", { status: 404 });
+        }
 
         // Check if assigned to any employees
         const assignmentCount = await prisma.salaryStructureAssignment.count({

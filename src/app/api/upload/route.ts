@@ -23,6 +23,11 @@ const FOLDER_TYPE_MAP: Record<string, keyof typeof FILE_TYPES> = {
     avatars: "avatar",
 };
 
+function sanitizeFilenamePrefix(prefix?: string): string | undefined {
+    const sanitized = prefix?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+    return sanitized || undefined;
+}
+
 export async function POST(req: NextRequest) {
     try {
         // Auth check
@@ -34,8 +39,9 @@ export async function POST(req: NextRequest) {
         // Parse form data
         const formData = await req.formData();
         const file = formData.get("file") as File | null;
-        const folder = (formData.get("folder") as string) || "documents";
-        const prefix = formData.get("prefix") as string | undefined;
+        const requestedFolder = (formData.get("folder") as string) || "documents";
+        const folder = FOLDER_TYPE_MAP[requestedFolder] ? requestedFolder : "documents";
+        const prefix = sanitizeFilenamePrefix(formData.get("prefix") as string | undefined);
 
         // Validate file exists
         if (!file) {
@@ -43,7 +49,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Get allowed file type for folder
-        const allowedType = FOLDER_TYPE_MAP[folder] || "document";
+        const allowedType = FOLDER_TYPE_MAP[folder];
 
         // Get storage service and upload
         const storage = getStorageService();

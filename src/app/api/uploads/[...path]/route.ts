@@ -3,12 +3,18 @@ import { readFile, stat } from "fs/promises";
 import path from "path";
 import mime from 'mime';
 import { storageLogger } from "@/lib/logger";
+import { auth } from "@/lib/auth";
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ path: string[] }> }
 ) {
     try {
+        const session = await auth();
+        if (!session?.user?.email) {
+            return new NextResponse("Unauthorized", { status: 401 });
+        }
+
         const { path: pathSegments } = await params;
         const filePath = path.join(process.cwd(), "uploads", ...pathSegments);
 
@@ -35,7 +41,7 @@ export async function GET(
         return new NextResponse(fileBuffer, {
             headers: {
                 "Content-Type": mimeType,
-                "Cache-Control": "public, max-age=31536000, immutable",
+                "Cache-Control": "private, no-store",
             },
         });
     } catch (error) {

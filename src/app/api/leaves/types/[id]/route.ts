@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
 
 export async function GET(
@@ -46,18 +47,8 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const authContext = await requireAdminOrHR();
+        if (!isAuthenticated(authContext)) return authContext;
 
         const { id } = await params;
         const json = await req.json();
@@ -67,7 +58,7 @@ export async function PUT(
         if (code) {
             const existingCode = await prisma.leaveType.findFirst({
                 where: {
-                    organizationId: user.organizationId,
+                    organizationId: authContext.organizationId,
                     code,
                     NOT: { id },
                 },
@@ -81,7 +72,7 @@ export async function PUT(
         const leaveType = await prisma.leaveType.update({
             where: {
                 id,
-                organizationId: user.organizationId,
+                organizationId: authContext.organizationId,
             },
             data: {
                 code,
@@ -101,18 +92,8 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const authContext = await requireAdminOrHR();
+        if (!isAuthenticated(authContext)) return authContext;
 
         const { id } = await params;
 
@@ -134,7 +115,7 @@ export async function DELETE(
         await prisma.leaveType.delete({
             where: {
                 id,
-                organizationId: user.organizationId,
+                organizationId: authContext.organizationId,
             },
         });
 

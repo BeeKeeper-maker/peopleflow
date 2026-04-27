@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
 
@@ -15,18 +15,8 @@ const assignmentSchema = z.object({
 // GET - List all salary assignments
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const employeeId = searchParams.get("employeeId");
@@ -34,7 +24,7 @@ export async function GET(req: Request) {
 
         const where: any = {
             employee: {
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             },
         };
 
@@ -113,18 +103,8 @@ export async function GET(req: Request) {
 // POST - Create new salary assignment
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const body = await req.json();
         const validation = assignmentSchema.safeParse(body);
@@ -137,7 +117,7 @@ export async function POST(req: Request) {
 
         // Verify employee belongs to organization
         const employee = await prisma.employee.findFirst({
-            where: { id: employeeId, organizationId: user.organizationId },
+            where: { id: employeeId, organizationId: auth.organizationId },
         });
 
         if (!employee) {
@@ -146,7 +126,7 @@ export async function POST(req: Request) {
 
         // Verify salary structure belongs to organization
         const structure = await prisma.salaryStructure.findFirst({
-            where: { id: salaryStructureId, organizationId: user.organizationId },
+            where: { id: salaryStructureId, organizationId: auth.organizationId },
         });
 
         if (!structure) {

@@ -130,11 +130,23 @@ class LocalStorageProvider implements StorageProvider {
         this.publicUrl = config.publicUrl || "/api/uploads";
     }
 
+    private assertInsideBasePath(targetPath: string): void {
+        const base = path.resolve(this.basePath);
+        const resolved = path.resolve(targetPath);
+        const relative = path.relative(base, resolved);
+
+        if (relative.startsWith("..") || path.isAbsolute(relative)) {
+            throw new Error("Storage path escapes upload directory");
+        }
+    }
+
     async upload(buffer: Buffer, filename: string, folder: string): Promise<string> {
-        const uploadDir = path.join(this.basePath, folder);
+        const uploadDir = path.resolve(this.basePath, folder);
+        this.assertInsideBasePath(uploadDir);
         await fs.mkdir(uploadDir, { recursive: true });
 
-        const filepath = path.join(uploadDir, filename);
+        const filepath = path.resolve(uploadDir, filename);
+        this.assertInsideBasePath(filepath);
         await fs.writeFile(filepath, buffer);
 
         return `${this.publicUrl}/${folder}/${filename}`;
@@ -142,8 +154,19 @@ class LocalStorageProvider implements StorageProvider {
 
     async delete(filePath: string): Promise<void> {
         // Extract folder and filename from URL
-        const relativePath = filePath.replace(this.publicUrl, "");
-        const fullPath = path.join(this.basePath, relativePath);
+        let relativePath = filePath;
+        try {
+            relativePath = new URL(filePath, "http://local").pathname;
+        } catch {
+            // Keep the original value for relative paths.
+        }
+        relativePath = relativePath.startsWith(this.publicUrl)
+            ? relativePath.slice(this.publicUrl.length)
+            : relativePath;
+        relativePath = relativePath.replace(/^\/+/, "");
+
+        const fullPath = path.resolve(this.basePath, relativePath);
+        this.assertInsideBasePath(fullPath);
 
         try {
             await fs.unlink(fullPath);

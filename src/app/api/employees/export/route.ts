@@ -6,25 +6,15 @@
  */
 
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const format = searchParams.get("format") || "csv";
@@ -33,7 +23,7 @@ export async function GET(req: NextRequest) {
 
         // Build query
         const where: Record<string, unknown> = {
-            organizationId: user.organizationId,
+            organizationId: auth.organizationId,
             deletedAt: null,
         };
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 export async function GET(req: Request) {
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     // Authenticate first
-    const auth = await requireAuth();
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) {
         return auth; // Returns 401 Unauthorized
     }

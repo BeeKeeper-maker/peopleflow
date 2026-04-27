@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/branches/[id] — Get a single branch
@@ -8,7 +8,7 @@ export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAuth();
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
 
     try {
@@ -37,7 +37,7 @@ export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const auth = await requireAuth();
+    const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
 
     try {

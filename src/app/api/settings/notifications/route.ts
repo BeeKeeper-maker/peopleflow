@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/settings/notifications - Get notification preferences
@@ -45,17 +46,10 @@ export async function GET(req: NextRequest) {
 // PATCH /api/settings/notifications - Update notification preferences
 export async function PATCH(req: NextRequest) {
     try {
-        const session = await auth()
-        if (!session?.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-        }
+        const authContext = await requireAdminOrHR()
+        if (!isAuthenticated(authContext)) return authContext
 
-        const user = session.user
-        const organizationId = user.organizationId
-
-        if (!organizationId) {
-            return NextResponse.json({ error: "No organization found" }, { status: 404 })
-        }
+        const organizationId = authContext.organizationId
 
         const body = await req.json()
         const { emailNotifications, leaveApprovals, payrollAlerts, attendanceReminders, systemUpdates } = body
