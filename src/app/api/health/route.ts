@@ -42,13 +42,20 @@ export async function GET(request: NextRequest) {
 
     // Check Redis connectivity
     try {
-        const { getRedis } = await import("@/lib/redis");
-        const redisStart = Date.now();
-        await getRedis().ping();
-        (healthStatus.checks as Record<string, unknown>).redis = {
-            status: "healthy",
-            latency: Date.now() - redisStart,
-        };
+        const { getRedis, isRedisDisabledForRuntime } = await import("@/lib/redis");
+        if (isRedisDisabledForRuntime()) {
+            (healthStatus.checks as Record<string, unknown>).redis = {
+                status: "skipped",
+                latency: 0,
+            };
+        } else {
+            const redisStart = Date.now();
+            await getRedis().ping();
+            (healthStatus.checks as Record<string, unknown>).redis = {
+                status: "healthy",
+                latency: Date.now() - redisStart,
+            };
+        }
     } catch {
         (healthStatus.checks as Record<string, unknown>).redis = {
             status: "unreachable",

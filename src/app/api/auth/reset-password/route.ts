@@ -113,7 +113,11 @@ export async function POST(request: Request) {
             // Update user password
             prisma.user.update({
                 where: { id: user.id },
-                data: { password: hashedPassword },
+                data: {
+                    password: hashedPassword,
+                    emailVerified: user.emailVerified ?? new Date(),
+                    sessionVersion: { increment: 1 },
+                },
             }),
             // Save old password to history (if exists)
             ...(user.password
@@ -126,6 +130,10 @@ export async function POST(request: Request) {
                     }),
                 ]
                 : []),
+            // Invalidate database sessions; JWT sessions are invalidated by sessionVersion.
+            prisma.session.deleteMany({
+                where: { userId: user.id },
+            }),
             // Mark token as used
             prisma.passwordResetToken.update({
                 where: { id: resetToken.id },

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "PeopleFlow | Enterprise HR, Engineered for Bangladesh",
   description:
-    "The only HRMS with BLA 2006 compliance, automated festival bonuses, 3-tier biometric resilience, and stateful multi-level approvals. Built for RMG, Corporate, and NGO sectors in Bangladesh.",
+    "HRMS for Bangladesh-focused teams with payroll, attendance, leave, approvals, and compliance-oriented workflows for beta evaluation.",
   keywords: [
     "HRMS Bangladesh",
     "HR Software Bangladesh",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PeopleFlow | Enterprise HR, Engineered for Bangladesh",
     description:
-      "The only HRMS with BLA 2006 compliance, automated festival bonuses, and 3-tier biometric resilience.",
+      "HRMS for Bangladesh-focused teams with payroll, attendance, leave, approvals, and compliance-oriented workflows.",
     type: "website",
     siteName: "PeopleFlow",
     url: "https://hr.ailearnersbd.com",
@@ -39,7 +39,7 @@ const jsonLd = {
       url: "https://hr.ailearnersbd.com",
       logo: "https://hr.ailearnersbd.com/icon.png",
       description:
-        "Enterprise HR Management System engineered for Bangladesh. BLA 2006 compliant payroll, biometric attendance, and multi-level approvals.",
+        "Enterprise HR Management System engineered for Bangladesh-focused teams with payroll, attendance, leave, and approval workflows.",
       sameAs: [],
     },
     {
@@ -53,12 +53,6 @@ const jsonLd = {
         highPrice: "7999",
         priceCurrency: "BDT",
         offerCount: "3",
-      },
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "4.9",
-        reviewCount: "127",
-        bestRating: "5",
       },
     },
   ],

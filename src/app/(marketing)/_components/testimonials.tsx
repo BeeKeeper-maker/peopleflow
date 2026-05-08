@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, Quote } from "lucide-react";
+import { Quote, MessageSquareText } from "lucide-react";
 import { P, fadeUp, staggerContainer, staggerItem } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
@@ -10,51 +10,51 @@ import { P, fadeUp, staggerContainer, staggerItem } from "./shared";
 
 const testimonials = [
     {
-        name: "Md. Rafiqul Islam",
-        role: "Managing Director",
-        company: "Envoy Textiles Ltd",
-        quote: "PeopleFlow eliminated our payroll errors overnight. We used to lose 3-4 lakhs monthly to ghost attendance alone. Now it's zero. The BLA compliance engine is worth the investment by itself.",
-        avatar: "RI",
+        name: "Beta HR Lead",
+        role: "HR Operations",
+        company: "RMG pilot team",
+        quote: "The payroll, leave, and attendance workflows match the review steps we need for a controlled HRMS rollout.",
+        avatar: "HR",
         color: P.blue,
     },
     {
-        name: "Farhana Begum",
-        role: "Head of HR",
-        company: "Ha-Meem Group",
-        quote: "Managing 8,000+ employees across 12 factories was a nightmare with spreadsheets. PeopleFlow's biometric sync and automated leave calculations saved us 200+ HR hours every month.",
-        avatar: "FB",
+        name: "People Ops Manager",
+        role: "People Operations",
+        company: "Corporate pilot team",
+        quote: "The employee records, approval flows, and dashboards give our team a clearer operating picture than spreadsheets.",
+        avatar: "PO",
         color: P.emerald,
     },
     {
-        name: "Tanvir Ahmed",
-        role: "CFO",
-        company: "DBL Ceramics",
-        quote: "The festival bonus engine alone justified our switch. What took our payroll team 3 full days now runs in one click. The PF ledger reconciliation is flawless.",
-        avatar: "TA",
+        name: "Finance Reviewer",
+        role: "Finance",
+        company: "Payroll pilot team",
+        quote: "The salary structure and festival bonus workflows are promising for reducing manual payroll review effort.",
+        avatar: "FR",
         color: P.indigo,
     },
     {
-        name: "Shahana Parveen",
-        role: "Director, Operations",
-        company: "Square Fashions",
-        quote: "We passed our last BLA audit with zero findings for the first time in company history. PeopleFlow's compliance automation is genuinely enterprise-grade. Our legal team is thrilled.",
-        avatar: "SP",
+        name: "Operations Director",
+        role: "Operations",
+        company: "Factory pilot team",
+        quote: "The compliance-oriented screens make it easier to review leave, attendance, and payroll decisions before approval.",
+        avatar: "OD",
         color: P.violet,
     },
     {
-        name: "Kamal Uddin",
-        role: "Factory Manager",
-        company: "Beximco Knitting",
-        quote: "The approval workflow engine transformed how we handle leave requests. No more WhatsApp chaos. Every request goes through proper L1→L2 channels with full audit trails.",
-        avatar: "KU",
+        name: "Factory Manager",
+        role: "Line Management",
+        company: "Manufacturing pilot team",
+        quote: "The approval workflow gives managers a structured path for leave requests and escalation review.",
+        avatar: "FM",
         color: P.amber,
     },
     {
-        name: "Nusrat Jahan",
-        role: "VP, Human Resources",
-        company: "Robi Axiata",
-        quote: "After evaluating 6 HRMS platforms, PeopleFlow was the only one that understood Bangladesh labour law at the database level. The maternity leave auto-split is a game-changer.",
-        avatar: "NJ",
+        name: "HR Reviewer",
+        role: "Human Resources",
+        company: "Enterprise pilot team",
+        quote: "The Bangladesh-focused leave and policy setup is useful for beta validation with real HR administrators.",
+        avatar: "HR",
         color: P.rose,
     },
 ];
@@ -95,13 +95,6 @@ function TestimonialCard({ t }: { t: typeof testimonials[number] }) {
                     &ldquo;{t.quote}&rdquo;
                 </p>
 
-                {/* Stars */}
-                <div className="flex gap-0.5 mb-5">
-                    {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    ))}
-                </div>
-
                 {/* Author */}
                 <div className="flex items-center gap-3">
                     <div
@@ -138,9 +131,9 @@ export default function Testimonials() {
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
                         style={{ background: P.amberDim, border: `1px solid ${P.amber}20` }}
                     >
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <MessageSquareText className="w-3.5 h-3.5" />
                         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.amber }}>
-                            Trusted by Leaders
+                            Beta Feedback
                         </span>
                     </div>
                 </motion.div>
@@ -149,13 +142,13 @@ export default function Testimonials() {
                     className="text-4xl sm:text-5xl font-bold tracking-tight mb-5"
                     style={{ color: P.heading }}
                 >
-                    What Our Clients{" "}
+                    What Pilot Teams{" "}
                     <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #F59E0B, #D97706)" }}>
-                        Say
+                        Are Reviewing
                     </span>
                 </motion.h2>
                 <motion.p variants={staggerItem} className="text-lg max-w-xl mx-auto" style={{ color: P.body }}>
-                    From mid-size factories to publicly listed enterprises — PeopleFlow is the HR backbone of Bangladesh.
+                    Early beta feedback is helping validate Bangladesh-focused HR workflows before wider release.
                 </motion.p>
             </motion.div>
 

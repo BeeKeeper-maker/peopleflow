@@ -38,7 +38,7 @@ export default function PrivacyPolicyPage() {
             <ul>
                 <li>To provide, operate, and maintain PeopleFlow services</li>
                 <li>To process payroll, attendance, leave, and compliance calculations</li>
-                <li>To comply with Bangladesh Labour Act (BLA) 2006 reporting requirements</li>
+                <li>To support Bangladesh labour-law-oriented reporting and review workflows</li>
                 <li>To send transactional notifications (payslips, approval requests, alerts)</li>
                 <li>To provide customer support and respond to inquiries</li>
                 <li>To detect, prevent, and address technical issues and security threats</li>
@@ -47,7 +47,7 @@ export default function PrivacyPolicyPage() {
 
             <h2>4. Data Security</h2>
             <p>
-                We implement industry-standard security measures including AES-256 encryption for data at rest, TLS 1.3 for data in transit, row-level security for tenant isolation, and role-based access controls. Our infrastructure is monitored 24/7 with automated threat detection and incident response protocols.
+                We implement security measures appropriate for a beta SaaS product, including role-based access controls, tenant-scoped application logic, secure transport in production hosting, and deployment guidance for protected databases and caches. Additional security controls may depend on the customer&apos;s hosting and infrastructure configuration.
             </p>
 
             <h2>5. Data Retention</h2>

@@ -119,6 +119,50 @@ export function calculateGratuity(lastBasicSalary: number, yearsOfService: numbe
     return Math.round((lastBasicSalary * 30 * yearsOfService) / 26);
 }
 
+
+function isBangladeshWeekend(date: Date): boolean {
+    const day = date.getDay();
+    return day === 5 || day === 6; // Friday/Saturday weekend
+}
+
+function startOfLocalDay(date: Date): Date {
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+}
+
+function countWorkingDays(startDate: Date, endDate: Date): number {
+    let workingDays = 0;
+    const currentDate = startOfLocalDay(startDate);
+    const finalDate = startOfLocalDay(endDate);
+
+    while (currentDate <= finalDate) {
+        if (!isBangladeshWeekend(currentDate)) workingDays++;
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return workingDays;
+}
+
+function countLeaveDaysInPayrollPeriod(
+    leave: { fromDate: Date; toDate: Date; totalDays: number; halfDay?: boolean | null },
+    periodStart: Date,
+    periodEnd: Date
+): number {
+    const leaveStart = startOfLocalDay(leave.fromDate);
+    const leaveEnd = startOfLocalDay(leave.toDate);
+    const start = leaveStart > startOfLocalDay(periodStart) ? leaveStart : startOfLocalDay(periodStart);
+    const end = leaveEnd < startOfLocalDay(periodEnd) ? leaveEnd : startOfLocalDay(periodEnd);
+
+    if (start > end) return 0;
+
+    if (leave.halfDay) {
+        return start.getTime() === end.getTime() && !isBangladeshWeekend(start) ? 0.5 : 0;
+    }
+
+    return countWorkingDays(start, end);
+}
+
 // ============================================
 // Salary Calculation Engine v2
 // ============================================
@@ -169,6 +213,7 @@ interface CalculateSalaryInput {
     otherEarnings?: number;
     otherDeductions?: number;
     postPFContributions?: boolean; // If true, auto-post PF to ledger (default: true)
+    includeInactiveAssignment?: boolean; // Explicit final-settlement payroll after offboarding
 }
 
 export async function calculateSalary(input: CalculateSalaryInput): Promise<SalaryBreakdown> {
@@ -181,13 +226,17 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         otherEarnings = 0,
         otherDeductions = 0,
         postPFContributions = true,
+        includeInactiveAssignment = false,
     } = input;
 
-    // Get employee's active salary structure assignment
+    // Get employee's salary structure assignment for the payroll period.
+    // Normal payroll uses active assignments only. Explicit final-settlement payroll
+    // may include inactive assignments so HR can pay a terminated/offboarded employee
+    // for an unprocessed month without restoring ESS access.
     const assignment = await prisma.salaryStructureAssignment.findFirst({
         where: {
             employeeId,
-            isActive: true,
+            ...(includeInactiveAssignment ? {} : { isActive: true }),
             effectiveFrom: { lte: new Date(year, month - 1, 28) },
             OR: [
                 { effectiveTo: null },
@@ -204,6 +253,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
                 },
             },
         },
+        orderBy: { effectiveFrom: "desc" },
     });
 
     if (!assignment) {
@@ -234,7 +284,9 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         },
     });
 
-    // Get approved leaves for the month
+    // Get approved leaves that overlap this payroll month. The month-specific
+    // payable leave days are calculated below; using application.totalDays directly
+    // would over-count cross-month leaves (e.g. Mar 30–Apr 2 in April payroll).
     const leaveRecords = await prisma.leaveApplication.findMany({
         where: {
             employeeId,
@@ -244,22 +296,17 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         },
     });
 
-    // Calculate working days (exclude weekends — Friday/Saturday for Bangladesh)
-    let totalWorkingDays = 0;
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-        const day = currentDate.getDay();
-        if (day !== 5 && day !== 6) { // Skip Friday (5) and Saturday (6)
-            totalWorkingDays++;
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
+    const totalWorkingDays = countWorkingDays(startDate, endDate);
 
-    const presentDays = attendanceRecords.filter(a =>
-        a.status === "present" || a.status === "half_day"
-    ).length;
+    const presentDays = attendanceRecords.reduce((sum, attendance) => {
+        if (attendance.status === "present" || attendance.status === "late") return sum + 1;
+        if (attendance.status === "half_day") return sum + 0.5;
+        return sum;
+    }, 0);
 
-    const leaveDays = leaveRecords.reduce((sum, l) => sum + l.totalDays, 0);
+    const leaveDays = leaveRecords.reduce((sum, leave) => {
+        return sum + countLeaveDaysInPayrollPeriod(leave, startDate, endDate);
+    }, 0);
     const absentDays = Math.max(0, totalWorkingDays - presentDays - leaveDays);
 
     // Calculate overtime
@@ -315,7 +362,10 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     const totalDeductions = pfEmployee + incomeTax + loanDeduction + absentDeduction +
         lateDeduction + otherDeductions;
 
-    const netSalary = grossEarnings - totalDeductions;
+    // Payroll slips should never show a negative payable salary. If deductions exceed
+    // earnings (e.g. no attendance data for a processed month), cap payable net at 0;
+    // future payable adjustments/arrears should be handled explicitly, not as a negative payslip.
+    const netSalary = Math.max(0, grossEarnings - totalDeductions);
 
     // ✅ NEW: Auto-post PF contributions to the PF Ledger
     if (postPFContributions && pfEmployee > 0 && assignment.employee?.pfEnabled) {

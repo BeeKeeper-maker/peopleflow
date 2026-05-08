@@ -100,7 +100,7 @@ const serverSchema = z.object({
 
     // ── Platform Admin Seeder ──
     PLATFORM_ADMIN_EMAIL: z.string().email().optional(),
-    PLATFORM_ADMIN_PASSWORD: z.string().min(8).optional(),
+    PLATFORM_ADMIN_PASSWORD: z.string().min(16, "PLATFORM_ADMIN_PASSWORD must be at least 16 characters").optional(),
 
     // ── Node Environment ──
     NODE_ENV: z

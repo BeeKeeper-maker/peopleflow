@@ -9,6 +9,7 @@ import {
     User,
     Calendar,
     Clock,
+    Home,
     Receipt,
     Bell,
     LogOut,
@@ -255,9 +256,38 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
             )}
 
             {/* Main Content */}
-            <main className="lg:pl-64 pt-16 lg:pt-0">
-                <div className="p-6">{children}</div>
+            <main className="lg:pl-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
+                <div className="px-4 py-4 sm:p-6">{children}</div>
             </main>
+
+            {/* Mobile Bottom Navigation — employee-first quick actions */}
+            <nav aria-label="Employee quick actions" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-sidebar-border bg-header-bg/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
+                <div className="grid grid-cols-5 h-16">
+                    {[
+                        { label: locale === 'bn' ? 'হোম' : 'Home', href: '/ess/dashboard', icon: Home },
+                        { label: locale === 'bn' ? 'সময়' : 'Time', href: '/ess/attendance', icon: Clock },
+                        { label: locale === 'bn' ? 'ছুটি' : 'Leave', href: '/ess/leaves', icon: Calendar },
+                        { label: locale === 'bn' ? 'বেতন' : 'Pay', href: '/ess/payslips', icon: Wallet },
+                        { label: locale === 'bn' ? 'প্রোফাইল' : 'Profile', href: '/ess/profile', icon: User },
+                    ].map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                    "flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+                                    isActive ? "text-blue-400" : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <Icon className="h-5 w-5" />
+                                <span>{item.label}</span>
+                            </Link>
+                        );
+                    })}
+                </div>
+            </nav>
         </div>
     );
 }

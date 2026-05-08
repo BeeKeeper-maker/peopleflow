@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth, validatePassword, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { authLogger } from "@/lib/logger";
+
+const PASSWORD_HISTORY_LIMIT = 5;
 
 export async function POST(req: NextRequest) {
     try {
@@ -20,9 +22,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (newPassword.length < 8) {
+        const passwordValidation = validatePassword(newPassword);
+        if (!passwordValidation.valid) {
             return NextResponse.json(
-                { error: "New password must be at least 8 characters" },
+                { error: passwordValidation.errors[0] },
                 { status: 400 }
             );
         }
@@ -45,14 +48,62 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Hash new password
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        const isSameAsCurrent = await bcrypt.compare(newPassword, user.password);
+        if (isSameAsCurrent) {
+            return NextResponse.json(
+                { error: "New password cannot be the same as your current password" },
+                { status: 400 }
+            );
+        }
 
-        // Update password
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashedPassword },
+        const passwordHistory = await prisma.passwordHistory.findMany({
+            where: { userId: user.id },
+            orderBy: { createdAt: "desc" },
+            take: PASSWORD_HISTORY_LIMIT,
         });
+
+        for (const entry of passwordHistory) {
+            const isReused = await bcrypt.compare(newPassword, entry.hash);
+            if (isReused) {
+                return NextResponse.json(
+                    { error: `Cannot reuse your last ${PASSWORD_HISTORY_LIMIT} passwords. Please choose a new one.` },
+                    { status: 400 }
+                );
+            }
+        }
+
+        // Hash new password
+        const hashedPassword = await hashPassword(newPassword);
+
+        // Update password, save history, and invalidate active sessions/JWTs
+        await prisma.$transaction([
+            prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    password: hashedPassword,
+                    sessionVersion: { increment: 1 },
+                },
+            }),
+            prisma.passwordHistory.create({
+                data: {
+                    hash: user.password,
+                    userId: user.id,
+                },
+            }),
+            prisma.session.deleteMany({
+                where: { userId: user.id },
+            }),
+        ]);
+
+        const allHistory = await prisma.passwordHistory.findMany({
+            where: { userId: user.id },
+            orderBy: { createdAt: "desc" },
+        });
+        if (allHistory.length > PASSWORD_HISTORY_LIMIT) {
+            await prisma.passwordHistory.deleteMany({
+                where: { id: { in: allHistory.slice(PASSWORD_HISTORY_LIMIT).map((h) => h.id) } },
+            });
+        }
 
         return NextResponse.json({ message: "Password changed successfully" });
     } catch (error) {

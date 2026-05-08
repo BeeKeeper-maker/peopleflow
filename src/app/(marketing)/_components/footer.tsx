@@ -63,8 +63,8 @@ export default function FooterEnterprise() {
                             <Logo size="md" />
                         </div>
                         <p className="text-sm leading-relaxed mb-6 max-w-xs" style={{ color: P.muted }}>
-                            Bangladesh{"'"}s most trusted enterprise HRMS. Built for BLA 2006 compliance,
-                            designed for the modern workforce.
+                            Bangladesh-focused HRMS for beta teams evaluating payroll, attendance,
+                            leave, approvals, and workforce operations.
                         </p>
                         <div className="flex items-center gap-2">
                             <div className="relative">
@@ -72,7 +72,7 @@ export default function FooterEnterprise() {
                                 <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                             </div>
                             <span className="text-xs font-medium" style={{ color: P.emerald }}>
-                                All systems operational
+                                Beta environment ready
                             </span>
                         </div>
                     </div>

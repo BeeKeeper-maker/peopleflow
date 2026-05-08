@@ -1,11 +1,12 @@
 /**
- * PeopleFlow Middleware — Auth.js v5 Edge-Safe
+ * PeopleFlow Proxy — Auth.js v5 request guard
  *
- * Imports from auth.config.ts (NO Prisma/Node.js APIs) to avoid
- * Edge Runtime incompatibilities. JWT decoding only — no DB access.
+ * Imports from auth.config.ts (NO Prisma/Node.js APIs) to keep
+ * request guarding lightweight. JWT decoding only — no DB access.
  */
 
 import NextAuth from "next-auth";
+import type { NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/auth.config";
 import { NextResponse } from "next/server";
 
@@ -36,6 +37,17 @@ const PUBLIC_ROUTES = [
     "/platform/login", "/legal",
 ];
 
+const PUBLIC_API_ROUTES = [
+    "/api/auth",
+    "/api/webhooks",
+    "/api/health",
+    "/api/cron",
+    "/api/leads",
+    "/api/platform",
+    // External API routes use bearer/API-key authentication inside route handlers.
+    "/api/v1",
+];
+
 function isHRLevel(role?: string): boolean {
     return ["super_admin", "admin", "hr_admin"].includes(role || "");
 }
@@ -49,13 +61,13 @@ function getDefaultRoute(role?: string): string {
     return ROLE_DEFAULT_ROUTES[role as UserRole] || "/ess/dashboard";
 }
 
-// ── Create Edge-safe auth instance from base config ──────────────
+// ── Create request-guard auth instance from base config ──────────────
 
 const { auth } = NextAuth(authConfig);
 
-// ── Auth.js v5 Middleware ────────────────────────────────────────
+// ── Auth.js v5 Proxy ─────────────────────────────────────────────
 
-export default auth((req: any) => {
+export default auth((req: NextAuthRequest) => {
     const pathname = req.nextUrl.pathname;
     const session = req.auth;
     const role = session?.user?.role as UserRole | undefined;
@@ -65,22 +77,26 @@ export default auth((req: any) => {
         return NextResponse.next();
     }
 
-    // Public routes — always accessible
+    // Public routes — accessible without a session; logged-in users should not remain on login/register.
     if (pathname === "/" && !session) return NextResponse.next();
+    if ((pathname === "/login" || pathname === "/register") && session) {
+        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
+    }
     if (PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route))) {
         return NextResponse.next();
     }
 
-    // API routes for auth, webhooks, health, leads, platform — always accessible
-    if (
-        pathname.startsWith("/api/auth") ||
-        pathname.startsWith("/api/webhooks") ||
-        pathname.startsWith("/api/health") ||
-        pathname.startsWith("/api/cron") ||
-        pathname.startsWith("/api/leads") ||
-        pathname.startsWith("/api/platform")
-    ) {
+    // API routes for auth, webhooks, health, leads, cron, platform — route handlers secure these.
+    if (PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route))) {
         return NextResponse.next();
+    }
+
+    // API clients should receive JSON status codes, never HTML login redirects.
+    if (pathname.startsWith("/api") && !session) {
+        return NextResponse.json(
+            { error: "Unauthorized", code: "AUTH_REQUIRED" },
+            { status: 401 }
+        );
     }
 
     // Unauthenticated users → login
@@ -88,10 +104,6 @@ export default auth((req: any) => {
         return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Authenticated users accessing login/register → dashboard
-    if (pathname === "/login" || pathname === "/register") {
-        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
-    }
 
     // Root path → role-based dashboard
     if (pathname === "/") {
@@ -119,6 +131,6 @@ export default auth((req: any) => {
 
 export const config = {
     matcher: [
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)",
+        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|json|webmanifest|html|txt|xml)$).*)",
     ],
 };

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createHash } from "crypto";
 import { apiLogger } from "@/lib/logger";
+import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
 
 /**
  * POST /api/v1/sync/heartbeat — Agent Health Check
@@ -13,36 +13,9 @@ import { apiLogger } from "@/lib/logger";
  */
 export async function POST(req: Request) {
     try {
-        const authHeader = req.headers.get("authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-            return NextResponse.json(
-                { success: false, error: "Missing authorization" },
-                { status: 401 }
-            );
-        }
-
-        const rawKey = authHeader.substring(7);
-        const keyHash = createHash("sha256").update(rawKey).digest("hex");
-
-        const apiKey = await prisma.syncApiKey.findUnique({
-            where: { key: keyHash },
-            select: {
-                id: true,
-                isActive: true,
-                revokedAt: true,
-                name: true,
-                organization: {
-                    select: { name: true, timezone: true },
-                },
-            },
-        });
-
-        if (!apiKey || !apiKey.isActive || apiKey.revokedAt) {
-            return NextResponse.json(
-                { success: false, error: "Invalid or revoked API key" },
-                { status: 401 }
-            );
-        }
+        const auth = await authenticateSyncAgent(req);
+        if (!auth.valid) return auth.response;
+        const { apiKey } = auth;
 
         const body = await req.json().catch(() => ({}));
 

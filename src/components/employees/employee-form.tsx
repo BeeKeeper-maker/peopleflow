@@ -23,7 +23,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
-import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint, Wand2, RotateCcw } from "lucide-react"
+import { Loader2, Upload, X, User, Briefcase, Wallet, MapPin, Phone, TrendingUp, TrendingDown, DollarSign, Check, ChevronLeft, ChevronRight, Fingerprint, Wand2, RotateCcw, AlertTriangle, ShieldCheck } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 // Photo preview uses native <img> instead of next/image for defensive rendering
 // (any unknown external domain would crash next/image without remotePatterns)
@@ -246,7 +246,11 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     // Salary breakdown
     const watchedGross = form.watch("grossSalary")
     const watchedStructureId = form.watch("salaryStructureId")
+    const watchedStatus = form.watch("employmentStatus")
     const selectedStructure = structures.find(s => s.id === watchedStructureId)
+    const initialStatus = initialData?.employmentStatus || "active"
+    const isOffboardingChange = !!initialData && initialStatus === "active" && watchedStatus !== "active"
+    const isReactivationChange = !!initialData && initialStatus !== "active" && watchedStatus === "active"
 
     const salaryBreakdown = selectedStructure && watchedGross > 0 ? (() => {
         const basic = (watchedGross * selectedStructure.basicPercentage) / 100
@@ -291,6 +295,15 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
 
     async function onSubmit(values: EmployeeFormValues) {
         try {
+            if (initialData && initialData.employmentStatus !== values.employmentStatus) {
+                const confirmed = window.confirm(
+                    values.employmentStatus === "active"
+                        ? "Reactivate this employee? Their old password/session will stay blocked until they complete a new reset invitation."
+                        : "Offboard this employee? Their ESS login, active sessions, and new employee actions will be locked while payroll/history is preserved."
+                )
+                if (!confirmed) return
+            }
+
             setIsLoading(true)
             const url = initialData ? `/api/employees/${initialData.id}` : "/api/employees"
             const method = initialData ? "PUT" : "POST"
@@ -315,15 +328,19 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                 throw new Error(errorMsg)
             }
 
+            const savedEmployee = await response.json()
+
             // Clear draft on success
             localStorage.removeItem(DRAFT_STORAGE_KEY)
 
             addToast({
                 title: tc("success"),
-                description: initialData ? t("employeeUpdated") : t("employeeCreated"),
+                description: savedEmployee.reactivationInvitationSent
+                    ? "Employee reactivated. A fresh reset invitation is required before ESS access resumes."
+                    : initialData ? t("employeeUpdated") : t("employeeCreated"),
                 type: "success",
             })
-            router.push("/employees")
+            router.push(savedEmployee?.id ? `/employees/${savedEmployee.id}` : "/employees")
             router.refresh()
         } catch (error) {
             addToast({
@@ -343,6 +360,28 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {isOffboardingChange && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
+                            <div>
+                                <p className="font-semibold">Offboarding action will lock employee access</p>
+                                <p className="mt-1 text-sm text-amber-100/80">Changing this employee away from active will disable ESS login, clear active sessions, and block attendance, leave, and expense actions. Payroll and historical records will remain preserved.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {isReactivationChange && (
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-100">
+                        <div className="flex items-start gap-3">
+                            <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-400" />
+                            <div>
+                                <p className="font-semibold">Reactivation requires a fresh employee reset</p>
+                                <p className="mt-1 text-sm text-emerald-100/80">The employee account will be re-enabled, but old password/session access stays blocked until the employee completes a new reset invitation.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Draft Restoration Banner (UX-02) */}
                 {hasDraft && !initialData && (

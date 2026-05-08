@@ -97,10 +97,29 @@ export async function DELETE(
 
         const { id } = await params;
 
+        const leaveType = await prisma.leaveType.findFirst({
+            where: { id, organizationId: authContext.organizationId },
+            select: { id: true },
+        });
+
+        if (!leaveType) {
+            return new NextResponse("Leave type not found", { status: 404 });
+        }
+
         // Check if leave type is being used in applications or allocations
         const [applicationCount, allocationCount] = await Promise.all([
-            prisma.leaveApplication.count({ where: { leaveTypeId: id } }),
-            prisma.leaveAllocation.count({ where: { leaveTypeId: id } }),
+            prisma.leaveApplication.count({
+                where: {
+                    leaveTypeId: id,
+                    employee: { organizationId: authContext.organizationId },
+                },
+            }),
+            prisma.leaveAllocation.count({
+                where: {
+                    leaveTypeId: id,
+                    employee: { organizationId: authContext.organizationId },
+                },
+            }),
         ]);
 
         if (applicationCount > 0 || allocationCount > 0) {
@@ -114,8 +133,7 @@ export async function DELETE(
 
         await prisma.leaveType.delete({
             where: {
-                id,
-                organizationId: authContext.organizationId,
+                id: leaveType.id,
             },
         });
 

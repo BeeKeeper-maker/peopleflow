@@ -78,7 +78,7 @@ export async function POST(request: Request) {
                 },
             });
 
-            // Create admin user
+            // Create admin user. Keep email unverified until the verification link is used.
             const user = await tx.user.create({
                 data: {
                     email: email.toLowerCase(),
@@ -87,7 +87,34 @@ export async function POST(request: Request) {
                     role: "admin",
                     organizationId: organization.id,
                     isActive: true,
-                    emailVerified: new Date(),
+                    emailVerified: null,
+                },
+            });
+
+            // Create default organization setup so the first admin can create employees immediately.
+            await tx.department.createMany({
+                data: [
+                    { name: "Administration", code: "ADMIN", description: "Default administration department", organizationId: organization.id },
+                    { name: "Operations", code: "OPS", description: "Default operations department", organizationId: organization.id },
+                ],
+            });
+
+            await tx.designation.createMany({
+                data: [
+                    { name: "Administrator", code: "ADMIN", grade: 10, description: "Organization administrator", organizationId: organization.id },
+                    { name: "Manager", code: "MGR", grade: 7, description: "People manager", organizationId: organization.id },
+                    { name: "Employee", code: "EMP", grade: 3, description: "General employee", organizationId: organization.id },
+                ],
+            });
+
+            await tx.branch.create({
+                data: {
+                    name: "Head Office",
+                    code: "HO",
+                    city: "Dhaka",
+                    country: "Bangladesh",
+                    isHeadOffice: true,
+                    organizationId: organization.id,
                 },
             });
 
@@ -139,6 +166,48 @@ export async function POST(request: Request) {
                     pfEmployerPercent: 10,
                     isActive: true,
                     organizationId: organization.id,
+                },
+            });
+
+            // Create a safe starter trial so new clients can create their first employees immediately.
+            const starterPlan = await tx.plan.upsert({
+                where: { slug: "starter" },
+                create: {
+                    name: "Starter",
+                    slug: "starter",
+                    description: "Starter trial for new PeopleFlow organizations",
+                    priceMonthly: 0,
+                    priceYearly: 0,
+                    currency: "BDT",
+                    maxEmployees: 25,
+                    maxAdmins: 3,
+                    maxBranches: 1,
+                    maxDevices: 0,
+                    maxStorageMB: 500,
+                    features: {
+                        payroll: true,
+                        expenses: true,
+                        leaveManagement: true,
+                        attendance: true,
+                        employeeSelfService: true,
+                    },
+                    sortOrder: 1,
+                },
+                update: {},
+            });
+
+            const trialStart = new Date();
+            const trialEnd = new Date(trialStart.getTime() + 1000 * 60 * 60 * 24 * 14);
+            await tx.subscription.create({
+                data: {
+                    organizationId: organization.id,
+                    planId: starterPlan.id,
+                    status: "trialing",
+                    billingCycle: "monthly",
+                    currentPeriodStart: trialStart,
+                    currentPeriodEnd: trialEnd,
+                    trialStart,
+                    trialEnd,
                 },
             });
 

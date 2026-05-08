@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
-import { generateSecret, generateURI, verify as verifyTOTP } from "otplib";
+import { generateSecret, generateURI } from "otplib";
 import QRCode from "qrcode";
 import { authLogger } from "@/lib/logger";
 

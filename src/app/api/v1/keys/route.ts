@@ -9,32 +9,25 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { generateApiKey, hashApiKey } from "@/lib/api-key-auth";
 import { apiLogger } from "@/lib/logger";
+import { getOrgSubscription } from "@/lib/plan-enforcement";
 
 export async function POST(request: NextRequest) {
-    const session = await auth();
-    if (!session?.user?.email) {
-        return NextResponse.json({ error: "Auth required" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user?.organizationId || !["admin", "super_admin"].includes(user.role)) {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
+    const auth = await requireAdminOrHR();
+    if (!isAuthenticated(auth)) return auth;
 
     try {
         const { name, type = "read_only", expiresInDays } = await request.json();
         if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
-        const sub = await prisma.subscription.findUnique({
-            where: { organizationId: user.organizationId },
-            include: { plan: true },
-        });
-        const features = (sub?.plan?.features || {}) as Record<string, boolean>;
-        if (features.apiAccess === false) {
+        const sub = await getOrgSubscription(auth.organizationId);
+        if (!sub || !["active", "trialing"].includes(sub.status)) {
+            return NextResponse.json({ error: "Subscription inactive", upgrade_required: true }, { status: 402 });
+        }
+        if (sub.features.apiAccess === false) {
             return NextResponse.json({ error: "API access not on your plan", upgrade_required: true }, { status: 402 });
         }
 
@@ -58,7 +51,7 @@ export async function POST(request: NextRequest) {
                 keyPrefix,
                 permissions,
                 expiresAt,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
             },
         });
 
@@ -81,14 +74,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-    const session = await auth();
-    if (!session?.user?.email) return NextResponse.json({ error: "Auth required" }, { status: 401 });
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user?.organizationId) return NextResponse.json({ error: "No org" }, { status: 400 });
+    const auth = await requireAdminOrHR();
+    if (!isAuthenticated(auth)) return auth;
 
     const keys = await prisma.apiKey.findMany({
-        where: { organizationId: user.organizationId, isActive: true },
+        where: { organizationId: auth.organizationId, isActive: true },
         select: {
             id: true,
             name: true,
@@ -105,18 +95,13 @@ export async function GET() {
 }
 
 export async function DELETE(request: NextRequest) {
-    const session = await auth();
-    if (!session?.user?.email) return NextResponse.json({ error: "Auth required" }, { status: 401 });
-
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (!user?.organizationId || !["admin", "super_admin"].includes(user.role)) {
-        return NextResponse.json({ error: "Admin required" }, { status: 403 });
-    }
+    const auth = await requireAdminOrHR();
+    if (!isAuthenticated(auth)) return auth;
 
     const { keyId } = await request.json();
     if (!keyId) return NextResponse.json({ error: "keyId required" }, { status: 400 });
 
-    const key = await prisma.apiKey.findFirst({ where: { id: keyId, organizationId: user.organizationId } });
+    const key = await prisma.apiKey.findFirst({ where: { id: keyId, organizationId: auth.organizationId } });
     if (!key) return NextResponse.json({ error: "Key not found" }, { status: 404 });
 
     await prisma.apiKey.update({ where: { id: keyId }, data: { isActive: false } });

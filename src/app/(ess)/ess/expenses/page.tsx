@@ -26,10 +26,11 @@ interface ExpenseClaim {
     id: string;
     claimNumber: string;
     title: string;
-    category: string;
+    category: string | { name?: string };
     amount: number;
     date: string;
-    status: "draft" | "pending" | "approved" | "rejected" | "reimbursed";
+    expenseDate?: string;
+    status: "draft" | "submitted" | "pending" | "approved" | "rejected" | "reimbursed";
     description?: string;
     receiptUrl?: string;
     createdAt: string;
@@ -56,14 +57,14 @@ export default function ESSExpensesPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const res = await fetch("/api/expenses");
+                const res = await fetch("/api/expenses/claims");
                 if (res.ok) {
                     const data = await res.json();
-                    const expenseClaims = data.data || data || [];
+                    const expenseClaims = Array.isArray(data) ? data : data.data || data.claims || [];
                     setClaims(expenseClaims);
 
                     // Calculate stats
-                    const pendingCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "pending").length;
+                    const pendingCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "submitted" || c.status === "pending").length;
                     const approvedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "approved").length;
                     const reimbursedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "reimbursed").length;
                     const totalReimbursedAmount = expenseClaims
@@ -97,6 +98,7 @@ export default function ESSExpensesPage() {
                     </Badge>
                 );
             case "pending":
+            case "submitted":
                 return (
                     <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
                         <Clock className="h-3 w-3 mr-1" />
@@ -262,10 +264,10 @@ export default function ESSExpensesPage() {
                                                 {claim.title}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
-                                                {claim.category}
+                                                {typeof claim.category === "string" ? claim.category : claim.category?.name || "—"}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
-                                                {new Date(claim.date).toLocaleDateString()}
+                                                {new Date(claim.expenseDate || claim.date).toLocaleDateString()}
                                             </td>
                                             <td className="px-4 py-3 text-sm font-medium text-foreground">
                                                 {formatCurrency(claim.amount)}

@@ -4,7 +4,7 @@
  * Enterprise SaaS rate limiting that works across
  * multiple containers/instances using Redis INCR + EXPIRE.
  *
- * Falls back to in-memory when Redis is unavailable (fail-open).
+ * In production, Redis failures deny limited routes so brute-force controls do not fail open.
  */
 
 import { checkRedisRateLimit } from "@/lib/redis";
@@ -18,12 +18,20 @@ interface RateLimitConfig {
     maxRequests: number; // Max requests per window
 }
 
+function envPositiveInt(name: string, fallback: number): number {
+    const value = process.env[name];
+    if (!value) return fallback;
+
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // Default configurations for different route types
 export const RATE_LIMIT_CONFIGS = {
-    // Strict limit for auth routes (prevent brute force)
+    // Strict limit for auth routes (prevent brute force). Override only in controlled QA/E2E environments.
     auth: {
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        maxRequests: 10, // 10 attempts
+        windowMs: envPositiveInt("RATE_LIMIT_AUTH_WINDOW_MS", 15 * 60 * 1000), // 15 minutes
+        maxRequests: envPositiveInt("RATE_LIMIT_AUTH_MAX", 10), // 10 attempts
     },
     // Standard limit for authenticated API routes
     api: {

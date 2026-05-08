@@ -3,32 +3,90 @@ import { readFile, stat } from "fs/promises";
 import path from "path";
 import mime from 'mime';
 import { storageLogger } from "@/lib/logger";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { prisma } from "@/lib/prisma";
+
+
+function buildUploadUrl(pathSegments: string[]): string {
+    return `/api/uploads/${pathSegments.map((segment) => encodeURIComponent(segment)).join("/")}`;
+}
+
+function isHRLevel(role: string): boolean {
+    return ["super_admin", "admin", "hr_admin"].includes(role);
+}
+
+async function canAccessUpload(pathSegments: string[], auth: { role: string; organizationId: string; employeeId?: string }): Promise<boolean> {
+    const folder = pathSegments[1];
+    if (!folder) return false;
+
+    // Profile images are intentionally visible to authenticated users in the same tenant.
+    if (["employees", "avatars"].includes(folder)) return true;
+
+    if (isHRLevel(auth.role)) return true;
+
+    const fileUrl = buildUploadUrl(pathSegments);
+
+    if (folder === "receipts") {
+        const filename = pathSegments[2] || "";
+        if (auth.employeeId && filename.startsWith(`${auth.employeeId}-`)) {
+            return true;
+        }
+
+        const claim = await prisma.expenseClaim.findFirst({
+            where: {
+                organizationId: auth.organizationId,
+                receiptUrl: fileUrl,
+            },
+            include: { employee: { select: { id: true, reportingManagerId: true } } },
+        });
+
+        if (!claim || !auth.employeeId) return false;
+        if (claim.employeeId === auth.employeeId) return true;
+        return auth.role === "manager" && claim.employee.reportingManagerId === auth.employeeId;
+    }
+
+    // Employee documents, resumes, generated/attached HR documents are sensitive.
+    // Until every file is backed by explicit ownership metadata, keep direct file access HR-only.
+    return false;
+}
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ path: string[] }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { path: pathSegments } = await params;
+
+        if (pathSegments[0] !== auth.organizationId) {
+            return new NextResponse("Access Denied", { status: 403 });
+        }
+
+        if (!(await canAccessUpload(pathSegments, auth))) {
+            return new NextResponse("Access Denied", { status: 403 });
+        }
+
         const filePath = path.join(process.cwd(), "uploads", ...pathSegments);
 
         // Security check: ensure path is within uploads directory
         const resolvedPath = path.resolve(filePath);
         const uploadsDir = path.resolve(process.cwd(), "uploads");
-        if (!resolvedPath.startsWith(uploadsDir)) {
+        const relativePath = path.relative(uploadsDir, resolvedPath);
+        if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+            return new NextResponse("Access Denied", { status: 403 });
+        }
+
+        const tenantPrefix = `${auth.organizationId}${path.sep}`;
+        if (!relativePath.startsWith(tenantPrefix)) {
             return new NextResponse("Access Denied", { status: 403 });
         }
 
         // Check if file exists
         try {
             await stat(filePath);
-        } catch (e) {
+        } catch {
             return new NextResponse("File not found", { status: 404 });
         }
 

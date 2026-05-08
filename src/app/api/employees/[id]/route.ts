@@ -5,6 +5,8 @@ import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from 
 import { z } from "zod";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { sendTemplateEmail } from "@/lib/email";
+import { randomBytes } from "crypto";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/employees/:id
@@ -34,9 +36,13 @@ export async function GET(
         const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(userRole);
         const isManager = userRole === "manager";
         const isSelf = user.employee?.id === id;
+        const isDirectReport = isManager && !!user.employee?.id && await prisma.employee.findFirst({
+            where: { id, organizationId: user.organizationId, reportingManagerId: user.employee.id },
+            select: { id: true },
+        });
 
-        // Full data: HR-level roles, managers, or the employee themselves
-        if (isHRLevel || isManager || isSelf) {
+        // Full data: HR-level roles, direct-report managers, or the employee themselves
+        if (isHRLevel || isDirectReport || isSelf) {
             const employee = await prisma.employee.findUnique({
                 where: {
                     id,
@@ -163,6 +169,31 @@ export async function PUT(
             return NextResponse.json({ error: "Employee not found" }, { status: 404 });
         }
 
+        const normalizedEmail = body.email?.toLowerCase();
+        if (normalizedEmail) {
+            body.email = normalizedEmail;
+
+            const duplicateEmployee = await prisma.employee.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    email: normalizedEmail,
+                    NOT: { id },
+                },
+                select: { id: true },
+            });
+            if (duplicateEmployee) {
+                return NextResponse.json({ error: "Email already exists" }, { status: 409 });
+            }
+
+            const duplicateUser = await prisma.user.findUnique({
+                where: { email: normalizedEmail },
+                select: { id: true },
+            });
+            if (duplicateUser && duplicateUser.id !== existingEmployee.userId) {
+                return NextResponse.json({ error: "A user account already exists for this email" }, { status: 409 });
+            }
+        }
+
         // ── FK Existence Validation (CRIT-07, CRIT-08) ─────────────────
         const department = await prisma.department.findUnique({ where: { id: body.departmentId } });
         if (!department || department.organizationId !== auth.organizationId) {
@@ -199,13 +230,49 @@ export async function PUT(
         const { grossSalary, salaryStructureId } = body;
 
         const result = await prisma.$transaction(async (tx) => {
+            const wasInactive = existingEmployee.employmentStatus !== "active" || !!existingEmployee.deletedAt;
+            const isActiveEmployment = body.employmentStatus === "active";
+            const isReactivation = isActiveEmployment && wasInactive;
+
             const updatedEmployee = await tx.employee.update({
                 where: { id },
                 data: {
                     ...prismaData,
                     emergencyContact,
+                    ...(isActiveEmployment ? { deletedAt: null } : {}),
                 },
             });
+
+            let reactivationToken: string | null = null;
+            const linkedUserId = existingEmployee.userId;
+            if (linkedUserId) {
+                const userEmail = normalizedEmail || existingEmployee.email;
+                await tx.user.update({
+                    where: { id: linkedUserId },
+                    data: {
+                        name: `${body.firstName} ${body.lastName}`.trim(),
+                        ...(normalizedEmail ? { email: normalizedEmail } : {}),
+                        isActive: isActiveEmployment,
+                        ...(!isActiveEmployment || isReactivation ? { password: null, emailVerified: null } : {}),
+                    },
+                });
+
+                if (!isActiveEmployment || isReactivation) {
+                    await tx.session.deleteMany({ where: { userId: linkedUserId } });
+                }
+
+                if (isReactivation && userEmail) {
+                    await tx.passwordResetToken.deleteMany({ where: { email: userEmail, used: false } });
+                    reactivationToken = randomBytes(32).toString("hex");
+                    await tx.passwordResetToken.create({
+                        data: {
+                            email: userEmail,
+                            token: reactivationToken,
+                            expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+                        },
+                    });
+                }
+            }
 
             // ── Salary Update Logic ─────────────────────────────────────
             const currentSalary = existingEmployee.salaryAssignments[0];
@@ -224,6 +291,7 @@ export async function PUT(
                             where: { id: currentSalary.id },
                             data: {
                                 grossSalary: grossSalary,
+                                isActive: true,
                                 ...(salaryStructureId ? { salaryStructureId } : {}),
                             }
                         });
@@ -264,10 +332,22 @@ export async function PUT(
                 }
             }
 
-            return updatedEmployee;
+            return { updatedEmployee, reactivationToken };
         });
 
-        return NextResponse.json(result);
+        if (result.reactivationToken && (normalizedEmail || existingEmployee.email)) {
+            const targetEmail = normalizedEmail || existingEmployee.email!;
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+            void sendTemplateEmail(targetEmail, "passwordReset", {
+                userName: `${body.firstName} ${body.lastName}`.trim(),
+                resetUrl: `${appUrl}/reset-password/${result.reactivationToken}`,
+            }).catch((err) => apiLogger.error({ err, employeeId: id }, "EMPLOYEE_REACTIVATION_EMAIL_FAILED"));
+        }
+
+        return NextResponse.json({
+            ...result.updatedEmployee,
+            reactivationInvitationSent: !!result.reactivationToken,
+        });
     } catch (error) {
         apiLogger.error({ err: error }, "UPDATE_EMPLOYEE_ERROR");
         return NextResponse.json(
@@ -292,7 +372,8 @@ export async function DELETE(
         const { id } = await params;
 
         const employee = await prisma.employee.findUnique({
-            where: { id, organizationId: auth.organizationId }
+            where: { id, organizationId: auth.organizationId },
+            select: { id: true, userId: true }
         });
 
         if (!employee) {
@@ -308,6 +389,15 @@ export async function DELETE(
                     employmentStatus: "terminated"
                 }
             });
+
+            // Deactivate linked ESS login and any DB-backed sessions
+            if (employee.userId) {
+                await tx.user.update({
+                    where: { id: employee.userId },
+                    data: { isActive: false, password: null, emailVerified: null },
+                });
+                await tx.session.deleteMany({ where: { userId: employee.userId } });
+            }
 
             // Deactivate salary assignments (ARCH-08)
             await tx.salaryStructureAssignment.updateMany({

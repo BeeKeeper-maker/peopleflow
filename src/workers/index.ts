@@ -10,22 +10,26 @@
  * or Coolify service alongside the main Next.js app.
  */
 
-import { registerCronJobs } from "@/lib/queue";
+import { assertRedisConnectionForWorkers } from "@/lib/redis";
 import { log } from "@/lib/logger";
 
 const workerLogger = log.child({ domain: "worker-service" });
 
-// Import workers to activate them
-import "./subscription-lifecycle";
-import "./impersonation-cleanup";
-import "./usage-tracking";
-
-// ── Biometric & Attendance Workers ──
-import "./biometric-sync";
-import "./device-health";
-import "./attendance-reconciliation";
-
 async function main() {
+    await assertRedisConnectionForWorkers();
+
+    const { registerCronJobs } = await import("@/lib/queue");
+
+    // Import workers to activate them after Redis is confirmed.
+    await Promise.all([
+        import("./subscription-lifecycle"),
+        import("./impersonation-cleanup"),
+        import("./usage-tracking"),
+        import("./biometric-sync"),
+        import("./device-health"),
+        import("./attendance-reconciliation"),
+    ]);
+
     workerLogger.info({
         startedAt: new Date().toISOString(),
         redisUrl: process.env.REDIS_URL ? "[redacted]" : "redis://localhost:6379",

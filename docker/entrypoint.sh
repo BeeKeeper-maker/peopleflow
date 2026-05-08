@@ -42,8 +42,27 @@ const { hash } = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function seed() {
-    const email = process.env.PLATFORM_ADMIN_EMAIL || 'platform@peopleflow.app';
-    const password = process.env.PLATFORM_ADMIN_PASSWORD || 'PlatformAdmin@2026!';
+    const email = process.env.PLATFORM_ADMIN_EMAIL;
+    const password = process.env.PLATFORM_ADMIN_PASSWORD;
+
+    if (!email && !password) {
+        console.log('[BOOT]   PLATFORM_ADMIN_EMAIL/PASSWORD not set; skipping platform admin seed');
+        return;
+    }
+
+    if (!email || !password) {
+        throw new Error('Set both PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD to seed a platform admin');
+    }
+
+    if (
+        password.length < 16 ||
+        !/[a-z]/.test(password) ||
+        !/[A-Z]/.test(password) ||
+        !/[0-9]/.test(password) ||
+        !/[^A-Za-z0-9]/.test(password)
+    ) {
+        throw new Error('PLATFORM_ADMIN_PASSWORD must be at least 16 chars and include upper, lower, number, and symbol');
+    }
     
     const existing = await prisma.platformAdmin.findUnique({ where: { email } });
     if (existing) {
@@ -65,9 +84,9 @@ async function seed() {
 }
 
 seed()
-    .catch(e => console.error('[BOOT]   ⚠️  Platform admin seed failed (non-fatal):', e.message))
+    .catch(e => { console.error('[BOOT]   Platform admin seed failed:', e.message); process.exit(1); })
     .finally(() => prisma.\$disconnect());
-" 2>&1 || echo "[BOOT] ⚠️  Seed step failed (non-fatal, continuing)"
+" 2>&1
 
 echo ""
 echo "[BOOT] Step 3/3: Starting Next.js server..."

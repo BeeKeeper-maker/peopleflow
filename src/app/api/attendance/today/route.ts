@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { startOfDay, endOfDay } from "date-fns";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { startOfDay } from "date-fns";
 import { attendanceLogger } from "@/lib/logger";
 
-export async function GET(req: Request) {
+export async function GET() {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { employee: true },
+        const employee = await prisma.employee.findFirst({
+            where: { userId: auth.userId, organizationId: auth.organizationId },
+            select: { id: true, shiftId: true },
         });
 
-        if (!user?.employee) {
+        if (!employee) {
             // Return empty data instead of error — admin/HR users may not have employee profiles
             return NextResponse.json({ attendance: null, shift: null });
         }
@@ -27,15 +25,17 @@ export async function GET(req: Request) {
         const attendance = await prisma.attendance.findUnique({
             where: {
                 employeeId_date: {
-                    employeeId: user.employee.id,
+                    employeeId: employee.id,
                     date: startOfDay(today), // Using startOfDay to normalize date part
                 }
             }
         });
 
         // Find assigned shift to calculate working hours/late status for display
-        const shift = user.employee.shiftId
-            ? await prisma.shift.findUnique({ where: { id: user.employee.shiftId } })
+        const shift = employee.shiftId
+            ? await prisma.shift.findFirst({
+                where: { id: employee.shiftId, organizationId: auth.organizationId },
+            })
             : null;
 
         return NextResponse.json({

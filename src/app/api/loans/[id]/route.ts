@@ -21,10 +21,18 @@ export async function PUT(
     try {
         const { id } = await params;
         const json = await req.json();
+        const isHR = ["super_admin", "admin", "hr_admin"].includes(auth.role);
+        const isManager = auth.role === "manager";
 
         const existing = await prisma.loan.findFirst({
-            where: { id },
-            include: { employee: { select: { organizationId: true } } },
+            where: {
+                id,
+                employee: {
+                    organizationId: auth.organizationId,
+                    ...(!isHR && isManager ? { reportingManagerId: auth.employeeId } : {}),
+                },
+            },
+            include: { employee: { select: { organizationId: true, reportingManagerId: true } } },
         });
 
         if (!existing || existing.employee.organizationId !== auth.organizationId) {

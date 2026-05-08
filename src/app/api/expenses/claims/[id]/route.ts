@@ -28,6 +28,19 @@ const approvalSchema = z.object({
     paymentReference: z.string().optional(),
 });
 
+function canAccessClaim(user: { role: string; employee?: { id: string } | null }, claim: { employeeId: string; employee?: { reportingManagerId: string | null } | null }) {
+    const isHR = ["admin", "hr_admin", "super_admin"].includes(user.role);
+    if (isHR) return true;
+    if (!user.employee) return false;
+    if (claim.employeeId === user.employee.id) return true;
+    return user.role === "manager" && claim.employee?.reportingManagerId === user.employee.id;
+}
+
+function canApproveClaim(user: { role: string; employee?: { id: string } | null }, claim: { employee?: { reportingManagerId: string | null } | null }) {
+    if (["admin", "hr_admin", "super_admin"].includes(user.role)) return true;
+    return user.role === "manager" && !!user.employee && claim.employee?.reportingManagerId === user.employee.id;
+}
+
 // GET - Get single expense claim
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
@@ -56,6 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                         firstName: true,
                         lastName: true,
                         photoUrl: true,
+                        reportingManagerId: true,
                         department: { select: { name: true } },
                         designation: { select: { name: true } },
                     },
@@ -70,7 +84,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             },
         });
 
-        if (!claim || claim.organizationId !== user.organizationId) {
+        if (!claim || claim.organizationId !== user.organizationId || !canAccessClaim(user, claim)) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
 
@@ -101,10 +115,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         const claim = await prisma.expenseClaim.findUnique({
             where: { id },
-            include: { employee: true },
+            include: { employee: { select: { id: true, reportingManagerId: true } } },
         });
 
-        if (!claim || claim.organizationId !== user.organizationId) {
+        if (!claim || claim.organizationId !== user.organizationId || !canAccessClaim(user, claim)) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
 
@@ -116,8 +130,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             const isManager = user.role === "manager";
             const isHR = ["admin", "hr_admin", "super_admin"].includes(user.role);
 
-            // Only manager/HR can approve/reject
-            if (!isManager && !isHR) {
+            // Only HR/admin or the direct reporting manager can approve/reject/reimburse
+            if (!isHR && (!isManager || !canApproveClaim(user, claim))) {
                 return NextResponse.json({ error: "Forbidden" }, { status: 403 });
             }
 

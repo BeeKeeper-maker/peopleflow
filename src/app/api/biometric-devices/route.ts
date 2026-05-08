@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { biometricLogger } from "@/lib/logger";
 
 /**
@@ -48,6 +49,19 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Name and IP are required" }, { status: 400 });
         }
 
+        const planCheck = await enforcePlanLimit(auth.organizationId, "device");
+        if (!planCheck.allowed) {
+            return NextResponse.json(
+                {
+                    error: planCheck.message,
+                    upgradeRequired: planCheck.upgradeRequired,
+                    current: planCheck.current,
+                    limit: planCheck.limit,
+                },
+                { status: 402 }
+            );
+        }
+
         // Check for duplicate IP+port in same org
         const existing = await prisma.biometricDevice.findFirst({
             where: {
@@ -90,6 +104,8 @@ export async function POST(req: Request) {
                 branch: { select: { id: true, name: true, code: true } },
             },
         });
+
+        await onResourceCreated(auth.organizationId, "device");
 
         return NextResponse.json(device, { status: 201 });
     } catch (error) {

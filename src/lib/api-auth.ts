@@ -27,6 +27,14 @@ export const AuthErrors = {
         JSON.stringify({ error: "Organization not found", code: "NO_ORG" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
     ),
+    ORG_INACTIVE: (status: string) => new NextResponse(
+        JSON.stringify({
+            error: "Organization is not active",
+            code: "ORG_INACTIVE",
+            status,
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+    ),
     NO_EMPLOYEE: () => new NextResponse(
         JSON.stringify({ error: "Employee profile not found", code: "NO_EMPLOYEE" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -59,15 +67,34 @@ export async function requireAuth(): Promise<AuthContext | NextResponse> {
 
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
-            include: { employee: true },
+            include: {
+                employee: true,
+                organization: { select: { status: true } },
+            },
         });
 
         if (!user) {
             return AuthErrors.UNAUTHORIZED();
         }
 
+        const sessionVersion = typeof session.user.sessionVersion === "number"
+            ? session.user.sessionVersion
+            : 0;
+
+        if (sessionVersion !== user.sessionVersion) {
+            return AuthErrors.UNAUTHORIZED();
+        }
+
+        if (!user.isActive || !user.emailVerified) {
+            return AuthErrors.UNAUTHORIZED();
+        }
+
         if (!user.organizationId) {
             return AuthErrors.NO_ORGANIZATION();
+        }
+
+        if (user.organization?.status !== "active") {
+            return AuthErrors.ORG_INACTIVE(user.organization?.status || "missing");
         }
 
         const organizationId = user.organizationId;
@@ -91,6 +118,19 @@ export async function requireEmployee(): Promise<(AuthContext & { employeeId: st
     const authResult = await requireAuth();
     if (authResult instanceof NextResponse) return authResult;
     if (!authResult.employeeId) return AuthErrors.NO_EMPLOYEE();
+
+    const employee = await prisma.employee.findFirst({
+        where: {
+            id: authResult.employeeId,
+            organizationId: authResult.organizationId,
+            employmentStatus: "active",
+            deletedAt: null,
+        },
+        select: { id: true },
+    });
+
+    if (!employee) return AuthErrors.FORBIDDEN();
+
     return authResult as AuthContext & { employeeId: string };
 }
 

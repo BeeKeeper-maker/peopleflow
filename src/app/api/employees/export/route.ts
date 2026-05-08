@@ -11,6 +11,47 @@ import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
 
+const EMPLOYEE_EXPORT_HEADERS = [
+    "Employee Code",
+    "First Name",
+    "Last Name",
+    "Email",
+    "Phone",
+    "Department",
+    "Designation",
+    "Join Date",
+    "Employment Type",
+    "Status",
+    "Gender",
+    "Date of Birth",
+    "Bank Name",
+    "Account Number",
+] as const;
+
+type EmployeeExportRow = Record<(typeof EMPLOYEE_EXPORT_HEADERS)[number], string>;
+
+function sanitizeSpreadsheetValue(value: unknown): string {
+    const stringValue = String(value ?? "");
+    return /^[=+\-@]/.test(stringValue) ? `'${stringValue}` : stringValue;
+}
+
+function escapeCsvValue(value: unknown): string {
+    const stringValue = sanitizeSpreadsheetValue(value);
+    if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+}
+
+function escapeHtml(value: unknown): string {
+    return sanitizeSpreadsheetValue(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 export async function GET(req: NextRequest) {
     try {
         const auth = await requireAdminOrHR();
@@ -41,11 +82,11 @@ export async function GET(req: NextRequest) {
         });
 
         // Format data for export
-        const exportData = employees.map(emp => ({
+        const exportData: EmployeeExportRow[] = employees.map(emp => ({
             "Employee Code": emp.employeeCode,
             "First Name": emp.firstName,
             "Last Name": emp.lastName,
-            "Email": emp.email,
+            "Email": emp.email || "",
             "Phone": emp.phone || "",
             "Department": emp.department?.name || "",
             "Designation": emp.designation?.name || "",
@@ -60,18 +101,12 @@ export async function GET(req: NextRequest) {
 
         if (format === "csv") {
             // Generate CSV
-            const headers = Object.keys(exportData[0] || {});
             const BOM = "\uFEFF"; // For Excel UTF-8
 
             const csvContent = BOM + [
-                headers.join(","),
+                EMPLOYEE_EXPORT_HEADERS.join(","),
                 ...exportData.map(row =>
-                    headers.map(h => {
-                        const val = String(row[h as keyof typeof row] ?? "");
-                        return val.includes(",") || val.includes('"')
-                            ? `"${val.replace(/"/g, '""')}"`
-                            : val;
-                    }).join(",")
+                    EMPLOYEE_EXPORT_HEADERS.map(h => escapeCsvValue(row[h])).join(",")
                 ),
             ].join("\r\n");
 
@@ -80,6 +115,28 @@ export async function GET(req: NextRequest) {
             return new Response(csvContent, {
                 headers: {
                     "Content-Type": "text/csv; charset=utf-8",
+                    "Content-Disposition": `attachment; filename="${filename}"`,
+                },
+            });
+        }
+
+        if (format === "excel" || format === "xls") {
+            const headerRow = EMPLOYEE_EXPORT_HEADERS
+                .map((header) => `<th>${escapeHtml(header)}</th>`)
+                .join("");
+            const bodyRows = exportData
+                .map((row) => `<tr>${EMPLOYEE_EXPORT_HEADERS.map((header) => `<td>${escapeHtml(row[header])}</td>`).join("")}</tr>`)
+                .join("");
+            const workbookHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Employees</title></head>
+<body><table><thead><tr>${headerRow}</tr></thead><tbody>${bodyRows}</tbody></table></body>
+</html>`;
+            const filename = `employees-export-${new Date().toISOString().split("T")[0]}.xls`;
+
+            return new Response(workbookHtml, {
+                headers: {
+                    "Content-Type": "application/vnd.ms-excel; charset=utf-8",
                     "Content-Disposition": `attachment; filename="${filename}"`,
                 },
             });

@@ -59,6 +59,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
 
+        if (!user.isActive) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
         const employeeId = searchParams.get("employeeId");
@@ -84,16 +88,23 @@ export async function GET(request: NextRequest) {
         if (!isHR && !isManager && user.employee) {
             whereClause.employeeId = user.employee.id;
         }
-        // If manager, show team claims for approval (and own claims)
+        // If manager, show only own claims or direct reportees' pending claims.
+        // A manager-supplied employeeId must still be scoped to self/direct reportees;
+        // otherwise a manager who guesses an employee id could list non-reportee claims.
         else if (isManager && user.employee) {
+            const reportees = await prisma.employee.findMany({
+                where: { organizationId: user.organizationId, reportingManagerId: user.employee.id },
+                select: { id: true },
+            });
+            const reporteeIds = reportees.map(r => r.id);
+
             if (pending) {
-                // For pending approvals, show team's submitted claims
-                const reportees = await prisma.employee.findMany({
-                    where: { reportingManagerId: user.employee.id },
-                    select: { id: true },
-                });
-                whereClause.employeeId = { in: reportees.map(r => r.id) };
+                whereClause.employeeId = { in: reporteeIds };
             } else if (employeeId) {
+                const allowedIds = new Set([user.employee.id, ...reporteeIds]);
+                if (!allowedIds.has(employeeId)) {
+                    return NextResponse.json([]);
+                }
                 whereClause.employeeId = employeeId;
             } else {
                 // Show own claims
@@ -150,6 +161,14 @@ export async function POST(request: NextRequest) {
 
         if (!user?.organizationId || !user.employee) {
             return NextResponse.json({ error: "Employee profile required" }, { status: 400 });
+        }
+
+        if (!user.isActive) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        if (user.employee.employmentStatus !== "active" || user.employee.deletedAt) {
+            return NextResponse.json({ error: "Inactive employees cannot submit expenses" }, { status: 403 });
         }
 
         const body = await request.json();

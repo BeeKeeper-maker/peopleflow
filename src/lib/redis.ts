@@ -14,6 +14,61 @@ import { redisLogger } from "@/lib/logger";
 
 let redis: Redis | null = null;
 
+export function isRedisDisabledForRuntime(): boolean {
+    return (
+        process.env.REDIS_DISABLED === "true" ||
+        process.env.NEXT_PHASE === "phase-production-build" ||
+        process.env.npm_lifecycle_event === "build" ||
+        process.env.NODE_ENV === "test" ||
+        Boolean(process.env.VITEST)
+    );
+}
+
+export async function assertRedisConnectionForWorkers(): Promise<void> {
+    if (isRedisDisabledForRuntime()) {
+        throw new Error("Redis is disabled for this runtime; the worker service requires Redis.");
+    }
+
+    let firstError: unknown;
+    const client = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        maxRetriesPerRequest: 0,
+        connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 3000),
+    });
+
+    client.on("error", (error) => {
+        firstError ??= error;
+        // The caller reports the failed preflight; suppress duplicate ioredis event logs.
+    });
+
+    try {
+        await client.connect();
+        await client.ping();
+    } catch (error) {
+        throw new Error(`Redis preflight failed: ${formatRedisPreflightError(firstError ?? error)}`);
+    } finally {
+        client.disconnect();
+    }
+}
+
+function formatRedisPreflightError(error: unknown): string {
+    if (error instanceof AggregateError) {
+        return error.errors.map(formatRedisPreflightError).join("; ") || error.message;
+    }
+
+    if (error instanceof Error) {
+        const code = "code" in error ? String((error as NodeJS.ErrnoException).code) : "";
+        return code ? `${code}: ${error.message}` : error.message;
+    }
+
+    return String(error);
+}
+
+function isConnectionRefused(error: Error): boolean {
+    return "code" in error && (error as NodeJS.ErrnoException).code === "ECONNREFUSED";
+}
+
 /**
  * Get or create the Redis singleton
  */
@@ -37,6 +92,8 @@ export function getRedis(): Redis {
         });
 
         redis.on("error", (err) => {
+            if (isRedisDisabledForRuntime()) return;
+            if (process.env.NODE_ENV !== "production" && isConnectionRefused(err)) return;
             redisLogger.error({ err }, "Connection error");
         });
 
@@ -59,6 +116,8 @@ export function getRedis(): Redis {
  * Get a cached value (parsed from JSON)
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
+    if (isRedisDisabledForRuntime()) return null;
+
     try {
         const data = await getRedis().get(key);
         return data ? JSON.parse(data) : null;
@@ -76,6 +135,8 @@ export async function cacheSet(
     value: unknown,
     ttlSeconds: number
 ): Promise<void> {
+    if (isRedisDisabledForRuntime()) return;
+
     try {
         await getRedis().setex(key, ttlSeconds, JSON.stringify(value));
     } catch (error) {
@@ -87,6 +148,8 @@ export async function cacheSet(
  * Delete a specific cache key
  */
 export async function cacheDel(key: string): Promise<void> {
+    if (isRedisDisabledForRuntime()) return;
+
     try {
         await getRedis().del(key);
     } catch (error) {
@@ -99,6 +162,8 @@ export async function cacheDel(key: string): Promise<void> {
  * WARNING: KEYS command is O(N) — use sparingly, never in hot paths
  */
 export async function cacheInvalidate(pattern: string): Promise<void> {
+    if (isRedisDisabledForRuntime()) return;
+
     try {
         const keys = await getRedis().keys(pattern);
         if (keys.length > 0) {
@@ -126,6 +191,14 @@ export async function checkRedisRateLimit(
     remaining: number;
     retryAfter: number;
 }> {
+    if (isRedisDisabledForRuntime()) {
+        return {
+            allowed: true,
+            remaining: maxRequests,
+            retryAfter: 0,
+        };
+    }
+
     try {
         const redisKey = `rl:${key}`;
         const current = await getRedis().incr(redisKey);
@@ -152,9 +225,12 @@ export async function checkRedisRateLimit(
             retryAfter: 0,
         };
     } catch (error) {
-        // On Redis failure, ALLOW the request (fail-open)
-        // Better to allow some extra requests than block all users
-        redisLogger.error({ err: error }, "Rate limit check failed, allowing request (fail-open)");
+        if (process.env.NODE_ENV === "production") {
+            redisLogger.error({ err: error }, "Rate limit check failed, denying request (fail-closed)");
+            return { allowed: false, remaining: 0, retryAfter: windowSeconds };
+        }
+
+        redisLogger.warn({ err: error }, "Rate limit check failed, allowing request outside production");
         return { allowed: true, remaining: maxRequests, retryAfter: 0 };
     }
 }
@@ -209,6 +285,8 @@ export interface CachedSubscription {
     status: string;
     planId: string;
     planSlug: string;
+    currentPeriodEnd?: string | Date | null;
+    trialEnd?: string | Date | null;
     maxEmployees: number;
     maxAdmins: number;
     maxBranches: number;

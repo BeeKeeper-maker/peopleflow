@@ -16,6 +16,7 @@
 
 import { Queue, type ConnectionOptions } from "bullmq";
 import { queueLogger } from "@/lib/logger";
+import { isRedisDisabledForRuntime } from "@/lib/redis";
 
 // ── Redis Connection (shared with existing redis.ts) ──
 
@@ -33,9 +34,31 @@ function parseRedisUrl(url: string): ConnectionOptions {
 
 export const redisConnection: ConnectionOptions = parseRedisUrl(REDIS_URL);
 
+function createQueue<T = unknown>(
+    name: string,
+    options: ConstructorParameters<typeof Queue<T>>[1]
+): Queue<T> {
+    if (!isRedisDisabledForRuntime()) {
+        return new Queue<T>(name, options);
+    }
+
+    return {
+        name,
+        add: async (jobName: string) => {
+            queueLogger.debug({ queue: name, jobName }, "Queue disabled for this runtime; skipped enqueue");
+            return { id: undefined };
+        },
+        upsertJobScheduler: async (schedulerId: string) => {
+            queueLogger.debug({ queue: name, schedulerId }, "Queue disabled for this runtime; skipped scheduler");
+            return undefined;
+        },
+        close: async () => undefined,
+    } as unknown as Queue<T>;
+}
+
 // ── Queue Definitions ──
 
-export const subscriptionQueue = new Queue("subscription-lifecycle", {
+export const subscriptionQueue = createQueue<SubscriptionJobData>("subscription-lifecycle", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,
@@ -45,7 +68,7 @@ export const subscriptionQueue = new Queue("subscription-lifecycle", {
     },
 });
 
-export const impersonationQueue = new Queue("impersonation-cleanup", {
+export const impersonationQueue = createQueue<ImpersonationJobData>("impersonation-cleanup", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 2,
@@ -55,7 +78,7 @@ export const impersonationQueue = new Queue("impersonation-cleanup", {
     },
 });
 
-export const usageTrackingQueue = new Queue("usage-tracking", {
+export const usageTrackingQueue = createQueue<UsageTrackingJobData>("usage-tracking", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,
@@ -65,7 +88,7 @@ export const usageTrackingQueue = new Queue("usage-tracking", {
     },
 });
 
-export const notificationQueue = new Queue("notifications", {
+export const notificationQueue = createQueue<NotificationJobData>("notifications", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 5, // Emails are critical, retry more
@@ -75,7 +98,7 @@ export const notificationQueue = new Queue("notifications", {
     },
 });
 
-export const eventPipelineQueue = new Queue("event-pipeline", {
+export const eventPipelineQueue = createQueue("event-pipeline", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 5,
@@ -87,7 +110,7 @@ export const eventPipelineQueue = new Queue("event-pipeline", {
 
 // ── Biometric Device Queues ──
 
-export const biometricSyncQueue = new Queue("biometric-sync", {
+export const biometricSyncQueue = createQueue<BiometricSyncJobData>("biometric-sync", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 5, // Retry up to 5 times with exponential backoff
@@ -97,7 +120,7 @@ export const biometricSyncQueue = new Queue("biometric-sync", {
     },
 });
 
-export const deviceHealthQueue = new Queue("device-health", {
+export const deviceHealthQueue = createQueue<DeviceHealthJobData>("device-health", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 1, // Health checks don't retry — next scheduled ping will cover it
@@ -106,7 +129,7 @@ export const deviceHealthQueue = new Queue("device-health", {
     },
 });
 
-export const attendanceReconciliationQueue = new Queue("attendance-reconciliation", {
+export const attendanceReconciliationQueue = createQueue<ReconciliationJobData>("attendance-reconciliation", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,

@@ -295,6 +295,7 @@ model User {
   role          String    @default("employee") // admin, hr_admin, manager, employee
   isActive      Boolean   @default(true)
   lastLogin     DateTime?
+  sessionVersion Int      @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -841,10 +842,10 @@ model SalarySlip {
   year  Int
 
   // Working days
-  totalWorkingDays Int
-  presentDays      Int
-  absentDays       Int @default(0)
-  leaveDays        Int @default(0)
+  totalWorkingDays Float
+  presentDays      Float
+  absentDays       Float @default(0)
+  leaveDays        Float @default(0)
 
   // Earnings
   basicSalary      Float

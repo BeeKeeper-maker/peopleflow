@@ -12,12 +12,12 @@ import { P, fadeUp, staggerContainer, staggerItem, AnimatedNumber, useInView } f
 const dangers = [
     {
         icon: AlertTriangle,
-        title: "৳50K+ in BLA Compliance Fines",
-        stat: 50000,
-        statPrefix: "৳",
-        statSuffix: "+",
-        description: "Section 289 of the Bangladesh Labour Act penalizes non-compliant leave, maternity, and wage calculations. One audit can cost your entire quarter's profit.",
-        detail: "Per violation, per employee. Multiply across your workforce.",
+        title: "Compliance Evidence Risk",
+        stat: 3,
+        statPrefix: "",
+        statSuffix: " checks",
+        description: "Bangladesh leave, maternity, and wage calculations need careful review. Manual records make compliance evidence harder to prepare.",
+        detail: "Leave, wage, and attendance records need traceable review.",
         accentFrom: "#F43F5E",
         accentTo: "#E11D48",
         dimBg: "rgba(244,63,94,0.06)",
@@ -26,12 +26,12 @@ const dangers = [
     },
     {
         icon: TrendingDown,
-        title: "3–8% Payroll Leakage",
-        stat: 8,
+        title: "Payroll Leakage Exposure",
+        stat: 4,
         statPrefix: "",
-        statSuffix: "%",
-        description: "Ghost attendance, manual overtime miscalculations, and buddy-punching silently bleed your payroll every single month. Most factories don't even know it's happening.",
-        detail: "Average annual leakage for a 500-employee factory: ৳18–48 lakh.",
+        statSuffix: " controls",
+        description: "Ghost attendance, manual overtime mistakes, and buddy-punching can create avoidable payroll leakage without structured review.",
+        detail: "Actual impact depends on workforce size and controls.",
         accentFrom: "#F59E0B",
         accentTo: "#D97706",
         dimBg: "rgba(245,158,11,0.06)",
@@ -40,12 +40,12 @@ const dangers = [
     },
     {
         icon: Clock,
-        title: "40+ HR Hours Wasted Monthly",
-        stat: 40,
+        title: "Manual HR Review Load",
+        stat: 5,
         statPrefix: "",
-        statSuffix: "+hrs",
-        description: "Your HR team spends entire weeks on spreadsheet calculations, manual PF ledgers, and chasing approvals through WhatsApp. That's ৳80,000+ worth of productivity — gone.",
-        detail: "Time that should be spent on strategic workforce development.",
+        statSuffix: " records",
+        description: "HR teams often spend substantial time reconciling spreadsheets, PF ledgers, biometric logs, and manual approval trails.",
+        detail: "A structured beta rollout can measure the time saved.",
         accentFrom: "#8B5CF6",
         accentTo: "#7C3AED",
         dimBg: "rgba(139,92,246,0.06)",
@@ -223,17 +223,17 @@ export default function PainSection() {
                         className="text-4xl sm:text-5xl font-bold tracking-tight mb-5"
                         style={{ color: P.heading }}
                     >
-                        Every Month You Wait{" "}
+                        Manual HR Reviews{" "}
                         <span
                             className="bg-clip-text text-transparent"
                             style={{ backgroundImage: P.gradDanger }}
                         >
-                            Costs You
+                            Create Risk
                         </span>
                     </h2>
                     <p className="text-lg max-w-2xl mx-auto" style={{ color: P.body }}>
-                        While you manage HR on spreadsheets, your competitors are automating everything.
-                        Here{"'"}s what{"'"}s silently draining your bottom line.
+                        Spreadsheet-heavy HR makes it harder to keep payroll, leave, attendance,
+                        and approval evidence consistent across teams.
                     </p>
                 </motion.div>
 
@@ -264,9 +264,7 @@ export default function PainSection() {
                         style={{ background: `linear-gradient(to right, transparent, ${P.border})` }}
                     />
                     <p className="text-sm font-medium" style={{ color: P.muted }}>
-                        PeopleFlow eliminates{" "}
-                        <span className="font-bold" style={{ color: P.emerald }}>100%</span>{" "}
-                        of this
+                        PeopleFlow gives beta teams a structured path to reduce this risk
                     </p>
                     <ArrowRight className="w-4 h-4" style={{ color: P.emerald }} />
                     <div

@@ -48,7 +48,7 @@ interface ExpenseApproval {
         photoUrl?: string;
         designation?: { name: string };
     };
-    category: string;
+    category: string | { name?: string };
     amount: number;
     description: string;
     createdAt: string;
@@ -73,10 +73,10 @@ export default function ManagerApprovalsPage() {
                     setLeaveApprovals(data.data || data || []);
                 }
 
-                const expensesRes = await fetch("/api/expenses?status=pending");
+                const expensesRes = await fetch("/api/expenses/claims?pending=true");
                 if (expensesRes.ok) {
                     const data = await expensesRes.json();
-                    setExpenseApprovals(data.data || data || []);
+                    setExpenseApprovals(Array.isArray(data) ? data : data.data || data.claims || []);
                 }
             } catch (error) {
                 console.error("Error fetching approvals:", error);
@@ -93,12 +93,15 @@ export default function ManagerApprovalsPage() {
         try {
             const endpoint = type === "leave"
                 ? `/api/leaves/applications/${id}`
-                : `/api/expenses/${id}`;
+                : `/api/expenses/claims/${id}`;
 
             const res = await fetch(endpoint, {
-                method: "PATCH",
+                method: type === "leave" ? "PUT" : "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "approved" }),
+                body: JSON.stringify(type === "leave"
+                    ? { status: "approved" }
+                    : { action: "approve" }
+                ),
             });
 
             if (res.ok) {
@@ -129,15 +132,15 @@ export default function ManagerApprovalsPage() {
         try {
             const endpoint = type === "leave"
                 ? `/api/leaves/applications/${id}`
-                : `/api/expenses/${id}`;
+                : `/api/expenses/claims/${id}`;
 
             const res = await fetch(endpoint, {
-                method: "PATCH",
+                method: type === "leave" ? "PUT" : "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    status: "rejected",
-                    rejectionReason: rejectReason[id],
-                }),
+                body: JSON.stringify(type === "leave"
+                    ? { status: "rejected", managerComment: rejectReason[id] }
+                    : { action: "reject", notes: rejectReason[id] }
+                ),
             });
 
             if (res.ok) {
@@ -380,7 +383,7 @@ export default function ManagerApprovalsPage() {
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                                                        {approval.category}
+                                                        {typeof approval.category === "string" ? approval.category : approval.category?.name || "—"}
                                                     </Badge>
                                                     <span className="text-2xl font-bold text-foreground">
                                                         {formatCurrency(approval.amount || 0)}

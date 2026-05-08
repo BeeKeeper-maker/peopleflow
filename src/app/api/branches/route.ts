@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/branches — List all branches
@@ -42,6 +43,19 @@ export async function POST(req: Request) {
             );
         }
 
+        const planCheck = await enforcePlanLimit(auth.organizationId, "branch");
+        if (!planCheck.allowed) {
+            return NextResponse.json(
+                {
+                    error: planCheck.message,
+                    upgradeRequired: planCheck.upgradeRequired,
+                    current: planCheck.current,
+                    limit: planCheck.limit,
+                },
+                { status: 402 }
+            );
+        }
+
         // Check for duplicate code
         if (code) {
             const existing = await prisma.branch.findUnique({
@@ -76,6 +90,8 @@ export async function POST(req: Request) {
                 organizationId: auth.organizationId,
             },
         });
+
+        await onResourceCreated(auth.organizationId, "branch");
 
         return NextResponse.json(branch);
     } catch (error) {

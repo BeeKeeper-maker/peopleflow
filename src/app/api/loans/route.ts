@@ -17,13 +17,22 @@ export async function GET(req: Request) {
             employee: { organizationId: auth.organizationId },
         };
 
-        // Non-admin users can only see their own loans
-        if (!["super_admin", "admin", "hr_admin", "manager"].includes(auth.role)) {
-            if (auth.employeeId) {
-                where.employeeId = auth.employeeId;
-            } else {
-                // No employee record linked — return empty
+        const isHR = ["super_admin", "admin", "hr_admin"].includes(auth.role);
+        const isManager = auth.role === "manager";
+
+        // Employees can only see their own loans. Managers can see own loans and direct reportees only.
+        if (!isHR) {
+            if (!auth.employeeId) {
                 return NextResponse.json([]);
+            }
+
+            if (isManager) {
+                where.OR = [
+                    { employeeId: auth.employeeId },
+                    { employee: { organizationId: auth.organizationId, reportingManagerId: auth.employeeId } },
+                ];
+            } else {
+                where.employeeId = auth.employeeId;
             }
         }
 
@@ -68,13 +77,29 @@ export async function POST(req: Request) {
             );
         }
 
-        // Verify employee belongs to org
+        const isHR = ["super_admin", "admin", "hr_admin"].includes(auth.role);
+        const isManager = auth.role === "manager";
+
+        if (!isHR && !auth.employeeId) {
+            return NextResponse.json({ error: "Employee profile not found" }, { status: 400 });
+        }
+
+        if (!isHR && !isManager && employeeId !== auth.employeeId) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        // Verify employee belongs to org and is within the caller's allowed scope.
+        // Employees may request only their own loan; managers may request for self/direct reportees only.
         const employee = await prisma.employee.findFirst({
-            where: { id: employeeId, organizationId: auth.organizationId },
+            where: {
+                id: employeeId,
+                organizationId: auth.organizationId,
+                ...(!isHR && isManager ? { OR: [{ id: auth.employeeId }, { reportingManagerId: auth.employeeId }] } : {}),
+            },
             select: { id: true, firstName: true, lastName: true },
         });
         if (!employee) {
-            return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+            return NextResponse.json({ error: isManager ? "Employee not found" : "Employee not found" }, { status: 404 });
         }
 
         const rate = interestRate || 0;

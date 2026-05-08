@@ -1,29 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET - List notifications for current user
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user) {
-            return new NextResponse("User not found", { status: 404 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const unreadOnly = searchParams.get("unread") === "true";
         const limit = parseInt(searchParams.get("limit") || "20");
 
-        const where: any = { userId: user.id };
+        const where: { userId: string; isRead?: boolean } = { userId: auth.userId };
         if (unreadOnly) {
             where.isRead = false;
         }
@@ -35,7 +25,7 @@ export async function GET(req: Request) {
                 take: limit,
             }),
             prisma.notification.count({
-                where: { userId: user.id, isRead: false },
+                where: { userId: auth.userId, isRead: false },
             }),
         ]);
 
@@ -49,16 +39,23 @@ export async function GET(req: Request) {
 // POST - Create a notification (internal use)
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAdminOrHR();
+        if (!isAuthenticated(auth)) return auth;
 
         const body = await req.json();
         const { userId, title, message, type, link } = body;
 
         if (!userId || !title || !message || !type) {
             return new NextResponse("Missing required fields", { status: 400 });
+        }
+
+        const targetUser = await prisma.user.findFirst({
+            where: { id: userId, organizationId: auth.organizationId },
+            select: { id: true },
+        });
+
+        if (!targetUser) {
+            return new NextResponse("Target user not found", { status: 404 });
         }
 
         const notification = await prisma.notification.create({
@@ -81,18 +78,8 @@ export async function POST(req: Request) {
 // PATCH - Mark notifications as read
 export async function PATCH(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user) {
-            return new NextResponse("User not found", { status: 404 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const body = await req.json();
         const { notificationIds, markAll } = body;
@@ -100,7 +87,7 @@ export async function PATCH(req: Request) {
         if (markAll) {
             // Mark all as read
             await prisma.notification.updateMany({
-                where: { userId: user.id, isRead: false },
+                where: { userId: auth.userId, isRead: false },
                 data: { isRead: true, readAt: new Date() },
             });
         } else if (notificationIds && notificationIds.length > 0) {
@@ -108,7 +95,7 @@ export async function PATCH(req: Request) {
             await prisma.notification.updateMany({
                 where: {
                     id: { in: notificationIds },
-                    userId: user.id,
+                    userId: auth.userId,
                 },
                 data: { isRead: true, readAt: new Date() },
             });

@@ -33,15 +33,17 @@ async function main() {
 
     // 2. Create Admin User
     const hashedPassword = await bcrypt.hash("Admin@123", 10);
+    const emailVerified = new Date();
     const adminUser = await prisma.user.upsert({
         where: { email: "admin@demo.com" },
-        update: {},
+        update: { emailVerified },
         create: {
             email: "admin@demo.com",
             name: "System Admin",
             password: hashedPassword,
             role: "admin",
             organizationId: organization.id,
+            emailVerified,
         },
     });
     console.log("✅ Admin user created:", adminUser.email);
@@ -269,13 +271,14 @@ async function main() {
     // Create user for HR Manager, then link Employee → User
     const hrUser = await prisma.user.upsert({
         where: { email: "rahim@demo.com" },
-        update: {},
+        update: { emailVerified },
         create: {
             email: "rahim@demo.com",
             name: "Rahim Khan",
             password: hashedPassword,
             role: "hr_admin",
             organizationId: organization.id,
+            emailVerified,
         },
     });
     // Link employee to user (FK is on Employee.userId, not User.employeeId)
@@ -343,13 +346,14 @@ async function main() {
 
         const empUser = await prisma.user.upsert({
             where: { email: emp.email },
-            update: {},
+            update: { emailVerified },
             create: {
                 email: emp.email,
                 name: `${emp.firstName} ${emp.lastName}`,
                 password: hashedPassword,
                 role: emp.role,
                 organizationId: organization.id,
+                emailVerified,
             },
         });
         // Link employee to user (FK is on Employee.userId)

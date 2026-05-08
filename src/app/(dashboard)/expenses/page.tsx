@@ -35,8 +35,8 @@ interface ExpenseClaim {
     id: string;
     amount: number;
     description: string;
-    category: string;
-    status: "pending" | "approved" | "rejected";
+    category: string | { name?: string };
+    status: "submitted" | "pending" | "approved" | "rejected" | "reimbursed" | "draft";
     date: string;
     createdAt: string;
     receiptUrl?: string;
@@ -64,9 +64,11 @@ interface ExpenseStats {
 // ════════════════════════════════════════════════════════════════════════
 
 const statusConfig = {
+    draft: { label: "Draft", color: "bg-slate-500/20 text-slate-400", icon: Receipt },
     pending: { label: "Pending", color: "bg-amber-500/20 text-amber-400", icon: Clock },
     approved: { label: "Approved", color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
     rejected: { label: "Rejected", color: "bg-red-500/20 text-red-400", icon: XCircle },
+    reimbursed: { label: "Reimbursed", color: "bg-blue-500/20 text-blue-400", icon: Banknote },
 };
 
 // ════════════════════════════════════════════════════════════════════════
@@ -92,17 +94,17 @@ export default function ExpensesPage() {
             const res = await fetch("/api/expenses/claims");
             if (res.ok) {
                 const data = await res.json();
-                setClaims(data.claims || []);
+                const allClaims = Array.isArray(data) ? data : data.data || data.claims || [];
+                setClaims(allClaims);
 
                 // Calculate stats from data
-                const allClaims = data.claims || [];
                 setStats({
                     total: allClaims.length,
-                    pending: allClaims.filter((c: ExpenseClaim) => c.status === "pending").length,
+                    pending: allClaims.filter((c: ExpenseClaim) => c.status === "submitted" || c.status === "pending").length,
                     approved: allClaims.filter((c: ExpenseClaim) => c.status === "approved").length,
                     rejected: allClaims.filter((c: ExpenseClaim) => c.status === "rejected").length,
                     totalAmount: allClaims.reduce((s: number, c: ExpenseClaim) => s + c.amount, 0),
-                    pendingAmount: allClaims.filter((c: ExpenseClaim) => c.status === "pending").reduce((s: number, c: ExpenseClaim) => s + c.amount, 0),
+                    pendingAmount: allClaims.filter((c: ExpenseClaim) => c.status === "submitted" || c.status === "pending").reduce((s: number, c: ExpenseClaim) => s + c.amount, 0),
                 });
             }
         } catch (error) {
@@ -116,7 +118,7 @@ export default function ExpensesPage() {
         setProcessing(claimId);
         try {
             const res = await fetch(`/api/expenses/claims/${claimId}`, {
-                method: "PUT",
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action }),
             });
@@ -136,15 +138,15 @@ export default function ExpensesPage() {
     };
 
     const filteredClaims = claims
-        .filter(c => filter === "all" || c.status === filter)
+        .filter(c => filter === "all" || c.status === filter || (filter === "pending" && c.status === "submitted"))
         .filter(c => {
             if (!search) return true;
             const q = search.toLowerCase();
             return (
                 c.employee.firstName.toLowerCase().includes(q) ||
                 c.employee.lastName.toLowerCase().includes(q) ||
-                c.description.toLowerCase().includes(q) ||
-                c.category.toLowerCase().includes(q)
+                (c.description || "").toLowerCase().includes(q) ||
+                (typeof c.category === "string" ? c.category : c.category?.name || "").toLowerCase().includes(q)
             );
         });
 
@@ -265,7 +267,7 @@ export default function ExpensesPage() {
                         </Card>
                     ) : (
                         filteredClaims.map((claim) => {
-                            const config = statusConfig[claim.status];
+                            const config = statusConfig[claim.status === "submitted" ? "pending" : claim.status as keyof typeof statusConfig];
                             const StatusIcon = config.icon;
                             return (
                                 <Card key={claim.id} className="hover:border-border transition-colors">
@@ -292,7 +294,7 @@ export default function ExpensesPage() {
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm text-foreground truncate">{claim.description}</p>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <Badge variant="default" className="text-[10px]">{claim.category}</Badge>
+                                                    <Badge variant="default" className="text-[10px]">{typeof claim.category === "string" ? claim.category : claim.category?.name || "—"}</Badge>
                                                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                         <Calendar className="h-3 w-3" />
                                                         {new Date(claim.date).toLocaleDateString()}

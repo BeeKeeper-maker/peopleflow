@@ -3,11 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from "@/lib/validations/employee";
 import { z } from "zod";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
+import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
+import { randomBytes } from "crypto";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employees — Create Employee
 // ─────────────────────────────────────────────────────────────────────────────
+
+function calculateProratedLeaveDays(annualAllocation: number, joiningDate: Date, year: number, proRataEnabled: boolean) {
+    if (!proRataEnabled) return annualAllocation;
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+    if (joiningDate <= yearStart) return annualAllocation;
+    if (joiningDate > yearEnd) return 0;
+
+    const remainingMonthsInclusive = 12 - joiningDate.getMonth();
+    const prorated = (annualAllocation * remainingMonthsInclusive) / 12;
+    return Math.round(prorated * 2) / 2;
+}
 
 export async function POST(req: Request) {
     const auth = await requireAdminOrHR();
@@ -17,6 +32,19 @@ export async function POST(req: Request) {
         const json = await req.json();
         const body = employeeSchema.parse(json);
 
+        const planCheck = await enforcePlanLimit(auth.organizationId, "employee");
+        if (!planCheck.allowed) {
+            return NextResponse.json(
+                {
+                    error: planCheck.message,
+                    upgradeRequired: planCheck.upgradeRequired,
+                    current: planCheck.current,
+                    limit: planCheck.limit,
+                },
+                { status: 402 }
+            );
+        }
+
         // ── Uniqueness Checks ────────────────────────────────────────────
         const existingCode = await prisma.employee.findFirst({
             where: { organizationId: auth.organizationId, employeeCode: body.employeeCode },
@@ -25,12 +53,22 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Employee code already exists" }, { status: 409 });
         }
 
-        if (body.email) {
+        const normalizedEmail = body.email?.toLowerCase();
+
+        if (normalizedEmail) {
             const existingEmail = await prisma.employee.findFirst({
-                where: { organizationId: auth.organizationId, email: body.email },
+                where: { organizationId: auth.organizationId, email: normalizedEmail },
             });
             if (existingEmail) {
                 return NextResponse.json({ error: "Email already exists" }, { status: 409 });
+            }
+
+            const existingUser = await prisma.user.findUnique({
+                where: { email: normalizedEmail },
+                select: { id: true, organizationId: true },
+            });
+            if (existingUser) {
+                return NextResponse.json({ error: "A user account already exists for this email" }, { status: 409 });
             }
         }
 
@@ -87,11 +125,34 @@ export async function POST(req: Request) {
         const emergencyContact = buildEmergencyContactJson(body);
 
         const result = await prisma.$transaction(async (tx) => {
+            const defaultBranch = await tx.branch.findFirst({
+                where: { organizationId: auth.organizationId, isActive: true },
+                orderBy: [{ isHeadOffice: "desc" }, { createdAt: "asc" }],
+                select: { id: true },
+            });
+
+            const user = normalizedEmail
+                ? await tx.user.create({
+                    data: {
+                        email: normalizedEmail,
+                        name: `${body.firstName} ${body.lastName}`,
+                        password: null,
+                        role: "employee",
+                        organizationId: auth.organizationId,
+                        isActive: true,
+                        emailVerified: null,
+                    },
+                })
+                : null;
+
             const employee = await tx.employee.create({
                 data: {
                     ...prismaData,
+                    email: normalizedEmail ?? null,
                     emergencyContact,
                     organizationId: auth.organizationId,
+                    userId: user?.id,
+                    branchId: defaultBranch?.id,
                 },
             });
 
@@ -104,10 +165,76 @@ export async function POST(req: Request) {
                 },
             });
 
-            return employee;
+            const allocationYear = new Date().getFullYear();
+            const leaveTypes = await tx.leaveType.findMany({
+                where: { organizationId: auth.organizationId, isActive: true, annualAllocation: { gt: 0 } },
+            });
+            let leaveAllocationsCreated = 0;
+            for (const leaveType of leaveTypes) {
+                if (leaveType.applicableGender && leaveType.applicableGender !== "all") {
+                    if (!body.gender || body.gender.toLowerCase() !== leaveType.applicableGender.toLowerCase()) {
+                        continue;
+                    }
+                }
+
+                if (leaveType.minServiceDays) {
+                    const serviceDays = Math.floor(
+                        (Date.now() - new Date(body.joiningDate).getTime()) / (1000 * 60 * 60 * 24)
+                    );
+                    if (serviceDays < leaveType.minServiceDays) continue;
+                }
+
+                const allocatedDays = calculateProratedLeaveDays(
+                    leaveType.annualAllocation,
+                    new Date(body.joiningDate),
+                    allocationYear,
+                    leaveType.proRataEnabled
+                );
+                if (allocatedDays <= 0) continue;
+
+                await tx.leaveAllocation.create({
+                    data: {
+                        employeeId: employee.id,
+                        leaveTypeId: leaveType.id,
+                        year: allocationYear,
+                        allocatedDays,
+                        usedDays: 0,
+                        carriedForward: 0,
+                    },
+                });
+                leaveAllocationsCreated++;
+            }
+
+            let invitationToken: string | null = null;
+            if (normalizedEmail) {
+                invitationToken = randomBytes(32).toString("hex");
+                await tx.passwordResetToken.create({
+                    data: {
+                        email: normalizedEmail,
+                        token: invitationToken,
+                        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+                    },
+                });
+            }
+
+            return { employee, invitationToken, leaveAllocationsCreated };
         });
 
-        return NextResponse.json(result);
+        if (normalizedEmail && result.invitationToken) {
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+            void sendTemplateEmail(normalizedEmail, "passwordReset", {
+                userName: `${body.firstName} ${body.lastName}`,
+                resetUrl: `${appUrl}/reset-password/${result.invitationToken}`,
+            }).catch((err) => apiLogger.error({ err, employeeId: result.employee.id }, "EMPLOYEE_INVITE_EMAIL_FAILED"));
+        }
+
+        await onResourceCreated(auth.organizationId, "employee");
+
+        return NextResponse.json({
+            ...result.employee,
+            onboardingInvitationSent: !!result.invitationToken,
+            leaveAllocationsCreated: result.leaveAllocationsCreated,
+        });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json(

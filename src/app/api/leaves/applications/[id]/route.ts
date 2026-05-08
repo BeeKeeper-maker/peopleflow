@@ -10,6 +10,17 @@ import {
 import { processApprovalStep, cancelApprovalRequest } from "@/lib/approval-engine";
 import { leaveLogger } from "@/lib/logger";
 
+function canAccessLeave(auth: { role: string; employeeId?: string }, application: { employeeId: string; employee: { reportingManagerId?: string | null } }) {
+    if (["admin", "hr_admin", "super_admin"].includes(auth.role)) return true;
+    if (application.employeeId === auth.employeeId) return true;
+    return auth.role === "manager" && !!auth.employeeId && application.employee.reportingManagerId === auth.employeeId;
+}
+
+function canApproveLeave(auth: { role: string; employeeId?: string }, application: { employee: { reportingManagerId?: string | null } }) {
+    if (["admin", "hr_admin", "super_admin"].includes(auth.role)) return true;
+    return auth.role === "manager" && !!auth.employeeId && application.employee.reportingManagerId === auth.employeeId;
+}
+
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -34,13 +45,14 @@ export async function GET(
                     select: {
                         firstName: true,
                         lastName: true,
+                        reportingManagerId: true,
                         designation: { select: { name: true } },
                     }
                 }
             }
         });
 
-        if (!application) {
+        if (!application || !canAccessLeave(auth, application)) {
             return new NextResponse("Leave application not found", { status: 404 });
         }
 
@@ -70,10 +82,28 @@ export async function PUT(
             return new NextResponse("Invalid status", { status: 400 });
         }
 
+        const targetApplication = await prisma.leaveApplication.findFirst({
+            where: {
+                id,
+                employee: { organizationId: auth.organizationId },
+            },
+            include: {
+                employee: { select: { reportingManagerId: true } },
+            },
+        });
+
+        if (!targetApplication || !canApproveLeave(auth, targetApplication)) {
+            return new NextResponse("Leave application not found", { status: 404 });
+        }
+
         // ── ✅ Route through Stateful Approval Engine ──
         // Check if a stateful ApprovalRequest exists for this leave
-        const approvalRequest = await prisma.approvalRequest.findUnique({
-            where: { entityType_entityId: { entityType: "leave", entityId: id } },
+        const approvalRequest = await prisma.approvalRequest.findFirst({
+            where: {
+                entityType: "leave",
+                entityId: id,
+                organizationId: auth.organizationId,
+            },
         });
 
         if (approvalRequest && approvalRequest.status === "in_progress") {
@@ -127,7 +157,7 @@ export async function PUT(
             }
 
             // Notify the applicant
-            await notifyApplicant(id, status, managerComment);
+            await notifyApplicant(id, auth.organizationId, status, managerComment);
 
             return NextResponse.json({
                 status: result.request?.status || status,
@@ -179,8 +209,13 @@ export async function PUT(
             };
 
             if (status === "approved") {
+                const approver = await tx.employee.findFirst({
+                    where: { userId: auth.userId, organizationId: auth.organizationId },
+                    select: { id: true },
+                });
+
                 updateData.approvedAt = new Date();
-                updateData.approverId = application.employee.user?.id || null;
+                updateData.approverId = approver?.id || null;
             }
 
             const updatedApp = await tx.leaveApplication.update({
@@ -358,8 +393,11 @@ export async function PUT(
 // ── Helper: Handle approval side-effects (balance deduction + attendance marking) ──
 async function handleApproval(leaveApplicationId: string, organizationId: string) {
     try {
-        const application = await prisma.leaveApplication.findUnique({
-            where: { id: leaveApplicationId },
+        const application = await prisma.leaveApplication.findFirst({
+            where: {
+                id: leaveApplicationId,
+                employee: { organizationId },
+            },
             include: {
                 leaveType: true,
                 employee: {
@@ -441,8 +479,11 @@ async function handleApproval(leaveApplicationId: string, organizationId: string
 // ── Helper: Handle cancellation side-effects (balance revert + attendance cleanup) ──
 async function handleCancellation(leaveApplicationId: string, organizationId: string) {
     try {
-        const application = await prisma.leaveApplication.findUnique({
-            where: { id: leaveApplicationId },
+        const application = await prisma.leaveApplication.findFirst({
+            where: {
+                id: leaveApplicationId,
+                employee: { organizationId },
+            },
             include: { leaveType: true },
         });
         if (!application) return;
@@ -488,10 +529,13 @@ async function handleCancellation(leaveApplicationId: string, organizationId: st
 }
 
 // ── Helper: Notify applicant of status change ──
-async function notifyApplicant(leaveApplicationId: string, status: string, comment?: string) {
+async function notifyApplicant(leaveApplicationId: string, organizationId: string, status: string, comment?: string) {
     try {
-        const application = await prisma.leaveApplication.findUnique({
-            where: { id: leaveApplicationId },
+        const application = await prisma.leaveApplication.findFirst({
+            where: {
+                id: leaveApplicationId,
+                employee: { organizationId },
+            },
             include: {
                 leaveType: true,
                 employee: { include: { user: { select: { id: true } } } },

@@ -26,6 +26,8 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const employeeId = searchParams.get("employeeId");
         const status = searchParams.get("status");
+        const year = searchParams.get("year");
+        const month = searchParams.get("month");
         const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
         const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
         const skip = (page - 1) * limit;
@@ -44,7 +46,25 @@ export async function GET(req: Request) {
 
         // If filtering by employee
         if (employeeId) {
+            if (user?.role === "manager") {
+                const reportee = await prisma.employee.findFirst({
+                    where: {
+                        id: employeeId,
+                        organizationId: auth.organizationId,
+                        reportingManagerId: user.employee?.id,
+                    },
+                    select: { id: true },
+                });
+                if (!reportee) return new NextResponse("Employee not found", { status: 404 });
+            }
             where.employeeId = employeeId;
+        }
+        // Managers should only see their direct reportees' leaves
+        else if (user?.role === "manager" && user.employee) {
+            where.employee = {
+                organizationId: auth.organizationId,
+                reportingManagerId: user.employee.id,
+            };
         }
         // If regular employee (not admin/hr), only see own leaves
         // EXCEPTION: If viewing approved leaves (Calendar View), allow seeing all
@@ -54,6 +74,20 @@ export async function GET(req: Request) {
 
         if (status) {
             where.status = status;
+        }
+
+        if (year && month) {
+            const y = Number(year);
+            const m = Number(month);
+            if (Number.isInteger(y) && Number.isInteger(m) && m >= 1 && m <= 12) {
+                const start = new Date(Date.UTC(y, m - 1, 1));
+                const end = new Date(Date.UTC(y, m, 1));
+                where.OR = [
+                    { fromDate: { gte: start, lt: end } },
+                    { toDate: { gte: start, lt: end } },
+                    { AND: [{ fromDate: { lt: start } }, { toDate: { gte: end } }] },
+                ];
+            }
         }
 
         const [applications, total] = await Promise.all([
@@ -120,6 +154,10 @@ export async function POST(req: Request) {
             return new NextResponse("Employee profile not found", { status: 400 });
         }
 
+        if (user.employee.employmentStatus !== "active" || user.employee.deletedAt) {
+            return new NextResponse("Inactive employees cannot apply for leave", { status: 403 });
+        }
+
         const json = await req.json();
         const {
             leaveTypeId, fromDate, toDate, halfDay, halfDayType, reason, documents,
@@ -136,8 +174,11 @@ export async function POST(req: Request) {
         }
 
         // ── Validation 2: Fetch Leave Type ──
-        const leaveType = await prisma.leaveType.findUnique({
-            where: { id: leaveTypeId },
+        const leaveType = await prisma.leaveType.findFirst({
+            where: {
+                id: leaveTypeId,
+                organizationId: auth.organizationId,
+            },
         });
 
         if (!leaveType) {

@@ -11,29 +11,29 @@ import { P, staggerContainer, staggerItem } from "./shared";
 const badges = [
     {
         icon: Shield,
-        title: "BLA 2006 Compliant",
-        description: "Full automation of Bangladesh Labour Act requirements — leave, maternity, PF, and festival bonus rules enforced at the database level.",
+        title: "Compliance-Oriented",
+        description: "Workflows for Bangladesh leave, maternity, PF, and festival bonus processes with configurable review before payroll finalization.",
         accentFrom: "#3B82F6",
         accentTo: "#6366F1",
     },
     {
         icon: Lock,
-        title: "AES-256 Encryption",
-        description: "Bank-grade encryption for all data at rest and in transit. Row-level security ensures tenant isolation across every query.",
+        title: "Tenant-Aware Access",
+        description: "Role-based access controls, tenant-scoped APIs, and secure-by-default deployment guidance for beta environments.",
         accentFrom: "#10B981",
         accentTo: "#059669",
     },
     {
         icon: Activity,
-        title: "99.9% Uptime SLA",
-        description: "Enterprise-grade infrastructure with automated failover, real-time health monitoring, and zero-downtime deployments.",
+        title: "Operational Monitoring",
+        description: "Health checks, worker separation, and documented deployment checks for teams preparing a controlled beta rollout.",
         accentFrom: "#8B5CF6",
         accentTo: "#7C3AED",
     },
     {
         icon: Award,
-        title: "SOC 2 Ready",
-        description: "Architecture designed for SOC 2 Type II compliance — audit trails, access controls, and data governance built into every layer.",
+        title: "Audit Trail Foundation",
+        description: "Administrative actions and core HR workflows are designed with traceability and reviewability in mind.",
         accentFrom: "#F59E0B",
         accentTo: "#D97706",
     },
@@ -170,7 +170,7 @@ export default function TrustBadgesSection() {
                                 className="text-xs font-semibold uppercase tracking-wider"
                                 style={{ color: P.blue }}
                             >
-                                Enterprise Security
+                                Beta Security Posture
                             </span>
                         </div>
                     </motion.div>
@@ -184,17 +184,17 @@ export default function TrustBadgesSection() {
                             className="bg-clip-text text-transparent"
                             style={{ backgroundImage: P.gradBrand }}
                         >
-                            Zero-Compromise
+                            Controlled HR Data
                         </span>{" "}
-                        Security
+                        Operations
                     </motion.h2>
                     <motion.p
                         variants={staggerItem}
                         className="text-lg max-w-2xl mx-auto"
                         style={{ color: P.body }}
                     >
-                        Your workforce data deserves the same protection as your banking credentials.
-                        Every layer of PeopleFlow is hardened for enterprise trust.
+                        PeopleFlow is being hardened for beta teams with tenant-aware access,
+                        scoped APIs, operational checks, and documented deployment practices.
                     </motion.p>
                 </motion.div>
 

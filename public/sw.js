@@ -1,13 +1,12 @@
 // Service Worker for PeopleFlow HRMS
-// Handles caching, offline support, and background sync
+// Handles static caching, offline navigation fallback, and push notifications
 
 const CACHE_NAME = 'peopleflow-v1';
 const OFFLINE_URL = '/offline.html';
+const CACHEABLE_DESTINATIONS = new Set(['script', 'style', 'image', 'font', 'manifest']);
 
 // Resources to cache on install
 const STATIC_CACHE = [
-    '/',
-    '/login',
     '/manifest.json',
     '/offline.html',
 ];
@@ -37,7 +36,7 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event - network first, then cache
+// Fetch event - network first for static assets; never cache authenticated pages.
 self.addEventListener('fetch', (event) => {
     // Skip cross-origin requests
     if (!event.request.url.startsWith(self.location.origin)) {
@@ -51,6 +50,17 @@ self.addEventListener('fetch', (event) => {
 
     // Only cache GET requests (POST, PUT, DELETE cannot be cached)
     if (event.request.method !== 'GET') {
+        return;
+    }
+
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+        );
+        return;
+    }
+
+    if (!CACHEABLE_DESTINATIONS.has(event.request.destination)) {
         return;
     }
 
@@ -82,26 +92,6 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// Background sync for leave applications
-self.addEventListener('sync', (event) => {
-    if (event.tag === 'sync-leaves') {
-        event.waitUntil(syncPendingLeaves());
-    }
-    if (event.tag === 'sync-expenses') {
-        event.waitUntil(syncPendingExpenses());
-    }
-});
-
-async function syncPendingLeaves() {
-    // Get pending leaves from IndexedDB and sync
-    console.log('PeopleFlow: Syncing pending leaves');
-}
-
-async function syncPendingExpenses() {
-    // Get pending expenses from IndexedDB and sync
-    console.log('PeopleFlow: Syncing pending expenses');
-}
-
 // Push notifications
 self.addEventListener('push', (event) => {
     const data = event.data?.json() || {};
@@ -109,7 +99,7 @@ self.addEventListener('push', (event) => {
     const options = {
         body: data.body || '',
         icon: '/icons/icon-192x192.png',
-        badge: '/icons/badge.png',
+        badge: '/icons/icon-192x192.png',
         vibrate: [100, 50, 100],
         data: {
             url: data.url || '/',

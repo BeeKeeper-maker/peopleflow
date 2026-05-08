@@ -50,7 +50,7 @@ export default function ManagerLeavesPage() {
                         employeeDesignation: app.employee?.designation?.name || "N/A",
                         employeeAvatar: app.employee?.avatar,
                         leaveType: app.leaveType?.name || "Leave",
-                        fromDate: app.startDate, toDate: app.endDate,
+                        fromDate: app.fromDate, toDate: app.toDate,
                         days: app.totalDays || 1,
                         status: app.status?.toLowerCase() || "pending",
                         reason: app.reason || "",

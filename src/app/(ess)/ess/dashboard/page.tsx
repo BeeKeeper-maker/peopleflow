@@ -7,6 +7,7 @@ import {
     Calendar,
     Clock,
     Receipt,
+    Smartphone,
     Target,
     ChevronRight,
     ArrowUpRight,
@@ -24,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
 import { toBengaliNumber } from "@/lib/i18n-utils";
+import { useInstallPrompt } from "@/components/pwa/register";
 
 interface LeaveBalance {
     leaveType: {
@@ -61,6 +63,7 @@ export default function ESSDashboardPage() {
     const { data: session } = useSession();
     const t = useTranslations('ESS');
     const { addToast } = useToast();
+    const { canInstall, promptInstall } = useInstallPrompt();
     const [isLoading, setIsLoading] = useState(true);
     const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
     const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
@@ -166,6 +169,17 @@ export default function ESSDashboardPage() {
         fetchData();
     }, []);
 
+    const handleInstallApp = async () => {
+        const outcome = await promptInstall();
+        if (outcome === "unavailable") {
+            addToast({
+                title: "Install PeopleFlow",
+                description: "Use your browser menu and choose Add to Home Screen / Install App.",
+                type: "info",
+            });
+        }
+    };
+
     const handleCheckIn = async () => {
         setIsCheckingIn(true);
         try {
@@ -246,17 +260,35 @@ export default function ESSDashboardPage() {
 
     return (
         <div className="space-y-6">
+            {/* Mobile app install prompt */}
+            <Card className="md:hidden bg-blue-500/10 border-blue-500/20">
+                <CardContent className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 rounded-xl bg-blue-500/15 flex items-center justify-center shrink-0">
+                            <Smartphone className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground">PeopleFlow mobile app</p>
+                            <p className="text-xs text-muted-foreground truncate">Install for fast attendance, leave and payslip access</p>
+                        </div>
+                    </div>
+                    <Button size="sm" onClick={handleInstallApp} className="shrink-0">
+                        {canInstall ? "Install" : "How"}
+                    </Button>
+                </CardContent>
+            </Card>
+
             {/* Welcome Section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16 border-2 border-card-border">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-card-border">
                         <AvatarImage src={user?.image || undefined} />
                         <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-xl">
                             {firstName[0]}
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">
+                        <h1 className="text-xl sm:text-2xl font-bold text-foreground">
                             {getGreeting()}, {firstName}! 👋
                         </h1>
                         <p className="text-muted-foreground mt-1">
@@ -266,7 +298,7 @@ export default function ESSDashboardPage() {
                 </div>
 
                 {/* Today's Status */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                     {todayStatus.checkedIn ? (
                         <>
                             <div className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20">
@@ -290,7 +322,7 @@ export default function ESSDashboardPage() {
                                 </div>
                             ) : (
                                 <Button
-                                    className="bg-red-600 hover:bg-red-500"
+                                    className="bg-red-600 hover:bg-red-500 w-full sm:w-auto"
                                     onClick={handleCheckOut}
                                     disabled={isCheckingOut}
                                 >
@@ -305,7 +337,7 @@ export default function ESSDashboardPage() {
                         </>
                     ) : (
                         <Button
-                            className="bg-blue-600 hover:bg-blue-500"
+                            className="bg-blue-600 hover:bg-blue-500 w-full sm:w-auto"
                             onClick={handleCheckIn}
                             disabled={isCheckingIn}
                         >
@@ -422,7 +454,7 @@ export default function ESSDashboardPage() {
                             {attendance ? (
                                 <>
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                                             <CheckCircle2 className="h-5 w-5 text-green-400" />
                                             <span className="text-foreground">{t('present')}</span>
                                         </div>
@@ -431,7 +463,7 @@ export default function ESSDashboardPage() {
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/10">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                                             <XCircle className="h-5 w-5 text-red-400" />
                                             <span className="text-foreground">{t('absent')}</span>
                                         </div>
@@ -440,7 +472,7 @@ export default function ESSDashboardPage() {
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                                             <AlertCircle className="h-5 w-5 text-yellow-400" />
                                             <span className="text-foreground">{t('late')}</span>
                                         </div>
@@ -449,7 +481,7 @@ export default function ESSDashboardPage() {
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10">
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                                             <Calendar className="h-5 w-5 text-blue-400" />
                                             <span className="text-foreground">{t('onLeave')}</span>
                                         </div>

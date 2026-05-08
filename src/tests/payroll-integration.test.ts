@@ -182,7 +182,7 @@ describe("calculateSalary() — Full Pipeline", () => {
         vi.mocked(prisma.attendance.findMany).mockResolvedValue(buildAttendanceRecords(19) as never);
         // 2 days of approved leave
         vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([
-            { id: "lv-1", totalDays: 2, status: "approved" },
+            { id: "lv-1", totalDays: 2, status: "approved", fromDate: new Date(2026, 3, 6), toDate: new Date(2026, 3, 7), halfDay: false },
         ] as never);
         vi.mocked(prisma.loan.findMany).mockResolvedValue([] as never);
 
@@ -192,6 +192,60 @@ describe("calculateSalary() — Full Pipeline", () => {
         expect(result.leaveDays).toBe(2);
         // 22 working - 19 present - 2 leave = MAX(0, 1) = 1 absent
         expect(result.absentDays).toBe(1);
+    });
+
+    it("counts only the payroll-month portion of cross-month approved leave", async () => {
+        const assignment = buildMockAssignment();
+        vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);
+        vi.mocked(prisma.attendance.findMany).mockResolvedValue(buildAttendanceRecords(20) as never);
+        vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([
+            { id: "lv-cross", totalDays: 4, status: "approved", fromDate: new Date(2026, 2, 30), toDate: new Date(2026, 3, 2), halfDay: false },
+        ] as never);
+        vi.mocked(prisma.loan.findMany).mockResolvedValue([] as never);
+
+        const result = await calculateSalary({ employeeId: "emp-001", month: 4, year: 2026 });
+
+        expect(result.leaveDays).toBe(2);
+        expect(result.absentDays).toBe(0);
+    });
+
+    it("treats late attendance as present so salary is not double-penalized", async () => {
+        const assignment = buildMockAssignment();
+        vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);
+        vi.mocked(prisma.attendance.findMany).mockResolvedValue([
+            ...buildAttendanceRecords(21),
+            { id: "att-late", employeeId: "emp-001", date: new Date(2026, 3, 30), status: "late", overtimeMinutes: 0, lateMinutes: 15 },
+        ] as never);
+        vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([] as never);
+        vi.mocked(prisma.loan.findMany).mockResolvedValue([] as never);
+        vi.mocked(calculateLateDeduction).mockResolvedValue({
+            totalLateCount: 1, deductionAmount: 250, warnings: [], tierBreakdown: [],
+        });
+
+        const result = await calculateSalary({ employeeId: "emp-001", month: 4, year: 2026 });
+
+        expect(result.presentDays).toBe(22);
+        expect(result.absentDays).toBe(0);
+        expect(result.lateDeduction).toBe(250);
+    });
+
+    it("supports half-day leave/attendance as fractional payroll days", async () => {
+        const assignment = buildMockAssignment();
+        vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);
+        vi.mocked(prisma.attendance.findMany).mockResolvedValue([
+            ...buildAttendanceRecords(21),
+            { id: "att-half", employeeId: "emp-001", date: new Date(2026, 3, 30), status: "half_day", overtimeMinutes: 0, lateMinutes: 0 },
+        ] as never);
+        vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([
+            { id: "lv-half", totalDays: 0.5, status: "approved", fromDate: new Date(2026, 3, 30), toDate: new Date(2026, 3, 30), halfDay: true },
+        ] as never);
+        vi.mocked(prisma.loan.findMany).mockResolvedValue([] as never);
+
+        const result = await calculateSalary({ employeeId: "emp-001", month: 4, year: 2026 });
+
+        expect(result.presentDays).toBe(21.5);
+        expect(result.leaveDays).toBe(0.5);
+        expect(result.absentDays).toBe(0);
     });
 
     it("includes overtime in gross earnings", async () => {

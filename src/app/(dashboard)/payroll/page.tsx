@@ -105,10 +105,12 @@ export default function PayrollPage() {
             ])
 
             if (assignmentsRes.ok) {
-                setAssignments(await assignmentsRes.json())
+                const assignmentsData = await assignmentsRes.json()
+                setAssignments(Array.isArray(assignmentsData) ? assignmentsData : assignmentsData.data || [])
             }
             if (slipsRes.ok) {
-                setSlips(await slipsRes.json())
+                const slipsData = await slipsRes.json()
+                setSlips(Array.isArray(slipsData) ? slipsData : slipsData.data || slipsData.slips || [])
             }
         } catch (error) {
             console.error("Failed to fetch payroll data", error)

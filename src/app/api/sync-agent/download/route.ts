@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { apiLogger } from "@/lib/logger";
+import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 
 /**
  * GET /api/sync-agent/download — Serves the sync agent script as a download
@@ -16,9 +17,15 @@ import { apiLogger } from "@/lib/logger";
  *   ?key=pf_sync_xxx — Optional: pre-bake the API key into the script
  */
 export async function GET(req: Request) {
+    const auth = await requireAdminOrHR();
+    if (!isAuthenticated(auth)) return auth;
+
     try {
         const url = new URL(req.url);
         const apiKey = url.searchParams.get("key") || "";
+        if (apiKey && !apiKey.startsWith("pf_sync_")) {
+            return new NextResponse("Invalid sync key format", { status: 400 });
+        }
         
         // Determine the cloud URL from the request
         const proto = req.headers.get("x-forwarded-proto") || "https";
@@ -41,8 +48,8 @@ export async function GET(req: Request) {
         // Replace the interactive config-loading section with pre-baked values
         const configOverride = `
 // ── Pre-configured by PeopleFlow Dashboard ──────────────────────────
-const PRE_CONFIGURED_URL = "${cloudUrl}";
-const PRE_CONFIGURED_KEY = "${apiKey}";
+const PRE_CONFIGURED_URL = ${JSON.stringify(cloudUrl)};
+const PRE_CONFIGURED_KEY = ${JSON.stringify(apiKey)};
 `;
         // Inject after the constants section
         script = script.replace(
@@ -134,8 +141,8 @@ async function getConfig() {
 function generateInlineAgent(): string {
     // Minimal fallback — shouldn't normally be needed
     return `#!/usr/bin/env node
-apiLogger.info("PeopleFlow Sync Agent");
-apiLogger.info("Error: Agent template not found. Please contact support.");
+console.log("PeopleFlow Sync Agent");
+console.error("Error: Agent template not found. Please contact support.");
 process.exit(1);
 `;
 }

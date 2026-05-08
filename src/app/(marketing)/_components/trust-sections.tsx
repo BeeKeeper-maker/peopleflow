@@ -11,20 +11,20 @@ export function CostOfInaction() {
     const costs = [
         {
             icon: AlertTriangle,
-            title: "৳50,000+ / Year in BLA Fines",
-            description: "Section 289 of BLA 2006 mandates specific leave, maternity, and overtime calculations. Manual payroll gets them wrong. Inspectors notice.",
+            title: "Manual Compliance Review Risk",
+            description: "Bangladesh leave, maternity, and overtime rules need careful review. Spreadsheets make those checks harder to audit consistently.",
             color: "#F43F5E",
         },
         {
             icon: Ban,
-            title: "3-8% Payroll Leakage",
-            description: "Ghost attendance, incorrect overtime, miscalculated PF contributions — spreadsheet-based HR leaks money every single month.",
+            title: "Payroll Leakage Exposure",
+            description: "Ghost attendance, incorrect overtime, and PF calculation mistakes can create avoidable payroll leakage without structured review.",
             color: "#F59E0B",
         },
         {
             icon: Clock,
-            title: "40+ HR Hours Wasted Monthly",
-            description: "Your HR team manually cross-references biometric logs, calculates late deductions, and processes leave approvals. That ends today.",
+            title: "Manual HR Review Load",
+            description: "HR teams often cross-reference biometric logs, late deductions, and leave approvals manually before payroll close.",
             color: "#8B5CF6",
         },
     ];
@@ -44,8 +44,8 @@ export function CostOfInaction() {
                         <span className="text-sm text-[#F43F5E] font-semibold">The Cost of Doing Nothing</span>
                     </div>
                     <h2 className="text-3xl sm:text-4xl lg:text-[3.25rem] font-bold text-white tracking-tight leading-[1.15] mb-5">
-                        Every Month Without PeopleFlow{" "}
-                        <span className="bg-linear-to-r from-[#F43F5E] to-[#F59E0B] bg-clip-text text-transparent">Costs You</span>
+                        Manual HR Operations{" "}
+                        <span className="bg-linear-to-r from-[#F43F5E] to-[#F59E0B] bg-clip-text text-transparent">Create Risk</span>
                     </h2>
                 </motion.div>
 
@@ -82,10 +82,10 @@ export function TrustBadges() {
     const { ref, isInView } = useInView(0.2);
 
     const badges = [
-        { icon: Shield, label: "BLA 2006 Compliant", sub: "Full Labor Act Coverage", color: "#3B82F6" },
-        { icon: Lock, label: "Bank-Grade Encryption", sub: "AES-256 + TLS 1.3", color: "#8B5CF6" },
-        { icon: TrendingUp, label: "99.9% Uptime SLA", sub: "Enterprise Availability", color: "#10B981" },
-        { icon: Globe, label: "SOC 2 Ready", sub: "Audit-Grade Security", color: "#F59E0B" },
+        { icon: Shield, label: "Compliance-Oriented", sub: "Configurable HR review flows", color: "#3B82F6" },
+        { icon: Lock, label: "Tenant-Aware Access", sub: "Scoped roles and APIs", color: "#8B5CF6" },
+        { icon: TrendingUp, label: "Beta Monitoring", sub: "Health and worker checks", color: "#10B981" },
+        { icon: Globe, label: "Deployment Guidance", sub: "Coolify runbook support", color: "#F59E0B" },
     ];
 
     return (
@@ -118,10 +118,10 @@ export function TrustBadges() {
 export function StatsBanner() {
     const { ref, isInView } = useInView(0.2);
     const stats = [
-        { value: 500, suffix: "+", label: "Organizations", icon: Building2 },
-        { value: 50000, suffix: "+", label: "Employees Managed", icon: Users },
-        { value: 99, suffix: ".9%", label: "Uptime SLA", icon: TrendingUp },
-        { value: 24, suffix: "/7", label: "Support Access", icon: Globe },
+        { value: 4, suffix: "", label: "Core HR Modules", icon: Building2 },
+        { value: 12, suffix: "+", label: "Beta Workflows", icon: Users },
+        { value: 2, suffix: "", label: "Worker Processes", icon: TrendingUp },
+        { value: 1, suffix: "", label: "Coolify Runbook", icon: Globe },
     ];
 
     return (

@@ -56,10 +56,21 @@ export default function ApplyLeavePage() {
     useEffect(() => {
         const fetchLeaveTypes = async () => {
             try {
-                const res = await fetch("/api/leaves/types");
+                const res = await fetch("/api/leaves/allocations");
                 if (res.ok) {
                     const data = await res.json();
-                    setLeaveTypes(data.data || data || []);
+                    const allocations = Array.isArray(data) ? data : data.data || [];
+                    setLeaveTypes(allocations.map((allocation: {
+                        leaveType: { id: string; name: string; nameBn?: string; code: string; annualAllocation: number };
+                        remainingDays: number;
+                    }) => ({
+                        id: allocation.leaveType.id,
+                        name: allocation.leaveType.name,
+                        nameBn: allocation.leaveType.nameBn,
+                        code: allocation.leaveType.code,
+                        maxDaysPerYear: allocation.leaveType.annualAllocation,
+                        remainingDays: allocation.remainingDays,
+                    })));
                 }
             } catch (error) {
                 console.error("Error fetching leave types:", error);
@@ -120,7 +131,7 @@ export default function ApplyLeavePage() {
                     fromDate: formData.startDate,
                     toDate: formData.endDate,
                     reason: formData.reason,
-                    isHalfDay: formData.isHalfDay,
+                    halfDay: formData.isHalfDay,
                     halfDayType: formData.halfDayType || undefined,
                     totalDays,
                 }),

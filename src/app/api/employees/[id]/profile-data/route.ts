@@ -27,6 +27,15 @@ export async function GET(
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     try {
+        const employee = await prisma.employee.findFirst({
+            where: { id, organizationId: auth.organizationId, deletedAt: null },
+            select: { id: true },
+        });
+
+        if (!employee) {
+            return new NextResponse("Employee not found", { status: 404 });
+        }
+
         const [
             attendance90d,
             leaveAllocations,

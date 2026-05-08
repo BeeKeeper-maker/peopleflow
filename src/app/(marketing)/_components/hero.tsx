@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Star, Shield, Users, BarChart3, Calendar, Fingerprint, ChevronDown, Play, Zap } from "lucide-react";
+import { ArrowRight, Shield, Users, BarChart3, Calendar, Fingerprint, ChevronDown, Play, Zap } from "lucide-react";
 import { P, fadeUp, useMouseTilt } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
@@ -54,11 +54,11 @@ export default function HeroCinematic({ onBookDemo }: { onBookDemo: () => void }
                                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
                                 <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                             </div>
-                            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Live</span>
+                            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Beta</span>
                         </div>
                         <div className="w-px h-3.5" style={{ background: P.border }} />
                         <span className="text-sm font-medium" style={{ color: "#ADC6FF" }}>
-                            🇧🇩 Trusted by 500+ Organizations
+                            Bangladesh-focused HRMS beta
                         </span>
                     </motion.div>
 
@@ -94,10 +94,9 @@ export default function HeroCinematic({ onBookDemo }: { onBookDemo: () => void }
                         className="text-lg sm:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
                         style={{ color: P.body }}
                     >
-                        Every month without PeopleFlow, your factory loses{" "}
-                        <span className="font-semibold text-white">৳2–5 lakh</span> to
-                        payroll errors, BLA 2006 non-compliance fines, and ghost attendance.{" "}
-                        <span className="font-medium" style={{ color: P.emerald }}>We eliminate 100% of that.</span>
+                        PeopleFlow helps HR teams evaluate payroll, leave, attendance, and approval workflows
+                        built around Bangladesh operating needs.{" "}
+                        <span className="font-medium" style={{ color: P.emerald }}>Built for controlled beta validation before wider rollout.</span>
                     </motion.p>
 
                     {/* ── CTAs ── */}
@@ -178,15 +177,13 @@ export default function HeroCinematic({ onBookDemo }: { onBookDemo: () => void }
                                 ))}
                             </div>
                             <span className="text-sm" style={{ color: P.muted }}>
-                                <span className="text-white font-semibold">500+</span> organizations
+                                Pilot-ready workflows
                             </span>
                         </div>
                         <div className="hidden sm:block w-px h-6" style={{ background: P.border }} />
                         <div className="flex items-center gap-1.5">
-                            {[...Array(5)].map((_, i) => (
-                                <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                            ))}
-                            <span className="text-sm ml-1" style={{ color: P.muted }}>4.9/5 rating</span>
+                            <Shield className="w-4 h-4" style={{ color: P.emerald }} />
+                            <span className="text-sm ml-1" style={{ color: P.muted }}>Tenant-aware access controls</span>
                         </div>
                     </motion.div>
                 </div>
@@ -419,7 +416,7 @@ function DashboardMockup3D() {
                     <div className="w-2 h-2 rounded-full" style={{ background: P.emerald }} />
                     <div className="absolute inset-0 w-2 h-2 rounded-full animate-ping" style={{ background: P.emerald }} />
                 </div>
-                <span className="text-xs font-semibold" style={{ color: P.emerald }}>All Systems Active</span>
+                <span className="text-xs font-semibold" style={{ color: P.emerald }}>Beta Checks Active</span>
             </div>
 
             {/* ── Floating Compliance Badge — Bottom Left ── */}
@@ -434,7 +431,7 @@ function DashboardMockup3D() {
                 }}
             >
                 <Shield className="w-3.5 h-3.5" style={{ color: "#A5B4FC" }} />
-                <span className="text-xs font-semibold" style={{ color: "#A5B4FC" }}>BLA 2006 Compliant</span>
+                <span className="text-xs font-semibold" style={{ color: "#A5B4FC" }}>Compliance-Oriented Workflows</span>
             </div>
         </div>
     );

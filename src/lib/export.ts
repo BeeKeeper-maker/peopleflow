@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
 import { exportLogger } from "@/lib/logger"
 
@@ -7,8 +6,22 @@ interface ExportOptions {
     sheetName?: string
 }
 
+function sanitizeSpreadsheetValue(value: unknown): string {
+    const stringValue = String(value ?? "")
+    return /^[=+\-@]/.test(stringValue) ? `'${stringValue}` : stringValue
+}
+
+function escapeHtml(value: unknown): string {
+    return sanitizeSpreadsheetValue(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;")
+}
+
 /**
- * Export data to Excel (.xlsx) format
+ * Export data to an Excel-compatible HTML workbook without the vulnerable xlsx dependency.
  */
 export function exportToExcel<T extends Record<string, any>>(
     data: T[],
@@ -16,34 +29,28 @@ export function exportToExcel<T extends Record<string, any>>(
 ): void {
     const { filename, sheetName = "Sheet1" } = options
 
-    // Create workbook and worksheet
-    const workbook = XLSX.utils.book_new()
-    const worksheet = XLSX.utils.json_to_sheet(data)
+    if (data.length === 0) {
+        exportLogger.warn("No data to export")
+        return
+    }
 
-    // Auto-size columns
-    const colWidths = Object.keys(data[0] || {}).map((key) => {
-        const maxLength = Math.max(
-            key.length,
-            ...data.map((row) => String(row[key] || "").length)
-        )
-        return { wch: Math.min(maxLength + 2, 50) }
-    })
-    worksheet["!cols"] = colWidths
+    const headers = Object.keys(data[0])
+    const headerRow = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")
+    const bodyRows = data
+        .map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header])}</td>`).join("")}</tr>`)
+        .join("")
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+    const workbookHtml = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>${escapeHtml(sheetName)}</title></head>
+<body><table><thead><tr>${headerRow}</tr></thead><tbody>${bodyRows}</tbody></table></body>
+</html>`
 
-    // Generate buffer
-    const excelBuffer = XLSX.write(workbook, {
-        bookType: "xlsx",
-        type: "array",
-    })
-
-    // Create blob and save
-    const blob = new Blob([excelBuffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    const blob = new Blob([workbookHtml], {
+        type: "application/vnd.ms-excel;charset=utf-8;",
     })
 
-    saveAs(blob, `${filename}.xlsx`)
+    saveAs(blob, `${filename}.xls`)
 }
 
 /**
@@ -68,7 +75,7 @@ export function exportToCSV<T extends Record<string, any>>(
                 .map((header) => {
                     const value = row[header]
                     // Escape quotes and wrap in quotes if contains comma
-                    const stringValue = String(value ?? "")
+                    const stringValue = sanitizeSpreadsheetValue(value)
                     if (stringValue.includes(",") || stringValue.includes('"')) {
                         return `"${stringValue.replace(/"/g, '""')}"`
                     }

@@ -16,6 +16,7 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
+import { verify as verifyTOTP } from "otplib";
 import bcrypt from "bcryptjs";
 import type { DefaultSession } from "next-auth";
 import { authConfig } from "@/lib/auth.config";
@@ -28,18 +29,24 @@ declare module "next-auth" {
             id: string;
             role: string;
             organizationId?: string;
+            organizationStatus?: string;
+            sessionVersion?: number;
         } & DefaultSession["user"];
     }
 
     interface User {
         role: string;
         organizationId?: string;
+        organizationStatus?: string;
+        sessionVersion?: number;
     }
 
     interface JWT {
         id?: string;
         role?: string;
         organizationId?: string;
+        organizationStatus?: string;
+        sessionVersion?: number;
     }
 }
 
@@ -55,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             credentials: {
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
+                twoFactorCode: { label: "Authenticator Code", type: "text" },
             },
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) {
@@ -63,6 +71,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
                 const user = await prisma.user.findUnique({
                     where: { email: credentials.email as string },
+                    include: {
+                        organization: { select: { status: true } },
+                    },
                 });
 
                 if (!user || !user.password) {
@@ -82,8 +93,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     throw new Error("Account is inactive");
                 }
 
+                if (!user.organizationId || user.organization?.status !== "active") {
+                    throw new Error("Organization is not active");
+                }
+
                 if (!user.emailVerified) {
                     throw new Error("Please verify your email address before logging in.");
+                }
+
+                if (user.twoFactorEnabled) {
+                    if (!user.twoFactorSecret) {
+                        throw new Error("Two-factor authentication is misconfigured. Please contact your administrator.");
+                    }
+
+                    const token = typeof credentials.twoFactorCode === "string"
+                        ? credentials.twoFactorCode.replace(/\s+/g, "")
+                        : "";
+
+                    if (!token) {
+                        throw new Error("Two-factor authentication code is required.");
+                    }
+
+                    const isValidToken = verifyTOTP({ token, secret: user.twoFactorSecret });
+                    if (!isValidToken) {
+                        throw new Error("Invalid two-factor authentication code.");
+                    }
                 }
 
                 return {
@@ -92,6 +126,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                     email: user.email,
                     role: user.role,
                     organizationId: user.organizationId || undefined,
+                    organizationStatus: user.organization.status,
+                    sessionVersion: user.sessionVersion,
                 };
             },
         }),

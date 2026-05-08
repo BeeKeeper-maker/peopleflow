@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function PWARegister() {
     useEffect(() => {
@@ -10,7 +10,6 @@ export function PWARegister() {
                 .register("/sw.js")
                 .then((registration) => {
                     if (process.env.NODE_ENV === "development") {
-                        // eslint-disable-next-line no-console
                         console.log("PeopleFlow SW registered:", registration.scope);
                     }
 
@@ -27,11 +26,13 @@ export function PWARegister() {
             window.addEventListener("beforeinstallprompt", (e: Event) => {
                 e.preventDefault();
                 deferredPrompt = e as BeforeInstallPromptEvent;
+                window.deferredPrompt = deferredPrompt;
             });
 
             // Detect successful install
             window.addEventListener("appinstalled", () => {
                 deferredPrompt = null;
+                window.deferredPrompt = undefined;
             });
         }
     }, []);
@@ -54,18 +55,33 @@ declare global {
 
 // Hook to trigger install prompt
 export function useInstallPrompt() {
+    const [canInstall, setCanInstall] = useState(false);
+
+    useEffect(() => {
+        const updateAvailability = () => setCanInstall(Boolean(window.deferredPrompt));
+        updateAvailability();
+        window.addEventListener("peopleflow-install-available", updateAvailability);
+        window.addEventListener("peopleflow-installed", updateAvailability);
+        return () => {
+            window.removeEventListener("peopleflow-install-available", updateAvailability);
+            window.removeEventListener("peopleflow-installed", updateAvailability);
+        };
+    }, []);
+
     const promptInstall = async () => {
         const deferredPrompt = window.deferredPrompt;
         if (deferredPrompt) {
             deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
             if (process.env.NODE_ENV === "development") {
-                // eslint-disable-next-line no-console
                 console.log(`User ${outcome === "accepted" ? "accepted" : "dismissed"} install`);
             }
             window.deferredPrompt = undefined;
+            setCanInstall(false);
+            return outcome;
         }
+        return "unavailable" as const;
     };
 
-    return { promptInstall };
+    return { canInstall, promptInstall };
 }

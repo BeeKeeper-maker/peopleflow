@@ -43,6 +43,8 @@ export const authConfig: NextAuthConfig = {
                 token.id = user.id;
                 token.role = user.role;
                 token.organizationId = user.organizationId;
+                token.organizationStatus = user.organizationStatus;
+                token.sessionVersion = user.sessionVersion;
             }
             return token;
         },
@@ -54,6 +56,8 @@ export const authConfig: NextAuthConfig = {
                     id: token.id as string,
                     role: token.role as string,
                     organizationId: token.organizationId as string | undefined,
+                    organizationStatus: token.organizationStatus as string | undefined,
+                    sessionVersion: typeof token.sessionVersion === "number" ? token.sessionVersion : 0,
                 },
             };
         },

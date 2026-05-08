@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Navigation & Layout E2E Tests
@@ -7,18 +7,21 @@ import { test, expect } from '@playwright/test';
  * with STRICT assertions - no loose regex shortcuts!
  */
 
-test.describe('Public Pages', () => {
-    test('should redirect homepage to login for unauthenticated users', async ({ page }) => {
-        await page.goto('/');
-        await page.waitForLoadState('networkidle');
+async function gotoDomReady(page: Page, path: string) {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+}
 
-        // STRICT: Homepage should redirect unauthenticated users to login
-        await expect(page).toHaveURL(/\/login/);
+test.describe('Public Pages', () => {
+    test('should allow unauthenticated users to view the public homepage', async ({ page }) => {
+        await gotoDomReady(page, '/');
+
+        // Public marketing homepage is intentionally available without a session.
+        await expect(page).toHaveURL(/\/$/);
+        await expect(page.getByText('Bangladesh-focused HRMS beta')).toBeVisible();
     });
 
     test('should have proper meta viewport tag', async ({ page }) => {
-        await page.goto('/login');
-        await page.waitForLoadState('domcontentloaded');
+        await gotoDomReady(page, '/login');
 
         // Check meta viewport exists for mobile responsiveness
         const viewport = page.locator('meta[name="viewport"]');
@@ -32,8 +35,7 @@ test.describe('Public Pages', () => {
 
 test.describe('Accessibility', () => {
     test('should have main content area', async ({ page }) => {
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // Page must have a main content wrapper
         const mainContent = page.locator('main, [role="main"]');
@@ -49,8 +51,7 @@ test.describe('Accessibility', () => {
     });
 
     test('should have proper heading structure', async ({ page }) => {
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // Must have at least one heading for accessibility
         const h1 = page.locator('h1');
@@ -64,8 +65,7 @@ test.describe('Accessibility', () => {
     });
 
     test('should have labeled form inputs', async ({ page }) => {
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // Email input must exist and be accessible
         const emailInput = page.locator('input[type="email"]');
@@ -85,8 +85,7 @@ test.describe('Responsive Design', () => {
     test('should be usable on mobile viewport (375x667)', async ({ page }) => {
         // iPhone SE viewport
         await page.setViewportSize({ width: 375, height: 667 });
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // All critical elements must be visible on mobile
         await expect(page.locator('input[type="email"]')).toBeVisible();
@@ -100,8 +99,7 @@ test.describe('Responsive Design', () => {
     test('should be usable on tablet viewport (768x1024)', async ({ page }) => {
         // iPad viewport
         await page.setViewportSize({ width: 768, height: 1024 });
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // All elements must be visible
         await expect(page.locator('input[type="email"]')).toBeVisible();
@@ -111,8 +109,7 @@ test.describe('Responsive Design', () => {
     test('should be usable on desktop viewport (1440x900)', async ({ page }) => {
         // Desktop viewport
         await page.setViewportSize({ width: 1440, height: 900 });
-        await page.goto('/login');
-        await page.waitForLoadState('networkidle');
+        await gotoDomReady(page, '/login');
 
         // All elements must be visible
         await expect(page.locator('input[type="email"]')).toBeVisible();

@@ -78,7 +78,7 @@ export default function ManagerDashboardPage() {
         const fetchData = async () => {
             try {
                 // Fetch employees
-                const employeesRes = await fetch("/api/employees");
+                const employeesRes = await fetch("/api/manager/team");
                 if (employeesRes.ok) {
                     const data = await employeesRes.json();
                     const employees = data.data || data || [];

@@ -9,7 +9,9 @@
  */
 
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+import path from "path";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { getStorageService, FILE_TYPES } from "@/lib/storage";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
 import { storageLogger } from "@/lib/logger";
@@ -28,24 +30,88 @@ function sanitizeFilenamePrefix(prefix?: string): string | undefined {
     return sanitized || undefined;
 }
 
+function isHRLevel(role: string): boolean {
+    return ["super_admin", "admin", "hr_admin"].includes(role);
+}
+
+function canUploadToFolder(folder: string, role: string): boolean {
+    if (["receipts", "avatars"].includes(folder)) return true;
+    return isHRLevel(role);
+}
+
+function getTenantUploadPath(fileUrl: string, organizationId: string): string | null {
+    let pathname: string;
+    try {
+        pathname = new URL(fileUrl, "http://local").pathname;
+    } catch {
+        pathname = fileUrl;
+    }
+
+    let decodedPathname: string;
+    try {
+        decodedPathname = decodeURIComponent(pathname);
+    } catch {
+        return null;
+    }
+
+    const publicPrefix = "/api/uploads/";
+    if (!decodedPathname.startsWith(publicPrefix)) {
+        return null;
+    }
+
+    const relativePath = decodedPathname.slice(publicPrefix.length);
+    const normalized = path.posix.normalize(`/${relativePath}`).replace(/^\/+/, "");
+
+    if (!normalized.startsWith(`${organizationId}/`)) {
+        return null;
+    }
+
+    return normalized;
+}
+
 export async function POST(req: NextRequest) {
     try {
         // Auth check
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         // Parse form data
         const formData = await req.formData();
         const file = formData.get("file") as File | null;
         const requestedFolder = (formData.get("folder") as string) || "documents";
         const folder = FOLDER_TYPE_MAP[requestedFolder] ? requestedFolder : "documents";
-        const prefix = sanitizeFilenamePrefix(formData.get("prefix") as string | undefined);
+        const tenantFolder = `${auth.organizationId}/${folder}`;
+        const requestedPrefix = sanitizeFilenamePrefix(formData.get("prefix") as string | undefined);
+        const prefix = folder === "receipts" && auth.employeeId
+            ? `${auth.employeeId}-${requestedPrefix || "receipt"}`
+            : requestedPrefix;
+
+        if (!canUploadToFolder(folder, auth.role)) {
+            return errorResponse(
+                ErrorCodes.FORBIDDEN,
+                "Only HR administrators can upload files to this folder."
+            );
+        }
 
         // Validate file exists
         if (!file) {
             return errorResponse(ErrorCodes.VALIDATION_ERROR, "No file provided");
+        }
+
+        const planCheck = await enforcePlanLimit(auth.organizationId, "storage");
+        if (!planCheck.allowed) {
+            return errorResponse(
+                ErrorCodes.FORBIDDEN,
+                planCheck.message || "Storage is not available for your current plan",
+                {
+                    status: 402,
+                    details: {
+                        upgradeRequired: planCheck.upgradeRequired,
+                        current: planCheck.current,
+                        limit: planCheck.limit,
+                    },
+                }
+            );
         }
 
         // Get allowed file type for folder
@@ -54,7 +120,7 @@ export async function POST(req: NextRequest) {
         // Get storage service and upload
         const storage = getStorageService();
         const result = await storage.upload(file, {
-            folder,
+            folder: tenantFolder,
             allowedType,
             filenamePrefix: prefix,
         });
@@ -67,6 +133,8 @@ export async function POST(req: NextRequest) {
                 result.error.message
             );
         }
+
+        await onResourceCreated(auth.organizationId, "storage");
 
         return successResponse({
             url: result.file.url,
@@ -85,10 +153,8 @@ export async function POST(req: NextRequest) {
 // Handle file deletion — with ownership verification
 export async function DELETE(req: NextRequest) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const fileUrl = searchParams.get("url");
@@ -99,8 +165,16 @@ export async function DELETE(req: NextRequest) {
 
         // Ownership check: HR-level roles can delete any file.
         // Regular users can only delete files they uploaded (identified by email prefix in filename).
-        const userRole = (session.user as { role?: string }).role || "employee";
+        const userRole = auth.role;
         const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(userRole);
+
+        const tenantUploadPath = getTenantUploadPath(fileUrl, auth.organizationId);
+        if (!tenantUploadPath) {
+            return errorResponse(
+                ErrorCodes.FORBIDDEN,
+                "You can only delete files owned by your organization."
+            );
+        }
 
         if (!isHRLevel) {
             // For non-HR users, verify the file belongs to them.
@@ -114,7 +188,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         const storage = getStorageService();
-        await storage.delete(fileUrl);
+        await storage.delete(`/api/uploads/${tenantUploadPath}`);
 
         return successResponse({ deleted: true }, { message: "File deleted successfully" });
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -20,11 +20,12 @@ export default function LoginPage() {
     const [formData, setFormData] = useState({
         email: "",
         password: "",
+        twoFactorCode: "",
     });
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<{ email?: string; password?: string; twoFactorCode?: string }>({});
 
     const validateForm = () => {
-        const newErrors: { email?: string; password?: string } = {};
+        const newErrors: { email?: string; password?: string; twoFactorCode?: string } = {};
 
         if (!formData.email) {
             newErrors.email = t("emailRequired");
@@ -51,6 +52,7 @@ export default function LoginPage() {
             const result = await signIn("credentials", {
                 email: formData.email,
                 password: formData.password,
+                twoFactorCode: formData.twoFactorCode,
                 redirect: false,
             });
 
@@ -66,7 +68,14 @@ export default function LoginPage() {
                     title: t("toastWelcomeBack"),
                     description: t("toastLoginSuccess"),
                 });
-                router.push("/dashboard");
+                const session = await getSession();
+                const role = session?.user?.role;
+                const defaultRoute = role === "employee"
+                    ? "/ess/dashboard"
+                    : role === "manager"
+                        ? "/manager/dashboard"
+                        : "/dashboard";
+                router.push(defaultRoute);
                 router.refresh();
             }
         } catch (error) {
@@ -233,6 +242,23 @@ export default function LoginPage() {
                             />
                         </div>
 
+                        <Input
+                            label="Authenticator code"
+                            name="twoFactorCode"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="6-digit code if 2FA is enabled"
+                            value={formData.twoFactorCode}
+                            onChange={(e) =>
+                                setFormData({ ...formData, twoFactorCode: e.target.value })
+                            }
+                            error={errors.twoFactorCode}
+                            hint="Required only for accounts with two-factor authentication enabled."
+                            leftIcon={<KeyRound className="h-5 w-5" />}
+                            autoComplete="one-time-code"
+                            disabled={isLoading}
+                        />
+
                         <div className="flex items-center justify-between text-sm">
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -292,7 +318,7 @@ export default function LoginPage() {
                             <p className="text-xs text-white/40 mb-2">{t("demoCredentials")}</p>
                             <div className="space-y-1 text-sm text-white/60">
                                 <p><span className="text-white/40">{t("demoEmail")}</span> admin@demo.com</p>
-                                <p><span className="text-white/40">{t("demoPassword")}</span> Demo@123</p>
+                                <p><span className="text-white/40">{t("demoPassword")}</span> Admin@123</p>
                             </div>
                         </div>
                     )}

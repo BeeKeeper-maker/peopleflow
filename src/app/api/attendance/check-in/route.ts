@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireEmployee, isAuthenticated } from "@/lib/api-auth";
 import { startOfDay, differenceInMinutes, set } from "date-fns";
 import { attendanceLogger } from "@/lib/logger";
 import { validateGeoFence } from "@/lib/attendance-engine";
@@ -19,35 +19,30 @@ function getGeoFenceSettings(settings: unknown): {
 
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireEmployee();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+        const employee = await prisma.employee.findFirst({
+            where: { id: auth.employeeId, organizationId: auth.organizationId },
             include: {
-                employee: {
-                    include: {
-                        shift: true,
-                        branch: {
-                            select: {
-                                id: true,
-                                name: true,
-                                latitude: true,
-                                longitude: true,
-                                geoFenceRadius: true,
-                            },
-                        },
+                shift: true,
+                branch: {
+                    select: {
+                        id: true,
+                        name: true,
+                        latitude: true,
+                        longitude: true,
+                        geoFenceRadius: true,
                     },
-                },
-                organization: {
-                    select: { settings: true },
                 },
             },
         });
+        const organization = await prisma.organization.findUnique({
+            where: { id: auth.organizationId },
+            select: { settings: true },
+        });
 
-        if (!user?.employee) {
+        if (!employee) {
             return new NextResponse("Employee profile not found", { status: 400 });
         }
 
@@ -60,7 +55,7 @@ export async function POST(req: Request) {
         const existing = await prisma.attendance.findUnique({
             where: {
                 employeeId_date: {
-                    employeeId: user.employee.id,
+                    employeeId: employee.id,
                     date: today,
                 }
             }
@@ -71,12 +66,12 @@ export async function POST(req: Request) {
         }
 
         // ── GPS Geo-Fence Validation ──────────────────────────────
-        const geoSettings = getGeoFenceSettings(user.organization?.settings);
+        const geoSettings = getGeoFenceSettings(organization?.settings);
         let geoFenceStatus: "inside" | "outside" | "unchecked" = "unchecked";
         let geoFenceDistance: number | null = null;
 
         if (geoSettings.enabled && location?.lat && location?.lng) {
-            const branch = user.employee.branch;
+            const branch = employee.branch;
 
             if (branch?.latitude && branch?.longitude) {
                 const geoResult = validateGeoFence(
@@ -91,7 +86,7 @@ export async function POST(req: Request) {
                 // Strict mode: block check-in if outside geo-fence
                 if (!geoResult.isWithinFence && geoSettings.enforcement === "strict") {
                     attendanceLogger.warn({
-                        employeeId: user.employee.id,
+                        employeeId: employee.id,
                         distance: geoResult.distanceMeters,
                         maxAllowed: geoResult.maxAllowedMeters,
                         branchName: branch.name,
@@ -108,7 +103,7 @@ export async function POST(req: Request) {
                 // Soft mode: allow but log a warning
                 if (!geoResult.isWithinFence && geoSettings.enforcement === "soft") {
                     attendanceLogger.info({
-                        employeeId: user.employee.id,
+                        employeeId: employee.id,
                         distance: geoResult.distanceMeters,
                         branchName: branch.name,
                     }, "GEO_FENCE_SOFT_WARNING");
@@ -120,12 +115,12 @@ export async function POST(req: Request) {
         let lateMinutes = 0;
         let status = "present";
 
-        if (user.employee.shift) {
-            const [hours, minutes] = user.employee.shift.startTime.split(':').map(Number);
+        if (employee.shift) {
+            const [hours, minutes] = employee.shift.startTime.split(':').map(Number);
             const shiftStart = set(now, { hours, minutes, seconds: 0, milliseconds: 0 });
 
             // Add grace period
-            const lateThreshold = new Date(shiftStart.getTime() + (user.employee.shift.graceMinutes || 15) * 60000);
+            const lateThreshold = new Date(shiftStart.getTime() + (employee.shift.graceMinutes || 15) * 60000);
 
             if (now > lateThreshold) {
                 lateMinutes = differenceInMinutes(now, shiftStart);
@@ -142,7 +137,7 @@ export async function POST(req: Request) {
 
         const attendance = await prisma.attendance.create({
             data: {
-                employeeId: user.employee.id,
+                employeeId: employee.id,
                 date: today,
                 checkIn: now,
                 checkInLocation: location ? JSON.stringify(location) : null,
@@ -169,35 +164,30 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireEmployee();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+        const employee = await prisma.employee.findFirst({
+            where: { id: auth.employeeId, organizationId: auth.organizationId },
             include: {
-                employee: {
-                    include: {
-                        shift: true,
-                        branch: {
-                            select: {
-                                id: true,
-                                name: true,
-                                latitude: true,
-                                longitude: true,
-                                geoFenceRadius: true,
-                            },
-                        },
+                shift: true,
+                branch: {
+                    select: {
+                        id: true,
+                        name: true,
+                        latitude: true,
+                        longitude: true,
+                        geoFenceRadius: true,
                     },
-                },
-                organization: {
-                    select: { settings: true },
                 },
             },
         });
+        const organization = await prisma.organization.findUnique({
+            where: { id: auth.organizationId },
+            select: { settings: true },
+        });
 
-        if (!user?.employee) {
+        if (!employee) {
             return new NextResponse("Employee profile not found", { status: 400 });
         }
 
@@ -209,7 +199,7 @@ export async function PUT(req: Request) {
         const attendance = await prisma.attendance.findUnique({
             where: {
                 employeeId_date: {
-                    employeeId: user.employee.id,
+                    employeeId: employee.id,
                     date: today,
                 }
             }
@@ -227,8 +217,8 @@ export async function PUT(req: Request) {
         let earlyLeaveMinutes = 0;
         let overtimeMinutes = 0;
 
-        if (user.employee.shift) {
-            const [hours, minutes] = user.employee.shift.endTime.split(':').map(Number);
+        if (employee.shift) {
+            const [hours, minutes] = employee.shift.endTime.split(':').map(Number);
             const shiftEnd = set(now, { hours, minutes, seconds: 0, milliseconds: 0 });
 
             if (now < shiftEnd) {
@@ -239,11 +229,11 @@ export async function PUT(req: Request) {
         }
 
         // ── Checkout Geo-Fence Validation (log only, never blocks) ──
-        const geoSettings = getGeoFenceSettings(user.organization?.settings);
+        const geoSettings = getGeoFenceSettings(organization?.settings);
         let checkoutGeoNote = "";
 
         if (geoSettings.enabled && location?.lat && location?.lng) {
-            const branch = user.employee.branch;
+            const branch = employee.branch;
             if (branch?.latitude && branch?.longitude) {
                 const geoResult = validateGeoFence(
                     { latitude: location.lat, longitude: location.lng },
@@ -257,7 +247,7 @@ export async function PUT(req: Request) {
 
                 if (!geoResult.isWithinFence) {
                     attendanceLogger.info({
-                        employeeId: user.employee.id,
+                        employeeId: employee.id,
                         distance: geoResult.distanceMeters,
                         branchName: branch.name,
                     }, "GEO_FENCE_CHECKOUT_OUTSIDE");

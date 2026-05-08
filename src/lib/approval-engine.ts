@@ -702,8 +702,7 @@ function getDefaultWorkflow(entityType: ApprovalEntityType): WorkflowStep[] {
         case "expense":
             return [
                 { level: 1, approverRole: "manager", stepName: "Manager Approval" },
-                { level: 2, approverRole: "hr_admin", stepName: "HR Review" },
-                { level: 3, approverRole: "admin", stepName: "MD Final Approval" },
+                { level: 2, approverRole: "hr_admin", stepName: "HR/Finance Review" },
             ];
         case "loan":
             return [

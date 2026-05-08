@@ -18,6 +18,8 @@ interface DeleteConfirmationModalProps {
     onConfirm: () => void
     title?: string
     description?: string
+    confirmLabel?: string
+    loadingLabel?: string
     isLoading?: boolean
 }
 
@@ -27,6 +29,8 @@ export function DeleteConfirmationModal({
     onConfirm,
     title,
     description,
+    confirmLabel,
+    loadingLabel,
     isLoading,
 }: DeleteConfirmationModalProps) {
     const t = useTranslations("SharedComponents.deleteModal")
@@ -52,7 +56,7 @@ export function DeleteConfirmationModal({
                         disabled={isLoading}
                         className="bg-red-600 text-foreground hover:bg-red-700"
                     >
-                        {isLoading ? tc("deleting") : tc("delete")}
+                        {isLoading ? (loadingLabel || tc("deleting")) : (confirmLabel || tc("delete"))}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

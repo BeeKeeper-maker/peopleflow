@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, ShieldAlert } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import Link from "next/link"
 import { EmployeeForm } from "@/components/employees/employee-form"
@@ -71,6 +71,20 @@ export default function EditEmployeePage() {
                     <p className="text-muted-foreground">Update employee information</p>
                 </div>
             </div>
+
+            {initialData && initialData.employmentStatus !== "active" && (
+                <div data-testid="employee-reactivation-guidance" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                    <div className="flex items-start gap-3">
+                        <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
+                        <div>
+                            <p className="font-semibold">Employee is currently inactive</p>
+                            <p className="mt-1 text-sm text-amber-100/80">
+                                Reactivating this employee will require a fresh reset invitation before ESS access resumes. Old passwords and old sessions stay blocked.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <EmployeeForm initialData={initialData} />
         </div>

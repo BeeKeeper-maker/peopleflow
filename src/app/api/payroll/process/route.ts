@@ -99,19 +99,34 @@ export async function POST(req: Request) {
 
         const { month, year, employeeIds } = validation.data;
 
-        // Get eligible employees
+        const hasExplicitEmployeeSelection = !!employeeIds && employeeIds.length > 0;
+
+        // Get eligible employees. Bulk payroll processes only active employees.
+        // Explicit employeeIds may include offboarded/terminated employees for final-settlement payroll
+        // without reactivating their ESS access or salary assignment.
         const whereClause: any = {
             organizationId: auth.organizationId,
-            employmentStatus: "active",
-            deletedAt: null,
-            salaryAssignments: {
-                some: { isActive: true },
-            },
+            ...(hasExplicitEmployeeSelection
+                ? {
+                    id: { in: employeeIds },
+                    salaryAssignments: {
+                        some: {
+                            effectiveFrom: { lte: new Date(year, month - 1, 28) },
+                            OR: [
+                                { effectiveTo: null },
+                                { effectiveTo: { gte: new Date(year, month - 1, 1) } },
+                            ],
+                        },
+                    },
+                }
+                : {
+                    employmentStatus: "active",
+                    deletedAt: null,
+                    salaryAssignments: {
+                        some: { isActive: true },
+                    },
+                }),
         };
-
-        if (employeeIds && employeeIds.length > 0) {
-            whereClause.id = { in: employeeIds };
-        }
 
         const employees = await prisma.employee.findMany({
             where: whereClause,
@@ -192,6 +207,7 @@ export async function POST(req: Request) {
                     month,
                     year,
                     postPFContributions: true,
+                    includeInactiveAssignment: hasExplicitEmployeeSelection,
                 });
 
                 // Get active loans from pre-built Map (O(1) instead of DB query)

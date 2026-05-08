@@ -13,9 +13,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyWebhookSignature, generateInvoiceNumber } from "@/lib/stripe";
-import { invalidateSubscription, invalidateOrgStatus } from "@/lib/redis";
+import { getRedis, invalidateSubscription, invalidateOrgStatus } from "@/lib/redis";
 import type Stripe from "stripe";
 import { billingLogger } from "@/lib/logger";
+
+const STRIPE_EVENT_IDEMPOTENCY_TTL_SECONDS = 30 * 24 * 60 * 60;
+const STRIPE_EVENT_PROCESSING_TTL_SECONDS = 10 * 60;
 
 /** Extract subscription ID from an invoice — handles both old and new Stripe API shapes */
 function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined {
@@ -25,6 +28,52 @@ function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefin
         return typeof subDetail === "string" ? subDetail : subDetail.id;
     }
     return undefined;
+}
+
+async function claimStripeEvent(eventId: string): Promise<boolean> {
+    try {
+        const result = await getRedis().set(
+            `stripe:event:${eventId}`,
+            "processing",
+            "EX",
+            STRIPE_EVENT_PROCESSING_TTL_SECONDS,
+            "NX"
+        );
+        return result === "OK";
+    } catch (error) {
+        billingLogger.warn(
+            { err: error, eventId },
+            "[STRIPE_WEBHOOK] Redis idempotency check unavailable; processing event"
+        );
+        return true;
+    }
+}
+
+async function markStripeEventProcessed(eventId: string): Promise<void> {
+    try {
+        await getRedis().set(
+            `stripe:event:${eventId}`,
+            "processed",
+            "EX",
+            STRIPE_EVENT_IDEMPOTENCY_TTL_SECONDS
+        );
+    } catch (error) {
+        billingLogger.warn(
+            { err: error, eventId },
+            "[STRIPE_WEBHOOK] Could not persist processed event id"
+        );
+    }
+}
+
+async function releaseStripeEventClaim(eventId: string): Promise<void> {
+    try {
+        await getRedis().del(`stripe:event:${eventId}`);
+    } catch (error) {
+        billingLogger.warn(
+            { err: error, eventId },
+            "[STRIPE_WEBHOOK] Could not release failed event claim"
+        );
+    }
 }
 
 export async function POST(request: NextRequest) {
@@ -51,6 +100,12 @@ export async function POST(request: NextRequest) {
     }
 
     billingLogger.info(`[STRIPE_WEBHOOK] Received: ${event.type}`);
+
+    const eventClaimed = await claimStripeEvent(event.id);
+    if (!eventClaimed) {
+        billingLogger.info(`[STRIPE_WEBHOOK] Duplicate event skipped: ${event.id}`);
+        return NextResponse.json({ received: true, duplicate: true });
+    }
 
     try {
         switch (event.type) {
@@ -97,10 +152,14 @@ export async function POST(request: NextRequest) {
         }
     } catch (error) {
         billingLogger.error({ err: error }, `[STRIPE_WEBHOOK] Handler error for ${event.type}:`);
-        // Return 200 to prevent Stripe retries on application errors
-        // The error is logged for investigation
+        await releaseStripeEventClaim(event.id);
+        return NextResponse.json(
+            { error: "Webhook handler failed", eventType: event.type },
+            { status: 500 }
+        );
     }
 
+    await markStripeEventProcessed(event.id);
     return NextResponse.json({ received: true });
 }
 

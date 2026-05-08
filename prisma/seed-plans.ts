@@ -122,8 +122,29 @@ async function main() {
     // 2. SEED PLATFORM ADMIN
     // ============================================
 
-    const adminEmail = process.env.PLATFORM_ADMIN_EMAIL || "platform@peopleflow.app";
-    const adminPassword = process.env.PLATFORM_ADMIN_PASSWORD || "PlatformAdmin@2026!";
+    const adminEmail = process.env.PLATFORM_ADMIN_EMAIL;
+    const adminPassword = process.env.PLATFORM_ADMIN_PASSWORD;
+
+    if (!adminEmail && !adminPassword) {
+        console.log("\n  ℹ️  PLATFORM_ADMIN_EMAIL/PASSWORD not set; skipping Platform Admin seed.");
+        console.log("     Set both variables explicitly when creating the first platform admin.");
+        console.log("\n✅ Seeding complete!\n");
+        return;
+    }
+
+    if (!adminEmail || !adminPassword) {
+        throw new Error("Set both PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD to seed a platform admin.");
+    }
+
+    if (
+        adminPassword.length < 16 ||
+        !/[a-z]/.test(adminPassword) ||
+        !/[A-Z]/.test(adminPassword) ||
+        !/[0-9]/.test(adminPassword) ||
+        !/[^A-Za-z0-9]/.test(adminPassword)
+    ) {
+        throw new Error("PLATFORM_ADMIN_PASSWORD must be at least 16 chars and include upper, lower, number, and symbol.");
+    }
 
     const existingAdmin = await prisma.platformAdmin.findUnique({
         where: { email: adminEmail },
@@ -142,8 +163,6 @@ async function main() {
         });
         console.log(`\n  🔐 Created Platform Admin:`);
         console.log(`     Email: ${adminEmail}`);
-        console.log(`     Password: ${adminPassword}`);
-        console.log(`     ⚠️  CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!`);
     } else {
         console.log(`\n  ℹ️  Platform Admin already exists: ${adminEmail}`);
     }

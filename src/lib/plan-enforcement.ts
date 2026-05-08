@@ -9,6 +9,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import fs from "fs/promises";
+import path from "path";
 import {
     getCachedSubscription,
     setCachedSubscription,
@@ -37,6 +39,52 @@ export interface PlanCheckResult {
     upgradeRequired?: boolean;
 }
 
+
+function normalizeSubscriptionStatus<T extends CachedSubscription>(sub: T): T {
+    const now = Date.now();
+    const trialEnd = sub.trialEnd ? new Date(sub.trialEnd).getTime() : null;
+    const currentPeriodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : null;
+
+    if (sub.status === "trialing" && trialEnd !== null && trialEnd < now) {
+        return { ...sub, status: "expired" };
+    }
+
+    if (sub.status === "active" && currentPeriodEnd !== null && currentPeriodEnd < now) {
+        return { ...sub, status: "expired" };
+    }
+
+    return sub;
+}
+
+async function calculateTenantStorageMB(organizationId: string): Promise<number> {
+    const tenantRoot = path.join(process.cwd(), "uploads", organizationId);
+
+    async function walk(dir: string): Promise<number> {
+        let entries: import("fs").Dirent[];
+        try {
+            entries = await fs.readdir(dir, { withFileTypes: true });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+            throw error;
+        }
+
+        let total = 0;
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                total += await walk(fullPath);
+            } else if (entry.isFile()) {
+                const stat = await fs.stat(fullPath);
+                total += stat.size;
+            }
+        }
+        return total;
+    }
+
+    const bytes = await walk(tenantRoot);
+    return bytes / (1024 * 1024);
+}
+
 // ============================================
 // Subscription Resolver (with Redis cache)
 // ============================================
@@ -50,7 +98,7 @@ export async function getOrgSubscription(
 ): Promise<CachedSubscription | null> {
     // 1. Try cache
     const cached = await getCachedSubscription(organizationId);
-    if (cached) return cached;
+    if (cached) return normalizeSubscriptionStatus(cached);
 
     // 2. Fetch from DB
     const sub = await prisma.subscription.findUnique({
@@ -66,6 +114,8 @@ export async function getOrgSubscription(
         status: sub.status,
         planId: sub.planId,
         planSlug: sub.plan.slug,
+        currentPeriodEnd: sub.currentPeriodEnd,
+        trialEnd: sub.trialEnd,
         maxEmployees: sub.plan.maxEmployees,
         maxAdmins: sub.plan.maxAdmins,
         maxBranches: sub.plan.maxBranches,
@@ -79,7 +129,7 @@ export async function getOrgSubscription(
     // 4. Cache it
     await setCachedSubscription(organizationId, cacheable);
 
-    return cacheable;
+    return normalizeSubscriptionStatus(cacheable);
 }
 
 // ============================================
@@ -134,14 +184,19 @@ async function getResourceCount(
             });
             break;
 
-        case "storage":
-            // Storage tracking would come from UsageRecord
-            const storageRecord = await prisma.usageRecord.findFirst({
-                where: { organizationId, metric: "storage_mb" },
-                orderBy: { recordedAt: "desc" },
+        case "storage": {
+            const liveStorageMB = await calculateTenantStorageMB(organizationId);
+            count = Math.ceil(liveStorageMB);
+
+            await prisma.usageRecord.create({
+                data: {
+                    organizationId,
+                    metric: "storage_mb",
+                    value: liveStorageMB,
+                },
             });
-            count = storageRecord ? Math.ceil(storageRecord.value) : 0;
             break;
+        }
 
         default:
             count = 0;

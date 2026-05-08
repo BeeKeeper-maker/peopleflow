@@ -22,7 +22,7 @@ export default function TermsOfServicePage() {
 
             <h2>2. Service Description</h2>
             <p>
-                PeopleFlow is a cloud-based enterprise Human Resource Management System (HRMS) designed for organizations operating in Bangladesh. The Service includes employee management, attendance tracking, payroll processing, leave management, BLA 2006 compliance automation, and related workforce management capabilities.
+                PeopleFlow is a cloud-based enterprise Human Resource Management System (HRMS) designed for organizations operating in Bangladesh. The Service includes employee management, attendance tracking, payroll processing, leave management, compliance-oriented review workflows, and related workforce management capabilities.
             </p>
 
             <h2>3. Account Registration</h2>
@@ -52,7 +52,7 @@ export default function TermsOfServicePage() {
 
             <h2>7. Service Level Agreement (SLA)</h2>
             <p>
-                For Growth and Enterprise plans, PeopleFlow guarantees 99.9% uptime measured on a monthly basis. Scheduled maintenance windows are excluded. Service credits are available for verified downtime exceeding the SLA threshold.
+                During beta, PeopleFlow is provided without a guaranteed uptime SLA unless a separate written agreement states otherwise. Production SLA terms may be introduced for paid plans after beta validation.
             </p>
 
             <h2>8. Limitation of Liability</h2>

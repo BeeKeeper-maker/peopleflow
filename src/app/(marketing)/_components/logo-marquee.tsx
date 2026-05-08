@@ -8,16 +8,16 @@ import { motion } from "framer-motion";
 // ═══════════════════════════════════════════════════════════════
 
 const logos = [
-    { name: "Ha-Meem Group", abbr: "HM" },
-    { name: "DBL Group", abbr: "DBL" },
-    { name: "Beximco", abbr: "BEX" },
-    { name: "Square Group", abbr: "SQ" },
-    { name: "BSRM", abbr: "BSRM" },
-    { name: "Walton", abbr: "WLT" },
-    { name: "Pran-RFL", abbr: "RFL" },
-    { name: "Akij Group", abbr: "AKJ" },
-    { name: "ACI Ltd", abbr: "ACI" },
-    { name: "Robi Axiata", abbr: "ROBI" },
+    { name: "RMG factories", abbr: "RMG" },
+    { name: "Manufacturing teams", abbr: "MFG" },
+    { name: "Corporate HR", abbr: "CHR" },
+    { name: "Payroll reviewers", abbr: "PAY" },
+    { name: "Attendance admins", abbr: "ATT" },
+    { name: "Factory operations", abbr: "OPS" },
+    { name: "Finance teams", abbr: "FIN" },
+    { name: "People operations", abbr: "POP" },
+    { name: "Multi-branch teams", abbr: "BR" },
+    { name: "Beta evaluators", abbr: "BETA" },
 ];
 
 function LogoTile({ name, abbr }: { name: string; abbr: string }) {
@@ -79,10 +79,10 @@ export default function LogoMarquee() {
                     className="text-sm font-semibold uppercase tracking-[0.2em] mb-3"
                     style={{ color: P.subtle }}
                 >
-                    Trusted by Industry Leaders
+                    Built for Bangladesh HR Teams
                 </p>
                 <p className="text-base max-w-lg mx-auto" style={{ color: P.muted }}>
-                    Leading RMG groups & corporate enterprises run their workforce operations on PeopleFlow
+                    Workflows for teams evaluating payroll, attendance, leave, and approval operations in beta
                 </p>
             </motion.div>
 

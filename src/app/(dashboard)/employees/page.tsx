@@ -94,7 +94,7 @@ export default function EmployeesPage() {
         try {
             const res = await fetch(`/api/employees/${deleteTarget.id}`, { method: "DELETE" })
             if (!res.ok) throw new Error("Failed to delete")
-            addToast({ title: "Success", description: "Employee deleted successfully", type: "success" })
+            addToast({ title: "Success", description: "Employee offboarded and ESS access locked", type: "success" })
             fetchData() // Re-fetch after delete
         } catch {
             addToast({ title: "Error", description: "Failed to delete employee", type: "error" })
@@ -154,8 +154,10 @@ export default function EmployeesPage() {
                 onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
                 onConfirm={handleDelete}
                 isLoading={isDeleting}
-                title={`Delete ${deleteTarget?.name}?`}
-                description="This will mark the employee as terminated and remove them from the active list."
+                title={`Offboard ${deleteTarget?.name}?`}
+                description="This will mark the employee as terminated, lock their ESS login, clear active sessions, and preserve payroll/history records."
+                confirmLabel="Offboard employee"
+                loadingLabel="Offboarding..."
             />
         </>
     )

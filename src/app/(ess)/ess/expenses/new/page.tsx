@@ -110,27 +110,49 @@ export default function NewExpensePage() {
 
         setIsSubmitting(true);
         try {
-            const submitData = new FormData();
-            submitData.append("title", formData.title);
-            submitData.append("amount", formData.amount);
-            submitData.append("category", formData.category);
-            submitData.append("date", formData.date);
-            submitData.append("description", formData.description);
-            submitData.append("status", asDraft ? "draft" : "pending");
+            let receiptUrl: string | undefined;
+            let receiptName: string | undefined;
+
             if (formData.receipt) {
-                submitData.append("receipt", formData.receipt);
+                const uploadData = new FormData();
+                uploadData.append("file", formData.receipt);
+                uploadData.append("folder", "receipts");
+                uploadData.append("prefix", "expense-receipt");
+
+                const uploadRes = await fetch("/api/upload", {
+                    method: "POST",
+                    body: uploadData,
+                });
+
+                const uploadJson = await uploadRes.json().catch(() => null);
+                if (!uploadRes.ok) {
+                    throw new Error(uploadJson?.error?.message || uploadJson?.error || "Receipt upload failed");
+                }
+
+                receiptUrl = uploadJson?.data?.url;
+                receiptName = uploadJson?.data?.originalName || formData.receipt.name;
             }
 
-            const res = await fetch("/api/expenses", {
+            const res = await fetch("/api/expenses/claims", {
                 method: "POST",
-                body: submitData,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title: formData.title,
+                    amount: Number(formData.amount),
+                    categoryId: formData.category,
+                    expenseDate: formData.date,
+                    description: formData.description || undefined,
+                    status: asDraft ? "draft" : "submitted",
+                    receiptUrl,
+                    receiptName,
+                }),
             });
 
             if (res.ok) {
                 setIsSuccess(true);
             } else {
-                const data = await res.json();
-                addToast({ title: data.error || t("errTitle"), type: "error" });
+                const data = await res.json().catch(() => null);
+                addToast({ title: data?.error || t("errTitle"), type: "error" });
             }
         } catch (error) {
             console.error("Error submitting expense:", error);

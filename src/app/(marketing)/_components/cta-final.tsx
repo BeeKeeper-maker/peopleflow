@@ -60,7 +60,7 @@ export default function CTAFinal({ onBookDemo }: { onBookDemo: () => void }) {
                         >
                             <Clock className="w-3.5 h-3.5" style={{ color: P.rose }} />
                             <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.rose }}>
-                                Stop the Bleeding Today
+                                Prepare for Beta
                             </span>
                         </div>
                     </motion.div>
@@ -71,12 +71,12 @@ export default function CTAFinal({ onBookDemo }: { onBookDemo: () => void }) {
                         className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
                         style={{ color: P.heading }}
                     >
-                        Every Day Without PeopleFlow{" "}
+                        Bring Structure to{" "}
                         <span
                             className="bg-clip-text text-transparent"
                             style={{ backgroundImage: P.gradDanger }}
                         >
-                            Costs You Money
+                            HR Operations
                         </span>
                     </motion.h2>
 
@@ -85,8 +85,8 @@ export default function CTAFinal({ onBookDemo }: { onBookDemo: () => void }) {
                         className="text-lg sm:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
                         style={{ color: P.body }}
                     >
-                        Your competitors already automated their HR. While you calculate payroll in Excel,
-                        they{"'"}re scaling with zero errors, zero compliance risk, and zero wasted hours.
+                        Replace spreadsheet-heavy review with tenant-aware workflows for payroll,
+                        leave, attendance, approvals, and audit-ready operational checks.
                     </motion.p>
 
                     {/* CTAs */}
@@ -130,9 +130,9 @@ export default function CTAFinal({ onBookDemo }: { onBookDemo: () => void }) {
                         className="flex flex-wrap justify-center gap-6"
                     >
                         {[
-                            { icon: Shield, text: "BLA 2006 Compliant" },
+                            { icon: Shield, text: "Compliance-oriented workflows" },
                             { icon: Zap, text: "14-day Free Trial" },
-                            { icon: Clock, text: "Setup in 10 Minutes" },
+                            { icon: Clock, text: "Guided beta setup" },
                         ].map((b) => (
                             <div key={b.text} className="flex items-center gap-2">
                                 <b.icon className="w-4 h-4" style={{ color: P.subtle }} />

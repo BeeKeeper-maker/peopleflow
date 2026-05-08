@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createHash } from "crypto";
 import { apiLogger } from "@/lib/logger";
+import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
 
 /**
  * POST /api/v1/sync/push — Cloud Ingest Endpoint
@@ -27,41 +27,12 @@ interface PunchRecord {
     type?: number; // 0=checkIn, 1=checkOut (ZKTeco convention)
 }
 
-async function authenticateAgent(req: Request) {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-        return null;
-    }
-
-    const rawKey = authHeader.substring(7);
-    const keyHash = createHash("sha256").update(rawKey).digest("hex");
-
-    const apiKey = await prisma.syncApiKey.findUnique({
-        where: { key: keyHash },
-        include: {
-            organization: {
-                select: { id: true, name: true, timezone: true },
-            },
-        },
-    });
-
-    if (!apiKey || !apiKey.isActive || apiKey.revokedAt) {
-        return null;
-    }
-
-    return apiKey;
-}
-
 export async function POST(req: Request) {
     try {
         // 1. Authenticate via API Key
-        const apiKey = await authenticateAgent(req);
-        if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: "Invalid or revoked API key" },
-                { status: 401 }
-            );
-        }
+        const auth = await authenticateSyncAgent(req);
+        if (!auth.valid) return auth.response;
+        const { apiKey } = auth;
 
         const body = await req.json();
         const records: PunchRecord[] = body.records;

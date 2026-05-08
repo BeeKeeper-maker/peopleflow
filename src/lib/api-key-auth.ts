@@ -12,7 +12,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
+import { getOrgSubscription } from "@/lib/plan-enforcement";
 
 export interface ApiKeyAuthResult {
     valid: true;
@@ -44,7 +45,6 @@ export function hashApiKey(key: string): string {
 export function generateApiKey(
     mode: "live" | "test" = "live"
 ): string {
-    const { randomBytes } = require("crypto");
     const random = randomBytes(24).toString("base64url");
     return `pf_${mode}_${random}`;
 }
@@ -127,6 +127,34 @@ export async function authenticateApiKey(
                         "Your organization's account has been suspended. Contact support.",
                 },
                 { status: 403 }
+            ),
+        };
+    }
+
+    const subscription = await getOrgSubscription(apiKey.organizationId);
+    if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+        return {
+            valid: false,
+            response: NextResponse.json(
+                {
+                    error: "Subscription inactive",
+                    message: "Your subscription is not active. Please update billing to continue using the API.",
+                    upgrade_required: true,
+                },
+                { status: 402 }
+            ),
+        };
+    }
+
+    if (subscription.features.apiAccess === false) {
+        return {
+            valid: false,
+            response: NextResponse.json(
+                {
+                    error: "API access not on your plan",
+                    upgrade_required: true,
+                },
+                { status: 402 }
             ),
         };
     }

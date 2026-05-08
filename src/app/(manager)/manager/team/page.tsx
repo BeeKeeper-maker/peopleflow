@@ -37,7 +37,7 @@ export default function ManagerTeamPage() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const employeesRes = await fetch("/api/employees");
+                const employeesRes = await fetch("/api/manager/team");
                 if (employeesRes.ok) {
                     const data = await employeesRes.json();
                     setTeamMembers(data.data || data || []);

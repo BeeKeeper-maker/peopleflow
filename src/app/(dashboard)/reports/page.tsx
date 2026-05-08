@@ -107,10 +107,10 @@ export default function ReportsPage() {
                 case "attendance":
                     const month = new Date().getMonth() + 1
                     const year = new Date().getFullYear()
-                    const attRes = await fetch(`/api/attendance/reports?month=${month}&year=${year}`)
+                    const attRes = await fetch(`/api/reports/attendance?month=${month}&year=${year}`)
                     if (!attRes.ok) throw new Error("Failed to fetch attendance")
                     const attData = await attRes.json()
-                    data = attData.records || attData || []
+                    data = Array.isArray(attData) ? attData : attData.data || attData.records || []
                     formattedData = formatAttendanceExport(Array.isArray(data) ? data : [])
                     filename = `attendance_report_${month}_${year}`
                     break
@@ -130,7 +130,7 @@ export default function ReportsPage() {
                     const payRes = await fetch(`/api/payroll/process?month=${payMonth}&year=${payYear}`)
                     if (!payRes.ok) throw new Error("Failed to fetch payroll")
                     const payData = await payRes.json()
-                    data = Array.isArray(payData) ? payData : payData.slips || []
+                    data = Array.isArray(payData) ? payData : payData.data || payData.slips || []
                     formattedData = formatPayrollExport(data)
                     filename = `payroll_report_${payMonth}_${payYear}`
                     break

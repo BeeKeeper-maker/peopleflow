@@ -45,7 +45,7 @@ export default function ESSPayslipsPage() {
     useEffect(() => {
         const fetchPayslips = async () => {
             try {
-                const res = await fetch("/api/payslips");
+                const res = await fetch("/api/payroll/payslips");
                 if (res.ok) {
                     const data = await res.json();
                     setPayslips(data.data || data || []);

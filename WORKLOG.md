@@ -878,3 +878,44 @@ Git Push (main) → GitHub → Coolify Webhook → Docker Build → Deploy → H
 
 *This worklog is auto-generated from live codebase analysis.*
 *Last updated: April 16, 2026*
+
+---
+
+## QA Regression Update — May 8, 2026
+
+- Resumed from context reset using `WORKLOG.md`, git state, Playwright config, and E2E test files as source of truth.
+- Mobile regression verified on isolated HR dev server: `PORT=3100`, `TEST_BASE_URL=http://localhost:3100`.
+- Local E2E DB used: `peopleflow_mobile_e2e` via `DATABASE_URL=postgresql://sharifmohammadnasrullah@localhost:5432/peopleflow_mobile_e2e`.
+- Mobile ESS gate: `tests/e2e/ess-mobile.spec.ts` → **3 passed**.
+- Full Playwright E2E gate: `playwright.no-server.config.ts --project=chromium` → **45 passed**.
+- Regression fix: expense workflow tests now prefer the reusable `Office Supplies` category instead of the first alphabetic category (`Meals`), avoiding seeded monthly-limit exhaustion and keeping repeat E2E runs deterministic.
+
+## Release-Grade Verification Update — May 8, 2026
+
+- Lint gate: `npm run lint` → **passed** with warnings only, no errors.
+- TypeScript gate: `npx tsc --noEmit` → **passed**.
+- Production build gate: `npm run build` → **passed**; generated 82 static pages and dynamic routes successfully.
+- Production-mode visual UAT smoke: Admin, HR, Manager, and Employee mobile portals checked across 22 role-critical pages → **passed**.
+- Mobile UAT fix: `/ess/profile` had horizontal overflow on 390px mobile due wide tab labels; profile tabs now use a responsive 2-column mobile layout and inline desktop layout.
+- Production prerequisite noted: local production-mode login requires Redis available because rate limiting fails closed in production. Redis must be healthy in deployment.
+- Remaining non-blocking hardening notes: existing lint warnings and Turbopack NFT trace warning around Prisma/next.config should be cleaned up in a later hardening pass.
+
+## Release-Grade Verification Follow-up — May 8, 2026
+
+- Full E2E rerun after mobile profile UI fix initially failed because production-mode Redis auth rate limiting capped localhost login attempts at 10/15min, causing login-dependent tests to cascade.
+- Added controlled QA configurability for auth rate limits via `RATE_LIMIT_AUTH_MAX` and `RATE_LIMIT_AUTH_WINDOW_MS`; production defaults remain strict (`10` attempts / `15` minutes).
+- Restarted production server with `RATE_LIMIT_AUTH_MAX=1000` for the E2E gate only.
+- Full Playwright E2E gate rerun: **45/45 passed** in 58.7s.
+
+## Checkpoint Hygiene Update — May 8, 2026
+
+- Converted temporary no-server Playwright config into tracked `playwright.no-server.config.ts`.
+- Added reusable scripts:
+  - `npm run test:e2e:no-server`
+  - `npm run test:e2e:prod`
+- Added `/uploads/` to `.gitignore` so generated local/test receipt files do not pollute commits.
+- Re-verified after hygiene changes:
+  - `npm run lint` → passed with warnings only.
+  - `npx tsc --noEmit` → passed.
+  - `npm run build` → passed.
+  - `npm run test:e2e:prod` against production server on port 3100 → **45/45 passed**.

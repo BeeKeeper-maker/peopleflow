@@ -231,17 +231,17 @@ export default function ESSProfilePage() {
 
             {/* Profile Tabs */}
             <Tabs defaultValue="personal" className="space-y-6">
-                <TabsList className="bg-card border border-card-border">
-                    <TabsTrigger value="personal" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-card border border-card-border sm:inline-flex sm:h-10 sm:w-auto">
+                    <TabsTrigger value="personal" className="min-h-9 whitespace-normal text-center data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 sm:min-h-0 sm:whitespace-nowrap">
                         {t("personalInfo")}
                     </TabsTrigger>
-                    <TabsTrigger value="employment" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                    <TabsTrigger value="employment" className="min-h-9 whitespace-normal text-center data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 sm:min-h-0 sm:whitespace-nowrap">
                         {t("workInfo")}
                     </TabsTrigger>
-                    <TabsTrigger value="contact" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                    <TabsTrigger value="contact" className="min-h-9 whitespace-normal text-center data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 sm:min-h-0 sm:whitespace-nowrap">
                         {t("emergencyContact")}
                     </TabsTrigger>
-                    <TabsTrigger value="bank" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                    <TabsTrigger value="bank" className="min-h-9 whitespace-normal text-center data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400 sm:min-h-0 sm:whitespace-nowrap">
                         {t("bankInfo")}
                     </TabsTrigger>
                 </TabsList>

@@ -47,7 +47,7 @@ export default function ManagerAttendancePage() {
                 const year = currentMonth.getFullYear();
                 const month = currentMonth.getMonth() + 1;
 
-                const empRes = await fetch("/api/employees");
+                const empRes = await fetch("/api/manager/team");
                 if (!empRes.ok) throw new Error("Failed to fetch employees");
                 const empData = await empRes.json();
                 const employees = empData.data || empData || [];
@@ -65,11 +65,11 @@ export default function ManagerAttendancePage() {
                     );
 
                     const presentDays = empAttendance.filter(
-                        (a: any) => a.status === "PRESENT" || a.status === "LATE"
+                        (a: any) => ["present", "late", "PRESENT", "LATE"].includes(a.status)
                     ).length;
 
                     const lateArrivals = empAttendance.filter(
-                        (a: any) => a.status === "LATE"
+                        (a: any) => ["late", "LATE"].includes(a.status)
                     ).length;
 
                     const absentDays = workingDaysInMonth - presentDays;
