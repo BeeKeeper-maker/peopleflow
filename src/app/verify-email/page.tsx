@@ -16,7 +16,7 @@ export default function VerifyEmailPage() {
     const t = useTranslations("VerifyEmail");
     const { addToast } = useToast();
 
-    const [status, setStatus] = useState<"loading" | "success" | "error" | "no-token">(
+    const [status, setStatus] = useState<"loading" | "success" | "already-verified" | "error" | "no-token">(
         token ? "loading" : "no-token"
     );
     const [errorMessage, setErrorMessage] = useState("");
@@ -33,7 +33,7 @@ export default function VerifyEmailPage() {
                 const data = await res.json();
 
                 if (res.ok) {
-                    setStatus("success");
+                    setStatus(data.alreadyVerified ? "already-verified" : "success");
                 } else {
                     setStatus("error");
                     setErrorMessage(data.error || t("errorGeneric"));
@@ -123,6 +123,25 @@ export default function VerifyEmailPage() {
                     </>
                 )}
 
+                {/* Already verified */}
+                {status === "already-verified" && (
+                    <>
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-cyan-600 flex items-center justify-center mb-4">
+                            <CheckCircle className="h-8 w-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-2">{t("alreadyVerifiedTitle")}</h2>
+                        <p className="text-white/60 mb-6">
+                            {t("alreadyVerifiedDesc")}
+                        </p>
+                        <Link href="/login">
+                            <Button className="w-full h-12">
+                                {t("goToLogin")}
+                                <ArrowRight className="h-5 w-5" />
+                            </Button>
+                        </Link>
+                    </>
+                )}
+
                 {/* Error */}
                 {status === "error" && (
                     <>
@@ -164,8 +183,8 @@ export default function VerifyEmailPage() {
                             </div>
                         ) : (
                             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                                <p className="text-green-400 text-sm">
-                                    ✅ {t("resendSuccess")}
+                                <p className="text-green-300 text-sm">
+                                    {t("resendSuccess")}
                                 </p>
                             </div>
                         )}
@@ -183,10 +202,19 @@ export default function VerifyEmailPage() {
                             {t("checkEmailDesc")}
                         </p>
 
-                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-white/50 text-sm mb-6 text-left space-y-2">
-                            <p>📬 {t("checkInbox")}</p>
-                            <p>⏱️ {t("linkExpires", { duration: "24 hours" })}</p>
-                            <p>🔄 {t("didntReceive")}</p>
+                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-white/60 text-sm mb-6 text-left space-y-3">
+                            <div className="flex gap-3">
+                                <Mail className="h-4 w-4 mt-0.5 text-blue-300 shrink-0" />
+                                <p>{t("checkInbox")}</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <CheckCircle className="h-4 w-4 mt-0.5 text-emerald-300 shrink-0" />
+                                <p>{t("linkExpires", { duration: "24 hours" })}</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <RefreshCw className="h-4 w-4 mt-0.5 text-purple-300 shrink-0" />
+                                <p>{t("didntReceive")}</p>
+                            </div>
                         </div>
 
                         {/* Resend form */}
@@ -216,8 +244,8 @@ export default function VerifyEmailPage() {
                             </form>
                         ) : (
                             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                                <p className="text-green-400 text-sm">
-                                    ✅ {t("resendSuccess")}
+                                <p className="text-green-300 text-sm">
+                                    {t("resendSuccess")}
                                 </p>
                             </div>
                         )}

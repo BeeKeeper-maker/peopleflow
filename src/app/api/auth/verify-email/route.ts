@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { authLogger } from "@/lib/logger";
+import { checkRateLimit, rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
     try {
@@ -89,6 +90,10 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
     try {
+        // Protect the free email quota from accidental resend loops and abuse.
+        const ipLimit = await rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "auth/verify-email/resend");
+        if (!ipLimit.allowed) return ipLimit.response!;
+
         const { email } = await request.json();
 
         if (!email) {
@@ -114,7 +119,39 @@ export async function POST(request: Request) {
             return successResponse;
         }
 
-        // Delete old tokens
+        // Per-address resend cooldown: never burn credits for repeated clicks.
+        const latestToken = await prisma.emailVerificationToken.findFirst({
+            where: { email: normalizedEmail },
+            orderBy: { createdAt: "desc" },
+        });
+
+        const resendCooldownMs = 10 * 60 * 1000;
+        if (latestToken && Date.now() - latestToken.createdAt.getTime() < resendCooldownMs) {
+            authLogger.info({ email: normalizedEmail }, "Verification resend skipped: cooldown active");
+            return successResponse;
+        }
+
+        // Daily caps for the free Brevo phase. This keeps PeopleFlow below the
+        // 300/day provider limit while preserving room for critical system emails.
+        const dayKey = new Date().toISOString().slice(0, 10);
+        const globalEmailLimit = await checkRateLimit(`email:verify:global:${dayKey}`, {
+            windowMs: 24 * 60 * 60 * 1000,
+            maxRequests: Number.parseInt(process.env.EMAIL_VERIFY_GLOBAL_DAILY_LIMIT || "250", 10),
+        });
+        const addressEmailLimit = await checkRateLimit(`email:verify:address:${normalizedEmail}:${dayKey}`, {
+            windowMs: 24 * 60 * 60 * 1000,
+            maxRequests: Number.parseInt(process.env.EMAIL_VERIFY_ADDRESS_DAILY_LIMIT || "3", 10),
+        });
+
+        if (!globalEmailLimit.allowed || !addressEmailLimit.allowed) {
+            authLogger.warn(
+                { email: normalizedEmail, globalAllowed: globalEmailLimit.allowed, addressAllowed: addressEmailLimit.allowed },
+                "Verification resend skipped: daily email quota reached"
+            );
+            return successResponse;
+        }
+
+        // Delete old tokens only after all send guards pass.
         await prisma.emailVerificationToken.deleteMany({
             where: { email: normalizedEmail },
         });

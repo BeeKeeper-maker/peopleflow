@@ -240,13 +240,13 @@ export const emailTemplates = {
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: linear-gradient(135deg, #10B981, #059669); padding: 20px; text-align: center;">
-                    <h1 style="color: white; margin: 0;">✉️ Verify Your Email</h1>
+                    <h1 style="color: white; margin: 0;">Verify Your Email</h1>
                 </div>
                 <div style="padding: 30px; background: #f9fafb;">
-                    <h2 style="color: #1f2937;">Welcome ${data.userName}! 🎉</h2>
-                    <p style="color: #4b5563;">
-                        Thank you for creating your PeopleFlow account. Please verify your
-                        email address by clicking the button below. This link expires in <strong>24 hours</strong>.
+                    <h2 style="color: #1f2937;">Welcome to PeopleFlow, ${data.userName}</h2>
+                    <p style="color: #4b5563; line-height: 1.6;">
+                        Thank you for creating your PeopleFlow account. Please confirm your email address
+                        to activate your workspace and keep your account secure. This link expires in <strong>24 hours</strong>.
                     </p>
                     <div style="margin: 30px 0; text-align: center;">
                         <a href="${data.verifyUrl}" 
@@ -254,8 +254,12 @@ export const emailTemplates = {
                             Verify Email Address
                         </a>
                     </div>
-                    <p style="color: #9ca3af; font-size: 12px;">
-                        Or copy this link: ${data.verifyUrl}
+                    <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">
+                        If the button does not work, copy and paste this secure link into your browser:<br/>
+                        <span style="word-break: break-all; color: #4b5563;">${data.verifyUrl}</span>
+                    </p>
+                    <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
+                        If you did not create a PeopleFlow account, you can safely ignore this email.
                     </p>
                 </div>
                 <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
