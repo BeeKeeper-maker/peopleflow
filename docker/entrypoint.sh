@@ -1,15 +1,26 @@
 #!/bin/sh
 set -e
 
+PROCESS_ROLE="${PEOPLEFLOW_PROCESS:-${PROCESS_ROLE:-web}}"
+
+if [ "$PROCESS_ROLE" = "worker" ]; then
+    SERVICE_LABEL="Background Worker"
+    TOTAL_STEPS=2
+else
+    SERVICE_LABEL="Production Server"
+    TOTAL_STEPS=3
+fi
+
 echo "══════════════════════════════════════════════"
-echo "  PeopleFlow HRMS — Production Server"
+echo "  PeopleFlow HRMS — $SERVICE_LABEL"
 echo "══════════════════════════════════════════════"
 echo "  Node:  $(node --version)"
 echo "  Time:  $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+echo "  Role:  $PROCESS_ROLE"
 echo "══════════════════════════════════════════════"
 echo ""
 
-echo "[BOOT] Step 1/3: Running database migrations..."
+echo "[BOOT] Step 1/$TOTAL_STEPS: Running database migrations..."
 if npx prisma migrate deploy 2>&1; then
     echo "[BOOT] ✅ Database migrations applied successfully"
 else
@@ -34,8 +45,14 @@ else
     exit 1
 fi
 
+if [ "$PROCESS_ROLE" = "worker" ]; then
+    echo ""
+    echo "[BOOT] Step 2/$TOTAL_STEPS: Starting BullMQ worker service..."
+    exec npm run worker
+fi
+
 echo ""
-echo "[BOOT] Step 2/3: Seeding platform admin (idempotent)..."
+echo "[BOOT] Step 2/$TOTAL_STEPS: Seeding platform admin (idempotent)..."
 node -e "
 const { PrismaClient } = require('./src/generated/prisma');
 const { hash } = require('bcryptjs');
@@ -89,5 +106,5 @@ seed()
 " 2>&1
 
 echo ""
-echo "[BOOT] Step 3/3: Starting Next.js server..."
+echo "[BOOT] Step 3/$TOTAL_STEPS: Starting Next.js server..."
 exec node server.js
