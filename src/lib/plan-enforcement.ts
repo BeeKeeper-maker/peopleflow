@@ -8,16 +8,16 @@
  * Checks are Redis-cached to avoid per-request DB queries.
  */
 
-import { prisma } from "@/lib/prisma";
+import { withTenant, type TxClient } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
 import {
-    getCachedSubscription,
-    setCachedSubscription,
-    getCachedResourceCount,
-    setCachedResourceCount,
-    invalidateResourceCount,
-    type CachedSubscription,
+  getCachedSubscription,
+  setCachedSubscription,
+  getCachedResourceCount,
+  setCachedResourceCount,
+  invalidateResourceCount,
+  type CachedSubscription,
 } from "@/lib/redis";
 
 // ============================================
@@ -25,64 +25,71 @@ import {
 // ============================================
 
 export type ResourceType =
-    | "employee"
-    | "admin"
-    | "branch"
-    | "device"
-    | "storage";
+  | "employee"
+  | "admin"
+  | "branch"
+  | "device"
+  | "storage";
 
 export interface PlanCheckResult {
-    allowed: boolean;
-    current: number;
-    limit: number;
-    message?: string;
-    upgradeRequired?: boolean;
+  allowed: boolean;
+  current: number;
+  limit: number;
+  message?: string;
+  upgradeRequired?: boolean;
 }
-
 
 function normalizeSubscriptionStatus<T extends CachedSubscription>(sub: T): T {
-    const now = Date.now();
-    const trialEnd = sub.trialEnd ? new Date(sub.trialEnd).getTime() : null;
-    const currentPeriodEnd = sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).getTime() : null;
+  const now = Date.now();
+  const trialEnd = sub.trialEnd ? new Date(sub.trialEnd).getTime() : null;
+  const currentPeriodEnd = sub.currentPeriodEnd
+    ? new Date(sub.currentPeriodEnd).getTime()
+    : null;
 
-    if (sub.status === "trialing" && trialEnd !== null && trialEnd < now) {
-        return { ...sub, status: "expired" };
-    }
+  if (sub.status === "trialing" && trialEnd !== null && trialEnd < now) {
+    return { ...sub, status: "expired" };
+  }
 
-    if (sub.status === "active" && currentPeriodEnd !== null && currentPeriodEnd < now) {
-        return { ...sub, status: "expired" };
-    }
+  if (
+    sub.status === "active" &&
+    currentPeriodEnd !== null &&
+    currentPeriodEnd < now
+  ) {
+    return { ...sub, status: "expired" };
+  }
 
-    return sub;
+  return sub;
 }
 
-async function calculateTenantStorageMB(organizationId: string): Promise<number> {
-    const tenantRoot = path.join(process.cwd(), "uploads", organizationId);
+async function calculateTenantStorageMB(
+  organizationId: string,
+): Promise<number> {
+  const tenantRoot = path.join(process.cwd(), "uploads", organizationId);
 
-    async function walk(dir: string): Promise<number> {
-        let entries: import("fs").Dirent[];
-        try {
-            entries = await fs.readdir(dir, { withFileTypes: true });
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
-            throw error;
-        }
-
-        let total = 0;
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                total += await walk(fullPath);
-            } else if (entry.isFile()) {
-                const stat = await fs.stat(fullPath);
-                total += stat.size;
-            }
-        }
-        return total;
+  async function walk(dir: string): Promise<number> {
+    let entries: import("fs").Dirent[];
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+      throw error;
     }
 
-    const bytes = await walk(tenantRoot);
-    return bytes / (1024 * 1024);
+    let total = 0;
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        total += await walk(fullPath);
+      } else if (entry.isFile()) {
+        const stat = await fs.stat(fullPath);
+        total += stat.size;
+      }
+    }
+    return total;
+  }
+
+  const bytes = await walk(tenantRoot);
+  return bytes / (1024 * 1024);
 }
 
 // ============================================
@@ -94,42 +101,45 @@ async function calculateTenantStorageMB(organizationId: string): Promise<number>
  * Reads from Redis first (5-min TTL), falls back to DB.
  */
 export async function getOrgSubscription(
-    organizationId: string
+  organizationId: string,
 ): Promise<CachedSubscription | null> {
-    // 1. Try cache
-    const cached = await getCachedSubscription(organizationId);
-    if (cached) return normalizeSubscriptionStatus(cached);
+  // 1. Try cache
+  const cached = await getCachedSubscription(organizationId);
+  if (cached) return normalizeSubscriptionStatus(cached);
 
-    // 2. Fetch from DB
-    const sub = await prisma.subscription.findUnique({
-        where: { organizationId },
-        include: { plan: true },
-    });
+  // 2. Fetch from DB within the tenant RLS context. This keeps plan checks
+  // working when production uses the non-superuser app role with forced RLS.
+  const sub = await withTenant(organizationId, (db) =>
+    db.subscription.findUnique({
+      where: { organizationId },
+      include: { plan: true },
+    }),
+  );
 
-    if (!sub) return null;
+  if (!sub) return null;
 
-    // 3. Build cacheable object
-    const cacheable: CachedSubscription = {
-        id: sub.id,
-        status: sub.status,
-        planId: sub.planId,
-        planSlug: sub.plan.slug,
-        currentPeriodEnd: sub.currentPeriodEnd,
-        trialEnd: sub.trialEnd,
-        maxEmployees: sub.plan.maxEmployees,
-        maxAdmins: sub.plan.maxAdmins,
-        maxBranches: sub.plan.maxBranches,
-        maxDevices: sub.plan.maxDevices,
-        maxStorageMB: sub.plan.maxStorageMB,
-        features: sub.plan.features as Record<string, boolean>,
-        maxEmployeesOverride: sub.maxEmployeesOverride,
-        maxStorageOverride: sub.maxStorageOverride,
-    };
+  // 3. Build cacheable object
+  const cacheable: CachedSubscription = {
+    id: sub.id,
+    status: sub.status,
+    planId: sub.planId,
+    planSlug: sub.plan.slug,
+    currentPeriodEnd: sub.currentPeriodEnd,
+    trialEnd: sub.trialEnd,
+    maxEmployees: sub.plan.maxEmployees,
+    maxAdmins: sub.plan.maxAdmins,
+    maxBranches: sub.plan.maxBranches,
+    maxDevices: sub.plan.maxDevices,
+    maxStorageMB: sub.plan.maxStorageMB,
+    features: sub.plan.features as Record<string, boolean>,
+    maxEmployeesOverride: sub.maxEmployeesOverride,
+    maxStorageOverride: sub.maxStorageOverride,
+  };
 
-    // 4. Cache it
-    await setCachedSubscription(organizationId, cacheable);
+  // 4. Cache it
+  await setCachedSubscription(organizationId, cacheable);
 
-    return normalizeSubscriptionStatus(cacheable);
+  return normalizeSubscriptionStatus(cacheable);
 }
 
 // ============================================
@@ -141,71 +151,85 @@ export async function getOrgSubscription(
  * Reads from Redis first (5-min TTL), falls back to DB.
  */
 async function getResourceCount(
-    organizationId: string,
-    resource: ResourceType
+  organizationId: string,
+  resource: ResourceType,
 ): Promise<number> {
-    // 1. Try cache
-    const cached = await getCachedResourceCount(organizationId, resource);
-    if (cached !== null) return cached;
+  // 1. Try cache
+  const cached = await getCachedResourceCount(organizationId, resource);
+  if (cached !== null) return cached;
 
-    // 2. Count from DB
-    let count: number;
+  // 2. Count from DB inside the tenant RLS context. Without this, forced RLS
+  // can make legitimate tenant rows invisible or reject inserts.
+  let count: number;
 
-    switch (resource) {
-        case "employee":
-            count = await prisma.employee.count({
-                where: {
-                    organizationId,
-                    employmentStatus: { in: ["active", "probation"] },
-                    deletedAt: null,
-                },
-            });
-            break;
+  const countWithTenant = <T>(fn: (db: TxClient) => Promise<T>) =>
+    withTenant(organizationId, fn);
 
-        case "admin":
-            count = await prisma.user.count({
-                where: {
-                    organizationId,
-                    role: { in: ["admin", "hr_admin"] },
-                    isActive: true,
-                },
-            });
-            break;
+  switch (resource) {
+    case "employee":
+      count = await countWithTenant((db) =>
+        db.employee.count({
+          where: {
+            organizationId,
+            employmentStatus: { in: ["active", "probation"] },
+            deletedAt: null,
+          },
+        }),
+      );
+      break;
 
-        case "branch":
-            count = await prisma.branch.count({
-                where: { organizationId, isActive: true },
-            });
-            break;
+    case "admin":
+      count = await countWithTenant((db) =>
+        db.user.count({
+          where: {
+            organizationId,
+            role: { in: ["admin", "hr_admin"] },
+            isActive: true,
+          },
+        }),
+      );
+      break;
 
-        case "device":
-            count = await prisma.biometricDevice.count({
-                where: { organizationId, isActive: true },
-            });
-            break;
+    case "branch":
+      count = await countWithTenant((db) =>
+        db.branch.count({
+          where: { organizationId, isActive: true },
+        }),
+      );
+      break;
 
-        case "storage": {
-            const liveStorageMB = await calculateTenantStorageMB(organizationId);
-            count = Math.ceil(liveStorageMB);
+    case "device":
+      count = await countWithTenant((db) =>
+        db.biometricDevice.count({
+          where: { organizationId, isActive: true },
+        }),
+      );
+      break;
 
-            await prisma.usageRecord.create({
-                data: {
-                    organizationId,
-                    metric: "storage_mb",
-                    value: liveStorageMB,
-                },
-            });
-            break;
-        }
+    case "storage": {
+      const liveStorageMB = await calculateTenantStorageMB(organizationId);
+      count = Math.ceil(liveStorageMB);
 
-        default:
-            count = 0;
+      await countWithTenant((db) =>
+        db.usageRecord.create({
+          data: {
+            organizationId,
+            metric: "storage_mb",
+            value: liveStorageMB,
+          },
+        }),
+      );
+      break;
     }
 
-    // 3. Cache it
-    await setCachedResourceCount(organizationId, resource, count);
+    default:
+      count = 0;
+  }
 
-    return count;
+  // 3. Cache it
+  await setCachedResourceCount(organizationId, resource, count);
+
+  return count;
 }
 
 // ============================================
@@ -225,70 +249,70 @@ async function getResourceCount(
  *   }
  */
 export async function enforcePlanLimit(
-    organizationId: string,
-    resource: ResourceType,
-    action: "create" | "check" = "create"
+  organizationId: string,
+  resource: ResourceType,
+  action: "create" | "check" = "create",
 ): Promise<PlanCheckResult> {
-    // 1. Get subscription
-    const sub = await getOrgSubscription(organizationId);
+  // 1. Get subscription
+  const sub = await getOrgSubscription(organizationId);
 
-    // No subscription = no access
-    if (!sub) {
-        return {
-            allowed: false,
-            current: 0,
-            limit: 0,
-            message:
-                "No active subscription found. Please subscribe to a plan to continue.",
-            upgradeRequired: true,
-        };
-    }
-
-    // Subscription not in good standing
-    if (!["active", "trialing"].includes(sub.status)) {
-        return {
-            allowed: false,
-            current: 0,
-            limit: 0,
-            message:
-                sub.status === "past_due"
-                    ? "Your payment is overdue. Please update your billing information."
-                    : "Your subscription is not active. Please contact support.",
-            upgradeRequired: true,
-        };
-    }
-
-    // 2. Determine limit (respect enterprise overrides)
-    const limits: Record<ResourceType, number> = {
-        employee: sub.maxEmployeesOverride ?? sub.maxEmployees,
-        admin: sub.maxAdmins,
-        branch: sub.maxBranches,
-        device: sub.maxDevices,
-        storage: sub.maxStorageOverride ?? sub.maxStorageMB,
+  // No subscription = no access
+  if (!sub) {
+    return {
+      allowed: false,
+      current: 0,
+      limit: 0,
+      message:
+        "No active subscription found. Please subscribe to a plan to continue.",
+      upgradeRequired: true,
     };
+  }
 
-    const limit = limits[resource];
+  // Subscription not in good standing
+  if (!["active", "trialing"].includes(sub.status)) {
+    return {
+      allowed: false,
+      current: 0,
+      limit: 0,
+      message:
+        sub.status === "past_due"
+          ? "Your payment is overdue. Please update your billing information."
+          : "Your subscription is not active. Please contact support.",
+      upgradeRequired: true,
+    };
+  }
 
-    // -1 means unlimited
-    if (limit === -1) {
-        return { allowed: true, current: 0, limit: -1 };
-    }
+  // 2. Determine limit (respect enterprise overrides)
+  const limits: Record<ResourceType, number> = {
+    employee: sub.maxEmployeesOverride ?? sub.maxEmployees,
+    admin: sub.maxAdmins,
+    branch: sub.maxBranches,
+    device: sub.maxDevices,
+    storage: sub.maxStorageOverride ?? sub.maxStorageMB,
+  };
 
-    // 3. Get current count
-    const current = await getResourceCount(organizationId, resource);
+  const limit = limits[resource];
 
-    // 4. Enforce
-    if (action === "create" && current >= limit) {
-        return {
-            allowed: false,
-            current,
-            limit,
-            message: `You've reached your plan limit of ${limit} ${resource}${limit !== 1 ? "s" : ""}. Upgrade your plan to add more.`,
-            upgradeRequired: true,
-        };
-    }
+  // -1 means unlimited
+  if (limit === -1) {
+    return { allowed: true, current: 0, limit: -1 };
+  }
 
-    return { allowed: true, current, limit };
+  // 3. Get current count
+  const current = await getResourceCount(organizationId, resource);
+
+  // 4. Enforce
+  if (action === "create" && current >= limit) {
+    return {
+      allowed: false,
+      current,
+      limit,
+      message: `You've reached your plan limit of ${limit} ${resource}${limit !== 1 ? "s" : ""}. Upgrade your plan to add more.`,
+      upgradeRequired: true,
+    };
+  }
+
+  return { allowed: true, current, limit };
 }
 
 /**
@@ -296,69 +320,69 @@ export async function enforcePlanLimit(
  * so the next check fetches fresh data.
  */
 export async function onResourceCreated(
-    organizationId: string,
-    resource: ResourceType
+  organizationId: string,
+  resource: ResourceType,
 ): Promise<void> {
-    await invalidateResourceCount(organizationId, resource);
+  await invalidateResourceCount(organizationId, resource);
 }
 
 /**
  * Called after a resource is deleted — invalidate the count cache.
  */
 export async function onResourceDeleted(
-    organizationId: string,
-    resource: ResourceType
+  organizationId: string,
+  resource: ResourceType,
 ): Promise<void> {
-    await invalidateResourceCount(organizationId, resource);
+  await invalidateResourceCount(organizationId, resource);
 }
 
 /**
  * Get usage summary for an organization (for dashboard display)
  */
 export async function getUsageSummary(organizationId: string): Promise<{
-    plan: string;
-    status: string;
-    limits: Record<ResourceType, { current: number; limit: number }>;
+  plan: string;
+  status: string;
+  limits: Record<ResourceType, { current: number; limit: number }>;
 }> {
-    const sub = await getOrgSubscription(organizationId);
+  const sub = await getOrgSubscription(organizationId);
 
-    if (!sub) {
-        return {
-            plan: "none",
-            status: "no_subscription",
-            limits: {
-                employee: { current: 0, limit: 0 },
-                admin: { current: 0, limit: 0 },
-                branch: { current: 0, limit: 0 },
-                device: { current: 0, limit: 0 },
-                storage: { current: 0, limit: 0 },
-            },
-        };
-    }
-
-    const [employees, admins, branches, devices, storage] = await Promise.all([
-        getResourceCount(organizationId, "employee"),
-        getResourceCount(organizationId, "admin"),
-        getResourceCount(organizationId, "branch"),
-        getResourceCount(organizationId, "device"),
-        getResourceCount(organizationId, "storage"),
-    ]);
-
+  if (!sub) {
     return {
-        plan: sub.planSlug,
-        status: sub.status,
-        limits: {
-            employee: {
-                current: employees,
-                limit: sub.maxEmployeesOverride ?? sub.maxEmployees,
-            },
-            admin: { current: admins, limit: sub.maxAdmins },
-            branch: { current: branches, limit: sub.maxBranches },
-            device: { current: devices, limit: sub.maxDevices },
-            storage: {
-                current: storage,
-                limit: sub.maxStorageOverride ?? sub.maxStorageMB,
-            },
-        },
+      plan: "none",
+      status: "no_subscription",
+      limits: {
+        employee: { current: 0, limit: 0 },
+        admin: { current: 0, limit: 0 },
+        branch: { current: 0, limit: 0 },
+        device: { current: 0, limit: 0 },
+        storage: { current: 0, limit: 0 },
+      },
     };
+  }
+
+  const [employees, admins, branches, devices, storage] = await Promise.all([
+    getResourceCount(organizationId, "employee"),
+    getResourceCount(organizationId, "admin"),
+    getResourceCount(organizationId, "branch"),
+    getResourceCount(organizationId, "device"),
+    getResourceCount(organizationId, "storage"),
+  ]);
+
+  return {
+    plan: sub.planSlug,
+    status: sub.status,
+    limits: {
+      employee: {
+        current: employees,
+        limit: sub.maxEmployeesOverride ?? sub.maxEmployees,
+      },
+      admin: { current: admins, limit: sub.maxAdmins },
+      branch: { current: branches, limit: sub.maxBranches },
+      device: { current: devices, limit: sub.maxDevices },
+      storage: {
+        current: storage,
+        limit: sub.maxStorageOverride ?? sub.maxStorageMB,
+      },
+    },
+  };
 }
