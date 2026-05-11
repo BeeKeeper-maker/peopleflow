@@ -39,7 +39,14 @@ RUN npx prisma generate
 # CRITICAL: next build MUST run with NODE_ENV=production
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+# Coolify kills long silent Docker build steps. Keep a lightweight heartbeat
+# while Next.js compiles so production deploys don't fail during quiet periods.
+RUN (while true; do echo "[build] Next.js build still running..."; sleep 30; done) & \
+    heartbeat=$!; \
+    npm run build; \
+    status=$?; \
+    kill "$heartbeat" 2>/dev/null || true; \
+    exit "$status"
 
 # ───────────────────────────────────────
 # Stage 3: Production-only dependencies
