@@ -99,7 +99,11 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Health check
+# The same image can run either the Next.js web process or the BullMQ worker
+# process. Web containers must answer /api/health. Worker containers do not bind
+# port 3000, so their health is the container/process staying alive; if the
+# worker crashes, Docker marks the container exited and Coolify will fail it.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
+    CMD if [ "$PEOPLEFLOW_PROCESS" = "worker" ]; then exit 0; else curl -f http://localhost:3000/api/health || exit 1; fi
 
 CMD ["/app/entrypoint.sh"]
