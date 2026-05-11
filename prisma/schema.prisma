@@ -358,11 +358,13 @@ model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
   email     String
+  purpose   String   @default("password_reset") // password_reset, employee_invitation, employee_reactivation
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([email])
+  @@index([purpose])
   @@index([token])
 }
 

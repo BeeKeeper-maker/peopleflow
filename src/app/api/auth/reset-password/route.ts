@@ -177,8 +177,14 @@ export async function POST(request: Request) {
             }).catch((err) => authLogger.error({ err: err }, "Failed to send password change email:"));
         }
 
+        const responseMessage = resetToken.purpose === "employee_invitation"
+            ? "Your PeopleFlow account has been activated. You can now log in with your new password."
+            : resetToken.purpose === "employee_reactivation"
+                ? "Your PeopleFlow account has been reactivated. You can now log in with your new password."
+                : "Password has been reset successfully. You can now log in with your new password.";
+
         return NextResponse.json(
-            { message: "Password has been reset successfully. You can now log in with your new password." },
+            { message: responseMessage, purpose: resetToken.purpose },
             { status: 200 }
         );
     } catch (error) {
@@ -216,7 +222,7 @@ export async function GET(request: Request) {
             );
         }
 
-        return NextResponse.json({ valid: true });
+        return NextResponse.json({ valid: true, purpose: resetToken.purpose });
     } catch (error) {
         authLogger.error({ err: error }, "Token validation error:");
         return NextResponse.json(

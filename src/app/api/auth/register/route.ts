@@ -5,9 +5,13 @@ import { slugify } from "@/lib/utils";
 import { sendTemplateEmail } from "@/lib/email";
 import crypto from "crypto";
 import { authLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
     try {
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "auth/register");
+        if (!rl.allowed) return rl.response!;
+
         const body = await request.json();
         const { organizationName, industry, name, email, password } = body;
 

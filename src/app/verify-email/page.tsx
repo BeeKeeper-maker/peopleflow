@@ -16,8 +16,8 @@ export default function VerifyEmailPage() {
     const t = useTranslations("VerifyEmail");
     const { addToast } = useToast();
 
-    const [status, setStatus] = useState<"loading" | "success" | "already-verified" | "error" | "no-token">(
-        token ? "loading" : "no-token"
+    const [status, setStatus] = useState<"confirm" | "loading" | "success" | "already-verified" | "error" | "no-token">(
+        token ? "confirm" : "no-token"
     );
     const [errorMessage, setErrorMessage] = useState("");
     const [resendEmail, setResendEmail] = useState("");
@@ -25,7 +25,7 @@ export default function VerifyEmailPage() {
     const [resendSuccess, setResendSuccess] = useState(false);
 
     useEffect(() => {
-        const verifyEmail = async () => {
+        const validateToken = async () => {
             if (!token) return;
 
             try {
@@ -33,7 +33,7 @@ export default function VerifyEmailPage() {
                 const data = await res.json();
 
                 if (res.ok) {
-                    setStatus(data.alreadyVerified ? "already-verified" : "success");
+                    setStatus("confirm");
                 } else {
                     setStatus("error");
                     setErrorMessage(data.error || t("errorGeneric"));
@@ -44,8 +44,32 @@ export default function VerifyEmailPage() {
             }
         };
 
-        verifyEmail();
+        validateToken();
     }, [token, t]);
+
+    const handleVerify = async () => {
+        if (!token) return;
+
+        setStatus("loading");
+        try {
+            const res = await fetch("/api/auth/verify-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token }),
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                setStatus(data.alreadyVerified ? "already-verified" : "success");
+            } else {
+                setStatus("error");
+                setErrorMessage(data.error || t("errorGeneric"));
+            }
+        } catch {
+            setStatus("error");
+            setErrorMessage(t("errorGeneric"));
+        }
+    };
 
     const handleResend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -95,6 +119,21 @@ export default function VerifyEmailPage() {
                 transition={{ duration: 0.5 }}
                 className="w-full max-w-md text-center"
             >
+                {/* Explicit confirmation: prevents email scanners/prefetchers from consuming verification tokens */}
+                {status === "confirm" && (
+                    <>
+                        <div className="mx-auto w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4">
+                            <Mail className="h-8 w-8 text-white" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white mb-2">Verify your email</h2>
+                        <p className="text-white/60 mb-6">Please confirm to activate this PeopleFlow account.</p>
+                        <Button onClick={handleVerify} className="w-full h-12">
+                            Verify Email
+                            <ArrowRight className="h-5 w-5" />
+                        </Button>
+                    </>
+                )}
+
                 {/* Loading */}
                 {status === "loading" && (
                     <>

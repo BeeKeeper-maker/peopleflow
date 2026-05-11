@@ -21,6 +21,7 @@ export default function ResetPasswordPage() {
     const [isValidating, setIsValidating] = useState(true);
     const [isValid, setIsValid] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [tokenPurpose, setTokenPurpose] = useState<"password_reset" | "employee_invitation" | "employee_reactivation">("password_reset");
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [formData, setFormData] = useState({
@@ -36,6 +37,9 @@ export default function ResetPasswordPage() {
                 const res = await fetch(`/api/auth/reset-password?token=${token}`);
                 const data = await res.json();
                 setIsValid(data.valid === true);
+                if (["password_reset", "employee_invitation", "employee_reactivation"].includes(data.purpose)) {
+                    setTokenPurpose(data.purpose);
+                }
             } catch {
                 setIsValid(false);
             } finally {
@@ -50,6 +54,33 @@ export default function ResetPasswordPage() {
             setIsValid(false);
         }
     }, [token]);
+
+    const pageCopy = {
+        password_reset: {
+            backLabel: t("backToLogin"),
+            title: t("title"),
+            subtitle: t("subtitle"),
+            submit: t("resetBtn"),
+            successTitle: t("successTitle"),
+            successDesc: t("successDesc"),
+        },
+        employee_invitation: {
+            backLabel: t("backToLogin"),
+            title: "Set Up Your PeopleFlow Account",
+            subtitle: "Create your password to activate your Employee Self-Service access.",
+            submit: "Set Password",
+            successTitle: "Account Activated Successfully!",
+            successDesc: "Your PeopleFlow account is ready. You can now log in with your new password.",
+        },
+        employee_reactivation: {
+            backLabel: t("backToLogin"),
+            title: "Reactivate Your PeopleFlow Account",
+            subtitle: "Set a fresh password before returning to Employee Self-Service.",
+            submit: "Set New Password",
+            successTitle: "Account Reactivated Successfully!",
+            successDesc: "Your password has been set. You can now log in again.",
+        },
+    }[tokenPurpose];
 
     const validateForm = () => {
         const newErrors: { password?: string; confirmPassword?: string } = {};
@@ -170,10 +201,10 @@ export default function ResetPasswordPage() {
                         <CheckCircle className="h-8 w-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">
-                        {t("successTitle")}
+                        {pageCopy.successTitle}
                     </h2>
                     <p className="text-white/60 mb-6">
-                        {t("successDesc")}
+                        {pageCopy.successDesc}
                     </p>
                     <Link href="/login">
                         <Button className="w-full h-12">
@@ -208,10 +239,10 @@ export default function ResetPasswordPage() {
                         <ShieldCheck className="h-8 w-8 text-white" />
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-2">
-                        {t("title")}
+                        {pageCopy.title}
                     </h2>
                     <p className="text-white/60">
-                        {t("subtitle")}
+                        {pageCopy.subtitle}
                     </p>
                 </div>
 
@@ -278,7 +309,7 @@ export default function ResetPasswordPage() {
                     >
                         {!isLoading && (
                             <>
-                                {t("resetBtn")}
+                                {pageCopy.submit}
                                 <ArrowRight className="h-5 w-5" />
                             </>
                         )}

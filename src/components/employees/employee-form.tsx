@@ -233,8 +233,10 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
             const res = await fetch("/api/upload", { method: "POST", body: formData })
             if (!res.ok) throw new Error("Upload failed")
             const data = await res.json()
-            form.setValue("photoUrl", data.url)
-            setPhotoPreview(data.url)
+            const uploadedUrl = data?.data?.url || data?.url
+            if (!uploadedUrl) throw new Error("Upload response did not include a file URL")
+            form.setValue("photoUrl", uploadedUrl, { shouldDirty: true, shouldValidate: true })
+            setPhotoPreview(uploadedUrl)
             addToast({ title: t("photoUploaded"), description: t("photoUploadedDesc"), type: "success" })
         } catch {
             addToast({ title: t("uploadFailed"), description: t("uploadFailedDesc"), type: "error" })

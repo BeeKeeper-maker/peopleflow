@@ -233,6 +233,83 @@ export const emailTemplates = {
         `,
     }; },
 
+    employeeInvitation: (rawData: { userName: string; setupUrl: string; expiresIn?: string }) => {
+        const data = {
+            userName: escapeHtml(rawData.userName),
+            setupUrl: rawData.setupUrl,
+            expiresIn: escapeHtml(rawData.expiresIn || "24 hours"),
+        };
+        return {
+        subject: "Welcome to PeopleFlow — Set Your Password",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #2563EB, #7C3AED); padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Welcome to PeopleFlow</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <h2 style="color: #1f2937;">Hello ${data.userName},</h2>
+                    <p style="color: #4b5563; line-height: 1.6;">
+                        Your employee account has been created. Please set your password to activate your Employee Self-Service access.
+                        This invitation link will expire in <strong>${data.expiresIn}</strong>.
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${data.setupUrl}"
+                           style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #2563EB, #7C3AED); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                            Set Your Password
+                        </a>
+                    </div>
+                    <div style="margin: 20px 0; padding: 15px; background: #eff6ff; border-radius: 8px;">
+                        <p style="color: #1d4ed8; margin: 0; font-size: 13px;">
+                            If you were not expecting this invitation, please contact your HR administrator.
+                        </p>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 12px; word-break: break-all;">
+                        Or copy this link: ${data.setupUrl}
+                    </p>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p>© ${new Date().getFullYear()} PeopleFlow HRMS. All rights reserved.</p>
+                </div>
+            </div>
+        `,
+    }; },
+
+    employeeReactivation: (rawData: { userName: string; setupUrl: string; expiresIn?: string }) => {
+        const data = {
+            userName: escapeHtml(rawData.userName),
+            setupUrl: rawData.setupUrl,
+            expiresIn: escapeHtml(rawData.expiresIn || "24 hours"),
+        };
+        return {
+        subject: "PeopleFlow Account Reactivated — Set Your Password",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #059669, #2563EB); padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Account Reactivated</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <h2 style="color: #1f2937;">Hello ${data.userName},</h2>
+                    <p style="color: #4b5563; line-height: 1.6;">
+                        Your PeopleFlow employee account has been reactivated. For your security, please set a fresh password before logging in.
+                        This link will expire in <strong>${data.expiresIn}</strong>.
+                    </p>
+                    <div style="margin: 30px 0; text-align: center;">
+                        <a href="${data.setupUrl}"
+                           style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #059669, #2563EB); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                            Set New Password
+                        </a>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 12px; word-break: break-all;">
+                        Or copy this link: ${data.setupUrl}
+                    </p>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p>© ${new Date().getFullYear()} PeopleFlow HRMS. All rights reserved.</p>
+                </div>
+            </div>
+        `,
+    }; },
+
     verifyEmail: (rawData: { userName: string; verifyUrl: string }) => {
         const data = { userName: escapeHtml(rawData.userName), verifyUrl: rawData.verifyUrl };
         return {

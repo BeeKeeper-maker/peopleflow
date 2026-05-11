@@ -212,6 +212,7 @@ export async function POST(req: Request) {
                     data: {
                         email: normalizedEmail,
                         token: invitationToken,
+                        purpose: "employee_invitation",
                         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
                     },
                 });
@@ -222,9 +223,10 @@ export async function POST(req: Request) {
 
         if (normalizedEmail && result.invitationToken) {
             const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-            void sendTemplateEmail(normalizedEmail, "passwordReset", {
-                userName: `${body.firstName} ${body.lastName}`,
-                resetUrl: `${appUrl}/reset-password/${result.invitationToken}`,
+            void sendTemplateEmail(normalizedEmail, "employeeInvitation", {
+                userName: `${body.firstName} ${body.lastName}`.trim(),
+                setupUrl: `${appUrl}/set-password/${result.invitationToken}`,
+                expiresIn: "24 hours",
             }).catch((err) => apiLogger.error({ err, employeeId: result.employee.id }, "EMPLOYEE_INVITE_EMAIL_FAILED"));
         }
 

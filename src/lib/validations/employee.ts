@@ -52,7 +52,14 @@ export const employeeSchema = z.object({
     nationality: z.preprocess(sanitize, z.string().default("Bangladeshi")),
     nidNumber: z.preprocess(sanitize, z.string().optional()),
     passportNumber: z.preprocess(sanitize, z.string().optional()),
-    photoUrl: z.preprocess(sanitize, z.string().optional()),
+    photoUrl: z.preprocess(
+        sanitize,
+        z.string()
+            .optional()
+            .refine((value) => !value || value.startsWith("/api/uploads/"), {
+                message: "Profile photo must be uploaded through PeopleFlow",
+            })
+    ),
 
     // ── Employment Details ──────────────────────────────────────────────────
     employeeCode: z.string().min(1, "Employee code is required"),

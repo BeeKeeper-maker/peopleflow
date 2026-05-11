@@ -32,7 +32,7 @@ const HR_ROUTES = [
 ];
 
 const PUBLIC_ROUTES = [
-    "/login", "/register", "/forgot-password", "/reset-password",
+    "/login", "/register", "/forgot-password", "/reset-password", "/set-password",
     "/verify-email", "/careers", "/suspended", "/deactivated",
     "/platform/login", "/legal",
 ];

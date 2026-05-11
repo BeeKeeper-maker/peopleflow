@@ -15,7 +15,6 @@ export async function GET(request: Request) {
             );
         }
 
-        // Find the token
         const verificationToken = await prisma.emailVerificationToken.findUnique({
             where: { token },
         });
@@ -28,7 +27,6 @@ export async function GET(request: Request) {
         }
 
         if (new Date() > verificationToken.expiresAt) {
-            // Delete expired token
             await prisma.emailVerificationToken.delete({
                 where: { id: verificationToken.id },
             });
@@ -38,46 +36,9 @@ export async function GET(request: Request) {
             );
         }
 
-        // Update user's emailVerified field
-        const user = await prisma.user.findUnique({
-            where: { email: verificationToken.email },
-        });
-
-        if (!user) {
-            return NextResponse.json(
-                { error: "User not found" },
-                { status: 404 }
-            );
-        }
-
-        if (user.emailVerified) {
-            // Already verified — clean up token and return success
-            await prisma.emailVerificationToken.delete({
-                where: { id: verificationToken.id },
-            });
-            return NextResponse.json(
-                { message: "Email is already verified", alreadyVerified: true },
-                { status: 200 }
-            );
-        }
-
-        // Verify email and delete token in transaction
-        await prisma.$transaction([
-            prisma.user.update({
-                where: { id: user.id },
-                data: { emailVerified: new Date() },
-            }),
-            prisma.emailVerificationToken.delete({
-                where: { id: verificationToken.id },
-            }),
-        ]);
-
-        return NextResponse.json(
-            { message: "Email verified successfully! You can now log in." },
-            { status: 200 }
-        );
+        return NextResponse.json({ valid: true });
     } catch (error) {
-        authLogger.error({ err: error }, "Email verification error:");
+        authLogger.error({ err: error }, "Email verification token validation error:");
         return NextResponse.json(
             { error: "An error occurred during verification" },
             { status: 500 }
@@ -94,7 +55,64 @@ export async function POST(request: Request) {
         const ipLimit = await rateLimit(request, RATE_LIMIT_CONFIGS.sensitive, "auth/verify-email/resend");
         if (!ipLimit.allowed) return ipLimit.response!;
 
-        const { email } = await request.json();
+        const body = await request.json();
+
+        if (body.token) {
+            const verificationToken = await prisma.emailVerificationToken.findUnique({
+                where: { token: body.token },
+            });
+
+            if (!verificationToken) {
+                return NextResponse.json(
+                    { error: "Invalid verification link" },
+                    { status: 400 }
+                );
+            }
+
+            if (new Date() > verificationToken.expiresAt) {
+                await prisma.emailVerificationToken.delete({ where: { id: verificationToken.id } });
+                return NextResponse.json(
+                    { error: "Verification link has expired. Please request a new one." },
+                    { status: 400 }
+                );
+            }
+
+            const user = await prisma.user.findUnique({
+                where: { email: verificationToken.email },
+            });
+
+            if (!user) {
+                return NextResponse.json(
+                    { error: "User not found" },
+                    { status: 404 }
+                );
+            }
+
+            if (user.emailVerified) {
+                await prisma.emailVerificationToken.delete({ where: { id: verificationToken.id } });
+                return NextResponse.json(
+                    { message: "Email is already verified", alreadyVerified: true },
+                    { status: 200 }
+                );
+            }
+
+            await prisma.$transaction([
+                prisma.user.update({
+                    where: { id: user.id },
+                    data: { emailVerified: new Date() },
+                }),
+                prisma.emailVerificationToken.delete({
+                    where: { id: verificationToken.id },
+                }),
+            ]);
+
+            return NextResponse.json(
+                { message: "Email verified successfully! You can now log in." },
+                { status: 200 }
+            );
+        }
+
+        const { email } = body;
 
         if (!email) {
             return NextResponse.json(

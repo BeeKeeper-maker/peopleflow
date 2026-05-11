@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, validatePassword, hashPassword } from "@/lib/auth";
+import { validatePassword, hashPassword } from "@/lib/auth";
+import { requireAuth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { authLogger } from "@/lib/logger";
@@ -8,10 +9,8 @@ const PASSWORD_HISTORY_LIMIT = 5;
 
 export async function POST(req: NextRequest) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const authResult = await requireAuth();
+        if (authResult instanceof NextResponse) return authResult;
 
         const { currentPassword, newPassword } = await req.json();
 
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
 
         // Get user from database
         const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { id: authResult.userId },
         });
 
         if (!user || !user.password) {

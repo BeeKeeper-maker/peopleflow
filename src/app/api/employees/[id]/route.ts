@@ -268,6 +268,7 @@ export async function PUT(
                         data: {
                             email: userEmail,
                             token: reactivationToken,
+                            purpose: "employee_reactivation",
                             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
                         },
                     });
@@ -338,9 +339,10 @@ export async function PUT(
         if (result.reactivationToken && (normalizedEmail || existingEmployee.email)) {
             const targetEmail = normalizedEmail || existingEmployee.email!;
             const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-            void sendTemplateEmail(targetEmail, "passwordReset", {
+            void sendTemplateEmail(targetEmail, "employeeReactivation", {
                 userName: `${body.firstName} ${body.lastName}`.trim(),
-                resetUrl: `${appUrl}/reset-password/${result.reactivationToken}`,
+                setupUrl: `${appUrl}/set-password/${result.reactivationToken}`,
+                expiresIn: "24 hours",
             }).catch((err) => apiLogger.error({ err, employeeId: id }, "EMPLOYEE_REACTIVATION_EMAIL_FAILED"));
         }
 

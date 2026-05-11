@@ -163,9 +163,17 @@ export async function getApiUser() {
 
     const user = await prisma.user.findUnique({
         where: { email: session.user.email },
+        include: { organization: { select: { status: true } } },
     });
 
+    const sessionVersion = typeof session.user.sessionVersion === "number"
+        ? session.user.sessionVersion
+        : 0;
+
     if (!user?.organizationId) return null;
+    if (sessionVersion !== user.sessionVersion) return null;
+    if (!user.isActive || !user.emailVerified) return null;
+    if (user.organization?.status !== "active") return null;
 
     return {
         user,
