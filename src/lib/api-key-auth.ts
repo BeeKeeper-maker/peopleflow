@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash, randomBytes } from "crypto";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { canAccessModule } from "@/lib/module-entitlements";
 
 export interface ApiKeyAuthResult {
     valid: true;
@@ -146,7 +147,7 @@ export async function authenticateApiKey(
         };
     }
 
-    if (subscription.features.apiAccess === false) {
+    if (!canAccessModule(subscription.features, "apiAccess")) {
         return {
             valid: false,
             response: NextResponse.json(

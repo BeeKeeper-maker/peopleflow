@@ -297,13 +297,23 @@ export async function createLeaveNotification(
  * @returns Array of weekend day numbers (0-6)
  */
 export function getWeekendDays(settings: unknown): number[] {
-    if (!settings || typeof settings !== "object") return DEFAULT_WEEKEND_DAYS;
+    let normalized = settings;
+
+    if (typeof settings === "string") {
+        try {
+            normalized = JSON.parse(settings) as unknown;
+        } catch {
+            return DEFAULT_WEEKEND_DAYS;
+        }
+    }
+
+    if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) return DEFAULT_WEEKEND_DAYS;
 
     try {
-        const s = settings as OrganizationSettings;
+        const s = normalized as OrganizationSettings;
         if (Array.isArray(s.weekendDays) && s.weekendDays.length > 0) {
             // Validate all values are 0-6
-            const valid = s.weekendDays.every((d) => d >= 0 && d <= 6);
+            const valid = s.weekendDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
             if (valid) return s.weekendDays;
         }
     } catch {

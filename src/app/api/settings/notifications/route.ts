@@ -3,9 +3,10 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
+import { toPlainSettings } from "@/lib/settings-json";
 
 // GET /api/settings/notifications - Get notification preferences
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const session = await auth()
         if (!session?.user) {
@@ -24,13 +25,14 @@ export async function GET(req: NextRequest) {
             select: { settings: true },
         })
 
-        const settings = (org?.settings as Record<string, any>) || {}
-        const notifications = settings.notifications || {
-            emailNotifications: true,
-            leaveApprovals: true,
-            payrollAlerts: true,
-            attendanceReminders: true,
-            systemUpdates: false,
+        const settings = toPlainSettings(org?.settings)
+        const savedNotifications = toPlainSettings(settings.notifications)
+        const notifications = {
+            emailNotifications: typeof savedNotifications.emailNotifications === "boolean" ? savedNotifications.emailNotifications : true,
+            leaveApprovals: typeof savedNotifications.leaveApprovals === "boolean" ? savedNotifications.leaveApprovals : true,
+            payrollAlerts: typeof savedNotifications.payrollAlerts === "boolean" ? savedNotifications.payrollAlerts : true,
+            attendanceReminders: typeof savedNotifications.attendanceReminders === "boolean" ? savedNotifications.attendanceReminders : true,
+            systemUpdates: typeof savedNotifications.systemUpdates === "boolean" ? savedNotifications.systemUpdates : false,
         }
 
         return NextResponse.json({ notifications })
@@ -60,23 +62,28 @@ export async function PATCH(req: NextRequest) {
             select: { settings: true },
         })
 
-        const currentSettings = (org?.settings as Record<string, any>) || {}
+        const currentSettings = toPlainSettings(org?.settings)
+        const previousNotifications = toPlainSettings(currentSettings.notifications)
 
-        // Update notification preferences in settings JSON
-        currentSettings.notifications = {
-            emailNotifications: emailNotifications ?? true,
-            leaveApprovals: leaveApprovals ?? true,
-            payrollAlerts: payrollAlerts ?? true,
-            attendanceReminders: attendanceReminders ?? true,
-            systemUpdates: systemUpdates ?? false,
+        const notifications = {
+            emailNotifications: typeof emailNotifications === "boolean" ? emailNotifications : previousNotifications.emailNotifications !== false,
+            leaveApprovals: typeof leaveApprovals === "boolean" ? leaveApprovals : previousNotifications.leaveApprovals !== false,
+            payrollAlerts: typeof payrollAlerts === "boolean" ? payrollAlerts : previousNotifications.payrollAlerts !== false,
+            attendanceReminders: typeof attendanceReminders === "boolean" ? attendanceReminders : previousNotifications.attendanceReminders !== false,
+            systemUpdates: typeof systemUpdates === "boolean" ? systemUpdates : previousNotifications.systemUpdates === true,
+        }
+
+        const updatedSettings = {
+            ...currentSettings,
+            notifications,
         }
 
         await prisma.organization.update({
             where: { id: organizationId },
-            data: { settings: currentSettings },
+            data: { settings: updatedSettings },
         })
 
-        return NextResponse.json({ success: true, notifications: currentSettings.notifications })
+        return NextResponse.json({ success: true, notifications })
     } catch (error) {
         apiLogger.error({ err: error }, "UPDATE_NOTIFICATION_SETTINGS_ERROR")
         return NextResponse.json(

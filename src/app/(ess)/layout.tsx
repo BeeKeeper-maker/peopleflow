@@ -30,6 +30,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
+import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 interface ESSLayoutProps {
     children: ReactNode;
@@ -93,6 +94,21 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
     const t = useTranslations('ESS');
 
     const user = session?.user;
+    const features = session?.user?.features as EntitlementFeatures | undefined;
+    const filteredSections = navSections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => canAccessPath(features, item.href, "page").allowed),
+        }))
+        .filter((section) => section.items.length > 0);
+    const quickActions = [
+        { label: locale === 'bn' ? 'হোম' : 'Home', href: '/ess/dashboard', icon: Home },
+        { label: locale === 'bn' ? 'সময়' : 'Time', href: '/ess/attendance', icon: Clock },
+        { label: locale === 'bn' ? 'ছুটি' : 'Leave', href: '/ess/leaves', icon: Calendar },
+        { label: locale === 'bn' ? 'বেতন' : 'Pay', href: '/ess/payslips', icon: Wallet },
+        { label: locale === 'bn' ? 'প্রোফাইল' : 'Profile', href: '/ess/profile', icon: User },
+    ].filter((item) => canAccessPath(features, item.href, "page").allowed);
+
     const initials = user?.name
         ?.split(" ")
         .map((n) => n[0])
@@ -174,7 +190,7 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
 
                 {/* Navigation — Scrollable */}
                 <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
-                    {navSections.map((section) => (
+                    {filteredSections.map((section) => (
                         <div key={section.label}>
                             {/* Section Label */}
                             <div className="flex items-center gap-2 px-3 mb-2">
@@ -262,14 +278,8 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
 
             {/* Mobile Bottom Navigation — employee-first quick actions */}
             <nav aria-label="Employee quick actions" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-sidebar-border bg-header-bg/95 backdrop-blur-xl pb-[env(safe-area-inset-bottom)]">
-                <div className="grid grid-cols-5 h-16">
-                    {[
-                        { label: locale === 'bn' ? 'হোম' : 'Home', href: '/ess/dashboard', icon: Home },
-                        { label: locale === 'bn' ? 'সময়' : 'Time', href: '/ess/attendance', icon: Clock },
-                        { label: locale === 'bn' ? 'ছুটি' : 'Leave', href: '/ess/leaves', icon: Calendar },
-                        { label: locale === 'bn' ? 'বেতন' : 'Pay', href: '/ess/payslips', icon: Wallet },
-                        { label: locale === 'bn' ? 'প্রোফাইল' : 'Profile', href: '/ess/profile', icon: User },
-                    ].map((item) => {
+                <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${Math.max(quickActions.length, 1)}, minmax(0, 1fr))` }}>
+                    {quickActions.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href;
                         return (

@@ -25,6 +25,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
+import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 interface ManagerNavItem {
     label: string;
@@ -78,6 +79,13 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
     const t = useTranslations('Manager');
 
     const user = session?.user;
+    const features = session?.user?.features as EntitlementFeatures | undefined;
+    const filteredSections = navSections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => canAccessPath(features, item.href, "page").allowed),
+        }))
+        .filter((section) => section.items.length > 0);
     const initials = user?.name
         ?.split(" ")
         .map((n) => n[0])
@@ -174,7 +182,7 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
 
                 {/* Navigation */}
                 <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
-                    {navSections.map((section) => (
+                    {filteredSections.map((section) => (
                         <div key={section.label}>
                             {/* Section Label */}
                             <div className="flex items-center gap-2 px-3 mb-2">

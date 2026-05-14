@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthenticated, AuthContext } from "@/lib/api-auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { format } from "date-fns";
 import {
     calculateWorkingDays,
@@ -14,6 +14,16 @@ import {
 import { validateMaternityLeave } from "@/lib/leave-compliance-engine";
 import { createApprovalRequest } from "@/lib/approval-engine";
 import { leaveLogger } from "@/lib/logger";
+
+type OverlappingLeaveSummary = {
+    leaveType: { name: string };
+    fromDate: Date | string;
+    toDate: Date | string;
+};
+
+function leaveError(message: string, status = 400, details?: Record<string, unknown>) {
+    return NextResponse.json({ error: message, ...details }, { status });
+}
 
 export async function GET(req: Request) {
     // Authenticate first
@@ -55,7 +65,7 @@ export async function GET(req: Request) {
                     },
                     select: { id: true },
                 });
-                if (!reportee) return new NextResponse("Employee not found", { status: 404 });
+                if (!reportee) return leaveError("Employee not found", 404);
             }
             where.employeeId = employeeId;
         }
@@ -124,7 +134,7 @@ export async function GET(req: Request) {
         });
     } catch (error) {
         leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATIONS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        return leaveError("Internal Error", 500);
     }
 }
 
@@ -150,12 +160,32 @@ export async function POST(req: Request) {
             },
         });
 
-        if (!user?.employee) {
-            return new NextResponse("Employee profile not found", { status: 400 });
+        let employee = user?.employee;
+        if (!employee && user?.email) {
+            employee = await prisma.employee.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    email: user.email,
+                    deletedAt: null,
+                },
+                include: {
+                    organization: {
+                        select: { settings: true },
+                    },
+                },
+            });
         }
 
-        if (user.employee.employmentStatus !== "active" || user.employee.deletedAt) {
-            return new NextResponse("Inactive employees cannot apply for leave", { status: 403 });
+        if (!employee) {
+            return leaveError(
+                "No employee profile is linked to this account. Please open an employee/ESS account or link this admin user to an employee before applying for leave.",
+                400,
+                { code: "EMPLOYEE_PROFILE_REQUIRED" }
+            );
+        }
+
+        if (employee.employmentStatus !== "active" || employee.deletedAt) {
+            return leaveError("Inactive employees cannot apply for leave", 403);
         }
 
         const json = await req.json();
@@ -168,9 +198,17 @@ export async function POST(req: Request) {
         const start = new Date(fromDate);
         const end = new Date(toDate);
 
+        if (!leaveTypeId || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return leaveError("Leave type, start date, and end date are required", 400);
+        }
+
+        if (halfDay && format(start, "yyyy-MM-dd") !== format(end, "yyyy-MM-dd")) {
+            return leaveError("Half-day leave must start and end on the same date", 400);
+        }
+
         // ── Validation 1: Basic date validation ──
         if (end < start) {
-            return new NextResponse("End date cannot be before start date", { status: 400 });
+            return leaveError("End date cannot be before start date", 400);
         }
 
         // ── Validation 2: Fetch Leave Type ──
@@ -182,47 +220,41 @@ export async function POST(req: Request) {
         });
 
         if (!leaveType) {
-            return new NextResponse("Leave type not found", { status: 404 });
+            return leaveError("Leave type not found", 404);
         }
 
         // ── Validation 3: Gender eligibility check ──
-        if (!checkGenderEligibility(user.employee.gender, leaveType.applicableGender)) {
-            return new NextResponse(
-                `This leave type (${leaveType.name}) is only available for ${leaveType.applicableGender} employees`,
-                { status: 403 }
-            );
+        if (!checkGenderEligibility(employee.gender, leaveType.applicableGender)) {
+            return leaveError(`This leave type (${leaveType.name}) is only available for ${leaveType.applicableGender} employees`, 403);
         }
 
         // ── Validation 4: Minimum service days check ──
         const serviceCheck = checkMinServiceEligibility(
-            user.employee.joiningDate,
+            employee.joiningDate,
             leaveType.minServiceDays
         );
         if (!serviceCheck.eligible) {
-            return new NextResponse(
+            return leaveError(
                 `You need at least ${serviceCheck.required} days of service to apply for ${leaveType.name}. ` +
                 `Your current service: ${serviceCheck.serviceDays} days.`,
-                { status: 403 }
+                403
             );
         }
 
         // ── Validation 5: Overlapping leave check ──
         const overlappingLeaves = await checkOverlappingLeaves(
             prisma,
-            user.employee.id,
+            employee.id,
             start,
             end
         );
         if (overlappingLeaves.length > 0) {
             const conflictInfo = overlappingLeaves
-                .map((l: any) =>
+                .map((l: OverlappingLeaveSummary) =>
                     `${l.leaveType.name} (${format(new Date(l.fromDate), "dd MMM")} - ${format(new Date(l.toDate), "dd MMM")})`
                 )
                 .join(", ");
-            return new NextResponse(
-                `You already have overlapping leave(s): ${conflictInfo}`,
-                { status: 409 }
-            );
+            return leaveError(`You already have overlapping leave(s): ${conflictInfo}`, 409);
         }
 
         // ── ✅ NEW: Maternity Leave Validation (BLA 2006, Section 46-47) ──
@@ -231,7 +263,7 @@ export async function POST(req: Request) {
 
         if (isMaternityLeave && expectedDeliveryDate) {
             const maternityValidation = await validateMaternityLeave({
-                employeeId: user.employee.id,
+                employeeId: employee.id,
                 fromDate: start,
                 toDate: end,
                 expectedDeliveryDate: new Date(expectedDeliveryDate),
@@ -265,7 +297,7 @@ export async function POST(req: Request) {
             totalDays = 0.5;
         } else {
             // Get organization weekend configuration
-            const weekendDays = getWeekendDays(user.employee.organization?.settings);
+            const weekendDays = getWeekendDays(employee.organization?.settings);
 
             // Get holidays for the leave period year(s)
             const leaveYear = start.getFullYear();
@@ -284,10 +316,7 @@ export async function POST(req: Request) {
             totalDays = calculateWorkingDays(start, end, holidays, weekendDays);
 
             if (totalDays <= 0) {
-                return new NextResponse(
-                    "The selected dates contain no working days (all weekends/holidays)",
-                    { status: 400 }
-                );
+                return leaveError("The selected dates contain no working days (all weekends/holidays)", 400);
             }
         }
 
@@ -296,7 +325,7 @@ export async function POST(req: Request) {
         let allocation = await prisma.leaveAllocation.findUnique({
             where: {
                 employeeId_leaveTypeId_year: {
-                    employeeId: user.employee.id,
+                    employeeId: employee.id,
                     leaveTypeId: leaveTypeId,
                     year: currentYear,
                 },
@@ -307,7 +336,7 @@ export async function POST(req: Request) {
             // Lazy initialization of allocation
             allocation = await prisma.leaveAllocation.create({
                 data: {
-                    employeeId: user.employee.id,
+                    employeeId: employee.id,
                     leaveTypeId: leaveTypeId,
                     year: currentYear,
                     allocatedDays: leaveType.annualAllocation,
@@ -320,16 +349,13 @@ export async function POST(req: Request) {
         // ── Check Balance ──
         const remainingDays = allocation.allocatedDays + allocation.carriedForward - allocation.usedDays;
         if (totalDays > remainingDays) {
-            return new NextResponse(
-                `Insufficient leave balance. Requested: ${totalDays} working days, Remaining: ${remainingDays} days`,
-                { status: 400 }
-            );
+            return leaveError(`Insufficient leave balance. Requested: ${totalDays} working days, Remaining: ${remainingDays} days`, 400);
         }
 
         // ── Create Application (with maternity data if applicable) ──
         const application = await prisma.leaveApplication.create({
             data: {
-                employeeId: user.employee.id,
+                employeeId: employee.id,
                 leaveTypeId,
                 fromDate: start,
                 toDate: end,
@@ -355,7 +381,7 @@ export async function POST(req: Request) {
                 entityType: "leave",
                 entityId: application.id,
                 requestTitle: `${application.leaveType.name}: ${totalDays} day(s) (${format(start, "dd MMM")} - ${format(end, "dd MMM")})`,
-                requesterId: user.employee.id,
+                requesterId: employee.id,
                 organizationId: auth.organizationId,
                 priority: isMaternityLeave ? "high" : "normal",
             });
@@ -400,6 +426,6 @@ export async function POST(req: Request) {
         return NextResponse.json(application);
     } catch (error) {
         leaveLogger.error({ err: error }, "CREATE_LEAVE_APPLICATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        return leaveError("Internal Error", 500);
     }
 }

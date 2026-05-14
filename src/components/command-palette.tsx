@@ -21,6 +21,7 @@ import {
     Fingerprint, GitPullRequest, Search, Plus,
     ArrowRight, Command as CommandIcon,
 } from "lucide-react";
+import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 // ── Command Group wrapper (React 19 type compat) ─────────────────
 
@@ -96,6 +97,7 @@ export function CommandPalette() {
     const { data: searchResults } = useSearch(searchQuery);
 
     const userRole = (session?.user as any)?.role || "employee";
+    const features = (session?.user as any)?.features as EntitlementFeatures | undefined;
     const isPlatformPlane = pathname.startsWith("/platform");
 
     useEffect(() => {
@@ -117,9 +119,10 @@ export function CommandPalette() {
     }, [router]);
 
     const canAccess = useCallback((item: RouteItem) => {
-        if (!item.roles) return true;
-        return item.roles.includes(userRole);
-    }, [userRole]);
+        const roleAllowed = !item.roles || item.roles.includes(userRole);
+        const entitlementAllowed = isPlatformPlane || canAccessPath(features, item.href, "page").allowed;
+        return roleAllowed && entitlementAllowed;
+    }, [features, isPlatformPlane, userRole]);
 
     const navigation = isPlatformPlane ? PLATFORM_NAVIGATION : TENANT_NAVIGATION.filter(canAccess);
     const actions = isPlatformPlane ? [] : TENANT_ACTIONS.filter(canAccess);

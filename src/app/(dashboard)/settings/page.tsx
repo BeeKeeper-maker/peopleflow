@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,8 +25,6 @@ import {
     Shield,
     CreditCard,
     Users,
-    Calendar,
-    Clock,
     Save,
     Upload,
     Loader2,
@@ -52,8 +51,8 @@ import {
     MapPin,
     Navigation,
     ShieldOff,
+    FileText,
 } from "lucide-react"
-import { useSession } from "next-auth/react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
 
@@ -69,6 +68,13 @@ interface OrganizationSettings {
     currency: string
     dateFormat: string
     workWeekStart: number
+}
+
+interface DocumentSettings {
+    orgAddress: string
+    signatoryName: string
+    signatoryDesignation: string
+    signatureImageUrl: string
 }
 
 interface NotificationSettings {
@@ -114,11 +120,12 @@ interface ApiKeyData {
 // ─── Settings Page ──────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const t = useTranslations('Settings')
-    const { data: session } = useSession()
     const { addToast } = useToast()
     const [saving, setSaving] = useState(false)
-    const [activeTab, setActiveTab] = useState("organization")
+    const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "organization")
     const [passwordModalOpen, setPasswordModalOpen] = useState(false)
     const [changingPassword, setChangingPassword] = useState(false)
     const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -146,8 +153,15 @@ export default function SettingsPage() {
         emailNotifications: true,
         leaveApprovals: true,
         payrollAlerts: true,
-        attendanceReminders: true,
+        attendanceReminders: false,
         systemUpdates: false,
+    })
+
+    const [documentSettings, setDocumentSettings] = useState<DocumentSettings>({
+        orgAddress: "",
+        signatoryName: "",
+        signatoryDesignation: "",
+        signatureImageUrl: "",
     })
 
     // Billing state
@@ -170,17 +184,6 @@ export default function SettingsPage() {
     const [savingGeo, setSavingGeo] = useState(false)
     const [geoLoaded, setGeoLoaded] = useState(false)
 
-    useEffect(() => {
-        fetchSettings()
-    }, [])
-
-    // Lazy-load billing and keys data when tabs are selected
-    useEffect(() => {
-        if (activeTab === "billing" && !billing) fetchBilling()
-        if (activeTab === "api-keys" && apiKeys.length === 0) fetchApiKeys()
-        if (activeTab === "attendance" && !geoLoaded) fetchGeoFenceSettings()
-    }, [activeTab])
-
     const fetchSettings = async () => {
         try {
             const res = await fetch("/api/settings")
@@ -188,6 +191,9 @@ export default function SettingsPage() {
                 const data = await res.json()
                 if (data.organization) {
                     setOrgSettings(prev => ({ ...prev, ...data.organization }))
+                    if (data.organization.documents) {
+                        setDocumentSettings(prev => ({ ...prev, ...data.organization.documents }))
+                    }
                 }
             }
         } catch (error) {
@@ -208,6 +214,14 @@ export default function SettingsPage() {
         } finally {
             setBillingLoading(false)
         }
+    }
+
+
+    const handleUpgradePlan = () => {
+        const params = new URLSearchParams()
+        params.set("source", "settings")
+        if (billing?.plan?.slug) params.set("current", billing.plan.slug)
+        router.push(`/billing/upgrade?${params.toString()}`)
     }
 
     const fetchApiKeys = useCallback(async () => {
@@ -241,6 +255,26 @@ export default function SettingsPage() {
             console.error("Failed to fetch geo-fence settings:", error)
         }
     }
+
+
+    useEffect(() => {
+        fetchSettings()
+    }, [])
+
+    // Keep direct tab links (for example /settings?tab=billing) in sync with UI state.
+    useEffect(() => {
+        const requestedTab = searchParams.get("tab")
+        if (requestedTab && requestedTab !== activeTab) setActiveTab(requestedTab)
+    }, [activeTab, searchParams])
+
+    // Lazy-load heavier settings panels only when selected.
+    useEffect(() => {
+        if (activeTab === "billing" && !billing) fetchBilling()
+        if (activeTab === "api-keys" && apiKeys.length === 0) fetchApiKeys()
+        if (activeTab === "attendance" && !geoLoaded) fetchGeoFenceSettings()
+        // Existing settings page uses local async helpers; keep this effect focused on tab switching.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, apiKeys.length, billing, geoLoaded])
 
     const handleToggleGeoFence = async () => {
         setSavingGeo(true)
@@ -382,12 +416,31 @@ export default function SettingsPage() {
                     industry: orgSettings.industry,
                     fiscalYearStart: orgSettings.fiscalYearStart,
                     timezone: orgSettings.timezone,
+                    currency: orgSettings.currency,
+                    dateFormat: orgSettings.dateFormat,
+                    workWeekStart: orgSettings.workWeekStart,
                 }),
             })
             if (res.ok) addToast({ title: t('toastSettingsSaved'), type: 'success' })
             else addToast({ title: t('toastSettingsFail'), type: 'error' })
         } catch {
             addToast({ title: t('toastSettingsFail'), type: 'error' })
+        } finally { setSaving(false) }
+    }
+
+
+    const handleSaveDocumentSettings = async () => {
+        setSaving(true)
+        try {
+            const res = await fetch("/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ documents: documentSettings }),
+            })
+            if (res.ok) addToast({ title: "Document settings saved", type: 'success' })
+            else addToast({ title: "Failed to save document settings", type: 'error' })
+        } catch {
+            addToast({ title: "Failed to save document settings", type: 'error' })
         } finally { setSaving(false) }
     }
 
@@ -495,6 +548,10 @@ export default function SettingsPage() {
                         <Bell className="h-4 w-4" />
                         {t('tabNotifications')}
                     </TabsTrigger>
+                    <TabsTrigger value="documents" className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        Documents
+                    </TabsTrigger>
                     <TabsTrigger value="security" className="gap-2">
                         <Shield className="h-4 w-4" />
                         {t('tabSecurity')}
@@ -588,6 +645,44 @@ export default function SettingsPage() {
                         <Button onClick={handleSaveOrg} disabled={saving} className="gap-2 bg-linear-to-r from-blue-500 to-indigo-600">
                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                             {t('saveChanges')}
+                        </Button>
+                    </div>
+                </TabsContent>
+
+
+                {/* ════════════════ Documents Tab ════════════════ */}
+                <TabsContent value="documents" className="space-y-6">
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground">Official document settings</CardTitle>
+                            <CardDescription className="text-muted-foreground">Set the default address and authorized signatory used in generated HR letters and certificates.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-foreground">Organization address</Label>
+                                    <Input value={documentSettings.orgAddress} onChange={(e) => setDocumentSettings({ ...documentSettings, orgAddress: e.target.value })} placeholder="House, road, city, country" className="bg-hover border-card-border" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Signatory name</Label>
+                                    <Input value={documentSettings.signatoryName} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryName: e.target.value })} placeholder="e.g. Md. Rahim Uddin" className="bg-hover border-card-border" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Signatory designation</Label>
+                                    <Input value={documentSettings.signatoryDesignation} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryDesignation: e.target.value })} placeholder="e.g. Head of HR" className="bg-hover border-card-border" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-foreground">Signature / stamp image URL</Label>
+                                    <Input type="url" value={documentSettings.signatureImageUrl} onChange={(e) => setDocumentSettings({ ...documentSettings, signatureImageUrl: e.target.value })} placeholder="https://.../signature.png" className="bg-hover border-card-border" />
+                                    <p className="text-xs text-muted-foreground">Optional. A transparent PNG signature/stamp URL will appear above the signatory name in generated documents.</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <div className="flex justify-end">
+                        <Button onClick={handleSaveDocumentSettings} disabled={saving} className="gap-2 bg-linear-to-r from-blue-500 to-indigo-600">
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            Save document settings
                         </Button>
                     </div>
                 </TabsContent>
@@ -699,7 +794,7 @@ export default function SettingsPage() {
                                                 </CardDescription>
                                             </div>
                                         </div>
-                                        <Button variant="outline" className="gap-2">
+                                        <Button variant="outline" className="gap-2" onClick={handleUpgradePlan}>
                                             <ArrowUpRight className="h-4 w-4" />
                                             {t('billingUpgradePlan')}
                                         </Button>
@@ -849,7 +944,7 @@ export default function SettingsPage() {
                                 <CreditCard className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
                                 <h3 className="text-lg font-semibold text-foreground mb-2">{t('billingNoSubscription')}</h3>
                                 <p className="text-muted-foreground mb-6">{t('billingNoSubscriptionDesc')}</p>
-                                <Button className="bg-linear-to-r from-blue-500 to-indigo-600 gap-2">
+                                <Button className="bg-linear-to-r from-blue-500 to-indigo-600 gap-2" onClick={handleUpgradePlan}>
                                     <ArrowUpRight className="h-4 w-4" /> {t('billingViewPlans')}
                                 </Button>
                             </CardContent>
@@ -1075,7 +1170,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \\
                                     Branch GPS Status
                                 </CardTitle>
                                 <CardDescription className="text-muted-foreground">
-                                    প্রতিটি ব্রাঞ্চের GPS location সেটআপ করুন। Organization → Branches-এ গিয়ে "📍 আমার অবস্থান ব্যবহার করুন" বাটন চাপুন।
+                                    প্রতিটি ব্রাঞ্চের GPS location সেটআপ করুন। Organization → Branches-এ গিয়ে &quot;📍 আমার অবস্থান ব্যবহার করুন&quot; বাটন চাপুন।
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>

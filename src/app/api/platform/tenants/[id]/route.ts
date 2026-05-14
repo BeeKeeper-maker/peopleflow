@@ -16,6 +16,7 @@ import {
     isPlatformVerified,
 } from "@/lib/platform-token";
 import { logPlatformAction } from "@/lib/platform-auth";
+import { toPlainSettings } from "@/lib/settings-json";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
 import { apiLogger } from "@/lib/logger";
 
@@ -101,39 +102,54 @@ export async function GET(
             }),
         ]);
 
-        // Calculate plan usage percentages
+        const settings = toPlainSettings(org.settings);
+        const saasOverrides =
+            typeof settings.saasOverrides === "object" && settings.saasOverrides !== null && !Array.isArray(settings.saasOverrides)
+                ? (settings.saasOverrides as Record<string, unknown>)
+                : {};
+        const customLimitOverrides =
+            typeof saasOverrides.limits === "object" && saasOverrides.limits !== null && !Array.isArray(saasOverrides.limits)
+                ? (saasOverrides.limits as Record<string, number>)
+                : {};
+        const featureOverrides =
+            typeof saasOverrides.features === "object" && saasOverrides.features !== null && !Array.isArray(saasOverrides.features)
+                ? (saasOverrides.features as Record<string, boolean>)
+                : {};
+
+        // Calculate effective plan limits after platform-owner custom deals.
         const plan = subscription?.plan;
-        const planUsage = plan
+        const effectiveLimits = plan
+            ? {
+                  maxEmployees: subscription?.maxEmployeesOverride ?? plan.maxEmployees,
+                  maxAdmins: customLimitOverrides.maxAdmins ?? plan.maxAdmins,
+                  maxBranches: customLimitOverrides.maxBranches ?? plan.maxBranches,
+                  maxDevices: customLimitOverrides.maxDevices ?? plan.maxDevices,
+                  maxStorageMB: subscription?.maxStorageOverride ?? plan.maxStorageMB,
+              }
+            : null;
+        const effectiveFeatures = plan
+            ? { ...(plan.features as Record<string, boolean>), ...featureOverrides }
+            : {};
+
+        const usagePercentage = (current: number, limit: number) =>
+            limit === -1 ? 0 : Math.round((current / Math.max(limit, 1)) * 100);
+
+        const planUsage = effectiveLimits
             ? {
                   employees: {
                       current: employeeCount,
-                      limit: plan.maxEmployees,
-                      percentage:
-                          plan.maxEmployees === -1
-                              ? 0
-                              : Math.round(
-                                    (employeeCount / plan.maxEmployees) * 100
-                                ),
+                      limit: effectiveLimits.maxEmployees,
+                      percentage: usagePercentage(employeeCount, effectiveLimits.maxEmployees),
                   },
                   users: {
                       current: userCount,
-                      limit: plan.maxAdmins,
-                      percentage:
-                          plan.maxAdmins === -1
-                              ? 0
-                              : Math.round(
-                                    (userCount / plan.maxAdmins) * 100
-                                ),
+                      limit: effectiveLimits.maxAdmins,
+                      percentage: usagePercentage(userCount, effectiveLimits.maxAdmins),
                   },
                   branches: {
                       current: branchCount,
-                      limit: plan.maxBranches,
-                      percentage:
-                          plan.maxBranches === -1
-                              ? 0
-                              : Math.round(
-                                    (branchCount / plan.maxBranches) * 100
-                                ),
+                      limit: effectiveLimits.maxBranches,
+                      percentage: usagePercentage(branchCount, effectiveLimits.maxBranches),
                   },
               }
             : null;
@@ -164,6 +180,12 @@ export async function GET(
                       trialStart: subscription.trialStart,
                       trialEnd: subscription.trialEnd,
                       stripeCustomerId: subscription.stripeCustomerId,
+                      maxEmployeesOverride: subscription.maxEmployeesOverride,
+                      maxStorageOverride: subscription.maxStorageOverride,
+                      customLimitOverrides,
+                      featureOverrides,
+                      effectiveLimits,
+                      effectiveFeatures,
                       plan: subscription.plan,
                   }
                 : null,

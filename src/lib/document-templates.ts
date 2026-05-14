@@ -60,10 +60,24 @@ const COMMON_STYLES = `
         .salary-table th, .salary-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
         .salary-table th { background: #f5f5f5; font-weight: bold; }
         .signature { margin-top: 60px; }
-        .signature-line { display: inline-block; width: 200px; border-top: 1px solid #333; padding-top: 5px; }
+        .signature img { display: block; max-width: 180px; max-height: 70px; object-fit: contain; margin: 8px 0 6px; }
+        .signature-line { display: inline-block; width: 220px; border-top: 1px solid #333; padding-top: 5px; font-weight: bold; }
+        .signature-title { font-size: 12px; color: #555; margin-top: 2px; }
         .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #ddd; padding-top: 15px; }
     </style>
 `;
+
+
+function signatureBlock(data: TemplateData, intro: string, defaultName = "Authorized Signatory", defaultDesignation = "HR Manager"): string {
+    const signatureImage = safe(data, "signatureImageUrl");
+    return `
+            <div class="signature">
+                <p>${intro}</p>
+                ${signatureImage ? `<img src="${signatureImage}" alt="Authorized signature" />` : "<br/><br/>"}
+                <div class="signature-line">${safe(data, "signatoryName", defaultName)}</div>
+                <p class="signature-title">${safe(data, "signatoryDesignation", defaultDesignation)}</p>
+            </div>`;
+}
 
 // ============================================
 // Document Templates (all using safe() escaping)
@@ -100,11 +114,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 <p>Please sign and return a copy of this letter to confirm acceptance.</p>
                 <p>We look forward to welcoming you to the team!</p>
             </div>
-            <div class="signature">
-                <p>Warm regards,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "Authorized Signatory")}</div>
-                <p>${safe(data, "signatoryDesignation", "HR Manager")}</p>
-            </div>
+${signatureBlock(data, "Warm regards,")}
         </div></body></html>
     `,
 
@@ -134,10 +144,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 </ul>
                 <p>Please acknowledge acceptance of this appointment by signing and returning this letter.</p>
             </div>
-            <div class="signature">
-                <p>For ${safe(data, "organizationName")},</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "Authorized Signatory")}</div>
-            </div>
+${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
         </div></body></html>
     `,
 
@@ -159,11 +166,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 <p>During the tenure, ${safe(data, "pronoun", "they")} demonstrated excellent work ethic, professionalism, and dedication. ${safe(data, "pronoun", "They")} fulfilled all responsibilities associated with the role satisfactorily.</p>
                 <p>We wish ${safe(data, "employeeName")} all the best in future endeavors.</p>
             </div>
-            <div class="signature">
-                <p>Sincerely,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "Authorized Signatory")}</div>
-                <p>${safe(data, "signatoryDesignation", "HR Manager")}</p>
-            </div>
+${signatureBlock(data, "Sincerely,")}
         </div></body></html>
     `,
 
@@ -191,10 +194,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 </table>
                 <p>We appreciate your dedication and look forward to your continued excellence.</p>
             </div>
-            <div class="signature">
-                <p>Best regards,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "Authorized Signatory")}</div>
-            </div>
+${signatureBlock(data, "Best regards,")}
         </div></body></html>
     `,
 
@@ -218,10 +218,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 <p>You are advised to take immediate corrective action. Failure to improve may result in further disciplinary action, up to and including termination of employment.</p>
                 <p>Please acknowledge receipt of this letter by signing below.</p>
             </div>
-            <div class="signature">
-                <p>Issued by,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "HR Manager")}</div>
-            </div>
+${signatureBlock(data, "Issued by,", "HR Manager")}
         </div></body></html>
     `,
 
@@ -250,10 +247,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 </ul>
                 <p>Please return all company property by your last working date.</p>
             </div>
-            <div class="signature">
-                <p>For ${safe(data, "organizationName")},</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "Authorized Signatory")}</div>
-            </div>
+${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
         </div></body></html>
     `,
 
@@ -281,10 +275,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 </table>
                 <p>This certificate is issued upon request of the employee for ${safe(data, "purpose", "personal use")}.</p>
             </div>
-            <div class="signature">
-                <p>Authorized by,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "HR Manager")}</div>
-            </div>
+${signatureBlock(data, "Authorized by,", "HR Manager")}
         </div></body></html>
     `,
 
@@ -306,10 +297,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 <p>${safe(data, "employeeName")} has been employed with us since <strong>${safe(data, "joiningDate")}</strong> and has fulfilled all obligations satisfactorily.</p>
                 <p>This certificate is issued at the request of the individual and does not constitute any liability on the part of the organization.</p>
             </div>
-            <div class="signature">
-                <p>Authorized by,</p><br/><br/>
-                <div class="signature-line">${safe(data, "signatoryName", "HR Manager")}</div>
-            </div>
+${signatureBlock(data, "Authorized by,", "HR Manager")}
         </div></body></html>
     `,
 };

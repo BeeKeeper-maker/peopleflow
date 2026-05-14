@@ -15,6 +15,7 @@ import {
     endImpersonationSession,
 } from "@/lib/impersonation";
 import { apiLogger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 
 /**
  * POST: Start an impersonation session
@@ -25,15 +26,42 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { targetUserId, targetOrganizationId, reason } = body;
+        const { reason } = body;
+        let { targetUserId, targetOrganizationId } = body;
 
-        if (!targetUserId || !targetOrganizationId || !reason) {
+        targetOrganizationId = targetOrganizationId || body.organizationId;
+
+        if (!targetOrganizationId || !reason) {
             return NextResponse.json(
-                {
-                    error: "targetUserId, targetOrganizationId, and reason are required",
-                },
+                { error: "targetOrganizationId/organizationId and reason are required" },
                 { status: 400 }
             );
+        }
+
+        // Owner console can start from a tenant/company page without selecting a user.
+        // In that case, impersonate the best available active company admin.
+        if (!targetUserId) {
+            const adminUser = await prisma.user.findFirst({
+                where: {
+                    organizationId: targetOrganizationId,
+                    isActive: true,
+                    emailVerified: { not: null },
+                    role: { in: ["super_admin", "admin", "hr_admin"] },
+                },
+                orderBy: [
+                    { role: "asc" },
+                    { createdAt: "asc" },
+                ],
+            });
+
+            if (!adminUser) {
+                return NextResponse.json(
+                    { error: "No active admin user found for this organization" },
+                    { status: 404 }
+                );
+            }
+
+            targetUserId = adminUser.id;
         }
 
         const result = await createImpersonationSession({

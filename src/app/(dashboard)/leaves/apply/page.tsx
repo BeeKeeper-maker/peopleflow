@@ -24,8 +24,11 @@ export default function ApplyLeavePage() {
             })
 
             if (!response.ok) {
-                const error = await response.text()
-                throw new Error(error)
+                const contentType = response.headers.get("content-type") || ""
+                const errorPayload = contentType.includes("application/json")
+                    ? await response.json()
+                    : { error: await response.text() }
+                throw new Error(errorPayload.error || "Leave application could not be submitted")
             }
 
             addToast({
@@ -41,6 +44,7 @@ export default function ApplyLeavePage() {
                 title: "Error",
                 description: error instanceof Error ? error.message : "Something went wrong",
                 type: "error",
+                duration: 9000,
             })
         } finally {
             setIsLoading(false)

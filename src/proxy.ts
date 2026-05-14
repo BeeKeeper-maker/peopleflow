@@ -9,6 +9,7 @@ import NextAuth from "next-auth";
 import type { NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/auth.config";
 import { NextResponse } from "next/server";
+import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 // ── Role types and route definitions ─────────────────────────────
 
@@ -34,7 +35,7 @@ const HR_ROUTES = [
 const PUBLIC_ROUTES = [
     "/login", "/register", "/forgot-password", "/reset-password", "/set-password",
     "/verify-email", "/careers", "/suspended", "/deactivated",
-    "/platform/login", "/legal",
+    "/platform/login", "/auth/impersonate", "/legal",
 ];
 
 const PUBLIC_API_ROUTES = [
@@ -47,6 +48,29 @@ const PUBLIC_API_ROUTES = [
     // External API routes use bearer/API-key authentication inside route handlers.
     "/api/v1",
 ];
+
+
+function denyModuleAccess(pathname: string, req: NextAuthRequest, kind: "page" | "api", features?: EntitlementFeatures) {
+    const access = canAccessPath(features, pathname, kind);
+    if (access.allowed) return null;
+
+    if (kind === "api") {
+        return NextResponse.json(
+            {
+                error: `${access.matchedModule.label} is not included in this company package.`,
+                code: "MODULE_NOT_INCLUDED",
+                module: access.matchedModule.key,
+                upgradeRequired: true,
+            },
+            { status: 403 }
+        );
+    }
+
+    const url = new URL("/billing/upgrade", req.url);
+    url.searchParams.set("source", "module-disabled");
+    url.searchParams.set("module", access.matchedModule.key);
+    return NextResponse.redirect(url);
+}
 
 function isHRLevel(role?: string): boolean {
     return ["super_admin", "admin", "hr_admin"].includes(role || "");
@@ -71,6 +95,7 @@ export default auth((req: NextAuthRequest) => {
     const pathname = req.nextUrl.pathname;
     const session = req.auth;
     const role = session?.user?.role as UserRole | undefined;
+    const features = session?.user?.features as EntitlementFeatures | undefined;
 
     // Platform routes — handled by separate auth system
     if (pathname.startsWith("/platform")) {
@@ -99,6 +124,11 @@ export default auth((req: NextAuthRequest) => {
         );
     }
 
+    if (pathname.startsWith("/api") && session) {
+        const denied = denyModuleAccess(pathname, req, "api", features);
+        if (denied) return denied;
+    }
+
     // Unauthenticated users → login
     if (!session) {
         return NextResponse.redirect(new URL("/login", req.url));
@@ -120,6 +150,9 @@ export default auth((req: NextAuthRequest) => {
     if (pathname.startsWith("/manager") && !isManagerLevel(role)) {
         return NextResponse.redirect(new URL("/ess/dashboard", req.url));
     }
+
+    const denied = denyModuleAccess(pathname, req, "page", features);
+    if (denied) return denied;
 
     // Suspended/deactivated pages — always accessible
     if (pathname === "/suspended" || pathname === "/deactivated") {

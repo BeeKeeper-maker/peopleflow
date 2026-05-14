@@ -56,6 +56,34 @@ const templateStyles: Record<string, { color: string; bgColor: string }> = {
     noc_letter: { color: "text-indigo-400", bgColor: "bg-indigo-500/20" },
 };
 
+const fieldLabels: Record<string, string> = {
+    refNumber: "Reference number",
+    referenceNumber: "Reference number",
+    signatoryName: "Signatory name",
+    signatoryDesignation: "Signatory designation",
+    signatureImageUrl: "Signature image URL",
+    orgAddress: "Organization address",
+    lastWorkingDate: "Last working date",
+    previousSalary: "Previous salary",
+    newSalary: "New salary",
+    effectiveDate: "Effective date",
+    warningReason: "Warning reason",
+    warningDetails: "Warning details",
+    terminationDate: "Termination date",
+    terminationReason: "Termination reason",
+};
+
+function getFieldLabel(field: string) {
+    return fieldLabels[field] || field.replace(/([A-Z])/g, " $1").trim();
+}
+
+function getInputType(field: string) {
+    if (field.toLowerCase().includes("date")) return "date";
+    if (field.toLowerCase().includes("url")) return "url";
+    if (field.toLowerCase().includes("salary") || field.toLowerCase().includes("pay") || field.toLowerCase().includes("amount")) return "number";
+    return "text";
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // Main Page
 // ════════════════════════════════════════════════════════════════════════
@@ -124,7 +152,8 @@ export default function DocumentsPage() {
             });
 
             if (!res.ok) {
-                const err = await res.json();
+                const contentType = res.headers.get("content-type") || "";
+                const err = contentType.includes("application/json") ? await res.json() : { error: await res.text() };
                 throw new Error(err.error || "Failed to generate");
             }
 
@@ -215,7 +244,10 @@ export default function DocumentsPage() {
                                     <SearchableSelect
                                         options={employeeOptions}
                                         value={selectedEmployee}
-                                        onValueChange={setSelectedEmployee}
+                                        onValueChange={(value) => {
+                                            setSelectedEmployee(value)
+                                            setGeneratedHTML("")
+                                        }}
                                         placeholder="Search employee by name or code..."
                                     />
                                 )}
@@ -243,7 +275,11 @@ export default function DocumentsPage() {
                                             return (
                                                 <button
                                                     key={doc.value}
-                                                    onClick={() => setSelectedType(doc.value)}
+                                                    onClick={() => {
+                                                        setSelectedType(doc.value)
+                                                        setCustomData({})
+                                                        setGeneratedHTML("")
+                                                    }}
                                                     className={`p-4 rounded-xl text-left transition-all duration-200 border ${isSelected
                                                         ? "border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/50"
                                                         : "border-card-border bg-hover hover:bg-card hover:-translate-y-0.5"
@@ -306,11 +342,12 @@ export default function DocumentsPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {selectedTypeInfo.requiredFields.map((field) => (
                                             <div key={field} className="space-y-2">
-                                                <Label className="capitalize">{field.replace(/([A-Z])/g, " $1").trim()}</Label>
+                                                <Label className="capitalize">{getFieldLabel(field)}</Label>
                                                 <Input
+                                                    type={getInputType(field)}
                                                     value={customData[field] || ""}
                                                     onChange={(e) => setCustomData({ ...customData, [field]: e.target.value })}
-                                                    placeholder={`Enter ${field.replace(/([A-Z])/g, " $1").toLowerCase().trim()}`}
+                                                    placeholder={`Enter ${getFieldLabel(field).toLowerCase()}`}
                                                 />
                                             </div>
                                         ))}
@@ -337,10 +374,36 @@ export default function DocumentsPage() {
                                         <div className="space-y-2">
                                             <Label>{t('referenceNumber')}</Label>
                                             <Input
-                                                value={customData.referenceNumber || ""}
-                                                onChange={(e) => setCustomData({ ...customData, referenceNumber: e.target.value })}
+                                                value={customData.refNumber || ""}
+                                                onChange={(e) => setCustomData({ ...customData, refNumber: e.target.value })}
                                                 placeholder="e.g. HR/2026/001"
                                             />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Signatory name</Label>
+                                            <Input
+                                                value={customData.signatoryName || ""}
+                                                onChange={(e) => setCustomData({ ...customData, signatoryName: e.target.value })}
+                                                placeholder="e.g. Md. Rahim Uddin"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Signatory designation</Label>
+                                            <Input
+                                                value={customData.signatoryDesignation || ""}
+                                                onChange={(e) => setCustomData({ ...customData, signatoryDesignation: e.target.value })}
+                                                placeholder="e.g. Head of HR"
+                                            />
+                                        </div>
+                                        <div className="space-y-2 sm:col-span-2">
+                                            <Label>Signature image URL</Label>
+                                            <Input
+                                                type="url"
+                                                value={customData.signatureImageUrl || ""}
+                                                onChange={(e) => setCustomData({ ...customData, signatureImageUrl: e.target.value })}
+                                                placeholder="https://.../authorized-signature.png"
+                                            />
+                                            <p className="text-xs text-muted-foreground">Optional. Use a transparent PNG signature/stamp URL for official letters.</p>
                                         </div>
                                     </div>
                                 </div>

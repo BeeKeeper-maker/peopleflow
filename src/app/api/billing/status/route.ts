@@ -10,12 +10,13 @@
  * - Billing history (recent invoices)
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
+import { getOrgSubscription } from "@/lib/plan-enforcement";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     const session = await auth();
 
     if (!session?.user?.email) {
@@ -77,28 +78,35 @@ export async function GET(request: NextRequest) {
             ]);
 
         const plan = subscription.plan;
+        const effectiveSubscription = await getOrgSubscription(orgId);
+        const effectiveLimits = {
+            maxEmployees: effectiveSubscription?.maxEmployeesOverride ?? effectiveSubscription?.maxEmployees ?? subscription.maxEmployeesOverride ?? plan.maxEmployees,
+            maxAdmins: effectiveSubscription?.maxAdmins ?? plan.maxAdmins,
+            maxBranches: effectiveSubscription?.maxBranches ?? plan.maxBranches,
+            maxStorageMB: effectiveSubscription?.maxStorageOverride ?? effectiveSubscription?.maxStorageMB ?? subscription.maxStorageOverride ?? plan.maxStorageMB,
+        };
 
-        // Build usage data
+        // Build usage data from effective plan + platform-owner custom deal overrides.
         const usage = {
             employees: {
                 current: employeeCount,
-                limit: subscription.maxEmployeesOverride ?? plan.maxEmployees,
-                unlimited: (subscription.maxEmployeesOverride ?? plan.maxEmployees) === -1,
+                limit: effectiveLimits.maxEmployees,
+                unlimited: effectiveLimits.maxEmployees === -1,
             },
             admins: {
                 current: userCount,
-                limit: plan.maxAdmins,
-                unlimited: plan.maxAdmins === -1,
+                limit: effectiveLimits.maxAdmins,
+                unlimited: effectiveLimits.maxAdmins === -1,
             },
             branches: {
                 current: branchCount,
-                limit: plan.maxBranches,
-                unlimited: plan.maxBranches === -1,
+                limit: effectiveLimits.maxBranches,
+                unlimited: effectiveLimits.maxBranches === -1,
             },
             storage: {
                 current: 0, // TODO: Calculate from file storage
-                limit: subscription.maxStorageOverride ?? plan.maxStorageMB,
-                unlimited: (subscription.maxStorageOverride ?? plan.maxStorageMB) === -1,
+                limit: effectiveLimits.maxStorageMB,
+                unlimited: effectiveLimits.maxStorageMB === -1,
             },
         };
 
@@ -134,7 +142,7 @@ export async function GET(request: NextRequest) {
                 priceMonthly: plan.priceMonthly,
                 priceYearly: plan.priceYearly,
                 currency: plan.currency,
-                features: plan.features,
+                features: effectiveSubscription?.features || plan.features,
             },
             usage,
             invoices: subscription.invoices.map((inv) => ({

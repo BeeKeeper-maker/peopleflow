@@ -14,12 +14,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import {
     verifyPlatformRequest,
     isPlatformVerified,
 } from "@/lib/platform-token";
 import { logPlatformAction } from "@/lib/platform-auth";
+import { toPlainSettings } from "@/lib/settings-json";
 import { invalidateSubscription } from "@/lib/redis";
 import { apiLogger } from "@/lib/logger";
 
@@ -106,35 +108,86 @@ export async function PATCH(
             }
 
             case "override_limits": {
-                const updateData: Record<string, unknown> = {};
+                const subscriptionUpdate: Record<string, number | null> = {};
+                const settingsLimitUpdates: Record<string, number | null> = {};
+
+                const parseLimit = (value: unknown, field: string) => {
+                    if (value === null || value === "") return null;
+                    const parsed = Number.parseInt(String(value), 10);
+                    if (!Number.isInteger(parsed) || parsed < -1) {
+                        throw new Error(`${field} must be -1, 0, or a positive integer`);
+                    }
+                    return parsed;
+                };
 
                 if (data.maxEmployeesOverride !== undefined) {
-                    updateData.maxEmployeesOverride =
-                        data.maxEmployeesOverride === null
-                            ? null
-                            : parseInt(data.maxEmployeesOverride);
+                    subscriptionUpdate.maxEmployeesOverride = parseLimit(
+                        data.maxEmployeesOverride,
+                        "maxEmployeesOverride",
+                    );
                 }
                 if (data.maxStorageOverride !== undefined) {
-                    updateData.maxStorageOverride =
-                        data.maxStorageOverride === null
-                            ? null
-                            : parseInt(data.maxStorageOverride);
+                    subscriptionUpdate.maxStorageOverride = parseLimit(
+                        data.maxStorageOverride,
+                        "maxStorageOverride",
+                    );
+                }
+                for (const field of ["maxAdmins", "maxBranches", "maxDevices"] as const) {
+                    if (data[field] !== undefined) {
+                        settingsLimitUpdates[field] = parseLimit(data[field], field);
+                    }
                 }
 
-                if (Object.keys(updateData).length === 0) {
+                if (Object.keys(subscriptionUpdate).length === 0 && Object.keys(settingsLimitUpdates).length === 0) {
                     return NextResponse.json(
-                        {
-                            error: "Provide maxEmployeesOverride or maxStorageOverride",
-                        },
-                        { status: 400 }
+                        { error: "Provide at least one custom limit override" },
+                        { status: 400 },
                     );
                 }
 
-                result = await prisma.subscription.update({
-                    where: { id: subscription.id },
-                    data: updateData,
-                    include: { plan: true },
+                const org = await prisma.organization.findUnique({
+                    where: { id: orgId },
+                    select: { settings: true },
                 });
+                if (!org) {
+                    return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+                }
+
+                const settings = toPlainSettings(org.settings);
+                const currentSaasOverrides =
+                    typeof settings.saasOverrides === "object" && settings.saasOverrides !== null && !Array.isArray(settings.saasOverrides)
+                        ? (settings.saasOverrides as Record<string, unknown>)
+                        : {};
+                const currentLimits =
+                    typeof currentSaasOverrides.limits === "object" && currentSaasOverrides.limits !== null && !Array.isArray(currentSaasOverrides.limits)
+                        ? (currentSaasOverrides.limits as Record<string, unknown>)
+                        : {};
+
+                for (const [key, value] of Object.entries(settingsLimitUpdates)) {
+                    if (value === null) delete currentLimits[key];
+                    else currentLimits[key] = value;
+                }
+
+                const newSettings = {
+                    ...settings,
+                    saasOverrides: {
+                        ...currentSaasOverrides,
+                        limits: currentLimits,
+                    },
+                };
+
+                const [, updatedSubscription] = await prisma.$transaction([
+                    prisma.organization.update({
+                        where: { id: orgId },
+                        data: { settings: newSettings as Prisma.InputJsonValue },
+                    }),
+                    prisma.subscription.update({
+                        where: { id: subscription.id },
+                        data: subscriptionUpdate,
+                        include: { plan: true },
+                    }),
+                ]);
+                result = updatedSubscription;
 
                 await logPlatformAction({
                     adminId: auth.admin.id,
@@ -143,14 +196,84 @@ export async function PATCH(
                     targetId: subscription.id,
                     metadata: {
                         organizationId: orgId,
-                        overrides: updateData,
-                        reason:
-                            data.reason || "Enterprise custom limit override",
+                        subscriptionOverrides: subscriptionUpdate,
+                        settingsLimitOverrides: settingsLimitUpdates,
+                        reason: data.reason || "Enterprise custom limit override",
                     },
-                    ipAddress:
-                        request.headers.get("x-forwarded-for") || undefined,
-                    userAgent:
-                        request.headers.get("user-agent") || undefined,
+                    ipAddress: request.headers.get("x-forwarded-for") || undefined,
+                    userAgent: request.headers.get("user-agent") || undefined,
+                });
+
+                break;
+            }
+
+            case "override_features": {
+                const { featureOverrides } = data;
+                if (typeof featureOverrides !== "object" || featureOverrides === null || Array.isArray(featureOverrides)) {
+                    return NextResponse.json(
+                        { error: "featureOverrides must be an object of feature keys and boolean/null values" },
+                        { status: 400 },
+                    );
+                }
+
+                const org = await prisma.organization.findUnique({
+                    where: { id: orgId },
+                    select: { settings: true },
+                });
+                if (!org) {
+                    return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+                }
+
+                const settings = toPlainSettings(org.settings);
+                const currentSaasOverrides =
+                    typeof settings.saasOverrides === "object" && settings.saasOverrides !== null && !Array.isArray(settings.saasOverrides)
+                        ? (settings.saasOverrides as Record<string, unknown>)
+                        : {};
+                const currentFeatures =
+                    typeof currentSaasOverrides.features === "object" && currentSaasOverrides.features !== null && !Array.isArray(currentSaasOverrides.features)
+                        ? (currentSaasOverrides.features as Record<string, unknown>)
+                        : {};
+
+                for (const [key, value] of Object.entries(featureOverrides as Record<string, unknown>)) {
+                    if (value === null) delete currentFeatures[key];
+                    else if (typeof value === "boolean") currentFeatures[key] = value;
+                    else {
+                        return NextResponse.json(
+                            { error: `Feature override '${key}' must be true, false, or null` },
+                            { status: 400 },
+                        );
+                    }
+                }
+
+                const newSettings = {
+                    ...settings,
+                    saasOverrides: {
+                        ...currentSaasOverrides,
+                        features: currentFeatures,
+                    },
+                };
+
+                await prisma.organization.update({
+                    where: { id: orgId },
+                    data: { settings: newSettings as Prisma.InputJsonValue },
+                });
+                result = await prisma.subscription.findUnique({
+                    where: { id: subscription.id },
+                    include: { plan: true },
+                });
+
+                await logPlatformAction({
+                    adminId: auth.admin.id,
+                    action: "subscription.override_features",
+                    targetType: "subscription",
+                    targetId: subscription.id,
+                    metadata: {
+                        organizationId: orgId,
+                        featureOverrides,
+                        reason: data.reason || "Custom feature access override",
+                    },
+                    ipAddress: request.headers.get("x-forwarded-for") || undefined,
+                    userAgent: request.headers.get("user-agent") || undefined,
                 });
 
                 break;
@@ -233,14 +356,19 @@ export async function PATCH(
             default:
                 return NextResponse.json(
                     {
-                        error: `Unknown action: ${action}. Valid actions: change_plan, override_limits, extend_trial, force_cancel`,
+                        error: `Unknown action: ${action}. Valid actions: change_plan, override_limits, override_features, extend_trial, force_cancel`,
                     },
                     { status: 400 }
                 );
         }
 
-        // Invalidate cached subscription data
+        // Invalidate cached subscription data and force tenant users to refresh their JWT
+        // so module access changes apply immediately instead of waiting for session expiry.
         await invalidateSubscription(orgId);
+        await prisma.user.updateMany({
+            where: { organizationId: orgId },
+            data: { sessionVersion: { increment: 1 } },
+        });
 
         return NextResponse.json({
             success: true,

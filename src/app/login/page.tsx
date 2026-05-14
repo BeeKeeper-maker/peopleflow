@@ -17,6 +17,7 @@ export default function LoginPage() {
     const t = useTranslations("Auth.login");
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
     const [formData, setFormData] = useState({
         email: "",
         password: "",
@@ -37,6 +38,12 @@ export default function LoginPage() {
             newErrors.password = t("passwordRequired");
         }
 
+        if (needsTwoFactor && !formData.twoFactorCode.trim()) {
+            newErrors.twoFactorCode = "Enter your 6-digit authenticator code.";
+        } else if (needsTwoFactor && !/^\d{6}$/.test(formData.twoFactorCode.replace(/\s+/g, ""))) {
+            newErrors.twoFactorCode = "Authenticator code must be 6 digits.";
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -52,15 +59,20 @@ export default function LoginPage() {
             const result = await signIn("credentials", {
                 email: formData.email,
                 password: formData.password,
-                twoFactorCode: formData.twoFactorCode,
+                twoFactorCode: needsTwoFactor ? formData.twoFactorCode : "",
                 redirect: false,
             });
 
             if (result?.error) {
+                const requiresTwoFactor = result.error.toLowerCase().includes("two-factor") || result.error.toLowerCase().includes("two factor");
+                if (requiresTwoFactor) {
+                    setNeedsTwoFactor(true);
+                    setErrors((prev) => ({ ...prev, twoFactorCode: "Enter your authenticator code to continue." }));
+                }
                 addToast({
-                    type: "error",
-                    title: t("toastLoginFailed"),
-                    description: result.error,
+                    type: requiresTwoFactor ? "info" : "error",
+                    title: requiresTwoFactor ? "Two-factor verification required" : t("toastLoginFailed"),
+                    description: requiresTwoFactor ? "Your account has 2FA enabled. Enter the 6-digit code from your authenticator app." : result.error,
                 });
             } else {
                 addToast({
@@ -78,7 +90,7 @@ export default function LoginPage() {
                 router.push(defaultRoute);
                 router.refresh();
             }
-        } catch (error) {
+        } catch {
             addToast({
                 type: "error",
                 title: t("toastError"),
@@ -204,9 +216,10 @@ export default function LoginPage() {
                             type="email"
                             placeholder={t("emailPlaceholder")}
                             value={formData.email}
-                            onChange={(e) =>
-                                setFormData({ ...formData, email: e.target.value })
-                            }
+                            onChange={(e) => {
+                                setFormData({ ...formData, email: e.target.value, twoFactorCode: "" })
+                                setNeedsTwoFactor(false)
+                            }}
                             error={errors.email}
                             leftIcon={<Mail className="h-5 w-5" />}
                             autoComplete="email"
@@ -242,22 +255,33 @@ export default function LoginPage() {
                             />
                         </div>
 
-                        <Input
-                            label="Authenticator code"
-                            name="twoFactorCode"
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="6-digit code if 2FA is enabled"
-                            value={formData.twoFactorCode}
-                            onChange={(e) =>
-                                setFormData({ ...formData, twoFactorCode: e.target.value })
-                            }
-                            error={errors.twoFactorCode}
-                            hint="Required only for accounts with two-factor authentication enabled."
-                            leftIcon={<KeyRound className="h-5 w-5" />}
-                            autoComplete="one-time-code"
-                            disabled={isLoading}
-                        />
+                        {needsTwoFactor && (
+                            <div className="rounded-xl border border-blue-500/25 bg-blue-500/5 p-4 space-y-3">
+                                <div className="flex items-start gap-3">
+                                    <KeyRound className="h-5 w-5 text-blue-400 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-medium text-white">Two-factor authentication</p>
+                                        <p className="text-xs text-white/50 mt-1">This account has 2FA enabled. Enter the current 6-digit code from your authenticator app.</p>
+                                    </div>
+                                </div>
+                                <Input
+                                    label="Authenticator code"
+                                    name="twoFactorCode"
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    placeholder="123456"
+                                    value={formData.twoFactorCode}
+                                    onChange={(e) =>
+                                        setFormData({ ...formData, twoFactorCode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                                    }
+                                    error={errors.twoFactorCode}
+                                    leftIcon={<KeyRound className="h-5 w-5" />}
+                                    autoComplete="one-time-code"
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between text-sm">
                             <label className="flex items-center gap-2 cursor-pointer">

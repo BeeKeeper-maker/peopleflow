@@ -46,7 +46,7 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
 
             {/* Profile Info */}
             <div className="px-6 pb-6">
-                <div className="relative flex flex-col md:flex-row items-start md:items-end -mt-16 mb-4 gap-6">
+                <div className="relative flex flex-col md:flex-row items-start md:items-end -mt-16 mb-4 gap-6 min-w-0">
                     {/* Avatar */}
                     <div className="relative">
                         <div className="rounded-full p-1 bg-background">
@@ -65,16 +65,16 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
                     </div>
 
                     {/* Name & Role */}
-                    <div className="flex-1 pt-16 md:pt-0">
-                        <div className="flex items-center gap-3 mb-1">
-                            <h1 className="text-3xl font-bold text-foreground">
+                    <div className="flex-1 min-w-0 pt-16 md:pt-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-1 min-w-0">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-foreground break-words min-w-0">
                                 {employee.firstName} {employee.lastName}
                             </h1>
                             <Badge variant={employee.employmentStatus === 'active' ? 'success' : 'default'} className="uppercase">
                                 {employee.employmentStatus}
                             </Badge>
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground min-w-0">
                             <span>{employee.designation?.name || tc("na")}</span>
                             <span className="h-1 w-1 rounded-full bg-hover"></span>
                             <span>{employee.department?.name || tc("na")}</span>
@@ -84,7 +84,7 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
                         <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover">
                             <MessageSquare className="h-4 w-4" />
                         </Button>

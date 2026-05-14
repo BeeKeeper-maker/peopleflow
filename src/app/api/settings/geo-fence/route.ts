@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { toPlainSettings } from "@/lib/settings-json";
 
 /**
  * GET /api/settings/geo-fence — Get geo-fence configuration
@@ -17,9 +18,7 @@ export async function GET() {
             select: { settings: true },
         });
 
-        const settings = (org?.settings && typeof org.settings === "object"
-            ? org.settings
-            : {}) as Record<string, unknown>;
+        const settings = toPlainSettings(org?.settings);
 
         // Get branches with their GPS config
         const branches = await prisma.branch.findMany({
@@ -73,9 +72,7 @@ export async function PATCH(req: NextRequest) {
             select: { settings: true },
         });
 
-        const currentSettings = (org?.settings && typeof org.settings === "object"
-            ? org.settings
-            : {}) as Record<string, unknown>;
+        const currentSettings = toPlainSettings(org?.settings);
 
         const updatedSettings = {
             ...currentSettings,

@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { canAccessModule } from "@/lib/module-entitlements";
 
 export async function authenticateSyncAgent(req: Request) {
     const authHeader = req.headers.get("authorization");
@@ -68,6 +69,20 @@ export async function authenticateSyncAgent(req: Request) {
                     upgradeRequired: true,
                 },
                 { status: 402 }
+            ),
+        };
+    }
+
+    if (!canAccessModule(subscription.features, "biometric")) {
+        return {
+            valid: false as const,
+            response: NextResponse.json(
+                {
+                    success: false,
+                    error: "Biometric device access is not included in this company package",
+                    upgradeRequired: true,
+                },
+                { status: 403 }
             ),
         };
     }

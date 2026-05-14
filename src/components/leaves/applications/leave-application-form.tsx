@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useTranslations } from "next-intl"
 import { LeaveApplicationFormValues, leaveApplicationSchema } from "@/lib/validations/leave-application"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -49,7 +48,6 @@ export function LeaveApplicationForm({
 }: LeaveApplicationFormProps) {
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
     const t = useTranslations("SharedComponents.leaveApplicationForm")
-    const tc = useTranslations("SharedComponents.common")
 
     // Fetch leave types for the dropdown
     useEffect(() => {
@@ -76,6 +74,10 @@ export function LeaveApplicationForm({
             halfDay: false,
         },
     })
+
+
+    const isHalfDay = useWatch({ control: form.control, name: "halfDay" })
+    const fromDate = useWatch({ control: form.control, name: "fromDate" })
 
     return (
         <Form {...form}>
@@ -138,7 +140,12 @@ export function LeaveApplicationForm({
                                             <Calendar
                                                 mode="single"
                                                 selected={field.value}
-                                                onSelect={field.onChange}
+                                                onSelect={(date) => {
+                                                    field.onChange(date)
+                                                    if (date && form.getValues("halfDay")) {
+                                                        form.setValue("toDate", date, { shouldValidate: true })
+                                                    }
+                                                }}
                                                 disabled={(date) => date < new Date("1900-01-01")}
                                                 initialFocus
                                             />
@@ -179,7 +186,7 @@ export function LeaveApplicationForm({
                                                 mode="single"
                                                 selected={field.value}
                                                 onSelect={field.onChange}
-                                                disabled={(date) => date < new Date("1900-01-01")}
+                                                disabled={(date) => date < new Date("1900-01-01") || (fromDate ? date < fromDate : false) || isHalfDay}
                                                 initialFocus
                                             />
                                         </PopoverContent>
@@ -199,7 +206,12 @@ export function LeaveApplicationForm({
                                     <FormControl>
                                         <Checkbox
                                             checked={field.value}
-                                            onCheckedChange={field.onChange}
+                                            onCheckedChange={(checked) => {
+                                                field.onChange(checked)
+                                                if (checked && form.getValues("fromDate")) {
+                                                    form.setValue("toDate", form.getValues("fromDate"), { shouldValidate: true })
+                                                }
+                                            }}
                                         />
                                     </FormControl>
                                     <div className="space-y-1 leading-none">
@@ -215,7 +227,7 @@ export function LeaveApplicationForm({
                         />
                     </div>
 
-                    {form.watch("halfDay") && (
+                    {isHalfDay && (
                         <div className="col-span-2">
                             <FormField
                                 control={form.control}

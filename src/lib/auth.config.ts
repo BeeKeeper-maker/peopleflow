@@ -45,6 +45,9 @@ export const authConfig: NextAuthConfig = {
                 token.organizationId = user.organizationId;
                 token.organizationStatus = user.organizationStatus;
                 token.sessionVersion = user.sessionVersion;
+                token.features = user.features;
+                token.isImpersonating = user.isImpersonating;
+                token.impersonationSessionId = user.impersonationSessionId;
             }
             return token;
         },
@@ -58,6 +61,9 @@ export const authConfig: NextAuthConfig = {
                     organizationId: token.organizationId as string | undefined,
                     organizationStatus: token.organizationStatus as string | undefined,
                     sessionVersion: typeof token.sessionVersion === "number" ? token.sessionVersion : 0,
+                    features: token.features,
+                    isImpersonating: token.isImpersonating as boolean | undefined,
+                    impersonationSessionId: token.impersonationSessionId as string | undefined,
                 },
             };
         },

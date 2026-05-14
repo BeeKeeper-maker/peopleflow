@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@/generated/prisma"
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
+import { toPlainSettings } from "@/lib/settings-json";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const session = await auth()
         if (!session?.user) {
@@ -27,11 +29,31 @@ export async function GET(req: NextRequest) {
                 industry: true,
                 employeeCountRange: true,
                 fiscalYearStart: true,
-                timezone: true
+                currencyCode: true,
+                timezone: true,
+                settings: true,
             }
         })
 
-        return NextResponse.json({ organization })
+        if (!organization) {
+            return NextResponse.json({ error: "Organization not found" }, { status: 404 })
+        }
+
+        const settings = toPlainSettings(organization.settings)
+        const documents =
+            typeof settings.documents === "object" && settings.documents !== null && !Array.isArray(settings.documents)
+                ? settings.documents
+                : {}
+
+        return NextResponse.json({
+            organization: {
+                ...organization,
+                currency: organization.currencyCode,
+                dateFormat: typeof settings.dateFormat === "string" ? settings.dateFormat : "DD/MM/YYYY",
+                workWeekStart: typeof settings.workWeekStart === "number" ? settings.workWeekStart : 0,
+                documents,
+            },
+        })
     } catch (error) {
         apiLogger.error({ err: error }, "Settings fetch error:")
         return NextResponse.json(
@@ -53,6 +75,29 @@ export async function PATCH(req: NextRequest) {
 
         const body = await req.json()
 
+        const existingOrg = await prisma.organization.findUnique({
+            where: { id: organizationId },
+            select: { settings: true },
+        })
+        const currentSettings = toPlainSettings(existingOrg?.settings)
+        const nextSettings = { ...currentSettings }
+
+        if (body.dateFormat !== undefined) nextSettings.dateFormat = String(body.dateFormat || "DD/MM/YYYY")
+        if (body.workWeekStart !== undefined) nextSettings.workWeekStart = Number(body.workWeekStart) || 0
+        if (body.documents !== undefined && typeof body.documents === "object" && body.documents !== null) {
+            const existingDocuments =
+                typeof currentSettings.documents === "object" && currentSettings.documents !== null && !Array.isArray(currentSettings.documents)
+                    ? currentSettings.documents as Record<string, unknown>
+                    : {}
+            nextSettings.documents = {
+                ...existingDocuments,
+                orgAddress: String(body.documents.orgAddress || ""),
+                signatoryName: String(body.documents.signatoryName || ""),
+                signatoryDesignation: String(body.documents.signatoryDesignation || ""),
+                signatureImageUrl: String(body.documents.signatureImageUrl || ""),
+            }
+        }
+
         const updatedOrg = await prisma.organization.update({
             where: { id: organizationId },
             data: {
@@ -60,7 +105,9 @@ export async function PATCH(req: NextRequest) {
                 logoUrl: body.logoUrl,
                 industry: body.industry,
                 fiscalYearStart: body.fiscalYearStart,
-                timezone: body.timezone
+                timezone: body.timezone,
+                currencyCode: body.currency,
+                settings: nextSettings as Prisma.InputJsonValue,
             }
         })
 

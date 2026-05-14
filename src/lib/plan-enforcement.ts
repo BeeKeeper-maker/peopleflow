@@ -9,6 +9,8 @@
  */
 
 import { withTenant, type TxClient } from "@/lib/prisma";
+import { toPlainSettings } from "@/lib/settings-json";
+import { mergePlanFeaturesWithModules } from "@/lib/module-entitlements";
 import fs from "fs/promises";
 import path from "path";
 import {
@@ -112,13 +114,29 @@ export async function getOrgSubscription(
   const sub = await withTenant(organizationId, (db) =>
     db.subscription.findUnique({
       where: { organizationId },
-      include: { plan: true },
+      include: {
+        plan: true,
+        organization: { select: { settings: true } },
+      },
     }),
   );
 
   if (!sub) return null;
 
-  // 3. Build cacheable object
+  const settings = toPlainSettings(sub.organization.settings);
+  const saasOverrides = settings.saasOverrides as
+    | {
+        limits?: Partial<Record<"maxAdmins" | "maxBranches" | "maxDevices", number | null>>;
+        features?: Record<string, boolean | null>;
+      }
+    | undefined;
+  const featureOverrides = saasOverrides?.features ?? {};
+  const cleanFeatureOverrides = Object.fromEntries(
+    Object.entries(featureOverrides).filter(([, value]) => typeof value === "boolean"),
+  ) as Record<string, boolean>;
+
+  // 3. Build cacheable object. Platform-admin custom deals are merged here so
+  // every API limit check and feature gate uses the same source of truth.
   const cacheable: CachedSubscription = {
     id: sub.id,
     status: sub.status,
@@ -127,11 +145,14 @@ export async function getOrgSubscription(
     currentPeriodEnd: sub.currentPeriodEnd,
     trialEnd: sub.trialEnd,
     maxEmployees: sub.plan.maxEmployees,
-    maxAdmins: sub.plan.maxAdmins,
-    maxBranches: sub.plan.maxBranches,
-    maxDevices: sub.plan.maxDevices,
+    maxAdmins: saasOverrides?.limits?.maxAdmins ?? sub.plan.maxAdmins,
+    maxBranches: saasOverrides?.limits?.maxBranches ?? sub.plan.maxBranches,
+    maxDevices: saasOverrides?.limits?.maxDevices ?? sub.plan.maxDevices,
     maxStorageMB: sub.plan.maxStorageMB,
-    features: sub.plan.features as Record<string, boolean>,
+    features: mergePlanFeaturesWithModules({
+      ...(sub.plan.features as Record<string, boolean>),
+      ...cleanFeatureOverrides,
+    }),
     maxEmployeesOverride: sub.maxEmployeesOverride,
     maxStorageOverride: sub.maxStorageOverride,
   };

@@ -20,6 +20,9 @@ import { verify as verifyTOTP } from "otplib";
 import bcrypt from "bcryptjs";
 import type { DefaultSession } from "next-auth";
 import { authConfig } from "@/lib/auth.config";
+import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { normalizeEntitlements, type EntitlementFeatures } from "@/lib/module-entitlements";
+import { validateImpersonationToken } from "@/lib/impersonation";
 
 // ── Type Augmentation ────────────────────────────────────────────
 
@@ -31,6 +34,9 @@ declare module "next-auth" {
       organizationId?: string;
       organizationStatus?: string;
       sessionVersion?: number;
+      features?: EntitlementFeatures;
+      isImpersonating?: boolean;
+      impersonationSessionId?: string;
     } & DefaultSession["user"];
   }
 
@@ -39,6 +45,9 @@ declare module "next-auth" {
     organizationId?: string;
     organizationStatus?: string;
     sessionVersion?: number;
+    features?: EntitlementFeatures;
+    isImpersonating?: boolean;
+    impersonationSessionId?: string;
   }
 
   interface JWT {
@@ -47,6 +56,9 @@ declare module "next-auth" {
     organizationId?: string;
     organizationStatus?: string;
     sessionVersion?: number;
+    features?: EntitlementFeatures;
+    isImpersonating?: boolean;
+    impersonationSessionId?: string;
   }
 }
 
@@ -132,6 +144,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
         }
 
+        const subscription = user.organizationId
+          ? await getOrgSubscription(user.organizationId)
+          : null;
+
         return {
           id: user.id,
           name: user.name,
@@ -140,6 +156,50 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           organizationId: user.organizationId || undefined,
           organizationStatus: user.organization.status,
           sessionVersion: user.sessionVersion,
+          features: normalizeEntitlements(subscription?.features || {}),
+        };
+      },
+    }),
+
+    Credentials({
+      id: "impersonation",
+      name: "Platform Impersonation",
+      credentials: {
+        token: { label: "Impersonation Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const token = typeof credentials?.token === "string" ? credentials.token : "";
+        if (!token) throw new Error("Missing impersonation token");
+
+        const validation = await validateImpersonationToken(token);
+        if (!validation.valid || !validation.user) {
+          throw new Error(validation.error || "Invalid impersonation token");
+        }
+
+        const user = await withPlatform((db) =>
+          db.user.findUnique({
+            where: { id: validation.user!.id },
+            include: { organization: { select: { status: true } } },
+          }),
+        );
+
+        if (!user?.organizationId || !user.isActive || user.organization?.status !== "active") {
+          throw new Error("Target account is not active");
+        }
+
+        const subscription = await getOrgSubscription(user.organizationId);
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          organizationStatus: user.organization.status,
+          sessionVersion: user.sessionVersion,
+          features: normalizeEntitlements(subscription?.features || {}),
+          isImpersonating: true,
+          impersonationSessionId: validation.sessionId,
         };
       },
     }),

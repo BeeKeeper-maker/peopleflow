@@ -14,6 +14,7 @@ import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { generateApiKey, hashApiKey } from "@/lib/api-key-auth";
 import { apiLogger } from "@/lib/logger";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { canAccessModule } from "@/lib/module-entitlements";
 
 export async function POST(request: NextRequest) {
     const auth = await requireAdminOrHR();
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
         if (!sub || !["active", "trialing"].includes(sub.status)) {
             return NextResponse.json({ error: "Subscription inactive", upgrade_required: true }, { status: 402 });
         }
-        if (sub.features.apiAccess === false) {
+        if (!canAccessModule(sub.features, "apiAccess")) {
             return NextResponse.json({ error: "API access not on your plan", upgrade_required: true }, { status: 402 });
         }
 

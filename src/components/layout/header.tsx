@@ -89,9 +89,9 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
 
     return (
         <header className="sticky top-0 z-30 h-16 border-b border-border bg-header-bg backdrop-blur-xl transition-colors duration-300">
-            <div className="flex h-full items-center justify-between px-6">
+            <div className="flex h-full min-w-0 items-center justify-between gap-3 px-4 sm:px-6">
                 {/* Left Section */}
-                <div className="flex items-center gap-4">
+                <div className="flex min-w-0 items-center gap-4">
                     {/* Mobile Menu Button */}
                     <button
                         onClick={onMenuClick}
@@ -102,12 +102,13 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                     </button>
 
                     {/* Breadcrumb */}
-                    <nav className="hidden sm:flex items-center gap-2 text-sm" aria-label="Breadcrumb">
+                    <nav className="hidden min-w-0 sm:flex items-center gap-2 text-sm overflow-hidden" aria-label="Breadcrumb">
                         {breadcrumb.map((item, index) => (
-                            <div key={item.href} className="flex items-center gap-2">
+                            <div key={item.href} className="flex min-w-0 items-center gap-2">
                                 {index > 0 && <span className="text-tertiary-foreground">/</span>}
                                 <span
                                     className={cn(
+                                        "truncate max-w-[9rem] lg:max-w-[14rem]",
                                         item.isLast ? "text-foreground font-medium" : "text-muted-foreground"
                                     )}
                                 >
@@ -119,7 +120,7 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                 </div>
 
                 {/* Right Section */}
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                     {/* ⌘K Command Palette Trigger (Vercel/Linear style) */}
                     <button
                         onClick={() => {
@@ -151,7 +152,7 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                     <div className="relative">
                         <button
                             onClick={() => setShowProfile(!showProfile)}
-                            className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-hover transition-colors"
+                            className="flex min-w-0 max-w-[10rem] sm:max-w-[14rem] items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-hover transition-colors"
                             aria-expanded={showProfile}
                             aria-haspopup="true"
                         >
@@ -160,7 +161,7 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                                     {initials}
                                 </AvatarFallback>
                             </Avatar>
-                            <span className="hidden sm:block text-sm font-medium text-foreground">{userName}</span>
+                            <span className="hidden sm:block min-w-0 truncate text-sm font-medium text-foreground" title={userName}>{userName}</span>
                             <ChevronDown className={cn(
                                 "h-4 w-4 text-tertiary-foreground transition-transform duration-200",
                                 showProfile && "rotate-180"
@@ -175,7 +176,7 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                                 />
                                 <div className="absolute right-0 top-full mt-2 w-56 z-50 rounded-xl border border-border bg-dropdown shadow-2xl py-1 transition-colors duration-300">
                                     <div className="px-4 py-3 border-b border-border">
-                                        <p className="text-sm font-medium text-foreground">{userName}</p>
+                                        <p className="text-sm font-medium text-foreground truncate" title={userName}>{userName}</p>
                                         <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
                                     </div>
                                     <div className="py-1">

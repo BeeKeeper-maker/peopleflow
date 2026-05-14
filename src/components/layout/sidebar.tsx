@@ -43,6 +43,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { PREFETCH_CONFIGS } from "@/hooks/use-prefetch";
 import { useTranslations } from 'next-intl';
+import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export function Sidebar() {
     const pathname = usePathname();
     const { data: session } = useSession();
     const userRole = session?.user?.role || "employee";
+    const features = session?.user?.features as EntitlementFeatures | undefined;
     const t = useTranslations('Nav');
 
     // Filter sections by role
@@ -139,12 +141,14 @@ export function Sidebar() {
         navSections
             .map((section) => ({
                 ...section,
-                items: section.items.filter(
-                    (item) => !item.roles || item.roles.includes(userRole)
-                ),
+                items: section.items.filter((item) => {
+                    const roleAllowed = !item.roles || item.roles.includes(userRole);
+                    const entitlementAllowed = canAccessPath(features, item.href, "page").allowed;
+                    return roleAllowed && entitlementAllowed;
+                }),
             }))
             .filter((section) => section.items.length > 0),
-        [userRole]
+        [features, userRole]
     );
 
     // Determine which sections should be expanded based on active path

@@ -9,6 +9,7 @@
  */
 
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { canAccessModule, normalizeEntitlements, type ModuleKey } from "@/lib/module-entitlements";
 
 // ============================================
 // Feature Definitions
@@ -102,8 +103,9 @@ export async function isFeatureEnabled(
         };
     }
 
-    const features = sub.features || {};
-    const isEnabled = features[feature] !== false; // Default to enabled if not specified
+    const features = normalizeEntitlements(sub.features || {});
+    const moduleKey = feature as ModuleKey;
+    const isEnabled = canAccessModule(features, moduleKey);
 
     if (!isEnabled) {
         return {

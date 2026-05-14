@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users, Navigation, Shield, ShieldOff, CheckCircle2, Settings2 } from "lucide-react"
+import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users, Navigation, Shield, ShieldOff, CheckCircle2, Settings2, Crown, ArrowUpRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
 
@@ -30,6 +31,7 @@ interface GeoFenceConfig {
 
 export default function BranchesPage() {
     const t = useTranslations('Branches')
+    const router = useRouter()
     const { addToast } = useToast()
     const [branches, setBranches] = useState<Branch[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -39,6 +41,7 @@ export default function BranchesPage() {
     const [geoConfig, setGeoConfig] = useState<GeoFenceConfig>({ geoFenceEnabled: false, geoFenceEnforcement: "soft" })
     const [savingGeo, setSavingGeo] = useState(false)
     const [fetchingLocation, setFetchingLocation] = useState(false)
+    const [planLimit, setPlanLimit] = useState<{ message: string; current?: number; limit?: number } | null>(null)
 
     const [form, setForm] = useState({
         name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false,
@@ -72,12 +75,14 @@ export default function BranchesPage() {
     useEffect(() => { fetchData() }, [fetchData])
 
     const openCreate = () => {
+        setPlanLimit(null)
         setEditingBranch(null)
         setForm({ name: "", code: "", address: "", city: "", phone: "", email: "", isHeadOffice: false, latitude: "", longitude: "", geoFenceRadius: "200" })
         setShowForm(true)
     }
 
     const openEdit = (branch: Branch) => {
+        setPlanLimit(null)
         setEditingBranch(branch)
         setForm({
             name: branch.name,
@@ -112,11 +117,20 @@ export default function BranchesPage() {
             })
             if (res.ok) {
                 addToast({ title: editingBranch ? t('updated') : t('created'), type: "success" })
+                setPlanLimit(null)
                 setShowForm(false)
                 fetchData()
             } else {
                 const err = await res.json()
-                addToast({ title: err.error || (editingBranch ? t('updateFailed') : t('createFailed')), type: "error" })
+                if (err.upgradeRequired) {
+                    setPlanLimit({ message: err.error || "Your current plan cannot add more branches.", current: err.current, limit: err.limit })
+                }
+                addToast({
+                    title: err.error || (editingBranch ? t('updateFailed') : t('createFailed')),
+                    description: err.upgradeRequired ? "Open billing to choose a plan with a higher branch limit." : undefined,
+                    type: err.upgradeRequired ? "warning" : "error",
+                    duration: err.upgradeRequired ? 9000 : undefined,
+                })
             }
         } catch { addToast({ title: editingBranch ? t('updateFailed') : t('createFailed'), type: "error" }) }
         finally { setSaving(false) }
@@ -240,6 +254,29 @@ export default function BranchesPage() {
                 </Button>
             </div>
 
+            {planLimit && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                            <Crown className="h-5 w-5 text-amber-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground">Branch limit reached</h3>
+                            <p className="text-sm text-muted-foreground mt-0.5">{planLimit.message}</p>
+                            {typeof planLimit.current === "number" && typeof planLimit.limit === "number" && (
+                                <p className="text-xs text-amber-300 mt-1">Current usage: {planLimit.current}/{planLimit.limit} branches</p>
+                            )}
+                        </div>
+                    </div>
+                    <Button
+                        onClick={() => router.push("/billing/upgrade?source=branch-limit")}
+                        className="gap-2 bg-amber-500 hover:bg-amber-600 text-black shrink-0"
+                    >
+                        Upgrade plan <ArrowUpRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+
             {/* ── GPS Attendance Control Panel ───────────────────────── */}
             <div className="rounded-xl border border-card-border bg-card-bg p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -312,7 +349,7 @@ export default function BranchesPage() {
                     <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
                         <p className="text-xs text-amber-400 flex items-center gap-1.5">
                             <Settings2 className="h-3.5 w-3.5 shrink-0" />
-                            {branches.length - gpsConfiguredCount}টি ব্রাঞ্চে GPS location সেট করা হয়নি। Edit বাটনে ক্লিক করে "📍 আমার অবস্থান ব্যবহার করুন" বাটন চাপুন।
+                            {branches.length - gpsConfiguredCount}টি ব্রাঞ্চে GPS location সেট করা হয়নি। Edit বাটনে ক্লিক করে &quot;📍 আমার অবস্থান ব্যবহার করুন&quot; বাটন চাপুন।
                         </p>
                     </div>
                 )}
@@ -494,7 +531,7 @@ export default function BranchesPage() {
                                     </Button>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground mb-3">
-                                    অফিসে বসে থাকা অবস্থায় "আমার অবস্থান ব্যবহার করুন" চাপুন। এটি আপনার অফিসের GPS coordinate সেভ করবে, যাতে কর্মীদের attendance location verify করা যায়।
+                                    অফিসে বসে থাকা অবস্থায় &quot;আমার অবস্থান ব্যবহার করুন&quot; চাপুন। এটি আপনার অফিসের GPS coordinate সেভ করবে, যাতে কর্মীদের attendance location verify করা যায়।
                                 </p>
                                 <div className="grid grid-cols-5 gap-3">
                                     <div className="col-span-2">

@@ -93,6 +93,12 @@ export default function RegisterPage() {
                 newErrors.password = t("passwordRequired");
             } else if (formData.password.length < 8) {
                 newErrors.password = t("passwordMin");
+            } else if (!/[A-Z]/.test(formData.password)) {
+                newErrors.password = "Password must contain at least one uppercase letter";
+            } else if (!/[a-z]/.test(formData.password)) {
+                newErrors.password = "Password must contain at least one lowercase letter";
+            } else if (!/[0-9]/.test(formData.password)) {
+                newErrors.password = "Password must contain at least one number";
             }
             if (formData.password !== formData.confirmPassword) {
                 newErrors.confirmPassword = t("passwordMismatch");
@@ -406,6 +412,16 @@ export default function RegisterPage() {
                                     }
                                 />
 
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                                    <p className="mb-2 text-xs font-medium text-white/50">Password requirements</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                                        <PasswordRequirement met={formData.password.length >= 8} text="At least 8 characters" />
+                                        <PasswordRequirement met={/[A-Z]/.test(formData.password)} text="One uppercase letter" />
+                                        <PasswordRequirement met={/[a-z]/.test(formData.password)} text="One lowercase letter" />
+                                        <PasswordRequirement met={/[0-9]/.test(formData.password)} text="One number" />
+                                    </div>
+                                </div>
+
                                 <Input
                                     label={t("confirmPasswordLabel")}
                                     type={showPassword ? "text" : "password"}
@@ -496,11 +512,11 @@ export default function RegisterPage() {
                                     />
                                     <span className="text-sm text-white/60">
                                         {t("agreeToTerms")}{" "}
-                                        <Link href="/terms" className="text-blue-400">
+                                        <Link href="/legal/terms" className="text-blue-400">
                                             {t("termsOfService")}
                                         </Link>{" "}
                                         {t("and")}{" "}
-                                        <Link href="/privacy" className="text-blue-400">
+                                        <Link href="/legal/privacy" className="text-blue-400">
                                             {t("privacyPolicy")}
                                         </Link>
                                     </span>
@@ -542,6 +558,20 @@ export default function RegisterPage() {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+
+function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
+    return (
+        <div className={`flex items-center gap-1.5 ${met ? "text-emerald-400" : "text-white/35"}`}>
+            {met ? (
+                <Check className="h-3.5 w-3.5" />
+            ) : (
+                <span className="h-3.5 w-3.5 rounded-full border border-current" />
+            )}
+            <span>{text}</span>
         </div>
     );
 }
