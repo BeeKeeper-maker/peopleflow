@@ -89,6 +89,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 # Entrypoint + runtime seed scripts
 COPY --chown=nextjs:nodejs docker/entrypoint.sh /app/entrypoint.sh
 COPY --chown=nextjs:nodejs scripts/runtime-seed.js /app/scripts/runtime-seed.js
+COPY --chown=nextjs:nodejs tools/sync-agent ./tools/sync-agent
 RUN chmod +x /app/entrypoint.sh
 
 USER nextjs

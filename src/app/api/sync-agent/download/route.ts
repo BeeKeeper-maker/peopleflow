@@ -29,7 +29,7 @@ export async function GET(req: Request) {
         
         // Determine the cloud URL from the request
         const proto = req.headers.get("x-forwarded-proto") || "https";
-        const host = req.headers.get("host") || "drdf.ailearnersbd.com";
+        const host = req.headers.get("host") || "peopleflowbd.online";
         const cloudUrl = `${proto}://${host}`;
 
         // Read the sync agent template
@@ -86,12 +86,12 @@ async function getConfig() {
     }
 
     // Interactive setup with pre-configured values
-    apiLogger.info(\`\\n\${c.yellow}\${c.bold}─── First-Time Setup ───\${c.reset}\\n\`);
+    console.log(\`\\n\${c.yellow}\${c.bold}─── First-Time Setup ───\${c.reset}\\n\`);
 
     const defaultUrl = PRE_CONFIGURED_URL || "";
     const defaultKey = PRE_CONFIGURED_KEY || "";
 
-    const cloudUrl = defaultUrl || await prompt("Enter your PeopleFlow URL (e.g., https://drdf.ailearnersbd.com):");
+    const cloudUrl = defaultUrl || await prompt("Enter your PeopleFlow URL (e.g., https://peopleflowbd.online):");
     if (defaultUrl) logSuccess(\`Cloud URL: \${defaultUrl} (pre-configured)\`);
     
     let apiKeyVal = defaultKey;

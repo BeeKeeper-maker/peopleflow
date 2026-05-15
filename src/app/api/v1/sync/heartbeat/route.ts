@@ -24,14 +24,33 @@ export async function POST(req: Request) {
             req.headers.get("x-real-ip") ||
             "unknown";
 
+        const heartbeatAt = new Date();
         await prisma.syncApiKey.update({
             where: { id: apiKey.id },
             data: {
-                lastHeartbeat: new Date(),
+                lastHeartbeat: heartbeatAt,
                 agentIp,
                 agentVersion: body.agentVersion || undefined,
             },
         });
+
+        const deviceIp = typeof body.deviceIp === "string" ? body.deviceIp.trim() : null;
+        const devicePort = Number(body.devicePort) || 4370;
+
+        if (deviceIp) {
+            await prisma.biometricDevice.updateMany({
+                where: {
+                    organizationId: apiKey.organizationId,
+                    ip: deviceIp,
+                    port: devicePort,
+                },
+                data: {
+                    isOnline: true,
+                    lastPingAt: heartbeatAt,
+                    consecutiveFailures: 0,
+                },
+            });
+        }
 
         return NextResponse.json({
             success: true,

@@ -390,6 +390,26 @@ export default function DevicesPage() {
                 </div>
             </div>
 
+            <Card className="border-amber-500/20 bg-amber-500/5">
+                <CardContent className="p-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <p className="text-sm font-semibold text-amber-300">{t("lanSetupTitle")}</p>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-3xl">
+                            {t("lanSetupDesc")}
+                        </p>
+                    </div>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSyncAgentOpen(true)}
+                        className="gap-2 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                    >
+                        <Zap className="h-4 w-4" />
+                        {t("openSyncAgent")}
+                    </Button>
+                </CardContent>
+            </Card>
+
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="bg-card border-card-border">

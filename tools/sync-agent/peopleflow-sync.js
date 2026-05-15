@@ -149,7 +149,7 @@ async function getConfig() {
     // Interactive setup
     console.log(`\n${c.yellow}${c.bold}─── First-Time Setup ───${c.reset}\n`);
 
-    const cloudUrl = await prompt("Enter your PeopleFlow URL (e.g., https://drdf.ailearnersbd.com):");
+    const cloudUrl = await prompt("Enter your PeopleFlow URL (e.g., https://peopleflowbd.online):");
     const apiKey = await prompt("Paste your API Key (from Dashboard → Devices → Sync Agent):");
     const deviceIp = await prompt("Enter ZKTeco device IP address (e.g., 192.168.1.201):");
     const devicePortInput = await prompt(`Enter device port (default ${ZKTECO_PORT}):`);
@@ -440,6 +440,8 @@ async function sendHeartbeat(config) {
         const result = await apiRequest(config, "/api/v1/sync/heartbeat", {
             agentVersion: VERSION,
             uptime: process.uptime(),
+            deviceIp: config.deviceIp,
+            devicePort: config.devicePort,
         });
         logHeart(`Heartbeat OK → ${result.organization || "Cloud"}`);
         return true;
@@ -453,6 +455,8 @@ async function pushAttendance(config, records) {
     try {
         const result = await apiRequest(config, "/api/v1/sync/push", {
             agentVersion: VERSION,
+            deviceIp: config.deviceIp,
+            devicePort: config.devicePort,
             records,
         });
         return result;
