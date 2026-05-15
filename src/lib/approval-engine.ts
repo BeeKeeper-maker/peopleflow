@@ -683,13 +683,64 @@ async function getWorkflowSteps(
 
     if (workflow) {
         try {
-            return JSON.parse(workflow.steps) as WorkflowStep[];
+            const parsed = JSON.parse(workflow.steps) as unknown;
+            const normalized = normalizeWorkflowSteps(parsed);
+            if (normalized.length > 0) return normalized;
         } catch {
             // Fall through to defaults
         }
     }
 
     return getDefaultWorkflow(entityType);
+}
+
+function normalizeApproverRole(role: unknown): string | null {
+    if (typeof role !== "string" || !role.trim()) return null;
+
+    const normalized = role.trim();
+    const roleMap: Record<string, string> = {
+        hrAdmin: "hr_admin",
+        hr_admin: "hr_admin",
+        departmentHead: "department_head",
+        department_head: "department_head",
+        ceo: "admin",
+        md: "admin",
+        admin: "admin",
+        manager: "manager",
+    };
+
+    return roleMap[normalized] || normalized;
+}
+
+function normalizeWorkflowSteps(raw: unknown): WorkflowStep[] {
+    if (!Array.isArray(raw)) return [];
+
+    const normalized: WorkflowStep[] = [];
+
+    raw.forEach((step, index) => {
+        if (!step || typeof step !== "object") return;
+        const item = step as Record<string, unknown>;
+        const levelValue = Number(item.level ?? item.order ?? item.stepNumber ?? index + 1);
+        const approverRole = normalizeApproverRole(item.approverRole ?? item.role ?? item.assignedRole);
+        if (!Number.isFinite(levelValue) || levelValue < 1 || !approverRole) return;
+
+        const stepName = typeof item.stepName === "string"
+            ? item.stepName
+            : typeof item.label === "string"
+                ? item.label
+                : `${formatRole(approverRole)} Approval`;
+
+        normalized.push({
+            level: Math.trunc(levelValue),
+            approverRole,
+            approverEmployeeId: typeof item.approverEmployeeId === "string" ? item.approverEmployeeId : undefined,
+            stepName,
+        });
+    });
+
+    return normalized
+        .sort((a, b) => a.level - b.level)
+        .map((step, index) => ({ ...step, level: index + 1 }));
 }
 
 function getDefaultWorkflow(entityType: ApprovalEntityType): WorkflowStep[] {
