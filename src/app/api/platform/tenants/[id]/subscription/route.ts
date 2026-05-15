@@ -362,13 +362,11 @@ export async function PATCH(
                 );
         }
 
-        // Invalidate cached subscription data and force tenant users to refresh their JWT
-        // so module access changes apply immediately instead of waiting for session expiry.
+        // Invalidate cached subscription data so module access changes apply
+        // immediately without killing active tenant sessions. The previous
+        // sessionVersion bump made existing browser sessions return 401 until
+        // users signed in again after a platform-admin feature toggle.
         await invalidateSubscription(orgId);
-        await prisma.user.updateMany({
-            where: { organizationId: orgId },
-            data: { sessionVersion: { increment: 1 } },
-        });
 
         return NextResponse.json({
             success: true,
