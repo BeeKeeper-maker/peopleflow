@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
   // Optimize production builds
   reactStrictMode: true,
 
+  // Local CI/QA still runs `npx tsc --noEmit`. Skipping Next's duplicate
+  // production type gate keeps VPS/Coolify Docker builds from timing out.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // Enable experimental features for performance
   experimental: {
     // Optimize package imports - tree shaking for large libraries
