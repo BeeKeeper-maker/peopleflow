@@ -101,8 +101,16 @@ export async function requireAuth(): Promise<AuthContext | NextResponse> {
         ? session.user.sessionVersion
         : 0;
 
+    // Feature/plan toggles previously incremented sessionVersion for all tenant
+    // users, which made existing browser sessions return 401 on every API call.
+    // Keep serving the authenticated user here; feature access is enforced from
+    // fresh subscription/cache data server-side. Password-sensitive flows can
+    // still explicitly sign users out when needed.
     if (sessionVersion !== user.sessionVersion) {
-      return AuthErrors.UNAUTHORIZED();
+      authLogger.warn(
+        { userId: user.id, sessionVersion, currentSessionVersion: user.sessionVersion },
+        "Session version mismatch tolerated",
+      );
     }
 
     if (!user.isActive || !user.emailVerified) {
