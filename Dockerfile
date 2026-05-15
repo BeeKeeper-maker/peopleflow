@@ -49,18 +49,7 @@ RUN (while true; do echo "[build] Next.js build still running..."; sleep 30; don
     exit "$status"
 
 # ───────────────────────────────────────
-# Stage 3: Production-only dependencies
-# ───────────────────────────────────────
-FROM node:20-alpine AS prod-deps
-RUN apk add --no-cache libc6-compat openssl
-WORKDIR /app
-
-COPY .npmrc* ./
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-# ───────────────────────────────────────
-# Stage 4: Final production image (LEAN)
+# Stage 3: Final production image (LEAN)
 # ───────────────────────────────────────
 FROM node:20-alpine AS runner
 RUN apk add --no-cache openssl curl
@@ -78,8 +67,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Production node_modules
-COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+# The Next.js standalone output already includes traced production runtime deps.
+# Install only small operational CLIs/libs needed by entrypoint + worker; copying
+# the full 1GB node_modules tree caused Coolify/VPS deploys to fail during image finalization.
+RUN npm install --omit=dev --no-save prisma@6.19.3 bcryptjs@3.0.3 tsx@4.21.0
 
 # Prisma schema + generated client
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
