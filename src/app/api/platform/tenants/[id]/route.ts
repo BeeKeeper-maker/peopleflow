@@ -10,6 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { readdir, stat } from "fs/promises";
+import path from "path";
 import { prisma } from "@/lib/prisma";
 import {
     verifyPlatformRequest,
@@ -19,6 +21,26 @@ import { logPlatformAction } from "@/lib/platform-auth";
 import { toPlainSettings } from "@/lib/settings-json";
 import { invalidateOrgStatus, invalidateSubscription } from "@/lib/redis";
 import { apiLogger } from "@/lib/logger";
+
+
+async function folderSizeBytes(dir: string): Promise<number> {
+    try {
+        const entries = await readdir(dir, { withFileTypes: true });
+        const sizes = await Promise.all(entries.map(async (entry) => {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) return folderSizeBytes(fullPath);
+            const info = await stat(fullPath);
+            return info.size;
+        }));
+        return sizes.reduce((sum, size) => sum + size, 0);
+    } catch {
+        return 0;
+    }
+}
+
+function latestMetric(records: Array<{ metric: string; value: number }>, metric: string) {
+    return records.find((record) => record.metric === metric)?.value ?? 0;
+}
 
 // ============================================
 // GET: Full tenant detail
@@ -101,6 +123,9 @@ export async function GET(
                 },
             }),
         ]);
+
+        const storageBytes = await folderSizeBytes(path.join(process.cwd(), "uploads", orgId));
+        const storageMB = Math.round((storageBytes / 1024 / 1024) * 100) / 100;
 
         const settings = toPlainSettings(org.settings);
         const saasOverrides =
@@ -199,6 +224,21 @@ export async function GET(
                 users: userCount,
                 branches: branchCount,
                 departments: departmentCount,
+            },
+            usageSummary: {
+                employees: employeeCount,
+                users: userCount,
+                branches: branchCount,
+                departments: departmentCount,
+                storageMB,
+                storageBytes,
+                emailsSent: latestMetric(usageRecords, "emails_sent"),
+                imagesUploaded: latestMetric(usageRecords, "images_uploaded"),
+                apiCalls: latestMetric(usageRecords, "api_calls"),
+                featureEvents: usageRecords
+                    .filter((record) => record.metric.startsWith("feature."))
+                    .slice(0, 12)
+                    .map((record) => ({ metric: record.metric.replace(/^feature\./, ""), value: record.value, recordedAt: record.recordedAt })),
             },
             usageRecords,
             impersonationHistory,

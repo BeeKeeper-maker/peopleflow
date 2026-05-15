@@ -16,6 +16,10 @@ import {
     Save,
     CalendarPlus,
     SlidersHorizontal,
+    Mail,
+    Image as ImageIcon,
+    Database,
+    Activity,
 } from "lucide-react";
 
 type FeatureKey =
@@ -77,6 +81,18 @@ interface TenantResponse {
         plan?: Plan;
     } | null;
     resourceCounts?: { employees: number; users: number; branches: number; departments: number };
+    usageSummary?: {
+        employees: number;
+        users: number;
+        branches: number;
+        departments: number;
+        storageMB: number;
+        storageBytes: number;
+        emailsSent: number;
+        imagesUploaded: number;
+        apiCalls: number;
+        featureEvents: Array<{ metric: string; value: number; recordedAt: string }>;
+    };
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -178,6 +194,7 @@ export default function TenantDetailPage() {
     const sub = data?.subscription;
     const plan = sub?.plan;
     const counts = data?.resourceCounts || { employees: 0, users: 0, branches: 0, departments: 0 };
+    const usage = data?.usageSummary;
     const limits = sub?.effectiveLimits;
 
     const activeCustomizations = useMemo(() => {
@@ -335,6 +352,32 @@ export default function TenantDetailPage() {
                 </InfoCard>
             </div>
 
+
+
+            <InfoCard title="Company Usage Intelligence" icon={<Activity className="w-4 h-4 text-cyan-400" />}>
+                <p className="text-sm text-zinc-500">Owner-level telemetry for support, billing psychology, abuse monitoring, and upgrade conversations.</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <MetricTile icon={<Users className="w-4 h-4" />} label="Employees" value={usage?.employees ?? counts.employees} />
+                    <MetricTile icon={<Mail className="w-4 h-4" />} label="Emails sent" value={usage?.emailsSent ?? 0} />
+                    <MetricTile icon={<ImageIcon className="w-4 h-4" />} label="Images uploaded" value={usage?.imagesUploaded ?? 0} />
+                    <MetricTile icon={<Database className="w-4 h-4" />} label="Storage used" value={`${usage?.storageMB ?? 0} MB`} />
+                    <MetricTile icon={<Building2 className="w-4 h-4" />} label="Branches" value={usage?.branches ?? counts.branches} />
+                    <MetricTile icon={<Shield className="w-4 h-4" />} label="Admins/users" value={usage?.users ?? counts.users} />
+                    <MetricTile icon={<Layers className="w-4 h-4" />} label="API calls" value={usage?.apiCalls ?? 0} />
+                    <MetricTile icon={<SlidersHorizontal className="w-4 h-4" />} label="Feature signals" value={usage?.featureEvents?.length ?? 0} />
+                </div>
+                {usage?.featureEvents?.length ? (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {usage.featureEvents.map((event) => (
+                            <div key={`${event.metric}-${event.recordedAt}`} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs">
+                                <div className="flex justify-between gap-2 text-zinc-300"><span>{event.metric}</span><span className="font-semibold text-white">{event.value}</span></div>
+                                <p className="mt-1 text-zinc-600">{new Date(event.recordedAt).toLocaleString()}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
+            </InfoCard>
+
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <InfoCard title="Package Control" icon={<SlidersHorizontal className="w-4 h-4 text-indigo-400" />}>
                     <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Plan</label>
@@ -457,6 +500,16 @@ function InfoCard({ title, icon, children }: { title: string; icon: React.ReactN
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">{icon} {title}</div>
             {children}
+        </div>
+    );
+}
+
+function MetricTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+    return (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="mb-3 text-cyan-400">{icon}</div>
+            <p className="text-xs text-zinc-500">{label}</p>
+            <p className="mt-1 text-lg font-bold text-white tabular-nums">{String(value)}</p>
         </div>
     );
 }

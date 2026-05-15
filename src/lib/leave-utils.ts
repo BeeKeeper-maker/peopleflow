@@ -269,13 +269,14 @@ export async function createLeaveNotification(
     }
 
     try {
+        const isAdminReviewEvent = type === "leave_applied" || type === "leave_cancelled";
         await prisma.notification.create({
             data: {
                 userId: recipientUserId,
                 title,
                 message,
-                type: "leave_approval",
-                link: `/leaves`,
+                type: isAdminReviewEvent ? "leave_request" : "leave_approval",
+                link: isAdminReviewEvent ? `/leaves/requests?id=${applicationId}` : `/leaves?id=${applicationId}`,
             },
         });
     } catch (error) {

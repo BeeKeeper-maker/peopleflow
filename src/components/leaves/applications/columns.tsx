@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
+function dayLabel(days: number) {
+    return `${days} ${days === 1 ? "day" : "days"}`
+}
+
 export type LeaveApplication = {
     id: string
     leaveType: {
@@ -76,7 +80,7 @@ export const columns: ColumnDef<LeaveApplication>[] = [
                         {format(from, "dd MMM")} - {format(to, "dd MMM, yyyy")}
                     </span>
                     <span className="text-xs text-tertiary-foreground">
-                        {row.original.totalDays} days
+                        {dayLabel(row.original.totalDays)}
                     </span>
                 </div>
             )

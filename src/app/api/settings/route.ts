@@ -92,9 +92,18 @@ export async function PATCH(req: NextRequest) {
             nextSettings.documents = {
                 ...existingDocuments,
                 orgAddress: String(body.documents.orgAddress || ""),
+                letterheadTitle: String(body.documents.letterheadTitle || ""),
+                legalName: String(body.documents.legalName || ""),
+                tradeLicenseNo: String(body.documents.tradeLicenseNo || ""),
+                taxId: String(body.documents.taxId || ""),
+                officePhone: String(body.documents.officePhone || ""),
+                officeEmail: String(body.documents.officeEmail || ""),
+                website: String(body.documents.website || ""),
                 signatoryName: String(body.documents.signatoryName || ""),
                 signatoryDesignation: String(body.documents.signatoryDesignation || ""),
                 signatureImageUrl: String(body.documents.signatureImageUrl || ""),
+                companySealUrl: String(body.documents.companySealUrl || ""),
+                footerNote: String(body.documents.footerNote || ""),
             }
         }
 

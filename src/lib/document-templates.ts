@@ -70,12 +70,14 @@ const COMMON_STYLES = `
 
 function signatureBlock(data: TemplateData, intro: string, defaultName = "Authorized Signatory", defaultDesignation = "HR Manager"): string {
     const signatureImage = safe(data, "signatureImageUrl");
+    const companySeal = safe(data, "companySealUrl");
     return `
             <div class="signature">
                 <p>${intro}</p>
                 ${signatureImage ? `<img src="${signatureImage}" alt="Authorized signature" />` : "<br/><br/>"}
                 <div class="signature-line">${safe(data, "signatoryName", defaultName)}</div>
                 <p class="signature-title">${safe(data, "signatoryDesignation", defaultDesignation)}</p>
+                ${companySeal ? `<img src="${companySeal}" alt="Company seal" style="max-width:120px;max-height:90px;margin-top:10px;" />` : ""}
             </div>`;
 }
 
@@ -88,8 +90,11 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
         <!DOCTYPE html><html><head>${COMMON_STYLES}</head><body>
         <div class="document">
             <div class="header">
-                <h1>${safe(data, "organizationName")}</h1>
+                <h1>${safe(data, "letterheadTitle") || safe(data, "organizationName")}</h1>
+                ${safe(data, "legalName") ? `<h2>${safe(data, "legalName")}</h2>` : ""}
                 <div class="address">${safe(data, "orgAddress")}</div>
+                <div class="address">${[safe(data, "officePhone"), safe(data, "officeEmail"), safe(data, "website")].filter(Boolean).join(" · ")}</div>
+                <div class="address">${[safe(data, "tradeLicenseNo") && `Trade License: ${safe(data, "tradeLicenseNo")}`, safe(data, "taxId") && `Tax ID: ${safe(data, "taxId")}`].filter(Boolean).join(" · ")}</div>
             </div>
             <div class="ref-line">
                 <span>Ref: ${safe(data, "refNumber", "HR/OL/" + new Date().getFullYear())}</span>
@@ -115,6 +120,7 @@ const templates: Record<DocumentType, (data: TemplateData) => string> = {
                 <p>We look forward to welcoming you to the team!</p>
             </div>
 ${signatureBlock(data, "Warm regards,")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -122,8 +128,11 @@ ${signatureBlock(data, "Warm regards,")}
         <!DOCTYPE html><html><head>${COMMON_STYLES}</head><body>
         <div class="document">
             <div class="header">
-                <h1>${safe(data, "organizationName")}</h1>
+                <h1>${safe(data, "letterheadTitle") || safe(data, "organizationName")}</h1>
+                ${safe(data, "legalName") ? `<h2>${safe(data, "legalName")}</h2>` : ""}
                 <div class="address">${safe(data, "orgAddress")}</div>
+                <div class="address">${[safe(data, "officePhone"), safe(data, "officeEmail"), safe(data, "website")].filter(Boolean).join(" · ")}</div>
+                <div class="address">${[safe(data, "tradeLicenseNo") && `Trade License: ${safe(data, "tradeLicenseNo")}`, safe(data, "taxId") && `Tax ID: ${safe(data, "taxId")}`].filter(Boolean).join(" · ")}</div>
             </div>
             <div class="ref-line">
                 <span>Ref: ${safe(data, "refNumber", "HR/APT/" + new Date().getFullYear())}</span>
@@ -145,6 +154,7 @@ ${signatureBlock(data, "Warm regards,")}
                 <p>Please acknowledge acceptance of this appointment by signing and returning this letter.</p>
             </div>
 ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -152,8 +162,11 @@ ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
         <!DOCTYPE html><html><head>${COMMON_STYLES}</head><body>
         <div class="document">
             <div class="header">
-                <h1>${safe(data, "organizationName")}</h1>
+                <h1>${safe(data, "letterheadTitle") || safe(data, "organizationName")}</h1>
+                ${safe(data, "legalName") ? `<h2>${safe(data, "legalName")}</h2>` : ""}
                 <div class="address">${safe(data, "orgAddress")}</div>
+                <div class="address">${[safe(data, "officePhone"), safe(data, "officeEmail"), safe(data, "website")].filter(Boolean).join(" · ")}</div>
+                <div class="address">${[safe(data, "tradeLicenseNo") && `Trade License: ${safe(data, "tradeLicenseNo")}`, safe(data, "taxId") && `Tax ID: ${safe(data, "taxId")}`].filter(Boolean).join(" · ")}</div>
             </div>
             <div class="ref-line">
                 <span>Ref: ${safe(data, "refNumber", "HR/EXP/" + new Date().getFullYear())}</span>
@@ -167,6 +180,7 @@ ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
                 <p>We wish ${safe(data, "employeeName")} all the best in future endeavors.</p>
             </div>
 ${signatureBlock(data, "Sincerely,")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -195,6 +209,7 @@ ${signatureBlock(data, "Sincerely,")}
                 <p>We appreciate your dedication and look forward to your continued excellence.</p>
             </div>
 ${signatureBlock(data, "Best regards,")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -219,6 +234,7 @@ ${signatureBlock(data, "Best regards,")}
                 <p>Please acknowledge receipt of this letter by signing below.</p>
             </div>
 ${signatureBlock(data, "Issued by,", "HR Manager")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -248,6 +264,7 @@ ${signatureBlock(data, "Issued by,", "HR Manager")}
                 <p>Please return all company property by your last working date.</p>
             </div>
 ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -255,8 +272,11 @@ ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
         <!DOCTYPE html><html><head>${COMMON_STYLES}</head><body>
         <div class="document">
             <div class="header">
-                <h1>${safe(data, "organizationName")}</h1>
+                <h1>${safe(data, "letterheadTitle") || safe(data, "organizationName")}</h1>
+                ${safe(data, "legalName") ? `<h2>${safe(data, "legalName")}</h2>` : ""}
                 <div class="address">${safe(data, "orgAddress")}</div>
+                <div class="address">${[safe(data, "officePhone"), safe(data, "officeEmail"), safe(data, "website")].filter(Boolean).join(" · ")}</div>
+                <div class="address">${[safe(data, "tradeLicenseNo") && `Trade License: ${safe(data, "tradeLicenseNo")}`, safe(data, "taxId") && `Tax ID: ${safe(data, "taxId")}`].filter(Boolean).join(" · ")}</div>
             </div>
             <div class="ref-line">
                 <span>Ref: HR/SC/${new Date().getFullYear()}</span>
@@ -276,6 +296,7 @@ ${signatureBlock(data, `For ${safe(data, "organizationName")},`)}
                 <p>This certificate is issued upon request of the employee for ${safe(data, "purpose", "personal use")}.</p>
             </div>
 ${signatureBlock(data, "Authorized by,", "HR Manager")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 
@@ -283,8 +304,11 @@ ${signatureBlock(data, "Authorized by,", "HR Manager")}
         <!DOCTYPE html><html><head>${COMMON_STYLES}</head><body>
         <div class="document">
             <div class="header">
-                <h1>${safe(data, "organizationName")}</h1>
+                <h1>${safe(data, "letterheadTitle") || safe(data, "organizationName")}</h1>
+                ${safe(data, "legalName") ? `<h2>${safe(data, "legalName")}</h2>` : ""}
                 <div class="address">${safe(data, "orgAddress")}</div>
+                <div class="address">${[safe(data, "officePhone"), safe(data, "officeEmail"), safe(data, "website")].filter(Boolean).join(" · ")}</div>
+                <div class="address">${[safe(data, "tradeLicenseNo") && `Trade License: ${safe(data, "tradeLicenseNo")}`, safe(data, "taxId") && `Tax ID: ${safe(data, "taxId")}`].filter(Boolean).join(" · ")}</div>
             </div>
             <div class="ref-line">
                 <span>Ref: HR/NOC/${new Date().getFullYear()}</span>
@@ -298,6 +322,7 @@ ${signatureBlock(data, "Authorized by,", "HR Manager")}
                 <p>This certificate is issued at the request of the individual and does not constitute any liability on the part of the organization.</p>
             </div>
 ${signatureBlock(data, "Authorized by,", "HR Manager")}
+        ${safe(data, "footerNote") ? `<div class="footer">${safe(data, "footerNote")}</div>` : ""}
         </div></body></html>
     `,
 };

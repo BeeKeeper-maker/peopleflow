@@ -23,6 +23,7 @@ const FOLDER_TYPE_MAP: Record<string, keyof typeof FILE_TYPES> = {
     receipts: "receipt",
     resumes: "resume",
     avatars: "avatar",
+    "official-assets": "image",
 };
 
 function sanitizeFilenamePrefix(prefix?: string): string | undefined {

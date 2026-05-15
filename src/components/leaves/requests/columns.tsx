@@ -6,6 +6,10 @@ import { format } from "date-fns"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LeaveRequestActions } from "./leave-request-actions"
 
+function dayLabel(days: number) {
+    return `${days} ${days === 1 ? "day" : "days"}`
+}
+
 export type LeaveRequest = {
     id: string
     leaveType: {
@@ -77,7 +81,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
                         {format(from, "dd MMM")} - {format(to, "dd MMM, yyyy")}
                     </span>
                     <span className="text-xs text-tertiary-foreground">
-                        {row.original.totalDays} days
+                        {dayLabel(row.original.totalDays)}
                     </span>
                 </div>
             )

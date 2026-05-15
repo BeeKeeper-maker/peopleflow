@@ -110,7 +110,7 @@ const DEPT_COLORS: Record<string, { bg: string; text: string; border: string }> 
     ADM: { bg: "bg-rose-500/12", text: "text-rose-400", border: "border-rose-500/20" },
 };
 
-const DEFAULT_DEPT_COLOR = { bg: "bg-zinc-500/12", text: "text-zinc-400", border: "border-zinc-500/20" };
+const DEFAULT_DEPT_COLOR = { bg: "bg-zinc-500/12", text: "text-muted-foreground", border: "border-zinc-500/20" };
 
 const TYPE_BADGES: Record<string, { label: string; class: string }> = {
     permanent: { label: "Permanent", class: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
@@ -135,6 +135,7 @@ const BAR_COLORS = [
 // ══════════════════════════════════════════════════════════════════
 
 function Avatar({ src, name, size = "md" }: { src: string | null; name: string; size?: "sm" | "md" | "lg" }) {
+    const [failed, setFailed] = useState(false);
     const sizeClasses = {
         sm: "w-8 h-8 text-xs",
         md: "w-11 h-11 text-sm",
@@ -148,12 +149,13 @@ function Avatar({ src, name, size = "md" }: { src: string | null; name: string; 
         .slice(0, 2)
         .toUpperCase();
 
-    if (src) {
+    if (src && !failed) {
         return (
             <img
                 src={src}
                 alt={name}
-                className={`${sizeClasses[size]} rounded-xl object-cover border border-white/[0.06] bg-white/[0.03]`}
+                onError={() => setFailed(true)}
+                className={`${sizeClasses[size]} rounded-xl object-cover border border-border bg-muted`}
             />
         );
     }
@@ -178,13 +180,13 @@ function StatCard({ icon: Icon, label, value, color }: {
     color: string;
 }) {
     return (
-        <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-4 flex items-center gap-4 hover:bg-white/[0.035] transition-all duration-200">
+        <div className="rounded-xl bg-card border border-card-border p-4 flex items-center gap-4 hover:bg-hover transition-all duration-200">
             <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center`}>
                 <Icon className="w-5 h-5" />
             </div>
             <div>
-                <p className="text-2xl font-bold text-white tabular-nums">{value}</p>
-                <p className="text-xs text-zinc-500">{label}</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
             </div>
         </div>
     );
@@ -202,12 +204,12 @@ function DepartmentBar({ departments }: { departments: { name: string; count: nu
             {departments.slice(0, 6).map((dept, i) => (
                 <div key={dept.name} className="group">
                     <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-medium text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                        <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground/80 transition-colors">
                             {dept.name}
                         </span>
-                        <span className="text-xs font-bold text-white tabular-nums">{dept.count}</span>
+                        <span className="text-xs font-bold text-foreground tabular-nums">{dept.count}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                             className={`h-full rounded-full bg-gradient-to-r ${BAR_COLORS[i % BAR_COLORS.length]} transition-all duration-700 ease-out`}
                             style={{ width: `${(dept.count / max) * 100}%` }}
@@ -246,11 +248,11 @@ function WorkforceComposition({ employees, total }: { employees: DirectoryEmploy
                     <div key={item.label} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className={`h-2 w-2 rounded-full ${item.color}`} />
-                            <span className="text-xs text-zinc-500">{item.label}</span>
+                            <span className="text-xs text-muted-foreground">{item.label}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-white tabular-nums">{item.count}</span>
-                            <span className="text-[10px] text-zinc-600">
+                            <span className="text-xs font-bold text-foreground tabular-nums">{item.count}</span>
+                            <span className="text-[10px] text-muted-foreground/70">
                                 ({total > 0 ? Math.round((item.count / total) * 100) : 0}%)
                             </span>
                         </div>
@@ -259,22 +261,22 @@ function WorkforceComposition({ employees, total }: { employees: DirectoryEmploy
             </div>
             {genderTotal > 0 && (
                 <>
-                    <div className="border-t border-white/[0.06] pt-3">
-                        <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2">Gender</p>
+                    <div className="border-t border-card-border pt-3">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-2">Gender</p>
                         <div className="flex gap-4">
                             <div className="flex items-center gap-2">
                                 <div className="h-2 w-2 rounded-full bg-blue-400" />
-                                <span className="text-xs text-zinc-500">Male</span>
-                                <span className="text-xs font-bold text-white">{male}</span>
+                                <span className="text-xs text-muted-foreground">Male</span>
+                                <span className="text-xs font-bold text-foreground">{male}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="h-2 w-2 rounded-full bg-pink-400" />
-                                <span className="text-xs text-zinc-500">Female</span>
-                                <span className="text-xs font-bold text-white">{female}</span>
+                                <span className="text-xs text-muted-foreground">Female</span>
+                                <span className="text-xs font-bold text-foreground">{female}</span>
                             </div>
                         </div>
                     </div>
-                    <div className="h-2 rounded-full bg-white/[0.04] overflow-hidden flex">
+                    <div className="h-2 rounded-full bg-muted overflow-hidden flex">
                         <div
                             className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-700"
                             style={{ width: `${(male / genderTotal) * 100}%` }}
@@ -303,31 +305,31 @@ function CardActionMenu({ employeeId, config }: { employeeId: string; config: Di
         <div className="relative">
             <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}
-                className="p-1 rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-white/[0.06] transition-all"
+                className="p-1 rounded-md text-muted-foreground/70 hover:text-foreground/80 hover:bg-white/[0.06] transition-all"
             >
                 <MoreVertical className="w-4 h-4" />
             </button>
             {open && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                    <div className="absolute right-0 top-7 z-50 w-40 rounded-xl bg-[#1a1a23] border border-white/[0.08] shadow-2xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute right-0 top-7 z-50 w-40 rounded-xl bg-popover border border-white/[0.08] shadow-2xl py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
                         <button
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `${config.profileBasePath}/${employeeId}`; setOpen(false); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                         >
                             <Eye className="w-3.5 h-3.5" /> View Profile
                         </button>
                         {config.onEditEmployee && (
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); config.onEditEmployee!(employeeId); setOpen(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-all"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                             >
                                 <Edit className="w-3.5 h-3.5" /> Edit Employee
                             </button>
                         )}
                         {config.onDeleteEmployee && (
                             <>
-                                <div className="my-1 border-t border-white/[0.06]" />
+                                <div className="my-1 border-t border-card-border" />
                                 <button
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); config.onDeleteEmployee!(employeeId); setOpen(false); }}
                                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/[0.06] transition-all"
@@ -356,8 +358,8 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
     return (
         <Link
             href={`${config.profileBasePath}/${employee.id}`}
-            className="group relative block rounded-2xl bg-white/[0.02] border border-white/[0.06] p-5
-                        hover:bg-white/[0.04] hover:border-white/[0.1] hover:shadow-[0_8px_40px_-12px_rgba(99,102,241,0.15)]
+            className="group relative block rounded-2xl bg-card border border-border/70 shadow-sm p-5
+                        hover:bg-muted/70 hover:border-indigo-500/25 hover:shadow-[0_8px_40px_-12px_rgba(99,102,241,0.15)]
                         transition-all duration-300 cursor-pointer"
             style={{ animation: `fadeSlideUp 0.4s ease-out both` }}
         >
@@ -373,10 +375,10 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
             </div>
 
             {/* Name & Designation */}
-            <h3 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors">
+            <h3 className="text-sm font-semibold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                 {employee.firstName} {employee.lastName}
             </h3>
-            <p className="text-xs text-zinc-500 mt-0.5 truncate">
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {employee.designation?.name || "—"}
             </p>
 
@@ -389,14 +391,14 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
             </div>
 
             {/* Info Row */}
-            <div className="mt-4 pt-3 border-t border-white/[0.04] space-y-1.5">
+            <div className="mt-4 pt-3 border-t border-card-border space-y-1.5">
                 {employee.email && (
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 truncate">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
                         <Mail className="w-3 h-3 shrink-0" />
                         <span className="truncate">{employee.email}</span>
                     </div>
                 )}
-                <div className="flex items-center gap-2 text-xs text-zinc-600">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Calendar className="w-3 h-3 shrink-0" />
                     <span>Joined {new Date(employee.joiningDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                 </div>
@@ -405,7 +407,7 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
             {/* Employee Code (hover reveal) */}
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 {!config.showCrudActions && (
-                    <span className="text-[10px] text-zinc-600 font-mono">{employee.employeeCode}</span>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{employee.employeeCode}</span>
                 )}
             </div>
 
@@ -426,7 +428,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
 
     return (
         <tr
-            className="group hover:bg-white/[0.025] transition-all duration-200 cursor-pointer"
+            className="group hover:bg-muted/70 transition-all duration-200 cursor-pointer"
             style={{ animation: `slideUp 0.3s ease-out ${index * 20}ms both` }}
             onClick={() => window.location.href = `${config.profileBasePath}/${employee.id}`}
         >
@@ -435,17 +437,17 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
                 <div className="flex items-center gap-3">
                     <Avatar src={employee.photoUrl} name={`${employee.firstName} ${employee.lastName}`} size="sm" />
                     <div className="min-w-0">
-                        <p className="text-sm text-white font-medium truncate group-hover:text-indigo-300 transition-colors">
+                        <p className="text-sm text-foreground font-medium truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                             {employee.firstName} {employee.lastName}
                         </p>
-                        <p className="text-[11px] text-zinc-600 font-mono">{employee.employeeCode}</p>
+                        <p className="text-[11px] text-muted-foreground/70 font-mono">{employee.employeeCode}</p>
                     </div>
                 </div>
             </td>
 
             {/* Designation */}
             <td className="px-4 py-3">
-                <p className="text-xs text-zinc-300 truncate max-w-[160px]">
+                <p className="text-xs text-foreground/80 truncate max-w-[160px]">
                     {employee.designation?.name || "—"}
                 </p>
             </td>
@@ -461,12 +463,12 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
             <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                     {employee.email && (
-                        <a href={`mailto:${employee.email}`} onClick={e => e.stopPropagation()} className="p-1 rounded-md text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all" title={employee.email}>
+                        <a href={`mailto:${employee.email}`} onClick={e => e.stopPropagation()} className="p-1 rounded-md text-muted-foreground/70 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all" title={employee.email}>
                             <Mail className="w-3.5 h-3.5" />
                         </a>
                     )}
                     {employee.phone && (
-                        <a href={`tel:${employee.phone}`} onClick={e => e.stopPropagation()} className="p-1 rounded-md text-zinc-600 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title={employee.phone}>
+                        <a href={`tel:${employee.phone}`} onClick={e => e.stopPropagation()} className="p-1 rounded-md text-muted-foreground/70 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all" title={employee.phone}>
                             <Phone className="w-3.5 h-3.5" />
                         </a>
                     )}
@@ -487,7 +489,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
 
             {/* Joined */}
             <td className="px-4 py-3">
-                <span className="text-xs text-zinc-500 tabular-nums">
+                <span className="text-xs text-muted-foreground tabular-nums">
                     {new Date(employee.joiningDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
             </td>
@@ -499,7 +501,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
                         <CardActionMenu employeeId={employee.id} config={config} />
                     </div>
                 ) : (
-                    <ChevronRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
                 )}
             </td>
         </tr>
@@ -513,13 +515,13 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
 function EmptyState({ query, config }: { query: string; config: DirectoryConfig }) {
     return (
         <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-20 h-20 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mb-6">
-                <UserCircle className="w-10 h-10 text-zinc-700" />
+            <div className="w-20 h-20 rounded-2xl bg-hover border border-card-border flex items-center justify-center mb-6">
+                <UserCircle className="w-10 h-10 text-muted-foreground/50" />
             </div>
-            <h3 className="text-lg font-semibold text-zinc-400 mb-2">
+            <h3 className="text-lg font-semibold text-muted-foreground mb-2">
                 {query ? "No employees found" : "No employees yet"}
             </h3>
-            <p className="text-sm text-zinc-600 max-w-sm text-center">
+            <p className="text-sm text-muted-foreground/70 max-w-sm text-center">
                 {query
                     ? `No results matching "${query}". Try a different search term or adjust your filters.`
                     : "Start building your team by adding your first employee."}
@@ -641,10 +643,10 @@ export function EmployeeDirectory({
             {/* Page Header */}
             <div className="flex items-start justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">
                         {config.title || "Employee Directory"}
                     </h1>
-                    <p className="text-sm text-zinc-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         {config.subtitle || "Browse and manage employees across your organization"}
                     </p>
                 </div>
@@ -657,10 +659,10 @@ export function EmployeeDirectory({
                             onChange={(e) => {
                                 window.location.href = `/platform/employees?org=${e.target.value}`;
                             }}
-                            className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-zinc-400 focus:outline-none focus:border-indigo-500/40 transition-all"
+                            className="px-3 py-2 rounded-lg bg-hover border border-card-border text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40 transition-all"
                         >
                             {config.organizations.map((org) => (
-                                <option key={org.id} value={org.id} className="bg-[#141419]">
+                                <option key={org.id} value={org.id} className="bg-popover">
                                     {org.name}
                                 </option>
                             ))}
@@ -696,7 +698,7 @@ export function EmployeeDirectory({
                 <div className="mb-6">
                     <button
                         onClick={() => setAnalyticsOpen(!analyticsOpen)}
-                        className="flex items-center gap-2 text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors mb-3"
+                        className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground/80 transition-colors mb-3"
                     >
                         {analyticsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         Workforce Insights
@@ -704,13 +706,13 @@ export function EmployeeDirectory({
                     {analyticsOpen && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                             {/* Department Distribution */}
-                            <div className="lg:col-span-2 rounded-xl bg-white/[0.02] border border-white/[0.06] p-5">
+                            <div className="lg:col-span-2 rounded-xl bg-card border border-card-border p-5">
                                 <div className="flex items-center justify-between mb-5">
                                     <div className="flex items-center gap-2">
                                         <Building2 className="h-4 w-4 text-blue-400" />
-                                        <h3 className="text-sm font-semibold text-white">Department Distribution</h3>
+                                        <h3 className="text-sm font-semibold text-foreground">Department Distribution</h3>
                                     </div>
-                                    <span className="text-[10px] font-medium text-zinc-600 px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06]">
+                                    <span className="text-[10px] font-medium text-muted-foreground/70 px-2 py-0.5 rounded-full bg-muted border border-card-border">
                                         {analyticsData.length} depts
                                     </span>
                                 </div>
@@ -718,10 +720,10 @@ export function EmployeeDirectory({
                             </div>
 
                             {/* Workforce Composition */}
-                            <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-5">
+                            <div className="rounded-xl bg-card border border-card-border p-5">
                                 <div className="flex items-center gap-2 mb-5">
                                     <Briefcase className="h-4 w-4 text-purple-400" />
-                                    <h3 className="text-sm font-semibold text-white">Workforce</h3>
+                                    <h3 className="text-sm font-semibold text-foreground">Workforce</h3>
                                 </div>
                                 <WorkforceComposition employees={employees} total={stats.total} />
                             </div>
@@ -734,22 +736,22 @@ export function EmployeeDirectory({
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
                 {/* Search */}
                 <div className="relative flex-1 w-full sm:max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
                     <input
                         type="text"
                         placeholder="Search by name, email, code, role..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]
-                                   text-sm text-white placeholder-zinc-600
-                                   focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05]
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-hover border border-card-border
+                                   text-sm text-foreground placeholder:text-muted-foreground
+                                   focus:outline-none focus:border-indigo-500/40 focus:bg-muted
                                    transition-all duration-200"
                     />
                 </div>
 
                 {/* Filters */}
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-zinc-600">
+                    <div className="flex items-center gap-1.5 text-muted-foreground/70">
                         <Filter className="w-3.5 h-3.5" />
                     </div>
 
@@ -757,13 +759,13 @@ export function EmployeeDirectory({
                     <select
                         value={deptFilter}
                         onChange={(e) => setDeptFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]
-                                   text-xs text-zinc-400 focus:outline-none focus:border-indigo-500/40
+                        className="px-3 py-2 rounded-lg bg-hover border border-card-border
+                                   text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all cursor-pointer"
                     >
-                        <option value="all" className="bg-[#141419]">All Departments</option>
+                        <option value="all" className="bg-popover">All Departments</option>
                         {departments.map((d) => (
-                            <option key={d.id} value={d.code || d.name} className="bg-[#141419]">
+                            <option key={d.id} value={d.code || d.name} className="bg-popover">
                                 {d.name}
                             </option>
                         ))}
@@ -773,15 +775,15 @@ export function EmployeeDirectory({
                     <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]
-                                   text-xs text-zinc-400 focus:outline-none focus:border-indigo-500/40
+                        className="px-3 py-2 rounded-lg bg-hover border border-card-border
+                                   text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all cursor-pointer"
                     >
-                        <option value="all" className="bg-[#141419]">All Types</option>
-                        <option value="permanent" className="bg-[#141419]">Permanent</option>
-                        <option value="probation" className="bg-[#141419]">Probation</option>
-                        <option value="contractual" className="bg-[#141419]">Contractual</option>
-                        <option value="intern" className="bg-[#141419]">Intern</option>
+                        <option value="all" className="bg-popover">All Types</option>
+                        <option value="permanent" className="bg-popover">Permanent</option>
+                        <option value="probation" className="bg-popover">Probation</option>
+                        <option value="contractual" className="bg-popover">Contractual</option>
+                        <option value="intern" className="bg-popover">Intern</option>
                     </select>
                 </div>
 
@@ -790,16 +792,16 @@ export function EmployeeDirectory({
 
                 {/* View Toggle + Count */}
                 <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-600 tabular-nums">
+                    <span className="text-xs text-muted-foreground/70 tabular-nums">
                         {filteredEmployees.length} of {employees.length}
                     </span>
-                    <div className="flex items-center rounded-lg bg-white/[0.03] border border-white/[0.06] p-0.5">
+                    <div className="flex items-center rounded-lg bg-hover border border-card-border p-0.5">
                         <button
                             onClick={() => setView("grid")}
                             className={`p-1.5 rounded-md transition-all duration-200 ${
                                 view === "grid"
                                     ? "bg-indigo-500/20 text-indigo-400"
-                                    : "text-zinc-600 hover:text-zinc-400"
+                                    : "text-muted-foreground/70 hover:text-muted-foreground"
                             }`}
                             title="Grid view"
                         >
@@ -810,7 +812,7 @@ export function EmployeeDirectory({
                             className={`p-1.5 rounded-md transition-all duration-200 ${
                                 view === "list"
                                     ? "bg-indigo-500/20 text-indigo-400"
-                                    : "text-zinc-600 hover:text-zinc-400"
+                                    : "text-muted-foreground/70 hover:text-muted-foreground"
                             }`}
                             title="List view"
                         >
@@ -832,34 +834,34 @@ export function EmployeeDirectory({
                 </div>
             ) : (
                 /* ═══ LIST VIEW ═══ */
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.015]">
+                <div className="rounded-xl border border-card-border bg-card">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="border-b border-white/[0.06]">
+                                <tr className="border-b border-card-border">
                                     <th className="px-4 py-3">
-                                        <button onClick={() => handleSort("name")} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors">
+                                        <button onClick={() => handleSort("name")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
                                             Employee
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Designation</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Designation</span>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <button onClick={() => handleSort("department")} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors">
+                                        <button onClick={() => handleSort("department")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
                                             Department
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Contact</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Contact</span>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Type</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Type</span>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <button onClick={() => handleSort("joined")} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors">
+                                        <button onClick={() => handleSort("joined")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
                                             Joined
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>

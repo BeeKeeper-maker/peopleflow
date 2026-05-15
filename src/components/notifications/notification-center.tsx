@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -10,15 +11,13 @@ import {
 } from "@/components/ui/popover"
 import {
     Bell,
-    Check,
     CheckCheck,
     Calendar,
     DollarSign,
     Users,
     AlertCircle,
     Clock,
-    Megaphone,
-    X
+    Megaphone
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -58,7 +57,7 @@ export function NotificationCenter() {
     const [open, setOpen] = useState(false)
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
-    const [loading, setLoading] = useState(false)
+    const router = useRouter()
 
     const fetchNotifications = useCallback(async () => {
         try {
@@ -74,10 +73,13 @@ export function NotificationCenter() {
     }, [])
 
     useEffect(() => {
-        fetchNotifications()
+        const firstFetch = setTimeout(fetchNotifications, 0)
         // Poll every 30 seconds
         const interval = setInterval(fetchNotifications, 30000)
-        return () => clearInterval(interval)
+        return () => {
+            clearTimeout(firstFetch)
+            clearInterval(interval)
+        }
     }, [fetchNotifications])
 
     const markAsRead = async (notificationId?: string) => {
@@ -102,7 +104,7 @@ export function NotificationCenter() {
             markAsRead(notification.id)
         }
         if (notification.link) {
-            window.location.href = notification.link
+            router.push(notification.link)
         }
         setOpen(false)
     }
@@ -228,7 +230,7 @@ export function NotificationCenter() {
                             size="sm"
                             className="w-full text-muted-foreground hover:text-foreground text-xs"
                             onClick={() => {
-                                window.location.href = "/notifications"
+                                router.push("/notifications")
                                 setOpen(false)
                             }}
                         >

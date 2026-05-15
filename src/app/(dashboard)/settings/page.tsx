@@ -72,9 +72,18 @@ interface OrganizationSettings {
 
 interface DocumentSettings {
     orgAddress: string
+    letterheadTitle: string
+    legalName: string
+    tradeLicenseNo: string
+    taxId: string
+    officePhone: string
+    officeEmail: string
+    website: string
     signatoryName: string
     signatoryDesignation: string
     signatureImageUrl: string
+    companySealUrl: string
+    footerNote: string
 }
 
 interface NotificationSettings {
@@ -159,10 +168,20 @@ export default function SettingsPage() {
 
     const [documentSettings, setDocumentSettings] = useState<DocumentSettings>({
         orgAddress: "",
+        letterheadTitle: "",
+        legalName: "",
+        tradeLicenseNo: "",
+        taxId: "",
+        officePhone: "",
+        officeEmail: "",
+        website: "",
         signatoryName: "",
         signatoryDesignation: "",
         signatureImageUrl: "",
+        companySealUrl: "",
+        footerNote: "",
     })
+    const [uploadingDocumentAsset, setUploadingDocumentAsset] = useState<"signature" | "seal" | null>(null)
 
     // Billing state
     const [billing, setBilling] = useState<BillingData | null>(null)
@@ -429,6 +448,35 @@ export default function SettingsPage() {
     }
 
 
+    const handleUploadDocumentAsset = async (file: File | null, target: "signature" | "seal") => {
+        if (!file) return
+        setUploadingDocumentAsset(target)
+        try {
+            const formData = new FormData()
+            formData.append("file", file)
+            formData.append("folder", "official-assets")
+            formData.append("prefix", target === "signature" ? "official-signature" : "company-seal")
+            const res = await fetch("/api/upload", { method: "POST", body: formData })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error?.message || data.message || "Upload failed")
+            const url = data.data?.url || data.url
+            if (!url) throw new Error("Upload completed but no file URL was returned")
+            setDocumentSettings(prev => ({
+                ...prev,
+                [target === "signature" ? "signatureImageUrl" : "companySealUrl"]: url,
+            }))
+            addToast({ title: target === "signature" ? "Signature uploaded" : "Company seal uploaded", type: "success" })
+        } catch (error) {
+            addToast({
+                title: "Upload failed",
+                description: error instanceof Error ? error.message : "Please try again.",
+                type: "error",
+            })
+        } finally {
+            setUploadingDocumentAsset(null)
+        }
+    }
+
     const handleSaveDocumentSettings = async () => {
         setSaving(true)
         try {
@@ -437,7 +485,7 @@ export default function SettingsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ documents: documentSettings }),
             })
-            if (res.ok) addToast({ title: "Document settings saved", type: 'success' })
+            if (res.ok) addToast({ title: "Official document system saved", type: 'success' })
             else addToast({ title: "Failed to save document settings", type: 'error' })
         } catch {
             addToast({ title: "Failed to save document settings", type: 'error' })
@@ -604,11 +652,11 @@ export default function SettingsPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('companyName')}</Label>
-                                    <Input value={orgSettings.name} onChange={(e) => setOrgSettings({ ...orgSettings, name: e.target.value })} placeholder={t('companyNamePlaceholder')} className="bg-hover border-card-border" />
+                                    <Input value={orgSettings.name} onChange={(e) => setOrgSettings({ ...orgSettings, name: e.target.value })} placeholder={t('companyNamePlaceholder')} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('industry')}</Label>
-                                    <Input value={orgSettings.industry || ""} onChange={(e) => setOrgSettings({ ...orgSettings, industry: e.target.value })} placeholder={t('industryPlaceholder')} className="bg-hover border-card-border" />
+                                    <Input value={orgSettings.industry || ""} onChange={(e) => setOrgSettings({ ...orgSettings, industry: e.target.value })} placeholder={t('industryPlaceholder')} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                             </div>
                         </CardContent>
@@ -623,19 +671,19 @@ export default function SettingsPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('timezone')}</Label>
-                                    <Input value={orgSettings.timezone} onChange={(e) => setOrgSettings({ ...orgSettings, timezone: e.target.value })} className="bg-hover border-card-border" />
+                                    <Input value={orgSettings.timezone} onChange={(e) => setOrgSettings({ ...orgSettings, timezone: e.target.value })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('currency')}</Label>
-                                    <Input value={orgSettings.currency} onChange={(e) => setOrgSettings({ ...orgSettings, currency: e.target.value })} className="bg-hover border-card-border" />
+                                    <Input value={orgSettings.currency} onChange={(e) => setOrgSettings({ ...orgSettings, currency: e.target.value })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('dateFormat')}</Label>
-                                    <Input value={orgSettings.dateFormat} onChange={(e) => setOrgSettings({ ...orgSettings, dateFormat: e.target.value })} className="bg-hover border-card-border" />
+                                    <Input value={orgSettings.dateFormat} onChange={(e) => setOrgSettings({ ...orgSettings, dateFormat: e.target.value })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('fiscalYearStart')}</Label>
-                                    <Input type="number" min={1} max={12} value={orgSettings.fiscalYearStart} onChange={(e) => setOrgSettings({ ...orgSettings, fiscalYearStart: parseInt(e.target.value) })} className="bg-hover border-card-border" />
+                                    <Input type="number" min={1} max={12} value={orgSettings.fiscalYearStart} onChange={(e) => setOrgSettings({ ...orgSettings, fiscalYearStart: parseInt(e.target.value) })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                             </div>
                         </CardContent>
@@ -654,27 +702,86 @@ export default function SettingsPage() {
                 <TabsContent value="documents" className="space-y-6">
                     <Card className="bg-card border-card-border">
                         <CardHeader>
-                            <CardTitle className="text-foreground">Official document settings</CardTitle>
-                            <CardDescription className="text-muted-foreground">Set the default address and authorized signatory used in generated HR letters and certificates.</CardDescription>
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-foreground">Official document control center</CardTitle>
+                                    <CardDescription className="text-muted-foreground">Configure the letterhead, legal identity, signature, seal, and footer used across offer letters, certificates, experience letters, and HR notices.</CardDescription>
+                                </div>
+                                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20">Company-grade</Badge>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-foreground">Organization address</Label>
-                                    <Input value={documentSettings.orgAddress} onChange={(e) => setDocumentSettings({ ...documentSettings, orgAddress: e.target.value })} placeholder="House, road, city, country" className="bg-hover border-card-border" />
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Letterhead title</Label>
+                                    <Input value={documentSettings.letterheadTitle} onChange={(e) => setDocumentSettings({ ...documentSettings, letterheadTitle: e.target.value })} placeholder="PeopleFlow Bangladesh Ltd." className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-foreground">Signatory name</Label>
-                                    <Input value={documentSettings.signatoryName} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryName: e.target.value })} placeholder="e.g. Md. Rahim Uddin" className="bg-hover border-card-border" />
+                                    <Label className="text-foreground">Legal company name</Label>
+                                    <Input value={documentSettings.legalName} onChange={(e) => setDocumentSettings({ ...documentSettings, legalName: e.target.value })} placeholder="Registered legal entity name" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-foreground">Registered office address</Label>
+                                    <Input value={documentSettings.orgAddress} onChange={(e) => setDocumentSettings({ ...documentSettings, orgAddress: e.target.value })} placeholder="House, road, city, country" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Trade license / registration no.</Label>
+                                    <Input value={documentSettings.tradeLicenseNo} onChange={(e) => setDocumentSettings({ ...documentSettings, tradeLicenseNo: e.target.value })} placeholder="Optional but recommended" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">TIN / BIN / Tax ID</Label>
+                                    <Input value={documentSettings.taxId} onChange={(e) => setDocumentSettings({ ...documentSettings, taxId: e.target.value })} placeholder="Tax identity for formal documents" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Office phone</Label>
+                                    <Input value={documentSettings.officePhone} onChange={(e) => setDocumentSettings({ ...documentSettings, officePhone: e.target.value })} placeholder="+880..." className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Official email</Label>
+                                    <Input type="email" value={documentSettings.officeEmail} onChange={(e) => setDocumentSettings({ ...documentSettings, officeEmail: e.target.value })} placeholder="hr@company.com" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-foreground">Website</Label>
+                                    <Input value={documentSettings.website} onChange={(e) => setDocumentSettings({ ...documentSettings, website: e.target.value })} placeholder="https://company.com" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Authorized signatory name</Label>
+                                    <Input value={documentSettings.signatoryName} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryName: e.target.value })} placeholder="e.g. Md. Rahim Uddin" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-foreground">Signatory designation</Label>
-                                    <Input value={documentSettings.signatoryDesignation} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryDesignation: e.target.value })} placeholder="e.g. Head of HR" className="bg-hover border-card-border" />
+                                    <Input value={documentSettings.signatoryDesignation} onChange={(e) => setDocumentSettings({ ...documentSettings, signatoryDesignation: e.target.value })} placeholder="e.g. Head of HR" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Signature upload</Label>
+                                    <div className="flex gap-2">
+                                        <Input value={documentSettings.signatureImageUrl} onChange={(e) => setDocumentSettings({ ...documentSettings, signatureImageUrl: e.target.value })} placeholder="Uploaded signature URL" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                        <Button type="button" variant="outline" className="gap-2 shrink-0" disabled={uploadingDocumentAsset === "signature"}>
+                                            <label className="flex cursor-pointer items-center gap-2">
+                                                {uploadingDocumentAsset === "signature" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
+                                                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => handleUploadDocumentAsset(e.target.files?.[0] || null, "signature")} />
+                                            </label>
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">Company seal / stamp upload</Label>
+                                    <div className="flex gap-2">
+                                        <Input value={documentSettings.companySealUrl} onChange={(e) => setDocumentSettings({ ...documentSettings, companySealUrl: e.target.value })} placeholder="Uploaded seal URL" className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                        <Button type="button" variant="outline" className="gap-2 shrink-0" disabled={uploadingDocumentAsset === "seal"}>
+                                            <label className="flex cursor-pointer items-center gap-2">
+                                                {uploadingDocumentAsset === "seal" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
+                                                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => handleUploadDocumentAsset(e.target.files?.[0] || null, "seal")} />
+                                            </label>
+                                        </Button>
+                                    </div>
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-foreground">Signature / stamp image URL</Label>
-                                    <Input type="url" value={documentSettings.signatureImageUrl} onChange={(e) => setDocumentSettings({ ...documentSettings, signatureImageUrl: e.target.value })} placeholder="https://.../signature.png" className="bg-hover border-card-border" />
-                                    <p className="text-xs text-muted-foreground">Optional. A transparent PNG signature/stamp URL will appear above the signatory name in generated documents.</p>
+                                    <Label className="text-foreground">Document footer note</Label>
+                                    <Input value={documentSettings.footerNote} onChange={(e) => setDocumentSettings({ ...documentSettings, footerNote: e.target.value })} placeholder="This is a system-generated official document..." className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                                 </div>
                             </div>
                         </CardContent>
@@ -682,7 +789,7 @@ export default function SettingsPage() {
                     <div className="flex justify-end">
                         <Button onClick={handleSaveDocumentSettings} disabled={saving} className="gap-2 bg-linear-to-r from-blue-500 to-indigo-600">
                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            Save document settings
+                            Save official document system
                         </Button>
                     </div>
                 </TabsContent>
@@ -1277,7 +1384,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \\
                         </div>
                         <div className="space-y-2">
                             <Label className="text-foreground">{t('confirmNewPassword')}</Label>
-                            <Input type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} placeholder={t('confirmPasswordPlaceholder')} className="bg-hover border-card-border" />
+                            <Input type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} placeholder={t('confirmPasswordPlaceholder')} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                         </div>
                     </div>
                     <DialogFooter>
@@ -1305,7 +1412,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \\
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label className="text-foreground">{t('apiKeysKeyName')}</Label>
-                            <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder={t('apiKeysKeyNamePlaceholder')} className="bg-hover border-card-border" />
+                            <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder={t('apiKeysKeyNamePlaceholder')} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
                         </div>
                         <div className="space-y-2">
                             <Label className="text-foreground">{t('apiKeysAccessType')}</Label>

@@ -123,9 +123,18 @@ export async function POST(req: Request) {
             // Organization info
             organizationName: employee.organization?.name || "",
             orgAddress: typeof documentSettings.orgAddress === "string" ? documentSettings.orgAddress : "",
+            letterheadTitle: typeof documentSettings.letterheadTitle === "string" ? documentSettings.letterheadTitle : "",
+            legalName: typeof documentSettings.legalName === "string" ? documentSettings.legalName : "",
+            tradeLicenseNo: typeof documentSettings.tradeLicenseNo === "string" ? documentSettings.tradeLicenseNo : "",
+            taxId: typeof documentSettings.taxId === "string" ? documentSettings.taxId : "",
+            officePhone: typeof documentSettings.officePhone === "string" ? documentSettings.officePhone : "",
+            officeEmail: typeof documentSettings.officeEmail === "string" ? documentSettings.officeEmail : "",
+            website: typeof documentSettings.website === "string" ? documentSettings.website : "",
             signatoryName: typeof documentSettings.signatoryName === "string" ? documentSettings.signatoryName : "",
             signatoryDesignation: typeof documentSettings.signatoryDesignation === "string" ? documentSettings.signatoryDesignation : "",
             signatureImageUrl: typeof documentSettings.signatureImageUrl === "string" ? documentSettings.signatureImageUrl : "",
+            companySealUrl: typeof documentSettings.companySealUrl === "string" ? documentSettings.companySealUrl : "",
+            footerNote: typeof documentSettings.footerNote === "string" ? documentSettings.footerNote : "",
             // Employee info
             employeeName: employee.user?.name || `${employee.firstName} ${employee.lastName}`.trim(),
             employeeEmail: employee.user?.email || employee.email || "",
