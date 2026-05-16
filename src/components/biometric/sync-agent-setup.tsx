@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { useTranslations } from "next-intl";
+import type { TranslationValues } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
     Dialog,
@@ -33,7 +35,6 @@ import {
     EyeOff,
     AlertTriangle,
     CheckCircle2,
-    Fingerprint,
     Users,
     PlayCircle,
     MonitorCheck,
@@ -65,16 +66,16 @@ interface SyncAgentSetupProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function timeAgo(dateStr: string | null): string {
-    if (!dateStr) return "Never";
+function timeAgo(dateStr: string | null, t?: (key: string, values?: TranslationValues) => string): string {
+    if (!dateStr) return t ? t("timeNever") : "Never";
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return t ? t("timeJustNow") : "Just now";
+    if (mins < 60) return t ? t("timeMinutesAgo", { count: mins }) : `${mins}m ago`;
     const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return t ? t("timeHoursAgo", { count: hours }) : `${hours}h ago`;
     const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return t ? t("timeDaysAgo", { count: days }) : `${days}d ago`;
 }
 
 function isOnline(lastHeartbeat: string | null): boolean {
@@ -83,55 +84,11 @@ function isOnline(lastHeartbeat: string | null): boolean {
     return diff < 10 * 60 * 1000;
 }
 
-const setupSteps = [
-    {
-        title: "Create secure office key",
-        desc: "One key per office PC. If a PC changes, revoke the old key and create a new one.",
-        icon: Key,
-    },
-    {
-        title: "Download ready agent",
-        desc: "The file already contains this cloud URL and key. Staff do not need to configure the server.",
-        icon: Download,
-    },
-    {
-        title: "Run dry-run first",
-        desc: "Dry-run checks cloud + device + latest attendance without pushing anything.",
-        icon: MonitorCheck,
-    },
-    {
-        title: "Map employees, then go live",
-        desc: "Link device user IDs with employees before live sync to avoid unmapped attendance.",
-        icon: Users,
-    },
-];
-
-const successChecks = [
-    "API key verified / cloud connection established",
-    "Connected to device",
-    "Device info shows users and log count",
-    "Dry-run shows new records or safely says no new records",
-];
-
-const commonProblems = [
-    {
-        problem: "MODULE_NOT_FOUND",
-        fix: "Open Terminal in the folder where the file was downloaded, or use the full Downloads path.",
-    },
-    {
-        problem: "ECONNRESET on v1.0.0",
-        fix: "That is the old agent. Download fresh v1.1.0 from this screen.",
-    },
-    {
-        problem: "Cloud Test cannot reach 192.168.x.x",
-        fix: "Normal. Private LAN devices must sync through the local office Sync Agent.",
-    },
-];
-
 // ── Component ────────────────────────────────────────────────────────
 
 export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupProps) {
     const { addToast } = useToast();
+    const t = useTranslations("Devices");
 
     const [keys, setKeys] = useState<SyncApiKeyInfo[]>([]);
     const [loading, setLoading] = useState(false);
@@ -185,12 +142,12 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                 setShowKey(true);
                 setActiveStep(1);
                 await fetchKeys();
-                addToast({ title: "Office Sync Agent key generated", type: "success" });
+                addToast({ title: t("agentKeyGenerated"), type: "success" });
             } else {
-                addToast({ title: data.error || "Failed to create API key", type: "error" });
+                addToast({ title: data.error || t("agentKeyCreateFailed"), type: "error" });
             }
         } catch {
-            addToast({ title: "Failed to create API key", type: "error" });
+            addToast({ title: t("agentKeyCreateFailed"), type: "error" });
         } finally {
             setCreating(false);
         }
@@ -203,11 +160,11 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
             const res = await fetch(`/api/sync-agent/keys/${id}`, { method: "DELETE" });
             const data = await res.json();
             if (data.success) {
-                addToast({ title: "Sync Agent key revoked", type: "success" });
+                addToast({ title: t("agentKeyRevoked"), type: "success" });
                 await fetchKeys();
             }
         } catch {
-            addToast({ title: "Failed to revoke key", type: "error" });
+            addToast({ title: t("agentKeyRevokeFailed"), type: "error" });
         }
     };
 
@@ -230,6 +187,21 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
         ? "cd %USERPROFILE%\\Downloads && node peopleflow-sync.js"
         : "cd ~/Downloads && node peopleflow-sync.js";
 
+    const visibleSetupSteps = [
+        { title: t("agentStep1Title"), desc: t("agentStep1Desc"), icon: Key },
+        { title: t("agentStep2Title"), desc: t("agentStep2Desc"), icon: Download },
+        { title: t("agentStep3Title"), desc: t("agentStep3Desc"), icon: MonitorCheck },
+        { title: t("agentStep4Title"), desc: t("agentStep4Desc"), icon: Users },
+    ];
+
+    const visibleSuccessChecks = [t("agentSuccessCloud"), t("agentSuccessDevice"), t("agentSuccessInfo"), t("agentSuccessDryRun")];
+
+    const visibleCommonProblems = [
+        { problem: "MODULE_NOT_FOUND", fix: t("agentProblemModuleNotFound") },
+        { problem: "ECONNRESET on v1.0.0", fix: t("agentProblemOldVersion") },
+        { problem: t("agentProblemCloudTestTitle"), fix: t("agentProblemCloudTestFix") },
+    ];
+
     // ── Render ─────────────────────────────────────────────────────
 
     return (
@@ -241,9 +213,9 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                             <Zap className="h-5 w-5 text-emerald-400" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-semibold text-foreground">Office Biometric Sync Setup</h2>
+                            <h2 className="text-xl font-semibold text-foreground">{t("agentSetupTitle")}</h2>
                             <p className="text-sm text-muted-foreground font-normal">
-                                Connect LAN-only ZKTeco devices to PeopleFlow Cloud without VPN, public IP, or developer support.
+                                {t("agentSetupSubtitle")}
                             </p>
                         </div>
                     </DialogTitle>
@@ -259,11 +231,11 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 </div>
                                 <div>
                                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                                        <h3 className="text-base font-semibold text-foreground">Recommended for every office</h3>
-                                        <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/20">Production flow</Badge>
+                                        <h3 className="text-base font-semibold text-foreground">{t("recommendedForEveryOffice")}</h3>
+                                        <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/20">{t("productionFlow")}</Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground leading-relaxed">
-                                        Fingerprint devices usually live inside the office network using private IPs like <span className="font-mono text-foreground">192.168.x.x</span>. PeopleFlow Cloud should not try to directly enter that office LAN. Instead, a small Sync Agent runs on one office PC and securely pushes attendance to the cloud.
+                                        {t.rich("agentOfficeLanDesc", { ip: (chunks) => <span className="font-mono text-foreground">{chunks}</span> })}
                                     </p>
                                 </div>
                             </div>
@@ -272,13 +244,13 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                         <div className="rounded-2xl border border-card-border bg-hover p-5">
                             <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                                 <Shield className="h-4 w-4 text-cyan-400" />
-                                Office staff only need
+                                {t("officeStaffNeed")}
                             </p>
                             <ul className="space-y-2 text-sm text-muted-foreground">
-                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> One PC kept on during office hours</li>
-                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> Node.js installed once</li>
-                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> Device IP and port, usually 4370</li>
-                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> This downloaded agent file</li>
+                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> {t("needOfficePc")}</li>
+                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> {t("needNode")}</li>
+                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> {t("needDeviceIpPort")}</li>
+                                <li className="flex gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-400 shrink-0" /> {t("needAgentFile")}</li>
                             </ul>
                         </div>
                     </div>
@@ -287,12 +259,12 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                     <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-sm font-semibold text-foreground">Office Sync Agents</h3>
-                                <p className="text-xs text-muted-foreground">Online means the office PC is running the agent and talking to PeopleFlow Cloud.</p>
+                                <h3 className="text-sm font-semibold text-foreground">{t("officeSyncAgents")}</h3>
+                                <p className="text-xs text-muted-foreground">{t("agentOnlineDesc")}</p>
                             </div>
                             <Button variant="outline" size="sm" onClick={fetchKeys} disabled={loading} className="gap-2">
                                 {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5" />}
-                                Refresh
+                                {t("refreshAgents")}
                             </Button>
                         </div>
 
@@ -320,7 +292,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                                         <div className="flex flex-wrap items-center gap-2 mt-1">
                                                             <Badge className={cn("text-[10px] gap-1", online ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" : "bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20")}>
                                                                 <span className={cn("w-1.5 h-1.5 rounded-full", online ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground")} />
-                                                                {online ? "Online" : "Offline"}
+                                                                {online ? t("online") : t("offline")}
                                                             </Badge>
                                                             <span className="text-[10px] text-muted-foreground font-mono">{key.keyPrefix}...</span>
                                                             {key.agentVersion && (
@@ -333,7 +305,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
-                                                        if (confirm("Revoke this API key? The office agent using it will stop syncing.")) revokeKey(key.id);
+                                                        if (confirm(t("confirmRevokeAgentKey"))) revokeKey(key.id);
                                                     }}
                                                     className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
                                                 >
@@ -344,21 +316,21 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                                                 <div className="rounded-xl bg-background/50 border border-card-border p-2">
                                                     <p className="text-sm font-bold text-foreground">{key.syncCount}</p>
-                                                    <p className="text-[10px] text-muted-foreground">Sync runs</p>
+                                                    <p className="text-[10px] text-muted-foreground">{t("syncRuns")}</p>
                                                 </div>
                                                 <div className="rounded-xl bg-background/50 border border-card-border p-2">
                                                     <p className="text-sm font-bold text-foreground">{key.totalRecords}</p>
-                                                    <p className="text-[10px] text-muted-foreground">Records</p>
+                                                    <p className="text-[10px] text-muted-foreground">{t("records")}</p>
                                                 </div>
                                                 <div className="rounded-xl bg-background/50 border border-card-border p-2">
                                                     <p className="text-sm font-bold text-foreground">{timeAgo(key.lastHeartbeat)}</p>
-                                                    <p className="text-[10px] text-muted-foreground">Heartbeat</p>
+                                                    <p className="text-[10px] text-muted-foreground">{t("heartbeat")}</p>
                                                 </div>
                                             </div>
 
                                             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
                                                 {key.agentIp && <span className="flex items-center gap-1"><Globe className="h-3 w-3" /> {key.agentIp}</span>}
-                                                {key.lastSyncAt && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Last sync: {timeAgo(key.lastSyncAt)}</span>}
+                                                {key.lastSyncAt && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {t("lastSync")}: {timeAgo(key.lastSyncAt, t)}</span>}
                                                 <span className="flex items-center gap-1"><Server className="h-3 w-3" /> {cloudUrl}</span>
                                             </div>
                                         </div>
@@ -368,8 +340,8 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                         ) : (
                             <div className="rounded-2xl border border-dashed border-card-border bg-hover p-6 text-center">
                                 <Plus className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                                <p className="text-sm font-medium text-foreground">No office agent configured yet</p>
-                                <p className="text-xs text-muted-foreground mt-1">Start with Step 1 below. The first key creates the downloadable agent.</p>
+                                <p className="text-sm font-medium text-foreground">{t("noOfficeAgentConfigured")}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{t("noOfficeAgentDesc")}</p>
                             </div>
                         )}
                     </div>
@@ -381,17 +353,17 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 <div>
                                     <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
                                         <Terminal className="h-4 w-4 text-emerald-400" />
-                                        Self-service setup wizard
+                                        {t("selfServiceWizard")}
                                     </h3>
-                                    <p className="text-xs text-muted-foreground mt-1">Follow left to right. Do not start live sync before dry-run and employee mapping.</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{t("wizardSafetyDesc")}</p>
                                 </div>
-                                <Badge className="w-fit bg-blue-500/10 text-blue-300 border-blue-500/20">Agent v1.1.0</Badge>
+                                <Badge className="w-fit bg-blue-500/10 text-blue-300 border-blue-500/20">{t("agentVersionBadge")}</Badge>
                             </div>
                         </div>
 
                         <div className="grid gap-0 lg:grid-cols-[280px_1fr]">
                             <div className="border-b lg:border-b-0 lg:border-r border-card-border bg-hover/50 p-4 space-y-3">
-                                {setupSteps.map((step, index) => {
+                                {visibleSetupSteps.map((step, index) => {
                                     const Icon = step.icon;
                                     const isActive = activeStep === index;
                                     const isDone = activeStep > index || (index === 0 && !!newRawKey);
@@ -423,20 +395,20 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 {activeStep === 0 && (
                                     <div className="space-y-4">
                                         <div>
-                                            <h4 className="text-lg font-semibold text-foreground">Create one secure key for this office PC</h4>
-                                            <p className="text-sm text-muted-foreground mt-1">Name it by branch or physical PC, for example “Dhanmondi Front Desk PC”.</p>
+                                            <h4 className="text-lg font-semibold text-foreground">{t("createSecureOfficeKey")}</h4>
+                                            <p className="text-sm text-muted-foreground mt-1">{t("createSecureOfficeKeyDesc")}</p>
                                         </div>
                                         <div className="flex flex-col sm:flex-row gap-2">
                                             <input
                                                 type="text"
                                                 value={newKeyName}
                                                 onChange={(e) => setNewKeyName(e.target.value)}
-                                                placeholder="Main Office Agent"
+                                                placeholder={t("mainOfficeAgentPlaceholder")}
                                                 className="h-11 px-3 rounded-xl bg-hover border border-card-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 flex-1"
                                             />
                                             <Button onClick={createKey} disabled={creating || !newKeyName.trim()} className="gap-2 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white">
                                                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
-                                                Generate office key
+                                                {t("generateOfficeKey")}
                                             </Button>
                                         </div>
 
@@ -444,7 +416,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                             <div className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
                                                 <div className="flex items-start gap-2 text-amber-200">
                                                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                                                    <p className="text-sm">This key is shown once. The downloaded agent already includes it, but copy it if you want a backup.</p>
+                                                    <p className="text-sm">{t("keyShownOnce")}</p>
                                                 </div>
                                                 <div className="relative">
                                                     <div className="flex items-center gap-2 px-3 py-3 rounded-xl bg-[#0d1117] border border-card-border font-mono text-xs text-emerald-300 overflow-x-auto pr-20">
@@ -468,14 +440,14 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 {activeStep === 1 && (
                                     <div className="space-y-4">
                                         <div>
-                                            <h4 className="text-lg font-semibold text-foreground">Download the fresh fixed agent</h4>
-                                            <p className="text-sm text-muted-foreground mt-1">Always download from this screen for the latest v1.1.0 device bridge. Do not reuse old files from April/earlier tests.</p>
+                                            <h4 className="text-lg font-semibold text-foreground">{t("downloadFreshAgent")}</h4>
+                                            <p className="text-sm text-muted-foreground mt-1">{t("downloadFreshAgentDesc")}</p>
                                         </div>
                                         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                             <div>
-                                                <p className="text-sm font-medium text-foreground">Pre-configured file</p>
+                                                <p className="text-sm font-medium text-foreground">{t("preconfiguredFile")}</p>
                                                 <p className="text-xs text-muted-foreground mt-1">Cloud URL: <span className="font-mono text-foreground">{cloudUrl}</span></p>
-                                                <p className="text-xs text-muted-foreground">Device IP will be asked during first run.</p>
+                                                <p className="text-xs text-muted-foreground">{t("deviceIpAsked")}</p>
                                             </div>
                                             <a
                                                 href={downloadUrl}
@@ -483,12 +455,12 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white text-sm font-medium shadow-lg shadow-cyan-500/20 transition-all duration-200 hover:scale-[1.02]"
                                             >
                                                 <Download className="h-4 w-4" />
-                                                Download v1.1.0 Agent
+                                                {t("downloadAgentVersion")}
                                             </a>
                                         </div>
                                         <div className="rounded-xl border border-card-border bg-hover p-3 text-xs text-muted-foreground flex gap-2">
                                             <HelpCircle className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
-                                            If the office PC does not have Node.js, install the LTS version once from <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline">nodejs.org</a>. After that, staff only run the agent.
+                                            {t("nodeHelpBefore")} <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline">nodejs.org</a>{t("nodeHelpAfter")}
                                         </div>
                                     </div>
                                 )}
@@ -496,29 +468,29 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 {activeStep === 2 && (
                                     <div className="space-y-4">
                                         <div>
-                                            <h4 className="text-lg font-semibold text-foreground">Run safe dry-run test first</h4>
-                                            <p className="text-sm text-muted-foreground mt-1">Dry-run proves everything works but does not send attendance records to cloud.</p>
+                                            <h4 className="text-lg font-semibold text-foreground">{t("runDryRunFirst")}</h4>
+                                            <p className="text-sm text-muted-foreground mt-1">{t("dryRunDesc")}</p>
                                         </div>
 
                                         <div className="flex rounded-xl border border-card-border bg-hover p-1 w-fit">
-                                            <button type="button" onClick={() => setPlatform("windows")} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", platform === "windows" ? "bg-card text-foreground shadow" : "text-muted-foreground")}>Windows PC</button>
-                                            <button type="button" onClick={() => setPlatform("mac")} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", platform === "mac" ? "bg-card text-foreground shadow" : "text-muted-foreground")}>Mac / Linux</button>
+                                            <button type="button" onClick={() => setPlatform("windows")} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", platform === "windows" ? "bg-card text-foreground shadow" : "text-muted-foreground")}>{t("windowsPc")}</button>
+                                            <button type="button" onClick={() => setPlatform("mac")} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", platform === "mac" ? "bg-card text-foreground shadow" : "text-muted-foreground")}>{t("macLinux")}</button>
                                         </div>
 
-                                        <CommandBox label="Copy and run this dry-run command" command={dryRunCommand} copied={copied === "dry-run"} onCopy={() => copyToClipboard(dryRunCommand, "dry-run")} />
+                                        <CommandBox label={t("copyDryRunCommand")} command={dryRunCommand} copied={copied === "dry-run"} onCopy={() => copyToClipboard(dryRunCommand, "dry-run")} />
 
                                         <div className="grid gap-3 sm:grid-cols-2">
                                             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                                                <p className="text-sm font-semibold text-emerald-300 mb-3">Success should show</p>
+                                                <p className="text-sm font-semibold text-emerald-300 mb-3">{t("successShouldShow")}</p>
                                                 <ul className="space-y-2">
-                                                    {successChecks.map((item) => (
+                                                    {visibleSuccessChecks.map((item) => (
                                                         <li key={item} className="flex gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" /> {item}</li>
                                                     ))}
                                                 </ul>
                                             </div>
                                             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-                                                <p className="text-sm font-semibold text-amber-300 mb-2">Important safety rule</p>
-                                                <p className="text-xs text-muted-foreground leading-relaxed">Do not use <span className="font-mono text-foreground">--sync-all-history=true</span> during pilot unless you intentionally want to import old historical logs. Default dry-run only checks recent safe data.</p>
+                                                <p className="text-sm font-semibold text-amber-300 mb-2">{t("importantSafetyRule")}</p>
+                                                <p className="text-xs text-muted-foreground leading-relaxed">{t("doNotUse")} <span className="font-mono text-foreground">--sync-all-history=true</span> {t("syncAllHistoryWarning")}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -527,21 +499,21 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                 {activeStep === 3 && (
                                     <div className="space-y-4">
                                         <div>
-                                            <h4 className="text-lg font-semibold text-foreground">Go live after employee mapping</h4>
-                                            <p className="text-sm text-muted-foreground mt-1">First map biometric user IDs to employees from the Devices page. Then run the live agent on the office PC.</p>
+                                            <h4 className="text-lg font-semibold text-foreground">{t("goLiveAfterMapping")}</h4>
+                                            <p className="text-sm text-muted-foreground mt-1">{t("goLiveAfterMappingDesc")}</p>
                                         </div>
-                                        <CommandBox label="Live sync command" command={liveCommand} copied={copied === "live"} onCopy={() => copyToClipboard(liveCommand, "live")} />
+                                        <CommandBox label={t("liveSyncCommand")} command={liveCommand} copied={copied === "live"} onCopy={() => copyToClipboard(liveCommand, "live")} />
                                         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-                                            <p className="text-sm font-semibold text-blue-300 mb-2 flex items-center gap-2"><PlayCircle className="h-4 w-4" /> Operational recommendation</p>
-                                            <p className="text-xs text-muted-foreground leading-relaxed">Keep this command running on one office PC during office hours. For a permanent setup, install it as a Windows Startup/Service task later. The dashboard will show the agent as Online when heartbeat is received.</p>
+                                            <p className="text-sm font-semibold text-blue-300 mb-2 flex items-center gap-2"><PlayCircle className="h-4 w-4" /> {t("operationalRecommendation")}</p>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">{t("operationalRecommendationDesc")}</p>
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="flex items-center justify-between border-t border-card-border pt-4">
-                                    <Button variant="outline" size="sm" onClick={() => setActiveStep((s) => Math.max(s - 1, 0))} disabled={activeStep === 0}>Back</Button>
-                                    <Button size="sm" onClick={() => setActiveStep((s) => Math.min(s + 1, setupSteps.length - 1))} className="gap-2">
-                                        {activeStep === setupSteps.length - 1 ? "Done" : "Next"}
+                                    <Button variant="outline" size="sm" onClick={() => setActiveStep((s) => Math.max(s - 1, 0))} disabled={activeStep === 0}>{t("back")}</Button>
+                                    <Button size="sm" onClick={() => setActiveStep((s) => Math.min(s + 1, visibleSetupSteps.length - 1))} className="gap-2">
+                                        {activeStep === visibleSetupSteps.length - 1 ? t("done") : t("next")}
                                         <ArrowRight className="h-3.5 w-3.5" />
                                     </Button>
                                 </div>
@@ -553,10 +525,10 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                     <div className="rounded-2xl border border-card-border bg-hover p-5">
                         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
                             <AlertTriangle className="h-4 w-4 text-amber-400" />
-                            Common messages and what staff should do
+                            {t("commonMessagesTitle")}
                         </h3>
                         <div className="grid gap-3 md:grid-cols-3">
-                            {commonProblems.map((item) => (
+                            {visibleCommonProblems.map((item) => (
                                 <div key={item.problem} className="rounded-xl border border-card-border bg-card/70 p-3">
                                     <p className="text-xs font-mono text-amber-300 mb-2">{item.problem}</p>
                                     <p className="text-xs text-muted-foreground leading-relaxed">{item.fix}</p>
