@@ -1,43 +1,45 @@
 #!/usr/bin/env node
 
 /**
- * ╔══════════════════════════════════════════════════════════════════╗
- * ║           PeopleFlow Sync Agent v1.0.0                          ║
- * ║   Bridge your local ZKTeco device to PeopleFlow HRMS Cloud      ║
- * ║                                                                  ║
- * ║   Usage:                                                         ║
- * ║     node peopleflow-sync.js                     (interactive)    ║
- * ║     node peopleflow-sync.js --url=X --key=Y --device-ip=Z       ║
- * ╚══════════════════════════════════════════════════════════════════╝
+ * PeopleFlow Sync Agent v1.1.0
  *
- * Zero dependencies — uses only Node.js built-in modules.
- * Compatible with Node.js 16+ (LTS).
+ * Production-grade local bridge for LAN-only ZKTeco biometric devices.
+ * The cloud app cannot directly reach private office IPs (192.168.x.x), so this
+ * agent runs inside the office network and securely pushes attendance punches to
+ * PeopleFlow Cloud using a scoped Sync API key.
+ *
+ * Usage:
+ *   node peopleflow-sync.js
+ *   node peopleflow-sync.js --url=https://peopleflowbd.online --key=pf_sync_x --device-ip=192.168.1.201
+ *   node peopleflow-sync.js --sync-all-history=true
+ *   node peopleflow-sync.js --dry-run=true --once=true
  */
 
-const net = require("net");
 const https = require("https");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const os = require("os");
-const crypto = require("crypto");
+const childProcess = require("child_process");
+const { createRequire } = require("module");
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CONFIG_FILE = path.join(os.homedir(), ".peopleflow-sync.json");
-const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+const STATE_FILE = path.join(os.homedir(), ".peopleflow-sync-state.json");
+const RUNTIME_DIR = path.join(os.homedir(), ".peopleflow-sync-agent");
+const RUNTIME_PACKAGE_DIR = path.join(RUNTIME_DIR, "runtime");
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
 const ZKTECO_PORT = 4370;
-const CONNECT_TIMEOUT = 8000;
-
-// ZKTeco protocol constants
-const USHRT_MAX = 65535;
-const CMD_CONNECT = 1000;
-const CMD_EXIT = 1001;
-const CMD_ATTLOG_RRQ = 13;
-const CMD_ACK_OK = 2000;
+const ZKTECO_PACKAGE = "zkteco-js";
+const ZKTECO_PACKAGE_VERSION = "1.7.1";
+const DEFAULT_INITIAL_LOOKBACK_DAYS = 7;
+const DEFAULT_BATCH_SIZE = 500;
+const DEVICE_TIMEOUT_MS = 5000;
+const DEVICE_INPORT = 4000;
 
 // ── Colorful Terminal Output ─────────────────────────────────────────
 
@@ -52,17 +54,12 @@ const c = {
     cyan: "\x1b[36m",
     red: "\x1b[31m",
     white: "\x1b[37m",
-    bgGreen: "\x1b[42m",
-    bgRed: "\x1b[41m",
-    bgBlue: "\x1b[44m",
-    bgYellow: "\x1b[43m",
 };
 
 function log(icon, msg, color = c.white) {
     const time = new Date().toLocaleTimeString();
     console.log(`${c.dim}[${time}]${c.reset} ${icon}  ${color}${msg}${c.reset}`);
 }
-
 function logSuccess(msg) { log("✅", msg, c.green); }
 function logError(msg) { log("❌", msg, c.red); }
 function logInfo(msg) { log("ℹ️ ", msg, c.cyan); }
@@ -81,37 +78,58 @@ ${c.cyan}${c.bold}╔═══════════════════�
 
 // ── Configuration ────────────────────────────────────────────────────
 
-function loadConfig() {
+function readJson(file, fallback = null) {
     try {
-        if (fs.existsSync(CONFIG_FILE)) {
-            return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
-        }
+        if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
     } catch { }
-    return null;
+    return fallback;
+}
+
+function writeJson(file, value) {
+    fs.writeFileSync(file, JSON.stringify(value, null, 2));
+}
+
+function loadConfig() {
+    return readJson(CONFIG_FILE, null);
 }
 
 function saveConfig(config) {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+    writeJson(CONFIG_FILE, config);
     logSuccess(`Config saved to ${CONFIG_FILE}`);
+}
+
+function loadState() {
+    return readJson(STATE_FILE, {
+        lastSuccessfulTimestamp: null,
+        syncedKeys: [],
+        firstRunCompleted: false,
+    });
+}
+
+function saveState(state) {
+    const keys = Array.isArray(state.syncedKeys) ? state.syncedKeys.slice(-20000) : [];
+    writeJson(STATE_FILE, { ...state, syncedKeys: keys });
 }
 
 function parseArgs() {
     const args = {};
     process.argv.slice(2).forEach((arg) => {
-        const match = arg.match(/^--(\w[\w-]*)=(.+)$/);
+        const match = arg.match(/^--(\w[\w-]*)(?:=(.+))?$/);
         if (match) {
             const key = match[1].replace(/-([a-z])/g, (_, l) => l.toUpperCase());
-            args[key] = match[2].replace(/^["']|["']$/g, "");
+            args[key] = match[2] === undefined ? "true" : match[2].replace(/^["']|["']$/g, "");
         }
     });
     return args;
 }
 
+function toBool(value, fallback = false) {
+    if (value === undefined || value === null || value === "") return fallback;
+    return ["1", "true", "yes", "y"].includes(String(value).toLowerCase());
+}
+
 async function prompt(question) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-    });
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     return new Promise((resolve) => {
         rl.question(`${c.cyan}? ${c.bold}${question}${c.reset} `, (answer) => {
             rl.close();
@@ -124,262 +142,194 @@ async function getConfig() {
     const args = parseArgs();
     let config = loadConfig();
 
-    // If CLI args provided, use them
     if (args.url && args.key && args.deviceIp) {
         config = {
             cloudUrl: args.url.replace(/\/$/, ""),
             apiKey: args.key,
             deviceIp: args.deviceIp,
-            devicePort: parseInt(args.devicePort) || ZKTECO_PORT,
-            syncInterval: parseInt(args.syncInterval) || SYNC_INTERVAL_MS / 60000,
+            devicePort: parseInt(args.devicePort, 10) || ZKTECO_PORT,
+            syncInterval: parseInt(args.syncInterval, 10) || SYNC_INTERVAL_MS / 60000,
+            initialLookbackDays: parseInt(args.initialLookbackDays, 10) || DEFAULT_INITIAL_LOOKBACK_DAYS,
+            syncAllHistory: toBool(args.syncAllHistory, false),
+            batchSize: parseInt(args.batchSize, 10) || DEFAULT_BATCH_SIZE,
         };
         saveConfig(config);
-        return config;
+        return { ...config, dryRun: toBool(args.dryRun, false), once: toBool(args.once, false) };
     }
 
-    // If config file exists, ask to reuse
     if (config && config.cloudUrl && config.apiKey && config.deviceIp) {
-        logInfo(`Found existing config: ${config.cloudUrl} → ${config.deviceIp}`);
+        logInfo(`Found existing config: ${config.cloudUrl} → ${config.deviceIp}:${config.devicePort || ZKTECO_PORT}`);
         const reuse = await prompt("Use existing config? (Y/n):");
         if (reuse.toLowerCase() !== "n") {
-            return config;
+            return {
+                ...config,
+                devicePort: config.devicePort || ZKTECO_PORT,
+                syncInterval: config.syncInterval || 5,
+                initialLookbackDays: config.initialLookbackDays || DEFAULT_INITIAL_LOOKBACK_DAYS,
+                syncAllHistory: Boolean(config.syncAllHistory),
+                batchSize: config.batchSize || DEFAULT_BATCH_SIZE,
+                dryRun: toBool(args.dryRun, false),
+                once: toBool(args.once, false),
+            };
         }
     }
 
-    // Interactive setup
     console.log(`\n${c.yellow}${c.bold}─── First-Time Setup ───${c.reset}\n`);
 
-    const cloudUrl = await prompt("Enter your PeopleFlow URL (e.g., https://peopleflowbd.online):");
-    const apiKey = await prompt("Paste your API Key (from Dashboard → Devices → Sync Agent):");
+    const defaultUrl = typeof PRE_CONFIGURED_URL !== "undefined" ? PRE_CONFIGURED_URL : "";
+    const defaultKey = typeof PRE_CONFIGURED_KEY !== "undefined" ? PRE_CONFIGURED_KEY : "";
+
+    const cloudUrl = defaultUrl || await prompt("Enter your PeopleFlow URL (e.g., https://peopleflowbd.online):");
+    if (defaultUrl) logSuccess(`Cloud URL: ${defaultUrl} (pre-configured)`);
+
+    let apiKey = defaultKey;
+    if (!apiKey) apiKey = await prompt("Paste your API Key (from Dashboard → Devices → Sync Agent):");
+    else logSuccess("API Key: pre-configured ✓");
+
     const deviceIp = await prompt("Enter ZKTeco device IP address (e.g., 192.168.1.201):");
     const devicePortInput = await prompt(`Enter device port (default ${ZKTECO_PORT}):`);
     const intervalInput = await prompt("Sync interval in minutes (default 5):");
+    const lookbackInput = await prompt(`First-run lookback days (default ${DEFAULT_INITIAL_LOOKBACK_DAYS}; use 0 for all history):`);
+
+    const lookbackDays = lookbackInput === "0" ? 0 : (parseInt(lookbackInput, 10) || DEFAULT_INITIAL_LOOKBACK_DAYS);
 
     config = {
         cloudUrl: cloudUrl.replace(/\/$/, ""),
         apiKey,
         deviceIp,
-        devicePort: parseInt(devicePortInput) || ZKTECO_PORT,
-        syncInterval: parseInt(intervalInput) || 5,
+        devicePort: parseInt(devicePortInput, 10) || ZKTECO_PORT,
+        syncInterval: parseInt(intervalInput, 10) || 5,
+        initialLookbackDays: lookbackDays,
+        syncAllHistory: lookbackDays === 0,
+        batchSize: DEFAULT_BATCH_SIZE,
     };
 
     saveConfig(config);
-    return config;
+    return { ...config, dryRun: toBool(args.dryRun, false), once: toBool(args.once, false) };
 }
 
-// ── ZKTeco Protocol (Lightweight Implementation) ─────────────────────
+// ── Dependency Management ────────────────────────────────────────────
 
-function createHeader(command, sessionId, replyId, data) {
-    const dataLength = data ? data.length : 0;
-    const buf = Buffer.alloc(8 + dataLength);
-    buf.writeUInt16LE(command, 0);
-    buf.writeUInt16LE(0, 2); // checksum placeholder
-    buf.writeUInt16LE(sessionId, 4);
-    buf.writeUInt16LE(replyId, 6);
-    if (data) data.copy(buf, 8);
-
-    // Calculate checksum
-    const chksum = calcChecksum(buf);
-    buf.writeUInt16LE(chksum, 2);
-
-    return buf;
+function requireFromRuntime(packageName) {
+    const runtimeRequire = createRequire(path.join(RUNTIME_PACKAGE_DIR, "package.json"));
+    return runtimeRequire(packageName);
 }
 
-function calcChecksum(buf) {
-    let chk = 0;
-    for (let i = 0; i < buf.length; i += 2) {
-        if (i === 2) continue; // skip checksum field
-        chk += buf.readUInt16LE(i);
+function ensurePackageJson() {
+    fs.mkdirSync(RUNTIME_PACKAGE_DIR, { recursive: true });
+    const pkgPath = path.join(RUNTIME_PACKAGE_DIR, "package.json");
+    if (!fs.existsSync(pkgPath)) {
+        writeJson(pkgPath, {
+            private: true,
+            name: "peopleflow-sync-runtime",
+            version: "1.0.0",
+            description: "Runtime dependencies for PeopleFlow Sync Agent",
+            license: "UNLICENSED",
+        });
     }
-    chk = chk % USHRT_MAX;
-    return (USHRT_MAX - chk) % USHRT_MAX;
 }
 
-function createTCPHeader(command, sessionId, replyId, data) {
-    const header = createHeader(command, sessionId, replyId, data);
-    const prefix = Buffer.alloc(8);
-    prefix.writeUInt32LE(0x50504B44, 0); // DKPP magic
-    prefix.writeUInt16LE(header.length, 4);
-    prefix.writeUInt16LE(0, 6);
-    return Buffer.concat([prefix, header]);
+function runNpmInstall() {
+    ensurePackageJson();
+    logInfo(`Installing ${ZKTECO_PACKAGE}@${ZKTECO_PACKAGE_VERSION} locally under ${RUNTIME_PACKAGE_DIR}...`);
+    logWarn("This is a one-time setup. The agent keeps dependencies isolated from your system projects.");
+
+    const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+    const result = childProcess.spawnSync(
+        npmCommand,
+        ["install", `${ZKTECO_PACKAGE}@${ZKTECO_PACKAGE_VERSION}`, "--omit=dev", "--no-audit", "--no-fund"],
+        { cwd: RUNTIME_PACKAGE_DIR, stdio: "inherit" }
+    );
+
+    if (result.error) {
+        throw new Error(`Unable to run npm. Install Node.js LTS from https://nodejs.org and try again. ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+        throw new Error(`Dependency install failed with exit code ${result.status}`);
+    }
+}
+
+async function loadZktecoLibrary() {
+    try {
+        return require(ZKTECO_PACKAGE);
+    } catch { }
+
+    try {
+        return requireFromRuntime(ZKTECO_PACKAGE);
+    } catch { }
+
+    runNpmInstall();
+    try {
+        return requireFromRuntime(ZKTECO_PACKAGE);
+    } catch (err) {
+        throw new Error(`Installed ${ZKTECO_PACKAGE}, but failed to load it: ${err.message}`);
+    }
+}
+
+// ── Device Adapter ───────────────────────────────────────────────────
+
+function normalizeZkModule(mod) {
+    return mod && (mod.default || mod.ZKLib || mod);
+}
+
+function normalizeTimestamp(value) {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+}
+
+function normalizeAttendanceRows(result) {
+    const rows = Array.isArray(result) ? result : (Array.isArray(result?.data) ? result.data : []);
+    return rows
+        .map((row) => {
+            const userId = String(row.userId ?? row.user_id ?? row.uid ?? "").trim();
+            const timestamp = normalizeTimestamp(row.timestamp ?? row.recordTime ?? row.record_time ?? row.attTime);
+            if (!userId || !timestamp) return null;
+            return {
+                userId,
+                timestamp,
+                type: Number.isFinite(Number(row.type)) ? Number(row.type) : 0,
+                state: Number.isFinite(Number(row.state)) ? Number(row.state) : undefined,
+                serialNumber: row.sn ?? row.id ?? undefined,
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
 class ZKDevice {
     constructor(ip, port) {
         this.ip = ip;
         this.port = port;
-        this.socket = null;
-        this.sessionId = 0;
-        this.replyId = 0;
+        this.device = null;
     }
 
-    connect() {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                if (this.socket) this.socket.destroy();
-                reject(new Error(`Connection timeout after ${CONNECT_TIMEOUT}ms`));
-            }, CONNECT_TIMEOUT);
-
-            this.socket = new net.Socket();
-
-            this.socket.connect(this.port, this.ip, () => {
-                clearTimeout(timeout);
-                // Send connect command
-                const packet = createTCPHeader(CMD_CONNECT, 0, 0, null);
-                this.socket.write(packet);
-            });
-
-            this.socket.once("data", (data) => {
-                clearTimeout(timeout);
-                if (data.length >= 16) {
-                    const reply = data.readUInt16LE(8);
-                    if (reply === CMD_ACK_OK) {
-                        this.sessionId = data.readUInt16LE(12);
-                        this.replyId = 1;
-                        resolve(true);
-                    } else {
-                        reject(new Error(`Device rejected connection: reply=${reply}`));
-                    }
-                } else {
-                    reject(new Error("Invalid response from device"));
-                }
-            });
-
-            this.socket.on("error", (err) => {
-                clearTimeout(timeout);
-                reject(new Error(`TCP error: ${err.message}`));
-            });
-        });
+    async connect() {
+        const mod = await loadZktecoLibrary();
+        const ZKLib = normalizeZkModule(mod);
+        this.device = new ZKLib(this.ip, this.port, DEVICE_TIMEOUT_MS, DEVICE_INPORT);
+        await this.device.createSocket();
+        return true;
     }
 
-    getAttendanceLogs() {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error("Attendance fetch timeout"));
-            }, 30000);
-
-            const packet = createTCPHeader(
-                CMD_ATTLOG_RRQ,
-                this.sessionId,
-                this.replyId++,
-                null
-            );
-            this.socket.write(packet);
-
-            const chunks = [];
-            let totalExpected = 0;
-            let totalReceived = 0;
-            let headerParsed = false;
-
-            const onData = (data) => {
-                if (!headerParsed && data.length >= 16) {
-                    // First response has the size info
-                    const replyCode = data.readUInt16LE(8);
-
-                    if (replyCode === CMD_ACK_OK && data.length >= 20) {
-                        // Direct data in the reply (small datasets)
-                        const payload = data.slice(16);
-                        if (payload.length > 0) {
-                            chunks.push(payload);
-                        }
-                        clearTimeout(timeout);
-                        this.socket.removeListener("data", onData);
-                        resolve(this._parseAttendanceLogs(Buffer.concat(chunks)));
-                        return;
-                    }
-
-                    // Large dataset — expect streaming data
-                    if (data.length >= 20) {
-                        totalExpected = data.readUInt32LE(16);
-                        headerParsed = true;
-                        // Rest of this packet is data
-                        if (data.length > 24) {
-                            const payload = data.slice(24);
-                            chunks.push(payload);
-                            totalReceived += payload.length;
-                        }
-                    } else {
-                        clearTimeout(timeout);
-                        this.socket.removeListener("data", onData);
-                        resolve([]);
-                        return;
-                    }
-                } else if (headerParsed) {
-                    // Streaming data chunks — skip TCP prefix if present
-                    let payload = data;
-                    if (data.length >= 8 && data.readUInt32LE(0) === 0x50504B44) {
-                        payload = data.slice(16);
-                    }
-                    chunks.push(payload);
-                    totalReceived += payload.length;
-                }
-
-                // Check if we've received all data
-                if (headerParsed && totalReceived >= totalExpected) {
-                    clearTimeout(timeout);
-                    this.socket.removeListener("data", onData);
-                    resolve(this._parseAttendanceLogs(Buffer.concat(chunks)));
-                }
-            };
-
-            this.socket.on("data", onData);
-        });
+    async getInfo() {
+        if (!this.device) return null;
+        if (typeof this.device.getInfo !== "function") return null;
+        return this.device.getInfo();
     }
 
-    _parseAttendanceLogs(buffer) {
-        const logs = [];
-        const text = buffer.toString("utf8");
-        const lines = text.split("\n").filter((l) => l.trim());
-
-        for (const line of lines) {
-            try {
-                // ZKTeco ATTLOG format: "userId\ttimestamp\tverifyType\tinOutMode\tworkCode"
-                const parts = line.split("\t");
-                if (parts.length >= 2) {
-                    const userId = parts[0].trim();
-                    const timestamp = parts[1].trim();
-
-                    if (userId && timestamp) {
-                        const date = new Date(timestamp.replace(/ /g, "T"));
-                        if (!isNaN(date.getTime())) {
-                            logs.push({
-                                userId,
-                                timestamp: date.toISOString(),
-                                type: parseInt(parts[3]) || 0,
-                            });
-                        }
-                    }
-                }
-            } catch {
-                // Skip malformed lines
-            }
-        }
-
-        return logs;
+    async getAttendanceLogs() {
+        if (!this.device) throw new Error("Device is not connected");
+        const result = await this.device.getAttendances();
+        return normalizeAttendanceRows(result);
     }
 
-    disconnect() {
-        return new Promise((resolve) => {
-            try {
-                if (this.socket) {
-                    const packet = createTCPHeader(
-                        CMD_EXIT,
-                        this.sessionId,
-                        this.replyId++,
-                        null
-                    );
-                    this.socket.write(packet);
-                    setTimeout(() => {
-                        if (this.socket) this.socket.destroy();
-                        resolve();
-                    }, 500);
-                } else {
-                    resolve();
-                }
-            } catch {
-                resolve();
-            }
-        });
+    async disconnect() {
+        try {
+            if (this.device && typeof this.device.disconnect === "function") await this.device.disconnect();
+        } catch { }
+        this.device = null;
     }
 }
 
@@ -390,7 +340,6 @@ function apiRequest(config, endpoint, body) {
         const url = new URL(endpoint, config.cloudUrl);
         const isHttps = url.protocol === "https:";
         const lib = isHttps ? https : http;
-
         const payload = JSON.stringify(body);
 
         const options = {
@@ -412,14 +361,11 @@ function apiRequest(config, endpoint, body) {
             res.on("data", (chunk) => (data += chunk));
             res.on("end", () => {
                 try {
-                    const json = JSON.parse(data);
-                    if (res.statusCode >= 200 && res.statusCode < 300) {
-                        resolve(json);
-                    } else {
-                        reject(new Error(json.error || `HTTP ${res.statusCode}`));
-                    }
+                    const json = JSON.parse(data || "{}");
+                    if (res.statusCode >= 200 && res.statusCode < 300) resolve(json);
+                    else reject(new Error(json.error || json.message || `HTTP ${res.statusCode}`));
                 } catch {
-                    reject(new Error(`Invalid response: ${res.statusCode}`));
+                    reject(new Error(`Invalid response from cloud: HTTP ${res.statusCode}`));
                 }
             });
         });
@@ -427,9 +373,8 @@ function apiRequest(config, endpoint, body) {
         req.on("error", (err) => reject(err));
         req.on("timeout", () => {
             req.destroy();
-            reject(new Error("Request timeout"));
+            reject(new Error("Cloud request timeout"));
         });
-
         req.write(payload);
         req.end();
     });
@@ -452,103 +397,140 @@ async function sendHeartbeat(config) {
 }
 
 async function pushAttendance(config, records) {
-    try {
-        const result = await apiRequest(config, "/api/v1/sync/push", {
-            agentVersion: VERSION,
-            deviceIp: config.deviceIp,
-            devicePort: config.devicePort,
-            records,
-        });
-        return result;
-    } catch (err) {
-        throw new Error(`Push failed: ${err.message}`);
-    }
+    return apiRequest(config, "/api/v1/sync/push", {
+        agentVersion: VERSION,
+        deviceIp: config.deviceIp,
+        devicePort: config.devicePort,
+        records,
+    });
 }
 
-// ── Sync Cycle ───────────────────────────────────────────────────────
+// ── Sync Logic ───────────────────────────────────────────────────────
 
-let lastSyncedRecords = new Set();
+function recordKey(record) {
+    return `${record.userId}::${record.timestamp}`;
+}
+
+function getFirstRunCutoff(config) {
+    if (config.syncAllHistory || Number(config.initialLookbackDays) === 0) return null;
+    const days = Number(config.initialLookbackDays) || DEFAULT_INITIAL_LOOKBACK_DAYS;
+    return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+}
+
+function filterRecordsForSync(config, state, logs) {
+    const synced = new Set(state.syncedKeys || []);
+    const lastSuccessful = state.lastSuccessfulTimestamp ? new Date(state.lastSuccessfulTimestamp) : null;
+    const firstRunCutoff = state.firstRunCompleted ? null : getFirstRunCutoff(config);
+
+    return logs.filter((record) => {
+        const timestamp = new Date(record.timestamp);
+        if (firstRunCutoff && timestamp < firstRunCutoff) return false;
+        if (lastSuccessful && timestamp < new Date(lastSuccessful.getTime() - 60 * 60 * 1000)) return false;
+        if (synced.has(recordKey(record))) return false;
+        return true;
+    });
+}
+
+function chunk(records, size) {
+    const out = [];
+    for (let i = 0; i < records.length; i += size) out.push(records.slice(i, i + size));
+    return out;
+}
 
 async function syncCycle(config) {
     logSync("Starting sync cycle...");
-
+    const state = loadState();
     const device = new ZKDevice(config.deviceIp, config.devicePort);
     let logs = [];
 
     try {
-        // 1. Connect to device
         logInfo(`Connecting to ZKTeco at ${config.deviceIp}:${config.devicePort}...`);
         await device.connect();
-        logSuccess(`Connected to device (session: ${device.sessionId})`);
+        logSuccess("Connected to device");
 
-        // 2. Fetch attendance logs
+        try {
+            const info = await device.getInfo();
+            if (info) logInfo(`Device info: users=${info.userCounts ?? "?"}, logs=${info.logCounts ?? "?"}`);
+        } catch (err) {
+            logWarn(`Device info unavailable: ${err.message}`);
+        }
+
         logInfo("Fetching attendance logs...");
         logs = await device.getAttendanceLogs();
-        logInfo(`Retrieved ${logs.length} raw log entries`);
-
-        // 3. Disconnect
-        await device.disconnect();
-        logSuccess("Disconnected from device");
+        logInfo(`Retrieved ${logs.length} attendance entries`);
     } catch (err) {
         logError(`Device error: ${err.message}`);
-        try { await device.disconnect(); } catch { }
         return { success: false, error: err.message };
+    } finally {
+        await device.disconnect();
     }
 
     if (logs.length === 0) {
+        state.firstRunCompleted = true;
+        saveState(state);
         logInfo("No attendance logs to sync");
         return { success: true, synced: 0 };
     }
 
-    // 4. Deduplicate — only push records we haven't seen before
-    const newLogs = logs.filter((l) => {
-        const key = `${l.userId}::${l.timestamp}`;
-        if (lastSyncedRecords.has(key)) return false;
-        lastSyncedRecords.add(key);
-        return true;
-    });
-
-    // Prune the dedup set to prevent memory leak (keep last 10k)
-    if (lastSyncedRecords.size > 10000) {
-        const arr = Array.from(lastSyncedRecords);
-        lastSyncedRecords = new Set(arr.slice(-5000));
-    }
-
+    const newLogs = filterRecordsForSync(config, state, logs);
     if (newLogs.length === 0) {
-        logInfo("All records already synced (no new data)");
+        state.firstRunCompleted = true;
+        saveState(state);
+        logInfo("No new records to sync");
         return { success: true, synced: 0, skipped: logs.length };
     }
 
-    // 5. Push to cloud
-    logSync(`Pushing ${newLogs.length} new records to cloud...`);
-    try {
-        const result = await pushAttendance(config, newLogs);
-        if (result.success) {
-            const s = result.summary;
-            logSuccess(
-                `Sync complete: ${s.synced} synced, ${s.skipped} skipped, ${s.unmappedUsers} unmapped`
-            );
-            if (s.unmappedUserIds && s.unmappedUserIds.length > 0) {
-                logWarn(`Unmapped device user IDs: ${s.unmappedUserIds.join(", ")}`);
-                logWarn("→ Map these in Dashboard → Devices → View Users");
-            }
-            return { success: true, ...s };
-        } else {
-            logError(`Cloud rejected push: ${result.error || "Unknown error"}`);
-            return { success: false, error: result.error };
-        }
-    } catch (err) {
-        logError(`Cloud push failed: ${err.message}`);
-        return { success: false, error: err.message };
+    if (!state.firstRunCompleted && !config.syncAllHistory) {
+        logWarn(`First run safety: syncing only last ${config.initialLookbackDays || DEFAULT_INITIAL_LOOKBACK_DAYS} day(s). Use --sync-all-history=true for historical import.`);
     }
+
+    const batchSize = Number(config.batchSize) || DEFAULT_BATCH_SIZE;
+    if (config.dryRun) {
+        logWarn(`Dry run: ${newLogs.length} record(s) ready, but nothing was pushed to cloud.`);
+        const preview = newLogs.slice(-5).map((record) => `${record.userId}@${record.timestamp}`).join(", ");
+        if (preview) logInfo(`Preview latest records: ${preview}`);
+        return { success: true, dryRun: true, ready: newLogs.length };
+    }
+
+    const batches = chunk(newLogs, batchSize);
+    let totalSynced = 0;
+    let totalSkipped = 0;
+    let totalUnmapped = 0;
+    const unmappedIds = new Set();
+    const syncedKeys = new Set(state.syncedKeys || []);
+
+    for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        logSync(`Pushing batch ${i + 1}/${batches.length} (${batch.length} records)...`);
+        const result = await pushAttendance(config, batch);
+        if (!result.success) throw new Error(result.error || "Cloud rejected push");
+
+        const summary = result.summary || {};
+        totalSynced += Number(summary.synced || 0);
+        totalSkipped += Number(summary.skipped || 0);
+        totalUnmapped += Number(summary.unmappedUsers || 0);
+        for (const id of summary.unmappedUserIds || []) unmappedIds.add(id);
+        for (const record of batch) syncedKeys.add(recordKey(record));
+
+        const latest = batch[batch.length - 1]?.timestamp;
+        if (latest) state.lastSuccessfulTimestamp = latest;
+        state.syncedKeys = Array.from(syncedKeys).slice(-20000);
+        state.firstRunCompleted = true;
+        saveState(state);
+    }
+
+    logSuccess(`Sync complete: ${totalSynced} synced, ${totalSkipped} skipped, ${totalUnmapped} unmapped`);
+    if (unmappedIds.size > 0) {
+        logWarn(`Unmapped device user IDs: ${Array.from(unmappedIds).join(", ")}`);
+        logWarn("Map these in PeopleFlow employee profiles using biometric user IDs.");
+    }
+    return { success: true, synced: totalSynced, skipped: totalSkipped, unmappedUsers: totalUnmapped };
 }
 
 // ── Main Loop ────────────────────────────────────────────────────────
 
 async function main() {
     banner();
-
-    // Get or create config
     const config = await getConfig();
 
     console.log(`
@@ -556,49 +538,47 @@ ${c.green}${c.bold}Configuration:${c.reset}
   ${c.cyan}Cloud URL:${c.reset}   ${config.cloudUrl}
   ${c.cyan}Device IP:${c.reset}   ${config.deviceIp}:${config.devicePort}
   ${c.cyan}Interval:${c.reset}    Every ${config.syncInterval} minutes
+  ${c.cyan}First run:${c.reset}   ${config.syncAllHistory ? "sync all history" : `last ${config.initialLookbackDays || DEFAULT_INITIAL_LOOKBACK_DAYS} day(s)`}
+  ${c.cyan}Mode:${c.reset}        ${config.dryRun ? "dry-run (no cloud push)" : "live sync"}
   ${c.cyan}Config:${c.reset}      ${CONFIG_FILE}
+  ${c.cyan}State:${c.reset}       ${STATE_FILE}
 `);
 
-    // Verify API key with heartbeat
     logInfo("Verifying API key with cloud...");
     const hbOk = await sendHeartbeat(config);
     if (!hbOk) {
         logError("Failed to verify API key. Please check your key and cloud URL.");
-        logError("Run this script again with correct credentials.");
         process.exit(1);
     }
     logSuccess("API key verified! Cloud connection established.");
 
     console.log(`\n${c.green}${c.bold}═══ Agent Active — Syncing every ${config.syncInterval} minutes ═══${c.reset}\n`);
 
-    // Initial sync
     await syncCycle(config);
 
-    // Periodic sync loop
+    if (config.once) {
+        logInfo("One-shot mode complete. Exiting.");
+        process.exit(0);
+    }
+
     const syncIntervalMs = (config.syncInterval || 5) * 60 * 1000;
     setInterval(async () => {
-        await syncCycle(config);
+        try { await syncCycle(config); }
+        catch (err) { logError(`Sync cycle failed: ${err.message}`); }
     }, syncIntervalMs);
 
-    // Periodic heartbeat
     setInterval(async () => {
         await sendHeartbeat(config);
     }, HEARTBEAT_INTERVAL_MS);
 
-    // Graceful shutdown
     const shutdown = async () => {
         console.log(`\n${c.yellow}${c.bold}Shutting down gracefully...${c.reset}`);
         process.exit(0);
     };
-
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
-
-    // Keep alive
     logInfo("Press Ctrl+C to stop the agent.");
 }
-
-// ── Run ──────────────────────────────────────────────────────────────
 
 main().catch((err) => {
     logError(`Fatal error: ${err.message}`);
