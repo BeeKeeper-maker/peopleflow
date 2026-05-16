@@ -2579,7 +2579,8 @@
     "privateLanDevice": "প্রাইভেট LAN ডিভাইস",
     "privateLanActionTooltip": "এই ডিভাইস অফিসের private IP ব্যবহার করে, তাই production cloud সরাসরি এটিতে পৌঁছাতে পারবে না। সিংক এজেন্টের dry-run/live sync ব্যবহার করুন।",
     "privateLanUsersTooltip": "Private LAN ডিভাইসের user list cloud থেকে সরাসরি আনা যাবে না। Sync Agent flow ব্যবহার করুন; agent দিয়ে user import করা পরবর্তী planned upgrade।",
-    "mapUsersTooltip": "সার্ভার থেকে reachable ডিভাইসের biometric user mapping খুলুন।"
+    "mapUsersTooltip": "সার্ভার থেকে reachable ডিভাইসের biometric user mapping খুলুন।",
+    "agentProblemTimeout": "প্রথমে অন্য কোনো Sync Agent terminal চালু থাকলে Ctrl+C দিয়ে বন্ধ করুন। তারপর নিশ্চিত করুন এই PC একই office LAN/Wi‑Fi-তে আছে, device চালু আছে, IP/port ঠিক আছে। একাধিকবার test করলে ৩০ সেকেন্ড অপেক্ষা করুন বা fingerprint device restart করুন।"
   },
   "FestivalBonus": {
     "title": "উৎসব বোনাস ইঞ্জিন",

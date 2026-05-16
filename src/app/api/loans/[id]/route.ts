@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { resolveApprovalActorEmployee } from "@/lib/approval-actor";
 import { processApprovalStep } from "@/lib/approval-engine";
 import { emit } from "@/lib/event-bus";
 import { apiLogger } from "@/lib/logger";
@@ -46,13 +47,10 @@ export async function PUT(
             });
 
             if (approvalRequest && approvalRequest.status === "in_progress") {
-                const actorEmployee = await prisma.employee.findFirst({
-                    where: { userId: auth.userId, organizationId: auth.organizationId },
-                    select: { id: true },
-                });
+                const actorEmployee = await resolveApprovalActorEmployee(auth);
 
                 if (!actorEmployee) {
-                    return new NextResponse("Actor employee profile not found", { status: 400 });
+                    return new NextResponse("Approver employee profile not found. Please link this manager account to an employee profile before approval.", { status: 400 });
                 }
 
                 const result = await processApprovalStep({

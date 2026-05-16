@@ -177,8 +177,8 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
     };
 
     const downloadUrl = newRawKey
-        ? `/api/sync-agent/download?key=${encodeURIComponent(newRawKey)}&v=1.1.0`
-        : `/api/sync-agent/download?v=1.1.0`;
+        ? `/api/sync-agent/download?key=${encodeURIComponent(newRawKey)}&v=1.1.1`
+        : `/api/sync-agent/download?v=1.1.1`;
 
     const dryRunCommand = platform === "windows"
         ? "cd %USERPROFILE%\\Downloads && node peopleflow-sync.js --dry-run=true --once=true"
@@ -199,6 +199,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
     const visibleCommonProblems = [
         { problem: "MODULE_NOT_FOUND", fix: t("agentProblemModuleNotFound") },
         { problem: "ECONNRESET on v1.0.0", fix: t("agentProblemOldVersion") },
+        { problem: "Timeout / EHOSTUNREACH", fix: t("agentProblemTimeout") },
         { problem: t("agentProblemCloudTestTitle"), fix: t("agentProblemCloudTestFix") },
     ];
 

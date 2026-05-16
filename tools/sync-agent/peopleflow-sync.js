@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * PeopleFlow Sync Agent v1.1.0
+ * PeopleFlow Sync Agent v1.1.1
  *
  * Production-grade local bridge for LAN-only ZKTeco biometric devices.
  * The cloud app cannot directly reach private office IPs (192.168.x.x), so this
@@ -17,6 +17,7 @@
 
 const https = require("https");
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
@@ -26,9 +27,10 @@ const { createRequire } = require("module");
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 const CONFIG_FILE = path.join(os.homedir(), ".peopleflow-sync.json");
 const STATE_FILE = path.join(os.homedir(), ".peopleflow-sync-state.json");
+const LOCK_FILE = path.join(os.homedir(), ".peopleflow-sync.lock");
 const RUNTIME_DIR = path.join(os.homedir(), ".peopleflow-sync-agent");
 const RUNTIME_PACKAGE_DIR = path.join(RUNTIME_DIR, "runtime");
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -38,7 +40,7 @@ const ZKTECO_PACKAGE = "zkteco-js";
 const ZKTECO_PACKAGE_VERSION = "1.7.1";
 const DEFAULT_INITIAL_LOOKBACK_DAYS = 7;
 const DEFAULT_BATCH_SIZE = 500;
-const DEVICE_TIMEOUT_MS = 5000;
+const DEVICE_TIMEOUT_MS = 15000;
 const DEVICE_INPORT = 4000;
 
 // ── Colorful Terminal Output ─────────────────────────────────────────
@@ -67,6 +69,41 @@ function logWarn(msg) { log("⚠️ ", msg, c.yellow); }
 function logSync(msg) { log("🔄", msg, c.blue); }
 function logHeart(msg) { log("💓", msg, c.magenta); }
 
+function errorMessage(err) {
+    if (!err) return "Unknown error";
+    if (err.message) return err.message;
+    if (typeof err === "string") return err;
+    try { return JSON.stringify(err); } catch { return String(err); }
+}
+
+function withTimeout(promise, ms, label) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function tcpProbe(host, port, timeoutMs = 5000) {
+    return new Promise((resolve, reject) => {
+        const socket = new net.Socket();
+        let settled = false;
+        const done = (err) => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            if (err) reject(err);
+            else resolve(true);
+        };
+        socket.setTimeout(timeoutMs);
+        socket.once("connect", () => done());
+        socket.once("timeout", () => done(new Error(`TCP probe timed out after ${timeoutMs}ms`)));
+        socket.once("error", done);
+        socket.connect(port, host);
+    });
+}
+
+
 function banner() {
     console.log(`
 ${c.cyan}${c.bold}╔══════════════════════════════════════════════════════╗
@@ -74,6 +111,44 @@ ${c.cyan}${c.bold}╔═══════════════════�
 ║      Local Biometric → Cloud HRMS Bridge             ║
 ╚══════════════════════════════════════════════════════╝${c.reset}
 `);
+}
+
+
+// ── Single Instance Lock ─────────────────────────────────────────────
+
+function isProcessRunning(pid) {
+    if (!pid || Number.isNaN(Number(pid))) return false;
+    try {
+        process.kill(Number(pid), 0);
+        return true;
+    } catch (err) {
+        return err && err.code === "EPERM";
+    }
+}
+
+function acquireLock() {
+    try {
+        const existing = readJson(LOCK_FILE, null);
+        if (existing?.pid && isProcessRunning(existing.pid)) {
+            throw new Error(`Another PeopleFlow Sync Agent is already running (PID ${existing.pid}). Stop the other Terminal window with Ctrl+C before starting a new test.`);
+        }
+        if (existing?.pid) logWarn("Removing stale Sync Agent lock from a previous closed session.");
+    } catch (err) {
+        if (err.message?.includes("already running")) throw err;
+    }
+
+    writeJson(LOCK_FILE, {
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+        version: VERSION,
+    });
+}
+
+function releaseLock() {
+    try {
+        const existing = readJson(LOCK_FILE, null);
+        if (existing?.pid === process.pid) fs.unlinkSync(LOCK_FILE);
+    } catch { }
 }
 
 // ── Configuration ────────────────────────────────────────────────────
@@ -308,8 +383,9 @@ class ZKDevice {
     async connect() {
         const mod = await loadZktecoLibrary();
         const ZKLib = normalizeZkModule(mod);
+        await tcpProbe(this.ip, this.port, 5000);
         this.device = new ZKLib(this.ip, this.port, DEVICE_TIMEOUT_MS, DEVICE_INPORT);
-        await this.device.createSocket();
+        await withTimeout(this.device.createSocket(), DEVICE_TIMEOUT_MS + 5000, "Device protocol connection");
         return true;
     }
 
@@ -321,7 +397,7 @@ class ZKDevice {
 
     async getAttendanceLogs() {
         if (!this.device) throw new Error("Device is not connected");
-        const result = await this.device.getAttendances();
+        const result = await withTimeout(this.device.getAttendances(), DEVICE_TIMEOUT_MS + 30000, "Attendance download");
         return normalizeAttendanceRows(result);
     }
 
@@ -449,18 +525,22 @@ async function syncCycle(config) {
         logSuccess("Connected to device");
 
         try {
-            const info = await device.getInfo();
+            const info = await withTimeout(device.getInfo(), DEVICE_TIMEOUT_MS, "Device info read");
             if (info) logInfo(`Device info: users=${info.userCounts ?? "?"}, logs=${info.logCounts ?? "?"}`);
         } catch (err) {
-            logWarn(`Device info unavailable: ${err.message}`);
+            logWarn(`Device info unavailable: ${errorMessage(err)}`);
         }
 
         logInfo("Fetching attendance logs...");
         logs = await device.getAttendanceLogs();
         logInfo(`Retrieved ${logs.length} attendance entries`);
     } catch (err) {
-        logError(`Device error: ${err.message}`);
-        return { success: false, error: err.message };
+        const message = errorMessage(err);
+        logError(`Device error: ${message}`);
+        if (/timeout|ECONNRESET|EHOSTUNREACH|ETIMEDOUT|ENETUNREACH/i.test(message)) {
+            logWarn("Device troubleshooting: make sure only one Sync Agent terminal is running, the PC is on the same office LAN/Wi‑Fi, the device IP/port are correct, and the fingerprint device is powered on/unlocked. If it was just tested multiple times, wait 30 seconds or restart the device.");
+        }
+        return { success: false, error: message };
     } finally {
         await device.disconnect();
     }
@@ -531,6 +611,8 @@ async function syncCycle(config) {
 
 async function main() {
     banner();
+    acquireLock();
+    process.on("exit", releaseLock);
     const config = await getConfig();
 
     console.log(`
@@ -581,6 +663,7 @@ ${c.green}${c.bold}Configuration:${c.reset}
 }
 
 main().catch((err) => {
-    logError(`Fatal error: ${err.message}`);
+    logError(`Fatal error: ${errorMessage(err)}`);
+    releaseLock();
     process.exit(1);
 });

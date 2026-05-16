@@ -9,6 +9,7 @@ import {
 } from "@/lib/leave-utils";
 import { processApprovalStep, cancelApprovalRequest } from "@/lib/approval-engine";
 import { leaveLogger } from "@/lib/logger";
+import { resolveApprovalActorEmployee } from "@/lib/approval-actor";
 
 function canAccessLeave(auth: { role: string; employeeId?: string }, application: { employeeId: string; employee: { reportingManagerId?: string | null } }) {
     if (["admin", "hr_admin", "super_admin"].includes(auth.role)) return true;
@@ -107,14 +108,10 @@ export async function PUT(
         });
 
         if (approvalRequest && approvalRequest.status === "in_progress") {
-            // Get acting employee ID
-            const actorEmployee = await prisma.employee.findFirst({
-                where: { userId: auth.userId, organizationId: auth.organizationId },
-                select: { id: true },
-            });
+            const actorEmployee = await resolveApprovalActorEmployee(auth);
 
             if (!actorEmployee) {
-                return new NextResponse("Actor employee profile not found", { status: 400 });
+                return new NextResponse("Approver employee profile not found. Please link this manager account to an employee profile before approval.", { status: 400 });
             }
 
             if (status === "cancelled") {

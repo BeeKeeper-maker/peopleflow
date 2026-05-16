@@ -2579,7 +2579,8 @@
     "privateLanDevice": "Private LAN device",
     "privateLanActionTooltip": "This device uses a private office IP, so production cloud cannot reach it directly. Use Sync Agent dry-run/live sync instead.",
     "privateLanUsersTooltip": "This direct user fetch cannot work from cloud for private LAN devices yet. Use Sync Agent flow; user import through agent is the next planned upgrade.",
-    "mapUsersTooltip": "Open biometric user mapping for devices reachable from the server."
+    "mapUsersTooltip": "Open biometric user mapping for devices reachable from the server.",
+    "agentProblemTimeout": "Stop any other Sync Agent terminal first. Then confirm this PC is on the same office LAN/Wi‑Fi as the device, the device is powered on, and the IP/port are correct. If you tested several times, wait 30 seconds or restart the fingerprint device."
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",
