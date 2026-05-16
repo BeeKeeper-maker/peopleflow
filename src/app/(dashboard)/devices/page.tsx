@@ -39,6 +39,10 @@ import {
     History,
     Users,
     Link2,
+    MonitorCheck,
+    Router,
+    ShieldCheck,
+    ArrowRight,
 } from "lucide-react";
 import { BiometricMappingHub } from "@/components/biometric/mapping-hub";
 import { SyncAgentSetup } from "@/components/biometric/sync-agent-setup";
@@ -390,25 +394,51 @@ export default function DevicesPage() {
                 </div>
             </div>
 
-            <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="p-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <Card className="border-emerald-500/20 bg-linear-to-r from-emerald-500/10 via-cyan-500/5 to-transparent overflow-hidden">
+                <CardContent className="p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <p className="text-sm font-semibold text-amber-300">{t("lanSetupTitle")}</p>
-                        <p className="text-xs text-muted-foreground mt-1 max-w-3xl">
-                            {t("lanSetupDesc")}
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/20 gap-1">
+                                <ShieldCheck className="h-3 w-3" /> Recommended production setup
+                            </Badge>
+                            <Badge className="bg-cyan-500/10 text-cyan-300 border-cyan-500/20">No public IP required</Badge>
+                        </div>
+                        <p className="text-base font-semibold text-foreground">Office device → local Sync Agent → PeopleFlow Cloud</p>
+                        <p className="text-sm text-muted-foreground mt-1 max-w-4xl leading-relaxed">
+                            Fingerprint devices usually use private office IPs like <span className="font-mono text-foreground">192.168.x.x</span>. PeopleFlow Cloud cannot safely reach those directly. Install the Sync Agent on one office PC; it reads the LAN device and securely sends attendance to PeopleFlow.
                         </p>
                     </div>
                     <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => setSyncAgentOpen(true)}
-                        className="gap-2 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                        className="gap-2 shrink-0 bg-linear-to-r from-emerald-600 to-cyan-600 text-white hover:from-emerald-700 hover:to-cyan-700 shadow-lg shadow-emerald-500/10"
                     >
                         <Zap className="h-4 w-4" />
-                        {t("openSyncAgent")}
+                        Start guided setup
                     </Button>
                 </CardContent>
             </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {[
+                    { icon: Router, title: "1. Add device", desc: "Save LAN IP/port from the office network." },
+                    { icon: Zap, title: "2. Download agent", desc: "Generate key and download ready script." },
+                    { icon: MonitorCheck, title: "3. Dry-run test", desc: "Verify cloud + device without pushing records." },
+                    { icon: Link2, title: "4. Map & go live", desc: "Link biometric IDs, then start live sync." },
+                ].map((step) => {
+                    const Icon = step.icon;
+                    return (
+                        <Card key={step.title} className="bg-card border-card-border">
+                            <CardContent className="p-4">
+                                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                                    <Icon className="h-4 w-4 text-primary" />
+                                </div>
+                                <p className="text-sm font-semibold text-foreground">{step.title}</p>
+                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{step.desc}</p>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -457,11 +487,17 @@ export default function DevicesPage() {
                     <CardContent className="p-12 text-center">
                         <Fingerprint className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-foreground mb-2">{t("noDevices")}</h3>
-                        <p className="text-muted-foreground mb-6">{t("noDevicesDesc")}</p>
-                        <Button onClick={handleOpenAdd} className="gap-2">
-                            <Plus className="h-4 w-4" />
-                            {t("addFirstDevice")}
-                        </Button>
+                        <p className="text-muted-foreground mb-6 max-w-xl mx-auto">Start by adding the office device IP/port. After that, use the guided Sync Agent setup so office staff can connect it to PeopleFlow Cloud without developer help.</p>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                            <Button onClick={handleOpenAdd} className="gap-2">
+                                <Plus className="h-4 w-4" />
+                                {t("addFirstDevice")}
+                            </Button>
+                            <Button variant="outline" onClick={() => setSyncAgentOpen(true)} className="gap-2">
+                                Guided setup
+                                <ArrowRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             )}
@@ -541,6 +577,7 @@ export default function DevicesPage() {
                                             size="sm"
                                             onClick={() => handleTest(device.id)}
                                             disabled={testingId === device.id}
+                                            title="Advanced: direct cloud test only works if this private LAN device is reachable from the server. For normal offices, use Sync Agent dry-run."
                                             className="gap-1"
                                         >
                                             {testingId === device.id ? (
@@ -555,6 +592,7 @@ export default function DevicesPage() {
                                             size="sm"
                                             onClick={() => handleSync(device.id)}
                                             disabled={syncingId === device.id}
+                                            title="Advanced: direct cloud sync only works with VPN/public routing. Normal offices should keep the local Sync Agent running."
                                             className="gap-1"
                                         >
                                             {syncingId === device.id ? (
@@ -811,7 +849,7 @@ export default function DevicesPage() {
             <SyncAgentSetup
                 open={syncAgentOpen}
                 onOpenChange={setSyncAgentOpen}
-                cloudUrl={typeof window !== "undefined" ? window.location.origin : "https://drdf.ailearnersbd.com"}
+                cloudUrl={typeof window !== "undefined" ? window.location.origin : "https://peopleflowbd.online"}
             />
         </div>
     );
