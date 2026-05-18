@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { DataTable } from "@/components/ui/data-table"
-import { columns, LeaveRequest } from "@/components/leaves/requests/columns"
+import { createLeaveRequestColumns, LeaveRequest } from "@/components/leaves/requests/columns"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,33 +13,30 @@ import {
     CheckCircle2,
     XCircle,
     RefreshCw,
-    TrendingUp,
     CalendarDays,
-    Users,
     Filter,
 } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
+
+type ActiveFilter = "all" | "pending" | "approved" | "rejected" | "onLeaveToday"
+
+function formatLocalDateKey(date: Date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+}
+
+function dateStringToLocalKey(value: string) {
+    return value.split("T")[0] || value
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // Animated Counter
 // ════════════════════════════════════════════════════════════════════════
 
-function AnimatedCounter({ target, duration = 1000 }: { target: number; duration?: number }) {
-    const [count, setCount] = useState(0)
-
-    useEffect(() => {
-        if (target === 0) { setCount(0); return }
-        let start = 0
-        const step = Math.max(1, Math.ceil(target / (duration / 16)))
-        const timer = setInterval(() => {
-            start += step
-            if (start >= target) { setCount(target); clearInterval(timer) }
-            else setCount(start)
-        }, 16)
-        return () => clearInterval(timer)
-    }, [target, duration])
-
-    return <>{count}</>
+function AnimatedCounter({ target }: { target: number; duration?: number }) {
+    return <>{target}</>
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -49,8 +46,10 @@ function AnimatedCounter({ target, duration = 1000 }: { target: number; duration
 export default function LeaveRequestsPage() {
     const [allData, setAllData] = useState<LeaveRequest[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [activeFilter, setActiveFilter] = useState<string>("pending")
+    const [activeFilter, setActiveFilter] = useState<ActiveFilter>("pending")
     const t = useTranslations('Leaves')
+    const locale = useLocale()
+    const columns = useMemo(() => createLeaveRequestColumns(t, locale), [t, locale])
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
@@ -77,18 +76,18 @@ export default function LeaveRequestsPage() {
         const rejected = allData.filter(r => r.status === "rejected").length
 
         // Today's on-leave count
-        const today = new Date().toISOString().split("T")[0]
+        const today = formatLocalDateKey(new Date())
         const onLeaveToday = allData.filter(r => {
             if (r.status !== "approved") return false
-            const from = (r as any).fromDate?.split("T")[0] || ""
-            const to = (r as any).toDate?.split("T")[0] || ""
+            const from = dateStringToLocalKey(r.fromDate)
+            const to = dateStringToLocalKey(r.toDate)
             return from <= today && to >= today
         }).length
 
         // Total days requested this month
         const totalDays = allData
             .filter(r => r.status === "approved")
-            .reduce((sum, r) => sum + ((r as any).totalDays || 0), 0)
+            .reduce((sum, r) => sum + r.totalDays, 0)
 
         return { pending, approved, rejected, onLeaveToday, totalDays, total: allData.length }
     }, [allData])
@@ -96,8 +95,25 @@ export default function LeaveRequestsPage() {
     // ── Filtered Data ──────────────────────────────────────────────
     const filteredData = useMemo(() => {
         if (activeFilter === "all") return allData
+        if (activeFilter === "onLeaveToday") {
+            const today = formatLocalDateKey(new Date())
+            return allData.filter(r => {
+                if (r.status !== "approved") return false
+                const from = dateStringToLocalKey(r.fromDate)
+                const to = dateStringToLocalKey(r.toDate)
+                return from <= today && to >= today
+            })
+        }
         return allData.filter(r => r.status === activeFilter)
     }, [allData, activeFilter])
+
+    const activeFilterLabel = {
+        all: t("showAll"),
+        pending: t("pendingApproval"),
+        approved: t("approved"),
+        rejected: t("rejected"),
+        onLeaveToday: t("onLeaveToday"),
+    }[activeFilter]
 
     const statCards = [
         {
@@ -107,7 +123,7 @@ export default function LeaveRequestsPage() {
             Icon: Clock,
             color: "from-amber-500 to-amber-600",
             glowColor: "bg-amber-500",
-            badge: stats.pending > 0 ? "Action Required" : undefined,
+            badge: stats.pending > 0 ? t("actionRequired") : undefined,
             badgeClass: "bg-amber-500/20 text-amber-400",
         },
         {
@@ -150,7 +166,7 @@ export default function LeaveRequestsPage() {
                             {t('requestsSubtitle')}
                             {!isLoading && (
                                 <Badge variant="default" className="ml-2">
-                                    {stats.total} total
+                                    {t("total", { count: stats.total })}
                                 </Badge>
                             )}
                         </p>
@@ -190,7 +206,7 @@ export default function LeaveRequestsPage() {
                             className={`relative overflow-hidden group cursor-pointer transition-all duration-300 hover:-translate-y-0.5 ${
                                 activeFilter === card.key ? "border-border ring-1 ring-blue-500/30" : ""
                             }`}
-                            onClick={() => setActiveFilter(prev => prev === card.key ? "all" : card.key)}
+                            onClick={() => setActiveFilter(prev => prev === card.key ? "all" : card.key as ActiveFilter)}
                         >
                             {/* Glow */}
                             <div className={`absolute -top-12 -right-12 h-32 w-32 rounded-full ${card.glowColor} opacity-20 blur-3xl group-hover:opacity-40 transition-opacity duration-500`} />
@@ -222,13 +238,13 @@ export default function LeaveRequestsPage() {
                 <div className="flex items-center gap-2">
                     <Filter className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">
-                        Showing <span className="font-medium text-foreground">{activeFilter}</span> requests
+                        {t("showingRequests", { status: activeFilterLabel })}
                     </span>
                     <button
                         onClick={() => setActiveFilter("all")}
                         className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2"
                     >
-                        Show all
+                        {t("showAll")}
                     </button>
                 </div>
             )}

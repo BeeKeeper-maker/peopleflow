@@ -321,7 +321,17 @@
     "noPendingRequests": "No pending requests",
     "noPendingDesc": "All leave requests have been processed. Great job!",
     "noRequests": "No requests found",
-    "noRequestsDesc": "No leave requests match your current filter."
+    "noRequestsDesc": "No leave requests match your current filter.",
+    "total": "{count} total",
+    "actionRequired": "Action required",
+    "showingRequests": "Showing {status} requests",
+    "showAll": "Show all",
+    "employee": "Employee",
+    "duration": "Duration",
+    "reason": "Reason",
+    "actions": "Actions",
+    "noDesignation": "No designation",
+    "dayCount": "{count, plural, one {# day} other {# days}}"
   },
   "Notifications": {
     "title": "Notifications",

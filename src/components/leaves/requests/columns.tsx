@@ -2,12 +2,20 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LeaveRequestActions } from "./leave-request-actions"
 
-function dayLabel(days: number) {
-    return `${days} ${days === 1 ? "day" : "days"}`
+type LeaveRequestColumnTranslations = (key: string, values?: Record<string, string | number | Date>) => string
+
+function formatDateRange(fromDate: string, toDate: string, locale: string) {
+    const from = new Date(fromDate)
+    const to = new Date(toDate)
+    const language = locale === "bn" ? "bn-BD" : "en-US"
+
+    const shortDate = new Intl.DateTimeFormat(language, { day: "2-digit", month: "short" })
+    const longDate = new Intl.DateTimeFormat(language, { day: "2-digit", month: "short", year: "numeric" })
+
+    return `${shortDate.format(from)} - ${longDate.format(to)}`
 }
 
 export type LeaveRequest = {
@@ -33,11 +41,12 @@ export type LeaveRequest = {
     createdAt: string
 }
 
-export const columns: ColumnDef<LeaveRequest>[] = [
+export function createLeaveRequestColumns(t: LeaveRequestColumnTranslations, locale: string): ColumnDef<LeaveRequest>[] {
+    return [
     {
         id: "employeeName",
         accessorFn: (row) => `${row.employee.firstName} ${row.employee.lastName}`,
-        header: "Employee",
+        header: t("employee"),
         cell: ({ row }) => {
             const employee = row.original.employee
             return (
@@ -53,7 +62,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
                             {employee.firstName} {employee.lastName}
                         </div>
                         <div className="text-xs text-tertiary-foreground">
-                            {employee.designation?.name || "No Designation"}
+                            {employee.designation?.name || t("noDesignation")}
                         </div>
                     </div>
                 </div>
@@ -62,7 +71,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
     },
     {
         accessorKey: "leaveType",
-        header: "Leave Type",
+        header: t("leaveType"),
         cell: ({ row }) => (
             <Badge variant="default" className="border-card-border bg-hover font-normal" style={{ color: row.original.leaveType.color }}>
                 {row.original.leaveType.name}
@@ -71,17 +80,15 @@ export const columns: ColumnDef<LeaveRequest>[] = [
     },
     {
         accessorKey: "duration",
-        header: "Duration",
+        header: t("duration"),
         cell: ({ row }) => {
-            const from = new Date(row.original.fromDate)
-            const to = new Date(row.original.toDate)
             return (
                 <div className="flex flex-col text-sm">
                     <span className="text-foreground">
-                        {format(from, "dd MMM")} - {format(to, "dd MMM, yyyy")}
+                        {formatDateRange(row.original.fromDate, row.original.toDate, locale)}
                     </span>
                     <span className="text-xs text-tertiary-foreground">
-                        {dayLabel(row.original.totalDays)}
+                        {t("dayCount", { count: row.original.totalDays })}
                     </span>
                 </div>
             )
@@ -89,7 +96,7 @@ export const columns: ColumnDef<LeaveRequest>[] = [
     },
     {
         accessorKey: "reason",
-        header: "Reason",
+        header: t("reason"),
         cell: ({ row }) => (
             <div className="max-w-[200px] truncate text-muted-foreground" title={row.original.reason || ""}>
                 {row.original.reason || "-"}
@@ -98,7 +105,8 @@ export const columns: ColumnDef<LeaveRequest>[] = [
     },
     {
         id: "actions",
-        header: "Actions",
+        header: t("actions"),
         cell: ({ row }) => <LeaveRequestActions id={row.original.id} />,
     },
 ]
+}

@@ -321,7 +321,17 @@
     "noPendingRequests": "কোনো অপেক্ষমাণ অনুরোধ নেই",
     "noPendingDesc": "সব ছুটির অনুরোধ প্রক্রিয়া করা হয়েছে। চমৎকার!",
     "noRequests": "কোনো অনুরোধ পাওয়া যায়নি",
-    "noRequestsDesc": "আপনার ফিল্টারের সাথে কোনো ছুটির অনুরোধ মেলেনি।"
+    "noRequestsDesc": "আপনার ফিল্টারের সাথে কোনো ছুটির অনুরোধ মেলেনি।",
+    "total": "মোট {count}",
+    "actionRequired": "পদক্ষেপ প্রয়োজন",
+    "showingRequests": "{status} অনুরোধ দেখানো হচ্ছে",
+    "showAll": "সব দেখুন",
+    "employee": "কর্মচারী",
+    "duration": "সময়কাল",
+    "reason": "কারণ",
+    "actions": "পদক্ষেপ",
+    "noDesignation": "পদবী নেই",
+    "dayCount": "{count} দিন"
   },
   "Notifications": {
     "title": "বিজ্ঞপ্তি",
