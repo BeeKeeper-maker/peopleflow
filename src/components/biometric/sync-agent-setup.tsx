@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useTranslations } from "next-intl";
@@ -99,6 +100,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
     const [copied, setCopied] = useState<string | null>(null);
     const [activeStep, setActiveStep] = useState(0);
     const [platform, setPlatform] = useState<"windows" | "mac">("windows");
+    const [livePrereqsConfirmed, setLivePrereqsConfirmed] = useState(false);
 
     // ── Fetch Keys ────────────────────────────────────────────────
 
@@ -123,6 +125,7 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
             setNewRawKey(null);
             setActiveStep(0);
             setCopied(null);
+            setLivePrereqsConfirmed(false);
         }
     }, [open, fetchKeys]);
 
@@ -503,7 +506,18 @@ export function SyncAgentSetup({ open, onOpenChange, cloudUrl }: SyncAgentSetupP
                                             <h4 className="text-lg font-semibold text-foreground">{t("goLiveAfterMapping")}</h4>
                                             <p className="text-sm text-muted-foreground mt-1">{t("goLiveAfterMappingDesc")}</p>
                                         </div>
-                                        <CommandBox label={t("liveSyncCommand")} command={liveCommand} copied={copied === "live"} onCopy={() => copyToClipboard(liveCommand, "live")} />
+                                        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                                            <p className="text-sm font-semibold text-amber-200 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> {t("livePrereqTitle")}</p>
+                                            <label className="flex items-start gap-3 text-xs text-muted-foreground leading-relaxed cursor-pointer">
+                                                <Checkbox checked={livePrereqsConfirmed} onCheckedChange={(checked) => setLivePrereqsConfirmed(checked === true)} className="mt-0.5" />
+                                                <span>{t("livePrereqChecklist")}</span>
+                                            </label>
+                                        </div>
+                                        {livePrereqsConfirmed ? (
+                                            <CommandBox label={t("liveSyncCommand")} command={liveCommand} copied={copied === "live"} onCopy={() => copyToClipboard(liveCommand, "live")} />
+                                        ) : (
+                                            <div className="rounded-xl border border-card-border bg-hover p-4 text-sm text-muted-foreground">{t("liveCommandLocked")}</div>
+                                        )}
                                         <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
                                             <p className="text-sm font-semibold text-blue-300 mb-2 flex items-center gap-2"><PlayCircle className="h-4 w-4" /> {t("operationalRecommendation")}</p>
                                             <p className="text-xs text-muted-foreground leading-relaxed">{t("operationalRecommendationDesc")}</p>

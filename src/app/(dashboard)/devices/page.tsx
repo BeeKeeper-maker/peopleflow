@@ -420,6 +420,54 @@ export default function DevicesPage() {
                 </CardContent>
             </Card>
 
+            <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="border-cyan-500/20 bg-cyan-500/5">
+                    <CardContent className="p-5 space-y-4">
+                        <div className="flex items-start gap-4">
+                            <div className="h-11 w-11 rounded-2xl bg-cyan-500/15 flex items-center justify-center shrink-0">
+                                <ShieldCheck className="h-5 w-5 text-cyan-300" />
+                            </div>
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <h2 className="text-base font-semibold text-foreground">{t("certifiedCloudDeviceTitle")}</h2>
+                                    <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/20">{t("bestForNewClients")}</Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{t("certifiedCloudDeviceDesc")}</p>
+                            </div>
+                        </div>
+                        <ul className="space-y-2 text-xs text-muted-foreground">
+                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckAdms")}</li>
+                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckRecommendedModel")}</li>
+                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckVendorProof")}</li>
+                        </ul>
+                    </CardContent>
+                </Card>
+                <Card className="border-emerald-500/20 bg-emerald-500/5">
+                    <CardContent className="p-5 space-y-4">
+                        <div className="flex items-start gap-4">
+                            <div className="h-11 w-11 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                                <Router className="h-5 w-5 text-emerald-300" />
+                            </div>
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                    <h2 className="text-base font-semibold text-foreground">{t("existingLanDeviceTitle")}</h2>
+                                    <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/20">{t("bestForExistingDevices")}</Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{t("existingLanDeviceDesc")}</p>
+                            </div>
+                        </div>
+                        <Button
+                            onClick={() => setSyncAgentOpen(true)}
+                            variant="outline"
+                            className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                        >
+                            <Zap className="h-4 w-4" />
+                            {t("openSyncAgent")}
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 {[
                     { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },

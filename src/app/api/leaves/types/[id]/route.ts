@@ -3,6 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
+import type { Prisma } from "@/generated/prisma";
+
+function normalizeLeaveTypePayload(json: Record<string, unknown>): Record<string, unknown> {
+    const {
+        isProRata,
+        requireDocument,
+        maxCarryForward,
+        ...rest
+    } = json;
+
+    return {
+        ...rest,
+        ...(isProRata !== undefined ? { proRataEnabled: Boolean(isProRata) } : {}),
+        ...(requireDocument !== undefined ? { requiresDocument: Boolean(requireDocument) } : {}),
+        ...(maxCarryForward !== undefined
+            ? { carryForwardLimit: maxCarryForward === "" || maxCarryForward === null ? null : Number(maxCarryForward) }
+            : {}),
+    };
+}
 
 export async function GET(
     req: Request,
@@ -52,7 +71,10 @@ export async function PUT(
 
         const { id } = await params;
         const json = await req.json();
-        const { code, ...rest } = json;
+        const payload = normalizeLeaveTypePayload(json);
+        const code = typeof payload.code === "string" ? payload.code.trim() : undefined;
+        const { code: _code, ...rest } = payload;
+        void _code;
 
         // Check unique code if changed
         if (code) {
@@ -77,7 +99,7 @@ export async function PUT(
             data: {
                 code,
                 ...rest,
-            },
+            } as Prisma.LeaveTypeUncheckedUpdateInput,
         });
 
         return NextResponse.json(leaveType);

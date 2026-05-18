@@ -3,6 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
+import type { Prisma } from "@/generated/prisma";
+
+function normalizeLeaveTypePayload(json: Record<string, unknown>): Record<string, unknown> {
+    const {
+        isProRata,
+        requireDocument,
+        maxCarryForward,
+        ...rest
+    } = json;
+
+    return {
+        ...rest,
+        ...(isProRata !== undefined ? { proRataEnabled: Boolean(isProRata) } : {}),
+        ...(requireDocument !== undefined ? { requiresDocument: Boolean(requireDocument) } : {}),
+        ...(maxCarryForward !== undefined
+            ? { carryForwardLimit: maxCarryForward === "" || maxCarryForward === null ? null : Number(maxCarryForward) }
+            : {}),
+    };
+}
 
 export async function GET(req: Request) {
     try {
@@ -22,7 +41,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const fetchAll = searchParams.get("all") === "true";
 
-        const where: any = {
+        const where: Prisma.LeaveTypeWhereInput = {
             organizationId: user.organizationId,
         };
 
@@ -51,7 +70,14 @@ export async function POST(req: Request) {
         }
 
         const json = await req.json();
-        const { code, ...rest } = json;
+        const payload = normalizeLeaveTypePayload(json);
+        const code = String(payload.code ?? "").trim();
+        const { code: _code, ...rest } = payload;
+        void _code;
+
+        if (!code) {
+            return new NextResponse("Leave type code is required", { status: 400 });
+        }
 
         // Check if code exists
         const existingCode = await prisma.leaveType.findFirst({
@@ -70,7 +96,7 @@ export async function POST(req: Request) {
                 code,
                 organizationId: auth.organizationId,
                 ...rest,
-            },
+            } as Prisma.LeaveTypeUncheckedCreateInput,
         });
 
         return NextResponse.json(leaveType);

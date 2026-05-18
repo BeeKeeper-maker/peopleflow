@@ -70,7 +70,7 @@ export function LeaveTypeForm({ initialData }: LeaveTypeFormProps) {
             code: initialData?.code || "",
             color: initialData?.color || "#3b82f6",
             annualAllocation: initialData?.annualAllocation || 0,
-            maxCarryForward: initialData?.maxCarryForward || undefined,
+            maxCarryForward: initialData?.maxCarryForward ?? undefined,
             applicableGender: initialData?.applicableGender || "all",
             isActive: initialData?.isActive ?? true,
             isProRata: initialData?.isProRata ?? false,
