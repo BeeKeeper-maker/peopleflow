@@ -812,6 +812,7 @@
     "onLeave": "ছুটিতে",
     "weekend": "সাপ্তাহিক ছুটি",
     "holiday": "ছুটির দিন",
+    "upcoming": "আসন্ন",
     "lateMinutes": "+{minutes}মি দেরি"
   },
   "ESSLeaves": {

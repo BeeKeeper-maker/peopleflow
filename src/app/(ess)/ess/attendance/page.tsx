@@ -20,7 +20,7 @@ interface AttendanceRecord {
     id: string;
     date: string;
     dayOfWeek: string;
-    status: "present" | "absent" | "half_day" | "on_leave" | "late" | "weekend" | "holiday";
+    status: "present" | "absent" | "half_day" | "on_leave" | "late" | "weekend" | "holiday" | "upcoming";
     checkIn?: string;
     checkOut?: string;
     workingHours?: string;
@@ -48,6 +48,15 @@ export default function ESSAttendancePage() {
     const [stats, setStats] = useState<MonthlyStats | null>(null);
 
     const monthName = currentMonth.toLocaleString("default", { month: "long", year: "numeric" });
+
+    const formatLocalDateKey = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
+
+    const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
     useEffect(() => {
         const fetchData = async () => {
@@ -98,10 +107,10 @@ export default function ESSAttendancePage() {
                     // Fill in all days of the month
                     for (let day = 1; day <= daysInMonth; day++) {
                         const date = new Date(year, month - 1, day);
-                        const dateStr = date.toISOString().split("T")[0];
+                        const dateStr = formatLocalDateKey(date);
                         const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
                         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                        const isFuture = date > today;
+                        const isFuture = startOfLocalDay(date) > startOfLocalDay(today);
 
                         if (recordMap.has(dateStr)) {
                             transformedRecords.push(recordMap.get(dateStr)!);
@@ -110,7 +119,7 @@ export default function ESSAttendancePage() {
                                 id: `placeholder-${dateStr}`,
                                 date: dateStr,
                                 dayOfWeek,
-                                status: isWeekend ? "weekend" : (isFuture ? "absent" : "absent"),
+                                status: isFuture ? "upcoming" : (isWeekend ? "weekend" : "absent"),
                             });
                         }
                     }
@@ -226,6 +235,12 @@ export default function ESSAttendancePage() {
                 return (
                     <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
                         {t("holiday")}
+                    </Badge>
+                );
+            case "upcoming":
+                return (
+                    <Badge className="bg-slate-500/15 text-slate-400 border-slate-500/20">
+                        {t("upcoming")}
                     </Badge>
                 );
             default:

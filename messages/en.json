@@ -672,6 +672,7 @@
     "onLeave": "On Leave",
     "weekend": "Weekend",
     "holiday": "Holiday",
+    "upcoming": "Upcoming",
     "lateMinutes": "+{minutes}m late"
   },
   "ESSLeaves": {
