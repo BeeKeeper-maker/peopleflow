@@ -32,8 +32,21 @@ interface DocumentRequest {
     processedAt?: string;
 }
 
+const labelMap = {
+    offer_letter: "offerLetter",
+    salary_certificate: "salaryCertificate",
+    experience_certificate: "experienceCertificate",
+    noc_letter: "nocLetter",
+    appointment_letter: "appointmentLetter",
+    increment_letter: "incrementLetter",
+} as const;
+
+type DocumentTypeValue = keyof typeof labelMap;
+
+const isDocumentTypeValue = (value: string): value is DocumentTypeValue => value in labelMap;
+
 // Document types matching the API's VALID_DOC_TYPES exactly
-const documentTypes = [
+const documentTypes: Array<{ value: DocumentTypeValue; icon: React.ElementType; color: string }> = [
     { value: "offer_letter", icon: ScrollText, color: "from-blue-500 to-indigo-600" },
     { value: "salary_certificate", icon: FileCheck, color: "from-green-500 to-emerald-600" },
     { value: "experience_certificate", icon: Award, color: "from-purple-500 to-violet-600" },
@@ -41,15 +54,6 @@ const documentTypes = [
     { value: "appointment_letter", icon: Briefcase, color: "from-cyan-500 to-blue-600" },
     { value: "increment_letter", icon: FileText, color: "from-pink-500 to-rose-600" },
 ];
-
-const labelMap: Record<string, string> = {
-    offer_letter: "offerLetter",
-    salary_certificate: "salaryCertificate",
-    experience_certificate: "experienceCertificate",
-    noc_letter: "nocLetter",
-    appointment_letter: "appointmentLetter",
-    increment_letter: "incrementLetter",
-};
 
 const requestStatusConfig: Record<string, { color: string; icon: React.ElementType }> = {
     pending: { color: "bg-amber-500/15 text-amber-400 border-amber-500/20", icon: Clock },
@@ -64,6 +68,7 @@ export default function ESSDocumentsPage() {
     const [generating, setGenerating] = useState<string | null>(null);
     const [myRequests, setMyRequests] = useState<DocumentRequest[]>([]);
     const [loadingRequests, setLoadingRequests] = useState(true);
+    const [profileMissing, setProfileMissing] = useState(false);
 
     // Fetch previous document requests
     useEffect(() => {
@@ -73,6 +78,9 @@ export default function ESSDocumentsPage() {
                 if (res.ok) {
                     const data = await res.json();
                     setMyRequests(Array.isArray(data) ? data : []);
+                    setProfileMissing(false);
+                } else if (res.status === 404) {
+                    setProfileMissing(true);
                 }
             } catch (err) {
                 console.error("Failed to fetch document requests:", err);
@@ -85,6 +93,11 @@ export default function ESSDocumentsPage() {
     }, []);
 
     const handleGenerate = async (docType: string) => {
+        if (profileMissing) {
+            addToast({ type: "warning", title: t("profileNotLinkedTitle"), description: t("profileNotLinkedDesc") });
+            return;
+        }
+
         setGenerating(docType);
 
         try {
@@ -145,6 +158,16 @@ export default function ESSDocumentsPage() {
                 <p className="text-sm text-amber-300/80">{t("documentNote")}</p>
             </div>
 
+            {profileMissing && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                    <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                        <h2 className="font-semibold text-amber-200">{t("profileNotLinkedTitle")}</h2>
+                        <p className="mt-1 text-sm text-amber-100/80">{t("profileNotLinkedDesc")}</p>
+                    </div>
+                </div>
+            )}
+
             {/* Document types grid — Request New */}
             <div>
                 <h2 className="text-lg font-semibold text-foreground mb-3">{t("requestDocument")}</h2>
@@ -166,7 +189,7 @@ export default function ESSDocumentsPage() {
 
                                         <div>
                                             <h3 className="font-semibold text-foreground">
-                                                {t(labelMap[doc.value] as any)}
+                                                {t(labelMap[doc.value])}
                                             </h3>
                                             <p className="text-xs text-muted-foreground mt-1">
                                                 {t("documentType")}
@@ -175,7 +198,7 @@ export default function ESSDocumentsPage() {
 
                                         <Button
                                             onClick={() => handleGenerate(doc.value)}
-                                            disabled={isGenerating}
+                                            disabled={isGenerating || profileMissing}
                                             className="w-full"
                                             size="sm"
                                         >
@@ -203,7 +226,17 @@ export default function ESSDocumentsPage() {
             <div>
                 <h2 className="text-lg font-semibold text-foreground mb-3">{t("myRequests")}</h2>
 
-                {loadingRequests ? (
+                {profileMissing ? (
+                    <Card className="bg-card-bg border-card-border">
+                        <CardContent className="py-12 text-center">
+                            <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-3">
+                                <AlertTriangle className="h-7 w-7 text-amber-400" />
+                            </div>
+                            <h3 className="text-base font-semibold text-foreground mb-1">{t("profileNotLinkedTitle")}</h3>
+                            <p className="text-muted-foreground text-sm">{t("profileNotLinkedDesc")}</p>
+                        </CardContent>
+                    </Card>
+                ) : loadingRequests ? (
                     <div className="flex items-center justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
@@ -222,7 +255,7 @@ export default function ESSDocumentsPage() {
                         {myRequests.map(req => {
                             const statusConf = requestStatusConfig[req.status] || requestStatusConfig.pending;
                             const StatusIcon = statusConf.icon;
-                            const docLabelKey = labelMap[req.type];
+                            const docLabelKey = isDocumentTypeValue(req.type) ? labelMap[req.type] : null;
 
                             return (
                                 <Card key={req.id} className="bg-card-bg border-card-border">
@@ -232,7 +265,7 @@ export default function ESSDocumentsPage() {
                                                 <FileText className="h-5 w-5 text-primary shrink-0" />
                                                 <div>
                                                     <p className="font-medium text-foreground text-sm">
-                                                        {docLabelKey ? t(docLabelKey as any) : req.type}
+                                                        {docLabelKey ? t(docLabelKey) : req.type}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground">
                                                         {t("requestedOn")} {new Date(req.createdAt).toLocaleDateString()}
@@ -245,7 +278,7 @@ export default function ESSDocumentsPage() {
                                                     statusConf.color
                                                 )}>
                                                     <StatusIcon className="h-3 w-3" />
-                                                    {t(req.status as any)}
+                                                    {t(req.status)}
                                                 </span>
                                                 {req.status === "ready" && (
                                                     <Button variant="outline" size="sm" className="h-7 text-xs">

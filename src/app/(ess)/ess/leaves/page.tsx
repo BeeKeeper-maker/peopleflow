@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
@@ -8,14 +7,13 @@ import { useTranslations } from "next-intl";
 import {
     Calendar,
     Plus,
-    ChevronRight,
     CheckCircle2,
     XCircle,
     Clock,
     FileText,
-    Loader2,
+    AlertTriangle,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,12 +55,12 @@ interface LeaveApplication {
 export default function ESSLeavesPage() {
     const t = useTranslations("ESSLeaves");
     const { addToast } = useToast();
-    const { data: session } = useSession();
     const [isLoading, setIsLoading] = useState(true);
     const [balances, setBalances] = useState<LeaveBalance[]>([]);
     const [applications, setApplications] = useState<LeaveApplication[]>([]);
     const [activeTab, setActiveTab] = useState("balances");
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [profileMissing, setProfileMissing] = useState(false);
 
     const handleCancelApplication = async (appId: string) => {
         if (!confirm(t("cancelConfirm"))) return;
@@ -101,6 +99,9 @@ export default function ESSLeavesPage() {
                 if (balancesRes.ok) {
                     const data = await balancesRes.json();
                     setBalances(data.data || data || []);
+                    setProfileMissing(false);
+                } else if (balancesRes.status === 400 || balancesRes.status === 404) {
+                    setProfileMissing(true);
                 }
 
                 if (applicationsRes.ok) {
@@ -209,13 +210,32 @@ export default function ESSLeavesPage() {
                         {t("subtitle")}
                     </p>
                 </div>
-                <Link href="/ess/leaves/apply">
-                    <Button className="bg-blue-600 hover:bg-blue-500">
+                {profileMissing ? (
+                    <Button className="bg-blue-600 hover:bg-blue-500" disabled>
                         <Plus className="h-4 w-4 mr-2" />
                         {t("applyForLeave")}
                     </Button>
-                </Link>
+                ) : (
+                    <Link href="/ess/leaves/apply">
+                        <Button className="bg-blue-600 hover:bg-blue-500">
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t("applyForLeave")}
+                        </Button>
+                    </Link>
+                )}
             </div>
+
+            {profileMissing && (
+                <Card className="border-amber-500/20 bg-amber-500/10">
+                    <CardContent className="flex items-start gap-3 p-4">
+                        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                        <div>
+                            <h2 className="font-semibold text-amber-200">{t("profileNotLinkedTitle")}</h2>
+                            <p className="mt-1 text-sm text-amber-100/80">{t("profileNotLinkedDesc")}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -239,12 +259,16 @@ export default function ESSLeavesPage() {
                     {balances.length === 0 ? (
                         <Card className="bg-card border-card-border">
                             <CardContent className="py-12 text-center">
-                                <Calendar className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                {profileMissing ? (
+                                    <AlertTriangle className="h-12 w-12 mx-auto text-amber-400 mb-4" />
+                                ) : (
+                                    <Calendar className="h-12 w-12 mx-auto text-muted-text mb-4" />
+                                )}
                                 <h3 className="text-lg font-medium text-foreground mb-2">
-                                    {t("noLeaveTypes")}
+                                    {profileMissing ? t("profileNotLinkedTitle") : t("noLeaveTypes")}
                                 </h3>
                                 <p className="text-tertiary-foreground">
-                                    {t("contactHR")}
+                                    {profileMissing ? t("profileNotLinkedDesc") : t("contactHR")}
                                 </p>
                             </CardContent>
                         </Card>
@@ -306,12 +330,19 @@ export default function ESSLeavesPage() {
                                     <p className="text-tertiary-foreground">
                                         {t("noApplicationsDesc")}
                                     </p>
-                                    <Link href="/ess/leaves/apply">
-                                        <Button className="mt-4 bg-blue-600 hover:bg-blue-500">
+                                    {profileMissing ? (
+                                        <Button className="mt-4 bg-blue-600 hover:bg-blue-500" disabled>
                                             <Plus className="h-4 w-4 mr-2" />
                                             {t("applyNow")}
                                         </Button>
-                                    </Link>
+                                    ) : (
+                                        <Link href="/ess/leaves/apply">
+                                            <Button className="mt-4 bg-blue-600 hover:bg-blue-500">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                {t("applyNow")}
+                                            </Button>
+                                        </Link>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="divide-y divide-border">
