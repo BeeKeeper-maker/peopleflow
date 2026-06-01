@@ -1,6 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
 # PeopleFlow HRMS — Production Worker Dockerfile
 # Purpose-built BullMQ worker image: no Next.js build, no web server.
+# Kept for direct worker builds; Coolify should prefer Dockerfile target `worker`.
 # ═══════════════════════════════════════════════════════════════
 
 FROM node:20-alpine AS runner
@@ -12,30 +13,26 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PEOPLEFLOW_PROCESS=worker
 
-# Install production dependencies only. The worker uses tsx at runtime,
-# and tsx/prisma are production dependencies in package.json.
 COPY .npmrc* ./
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm ci --omit=dev --no-audit --no-fund
 
-# Application source required by the worker process.
 COPY prisma ./prisma
 COPY src ./src
 COPY messages ./messages
 COPY tsconfig.json ./tsconfig.json
-COPY package.json ./package.json
 
-# Generate Prisma client inside the worker image.
-RUN npx prisma generate
-
-# Entrypoint script shared with web image; PEOPLEFLOW_PROCESS=worker
-# makes it run migrations and then start BullMQ workers.
-COPY docker/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh && \
+RUN npx prisma generate && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
-    chown -R nextjs:nodejs /app
+    chown -R nextjs:nodejs /app && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /root/.cache /tmp/*
 
 USER nextjs
 
-CMD ["/app/entrypoint.sh"]
+CMD ["npm", "run", "worker"]

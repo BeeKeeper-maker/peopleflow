@@ -34,7 +34,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: npm run worker
+      target: worker
     environment:
       - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
@@ -55,6 +55,22 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 1  # Scale up: docker-compose up --scale worker=3
+
+  # ── Explicit migration/seed job (run manually before schema-changing releases) ──
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    environment:
+      - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
+      - PLATFORM_ADMIN_PASSWORD=${PLATFORM_ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - release
 
   db:
     image: postgres:16-alpine

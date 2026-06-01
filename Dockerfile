@@ -55,6 +55,67 @@ RUN (while true; do echo "[build] Next.js build still running..."; sleep 30; don
     exit "$status"
 
 # ───────────────────────────────────────
+# Stage 3A: Background worker image
+# ───────────────────────────────────────
+FROM node:20-alpine AS worker
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PEOPLEFLOW_PROCESS=worker
+
+COPY .npmrc* ./
+COPY package.json package-lock.json ./
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm ci --omit=dev --no-audit --no-fund
+
+COPY prisma ./prisma
+COPY src ./src
+COPY messages ./messages
+COPY tsconfig.json ./tsconfig.json
+
+RUN npx prisma generate && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    chown -R nextjs:nodejs /app && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /root/.cache /tmp/*
+
+USER nextjs
+CMD ["npm", "run", "worker"]
+
+# ───────────────────────────────────────
+# Stage 3B: Explicit migration/seed release image
+# ───────────────────────────────────────
+FROM node:20-alpine AS migrate
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY .npmrc* ./
+COPY package.json package-lock.json ./
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm ci --omit=dev --no-audit --no-fund
+
+COPY prisma ./prisma
+COPY scripts/runtime-seed.js ./scripts/runtime-seed.js
+
+RUN npx prisma generate && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /root/.cache /tmp/*
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node scripts/runtime-seed.js"]
+
+# ───────────────────────────────────────
 # Stage 3: Final production image (LEAN)
 # ───────────────────────────────────────
 FROM node:20-alpine AS runner
