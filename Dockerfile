@@ -78,12 +78,14 @@ COPY src ./src
 COPY messages ./messages
 COPY tsconfig.json ./tsconfig.json
 
-RUN npx prisma generate && \
-    addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs && \
-    chown -R nextjs:nodejs /app && \
-    npm cache clean --force && \
-    rm -rf /root/.npm /root/.cache /tmp/*
+# Generate Prisma client, then clean caches. Do not run recursive chown over
+# node_modules; it is slow/noisy on small VPS builds and caused worker deploy
+# finalization failures. Runtime only needs read access.
+RUN npx prisma generate
+RUN npm cache clean --force && rm -rf /root/.npm /root/.cache /tmp/*
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 USER nextjs
 CMD ["npm", "run", "worker"]
