@@ -68,13 +68,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # The Next.js standalone output already includes traced production runtime deps.
-# Install only small operational CLIs/libs needed by entrypoint + worker; copying
-# the full 1GB node_modules tree caused Coolify/VPS deploys to fail during image finalization.
-# Keep the install and cleanup in ONE layer: otherwise npm's package cache stays
-# inside the final image and Docker export can sit silent for many minutes on the VPS.
-RUN npm install --omit=dev --no-save --legacy-peer-deps prisma@6.19.3 bcryptjs@3.0.3 tsx@4.21.0 && \
-    npm cache clean --force && \
-    rm -rf /root/.npm /root/.cache /tmp/*
+# Do NOT run production npm install here. It pulls hundreds of packages into the
+# final image and has repeatedly caused Coolify/VPS failures while unpacking the
+# Docker image. Database migrations/seed are handled as an explicit release step,
+# not as heavy app-container boot work.
 
 # Prisma schema + generated client
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
@@ -84,11 +81,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modul
 # i18n translation files
 COPY --from=builder --chown=nextjs:nodejs /app/messages ./messages
 
-# Worker source files (tsx runs TypeScript at runtime)
-COPY --from=builder --chown=nextjs:nodejs /app/src/workers ./src/workers
+# Minimal runtime files used by the web app and diagnostics.
+# Worker runtime will be split into its own optimized target instead of bloating
+# the web image with tsx/prisma CLI dependencies.
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib ./src/lib
-COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 # Entrypoint + runtime seed scripts
 COPY --chown=nextjs:nodejs docker/entrypoint.sh /app/entrypoint.sh
