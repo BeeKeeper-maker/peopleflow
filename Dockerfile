@@ -70,7 +70,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # The Next.js standalone output already includes traced production runtime deps.
 # Install only small operational CLIs/libs needed by entrypoint + worker; copying
 # the full 1GB node_modules tree caused Coolify/VPS deploys to fail during image finalization.
-RUN npm install --omit=dev --no-save --legacy-peer-deps prisma@6.19.3 bcryptjs@3.0.3 tsx@4.21.0
+# Keep the install and cleanup in ONE layer: otherwise npm's package cache stays
+# inside the final image and Docker export can sit silent for many minutes on the VPS.
+RUN npm install --omit=dev --no-save --legacy-peer-deps prisma@6.19.3 bcryptjs@3.0.3 tsx@4.21.0 && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /root/.cache /tmp/*
 
 # Prisma schema + generated client
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
