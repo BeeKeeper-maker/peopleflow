@@ -2,111 +2,151 @@
 
 _Last updated: 2026-06-01_
 
-## Vision
-PeopleFlow is being positioned as a premium HR/office operations platform for Bangladeshi offices: secure, Bengali-first, device-aware, scalable, and strong enough to replace existing office HR tools.
+## 1) Current architecture summary
+- **Frontend:** Next.js 16 App Router, React 19, Tailwind CSS v4, next-intl, shadcn-style component stack.
+- **Auth:** Dual-plane Auth.js v5 setup: tenant auth in `src/lib/auth.ts`, platform-admin auth in `src/lib/platform-auth.ts`.
+- **Data:** Prisma + PostgreSQL multi-tenant schema with tenant data on `Organization`/`User`/`Employee` and platform data on `PlatformAdmin`.
+- **Infra:** Redis + BullMQ workers, Docker/Coolify deployment, separate worker process, standalone Next output.
+- **Domain coverage:** HR core, payroll, attendance, leave, approvals, recruitment, expense claims, document requests, biometric sync, notifications, usage tracking.
+- **Localization:** Bengali + English message bundles exist (`messages/bn.json`, `messages/en.json`), but coverage is uneven.
 
-## Current Architecture Summary
-- **App:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS v4, shadcn-style components.
-- **Auth:** NextAuth v5 beta with Prisma adapter and custom credentials flow.
-- **Database:** PostgreSQL via Prisma ORM with multi-tenant organization model.
-- **Queue/Workers:** Redis + BullMQ worker app for notifications, subscriptions, impersonation cleanup, usage tracking, biometric sync, device health, and attendance reconciliation.
-- **Deployment:** Coolify Dockerfile build with separate app and worker resources, PostgreSQL, and Redis.
-- **Localization:** Bengali/English support via next-intl/messages.
+## 2) Critical risks / blockers before office handover
+1. **Build safety is weakened by `ignoreBuildErrors: true`.**
+   - This hides TypeScript regressions during production builds.
+   - Current repo still contains many loose types (`49` `as any` hits, `89` `any`-style hits from grep).
+2. **Tenant isolation is not yet proven by tests.**
+   - `withTenant()` / `withPlatform()` are good patterns, but I did not find an enforced test suite proving cross-tenant reads/writes are impossible.
+3. **Route-level authorization is inconsistent.**
+   - Some API routes gate with `auth()`, some appear to rely on path-level protection, and some platform/tenant flows are handled differently.
+4. **Office-pilot UX is not yet deterministic.**
+   - Core workflows need a strict handover checklist: employee setup, leave approval, attendance, payroll, device sync, Bengali copy.
+5. **Operational visibility is incomplete.**
+   - Workers exist, but there is no obvious queue dashboard, DLQ triage surface, or worker heartbeat UI.
 
-## P0 Critical Risks / Blockers Before Office Handover
-1. **Production deployment instability**
-   - Latest deploys fail after successful app build during Docker image finalization/export.
-   - Immediate fix applied: reduce final image cache/layer size.
-   - Next target: make deploy deterministic, faster, and reproducible with CI build gates.
+## 3) Deployment/build pipeline issues + target architecture
+### Observed issues
+- `next.config.ts` suppresses build-time TS errors.
+- Docker app + worker share the same build context, which is fine early on but increases deploy cost.
+- Current flow appears VPS/Coolify-first, with no documented CI release gate.
+- Lightweight lint check could not complete here because local dependencies were not installed; `npx eslint` attempted a fetch and failed against the local config environment.
 
-2. **TypeScript build errors are currently ignored in Next config**
-   - `next.config.ts` has `typescript.ignoreBuildErrors: true`.
-   - This is acceptable only as temporary VPS survival mode if `tsc --noEmit` is mandatory elsewhere.
-   - Enterprise target: CI/local typecheck must block merge; production build should not hide type errors long-term.
+### Recommended target architecture
+- **Required release gate:** `npm run lint` → `npx tsc --noEmit` → `npm run test` → `npm run build`.
+- **Production build policy:** no ignored TS errors in release branch.
+- **Runtime split:** app container, worker container, PostgreSQL, Redis, optional cron/queue monitor.
+- **Later optimization:** separate worker image or registry-based deploys when office load grows.
+- **Ops checks:** `/api/health`, DB connectivity, Redis connectivity, worker heartbeat, queue backlog.
 
-3. **Tenant isolation must be proven, not assumed**
-   - Auth uses controlled RLS/platform bypass patterns such as `withPlatform()`.
-   - This can be correct, but must be backed by tests ensuring one organization cannot read/write another organization’s data.
+## 4) Security / RBAC / multi-tenant isolation concerns
+- `withPlatform()` is the right cross-tenant escape hatch, but it must be rare, logged, and test-covered.
+- Platform auth and tenant auth are separate, but some shared helpers still use `as any` in auth callbacks and audit logging.
+- `src/proxy.ts` is doing path-based gating; that is not enough alone for sensitive APIs.
+- Ensure every write path validates:
+  - authenticated session
+  - organization membership
+  - role/permission
+  - module entitlement
+  - object ownership / tenant scope
+- Add tests for:
+  - cross-org employee fetch/update rejection
+  - platform-only route denial for tenant users
+  - impersonation expiry and cleanup
+  - API-key scoped access
+- CSP is present, but still relies on `unsafe-inline` / `unsafe-eval` compatibility allowances.
 
-4. **RBAC/security gates need systematic verification**
-   - Every route/action/API must enforce organization + role + feature-plan constraints.
-   - Need automated tests for platform admin, tenant admin, manager, employee, and impersonation flows.
+## 5) DB / schema / index / performance concerns
+- Schema is broad and ambitious: org, HR, payroll, approval workflow, device sync, platform SaaS, sales lead capture.
+- Strong starting indexes exist on many core tables, but I would review hot paths for:
+  - `organizationId + date/status`
+  - `organizationId + employeeId`
+  - `employeeId + month/year`
+  - approval queues and audit logs
+  - device sync logs / health logs
+- Likely hot tables under load:
+  - `Attendance`
+  - `LeaveApplication`
+  - `AuditLog`
+  - `DeviceSyncLog` / `DeviceHealthLog`
+  - `ApprovalRequest` / `ApprovalStepLog`
+- Query plan review is needed for dashboard aggregates, attendance reconciliation, payroll generation, and bulk employee views.
+- Consider future partitioning/archival for audit and device logs if tenant count grows.
 
-5. **Office pilot QA is not optional**
-   - Leave approval, ESS, attendance, employee mapping, Bengali UX, device sync, and billing limits must pass a written release checklist before handover.
+## 6) UI/UX / Bengali / local office workflow gaps
+- Marketing landing page is polished, but still heavily English-first.
+- Bengali is present in translations and schema fields, but the product needs a verified Bengali-first admin/ESS pass.
+- Critical office workflows need clearer UX:
+  - setup organization
+  - add branches/departments/designations
+  - import employees
+  - map biometric IDs
+  - configure attendance and leave policies
+  - approve leave / expenses / loans
+  - run payroll
+- Add stronger empty/loading/error states everywhere, especially tables and list views.
+- Make device setup explicit for Bangladesh reality:
+  - LAN-only biometric devices
+  - branch office connectivity issues
+  - sync-agent setup and troubleshooting
+- Reduce jargon in admin copy; keep terms consistent across English/Bengali.
 
-## Deployment / Build Pipeline Assessment
-### Current Weaknesses
-- Docker deploy is slow and fragile on the current small VPS.
-- App and worker build from the same Dockerfile, duplicating effort.
-- Runtime install of operational tools (`prisma`, `tsx`, `bcryptjs`) adds final image weight.
-- No visible pre-deploy CI gate documented for lint/typecheck/test/build.
+## 7) Worker / queue / cron / device-sync assessment
+- Good architectural choice: worker process is separated and BullMQ-backed.
+- Coverage includes notifications, subscription lifecycle, impersonation cleanup, usage tracking, biometric sync, device health, and attendance reconciliation.
+- Strengths:
+  - clear queue registry
+  - retry policies
+  - scheduled jobs
+  - reconciliation safety net for missing attendance
+- Gaps:
+  - no obvious queue admin UI / operational dashboard
+  - no visible dead-letter inspection workflow
+  - no obvious worker heartbeat SLA surface
+  - biometric device sync still needs proven idempotency and auditability
+- Recommendation: keep LAN biometric support via sync agent first; do not promise universal direct-cloud device compatibility.
 
-### Target Approach
-- Add a required release gate: `npm run lint`, `npx tsc --noEmit`, `npm run test`, `npm run build`.
-- Keep Docker image lean with standalone output and cache cleanup.
-- Consider separate optimized worker Docker target later.
-- Add health checks for app, DB, Redis, queue liveness, and worker heartbeat.
-- When offices grow: move build workload off production server or use registry-based images.
-
-## Security / RBAC / Multi-Tenant Concerns
-- Remove or justify every `as any` in auth, workers, and shared hooks.
-- Add tenant boundary tests for all critical models.
-- Tighten Content Security Policy over time; current CSP allows `unsafe-inline` / `unsafe-eval` for compatibility.
-- Verify secrets are runtime-only where possible; public envs must contain no secrets.
-- Add audit logging for admin actions, impersonation, device sync, payroll/leave changes, and subscription changes.
-- Add rate limiting for auth, sensitive API routes, and device sync endpoints.
-
-## Database / Schema / Performance Concerns
-- Review indexes for high-cardinality tenant queries: organizationId + date/status/employeeId combinations.
-- Add query performance checks for attendance, leave, payroll, approvals, dashboard metrics, and device logs.
-- Ensure soft-delete/status patterns do not leak data into active queries.
-- Add migration discipline: migration review + backup before production deploy.
-
-## UI/UX / Bengali Office Workflow Gaps
-- Bengali must be first-class, not partial translation.
-- Every table/list needs empty/loading/error states.
-- ESS should clearly guide users when employee profile mapping is missing.
-- Device UX must distinguish cloud-ready certified devices vs LAN-only devices requiring Sync Agent.
-- Office admin flows should be task-based: “set up office”, “add employees”, “configure attendance”, “approve leave”, “run payroll”.
-
-## Worker / Queue / Device Sync Assessment
-- Worker design is strong in concept: separate process with BullMQ and cron jobs.
-- Need operational visibility: queue dashboard/logs, failed job retry policy, dead-letter handling, worker heartbeat.
-- Device sync should be idempotent and auditable.
-- LAN-only biometric devices should remain Sync Agent-first; do not promise universal direct cloud compatibility.
-
-## Priority Roadmap
+## 8) Prioritized roadmap
 ### P0 — Stabilize
-- Fix deploy instability and verify latest commit in production.
-- Add explicit local/CI release gate.
-- Remove hidden build failure risk from ignored type errors.
-- Smoke test core production flows.
+- Restore strict build/type safety.
+- Prove tenant isolation.
+- Make deploys deterministic.
+- Smoke-test auth, dashboard, leave, attendance, payroll, and device sync.
 
-### P1 — Office Pilot Ready
-- Tenant isolation + RBAC tests.
-- Leave, ESS, attendance, employee mapping, device setup, Bengali UX QA.
-- Admin onboarding checklist and setup wizard.
-- Worker health and failed job monitoring.
+### P1 — Office pilot
+- Bengali-first pilot UX.
+- Employee onboarding/import.
+- Leave/attendance/approval workflows.
+- Device setup + sync agent onboarding.
+- Role/permission verification.
 
-### P2 — Scale Ready
-- Performance index review.
-- Build server/registry workflow.
+### P2 — Scale
+- Performance/index tuning.
+- Queue observability and DLQ triage.
+- CI/CD hardening.
 - Backup/restore drills.
-- Observability: Sentry/logs/metrics/alerts.
-- Subscription billing and feature limit enforcement tests.
+- Metrics/alerts.
 
-### P3 — Market Leadership
-- Bangladesh compliance workflows.
-- Advanced analytics and executive dashboards.
-- Payroll export/integration options.
-- Mobile-first ESS experience.
-- Certified device vendor program.
+### P3 — Market leadership
+- Bangladesh compliance depth.
+- Executive analytics.
+- Migration tooling from Excel/legacy systems.
+- Premium mobile-first ESS and support tooling.
 
-## Immediate Implementation Tasks
-1. Finish current optimized deployment and verify `/api/health`.
-2. Run local gates: install, lint, typecheck, tests, build.
-3. Add `docs/RELEASE_CHECKLIST.md` for office handover.
-4. Add tenant isolation test suite.
-5. Audit all `as any`, ignored build errors, inline styles, and auth bypass points.
-6. Build production QA checklist for leave, ESS, attendance, devices, workers, and Bengali copy.
+## 9) Specific next implementation tasks + verification gates
+1. **Build gate hardening**
+   - Task: remove the hidden TS escape hatch and enforce CI typecheck.
+   - Gate: `npx tsc --noEmit` and `npm run build` must pass.
+2. **Tenant isolation test suite**
+   - Task: add cross-org read/write denial tests for the main HR models.
+   - Gate: automated tests for employee, leave, attendance, approval, and device access.
+3. **RBAC/entitlement audit**
+   - Task: normalize route/API authorization helpers.
+   - Gate: tests for tenant admin / manager / employee / platform-admin access.
+4. **Deployment reliability**
+   - Task: document a reproducible release process for Coolify.
+   - Gate: repeatable deploy + `/api/health` + worker heartbeat.
+5. **Bengali office workflow pass**
+   - Task: review top user journeys for copy, validation, and empty states.
+   - Gate: pilot checklist signed off on the main HR flows.
+6. **Worker operations**
+   - Task: add operational visibility for queues and failed jobs.
+   - Gate: ability to inspect backlog, failures, and retry outcomes without SSH spelunking.
