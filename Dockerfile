@@ -19,7 +19,13 @@ COPY package.json package-lock.json ./
 
 # Cache-buster: change this value to force npm ci re-run
 ARG CACHEBUST=3
-RUN npm ci
+# VPS/package-registry connections can reset during large installs. Use explicit
+# retry/timeout settings so transient npm network failures do not break deploys.
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000 && \
+    npm ci --no-audit --no-fund
 
 # ───────────────────────────────────────
 # Stage 2: Build the application
