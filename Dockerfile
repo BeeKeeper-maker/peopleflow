@@ -92,6 +92,13 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
 USER nextjs
+
+# Worker containers do not expose HTTP, but Coolify rolling updates expect a
+# Docker health state when any Dockerfile HEALTHCHECK exists. Verify that the
+# worker entrypoint is still alive instead of probing a web endpoint.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD ps | grep -v grep | grep -q "src/workers/start-workers" || exit 1
+
 CMD ["npm", "run", "worker"]
 
 # ───────────────────────────────────────
