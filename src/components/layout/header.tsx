@@ -8,7 +8,7 @@ import { Search, ChevronDown, Menu, X, LogOut, User, Settings as SettingsIcon, C
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -36,6 +36,8 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
     const [showProfile, setShowProfile] = useState(false);
     const t = useTranslations('Header');
     const tb = useTranslations('Breadcrumb');
+    const locale = useLocale();
+    const isBn = locale.startsWith('bn');
 
     // Real user data from session
     const userName = session?.user?.name || "User";
@@ -133,10 +135,10 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                             document.dispatchEvent(event);
                         }}
                         className="hidden md:flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground bg-card border border-border rounded-lg hover:bg-hover hover:text-foreground transition-all duration-200 cursor-pointer"
-                        aria-label="Open command palette"
+                        aria-label={isBn ? "কমান্ড প্যালেট খুলুন" : "Open command palette"}
                     >
                         <Search className="h-3.5 w-3.5" />
-                        <span className="text-xs">Search...</span>
+                        <span className="text-xs">{isBn ? "খুঁজুন..." : "Search..."}</span>
                         <kbd className="ml-1.5 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-background border border-border rounded text-muted-foreground">
                             <CommandIcon className="h-2.5 w-2.5" />K
                         </kbd>

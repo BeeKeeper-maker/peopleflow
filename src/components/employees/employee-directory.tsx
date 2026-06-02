@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 import {
     Search,
     LayoutGrid,
@@ -119,6 +120,101 @@ const TYPE_BADGES: Record<string, { label: string; class: string }> = {
     intern: { label: "Intern", class: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
 };
 
+const EMPLOYEE_DIRECTORY_LABELS = {
+    en: {
+        totalEmployees: "Total Employees",
+        active: "Active",
+        onProbation: "On Probation",
+        departments: "Departments",
+        workforceInsights: "Workforce Insights",
+        departmentDistribution: "Department Distribution",
+        deptCount: "depts",
+        workforce: "Workforce",
+        searchPlaceholder: "Search by name, email, code, role...",
+        allDepartments: "All Departments",
+        allTypes: "All Types",
+        showing: "of",
+        gridView: "Grid view",
+        listView: "List view",
+        employee: "Employee",
+        designation: "Designation",
+        department: "Department",
+        contact: "Contact",
+        type: "Type",
+        joined: "Joined",
+        joinedPrefix: "Joined",
+        addEmployee: "Add Employee",
+        viewProfile: "View Profile",
+        editEmployee: "Edit Employee",
+        delete: "Delete",
+        noEmployeesFound: "No employees found",
+        noEmployeesYet: "No employees yet",
+        noResults: (query: string) => `No results matching "${query}". Try a different search term or adjust your filters.`,
+        emptyTeam: "Start building your team by adding your first employee.",
+        unassigned: "Unassigned",
+        gender: "Gender",
+        male: "Male",
+        female: "Female",
+        employmentTypes: {
+            permanent: "Permanent",
+            probation: "Probation",
+            contractual: "Contractual",
+            intern: "Intern",
+        },
+    },
+    bn: {
+        totalEmployees: "মোট কর্মচারী",
+        active: "সক্রিয়",
+        onProbation: "প্রবেশনে",
+        departments: "বিভাগ",
+        workforceInsights: "কর্মী বিশ্লেষণ",
+        departmentDistribution: "বিভাগভিত্তিক বণ্টন",
+        deptCount: "বিভাগ",
+        workforce: "কর্মী কাঠামো",
+        searchPlaceholder: "নাম, ইমেইল, কোড বা পদবি দিয়ে খুঁজুন...",
+        allDepartments: "সব বিভাগ",
+        allTypes: "সব ধরন",
+        showing: "এর মধ্যে",
+        gridView: "গ্রিড ভিউ",
+        listView: "লিস্ট ভিউ",
+        employee: "কর্মচারী",
+        designation: "পদবি",
+        department: "বিভাগ",
+        contact: "যোগাযোগ",
+        type: "ধরন",
+        joined: "যোগদান",
+        joinedPrefix: "যোগদান",
+        addEmployee: "কর্মচারী যোগ করুন",
+        viewProfile: "প্রোফাইল দেখুন",
+        editEmployee: "কর্মচারী সম্পাদনা",
+        delete: "মুছুন",
+        noEmployeesFound: "কোনো কর্মচারী পাওয়া যায়নি",
+        noEmployeesYet: "এখনো কোনো কর্মচারী নেই",
+        noResults: (query: string) => `"${query}" মিলে কোনো ফল পাওয়া যায়নি। অন্য শব্দ দিয়ে খুঁজুন বা ফিল্টার বদলান।`,
+        emptyTeam: "প্রথম কর্মচারী যোগ করে আপনার টিম তৈরি শুরু করুন।",
+        unassigned: "নির্ধারিত নয়",
+        gender: "লিঙ্গ",
+        male: "পুরুষ",
+        female: "নারী",
+        employmentTypes: {
+            permanent: "স্থায়ী",
+            probation: "প্রবেশন",
+            contractual: "চুক্তিভিত্তিক",
+            intern: "ইন্টার্ন",
+        },
+    },
+};
+
+type EmployeeDirectoryLabels = typeof EMPLOYEE_DIRECTORY_LABELS.en;
+
+function getEmployeeDirectoryLabels(locale: string): EmployeeDirectoryLabels {
+    return locale.startsWith("bn") ? EMPLOYEE_DIRECTORY_LABELS.bn : EMPLOYEE_DIRECTORY_LABELS.en;
+}
+
+function formatEmployeeDate(date: string, locale: string, options: Intl.DateTimeFormatOptions) {
+    return new Intl.DateTimeFormat(locale.startsWith("bn") ? "bn-BD" : "en-US", options).format(new Date(date));
+}
+
 const BAR_COLORS = [
     "from-blue-500 to-blue-600",
     "from-purple-500 to-purple-600",
@@ -225,7 +321,7 @@ function DepartmentBar({ departments }: { departments: { name: string; count: nu
 // WORKFORCE COMPOSITION (Analytics)
 // ══════════════════════════════════════════════════════════════════
 
-function WorkforceComposition({ employees, total }: { employees: DirectoryEmployee[]; total: number }) {
+function WorkforceComposition({ employees, total, labels }: { employees: DirectoryEmployee[]; total: number; labels: EmployeeDirectoryLabels }) {
     const permanent = employees.filter(e => e.employmentType === "permanent").length;
     const contractual = employees.filter(e => e.employmentType === "contractual").length;
     const probation = employees.filter(e => e.employmentType === "probation").length;
@@ -235,10 +331,10 @@ function WorkforceComposition({ employees, total }: { employees: DirectoryEmploy
     const genderTotal = male + female;
 
     const types = [
-        { label: "Permanent", count: permanent, color: "bg-emerald-400" },
-        { label: "Contractual", count: contractual, color: "bg-blue-400" },
-        { label: "Probation", count: probation, color: "bg-amber-400" },
-        { label: "Intern", count: intern, color: "bg-violet-400" },
+        { label: labels.employmentTypes.permanent, count: permanent, color: "bg-emerald-400" },
+        { label: labels.employmentTypes.contractual, count: contractual, color: "bg-blue-400" },
+        { label: labels.employmentTypes.probation, count: probation, color: "bg-amber-400" },
+        { label: labels.employmentTypes.intern, count: intern, color: "bg-violet-400" },
     ].filter(i => i.count > 0);
 
     return (
@@ -262,16 +358,16 @@ function WorkforceComposition({ employees, total }: { employees: DirectoryEmploy
             {genderTotal > 0 && (
                 <>
                     <div className="border-t border-card-border pt-3">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-2">Gender</p>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-2">{labels.gender}</p>
                         <div className="flex gap-4">
                             <div className="flex items-center gap-2">
                                 <div className="h-2 w-2 rounded-full bg-blue-400" />
-                                <span className="text-xs text-muted-foreground">Male</span>
+                                <span className="text-xs text-muted-foreground">{labels.male}</span>
                                 <span className="text-xs font-bold text-foreground">{male}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="h-2 w-2 rounded-full bg-pink-400" />
-                                <span className="text-xs text-muted-foreground">Female</span>
+                                <span className="text-xs text-muted-foreground">{labels.female}</span>
                                 <span className="text-xs font-bold text-foreground">{female}</span>
                             </div>
                         </div>
@@ -296,7 +392,7 @@ function WorkforceComposition({ employees, total }: { employees: DirectoryEmploy
 // CARD ACTION MENU (CRUD dropdown for tenant)
 // ══════════════════════════════════════════════════════════════════
 
-function CardActionMenu({ employeeId, config }: { employeeId: string; config: DirectoryConfig }) {
+function CardActionMenu({ employeeId, config, labels }: { employeeId: string; config: DirectoryConfig; labels: EmployeeDirectoryLabels }) {
     const [open, setOpen] = useState(false);
 
     if (!config.showCrudActions) return null;
@@ -317,14 +413,14 @@ function CardActionMenu({ employeeId, config }: { employeeId: string; config: Di
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `${config.profileBasePath}/${employeeId}`; setOpen(false); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                         >
-                            <Eye className="w-3.5 h-3.5" /> View Profile
+                            <Eye className="w-3.5 h-3.5" /> {labels.viewProfile}
                         </button>
                         {config.onEditEmployee && (
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); config.onEditEmployee!(employeeId); setOpen(false); }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                             >
-                                <Edit className="w-3.5 h-3.5" /> Edit Employee
+                                <Edit className="w-3.5 h-3.5" /> {labels.editEmployee}
                             </button>
                         )}
                         {config.onDeleteEmployee && (
@@ -334,7 +430,7 @@ function CardActionMenu({ employeeId, config }: { employeeId: string; config: Di
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); config.onDeleteEmployee!(employeeId); setOpen(false); }}
                                     className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/[0.06] transition-all"
                                 >
-                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                    <Trash2 className="w-3.5 h-3.5" /> {labels.delete}
                                 </button>
                             </>
                         )}
@@ -349,11 +445,12 @@ function CardActionMenu({ employeeId, config }: { employeeId: string; config: Di
 // EMPLOYEE CARD (Grid View)
 // ══════════════════════════════════════════════════════════════════
 
-function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; config: DirectoryConfig }) {
+function EmployeeCard({ employee, config, labels, locale }: { employee: DirectoryEmployee; config: DirectoryConfig; labels: EmployeeDirectoryLabels; locale: string }) {
     const deptColor = employee.department?.code
         ? DEPT_COLORS[employee.department.code] || DEFAULT_DEPT_COLOR
         : DEFAULT_DEPT_COLOR;
     const typeBadge = TYPE_BADGES[employee.employmentType] || TYPE_BADGES.permanent;
+    const typeLabel = labels.employmentTypes[employee.employmentType as keyof typeof labels.employmentTypes] || typeBadge.label;
 
     return (
         <Link
@@ -368,9 +465,9 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
                 <Avatar src={employee.photoUrl} name={`${employee.firstName} ${employee.lastName}`} size="lg" />
                 <div className="flex items-center gap-1.5">
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${typeBadge.class}`}>
-                        {typeBadge.label}
+                        {typeLabel}
                     </span>
-                    <CardActionMenu employeeId={employee.id} config={config} />
+                    <CardActionMenu employeeId={employee.id} config={config} labels={labels} />
                 </div>
             </div>
 
@@ -386,7 +483,7 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
             <div className="mt-3">
                 <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-md border ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
                     <Building2 className="w-3 h-3" />
-                    {employee.department?.name || "Unassigned"}
+                    {employee.department?.name || labels.unassigned}
                 </span>
             </div>
 
@@ -400,7 +497,7 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
                 )}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Calendar className="w-3 h-3 shrink-0" />
-                    <span>Joined {new Date(employee.joiningDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                    <span>{labels.joinedPrefix} {formatEmployeeDate(employee.joiningDate, locale, { month: "short", year: "numeric" })}</span>
                 </div>
             </div>
 
@@ -421,7 +518,7 @@ function EmployeeCard({ employee, config }: { employee: DirectoryEmployee; confi
 // EMPLOYEE ROW (List View)
 // ══════════════════════════════════════════════════════════════════
 
-function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee; index: number; config: DirectoryConfig }) {
+function EmployeeRow({ employee, index, config, labels, locale }: { employee: DirectoryEmployee; index: number; config: DirectoryConfig; labels: EmployeeDirectoryLabels; locale: string }) {
     const deptColor = employee.department?.code
         ? DEPT_COLORS[employee.department.code] || DEFAULT_DEPT_COLOR
         : DEFAULT_DEPT_COLOR;
@@ -481,7 +578,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
                     const badge = TYPE_BADGES[employee.employmentType] || TYPE_BADGES.permanent;
                     return (
                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${badge.class}`}>
-                            {badge.label}
+                            {labels.employmentTypes[employee.employmentType as keyof typeof labels.employmentTypes] || badge.label}
                         </span>
                     );
                 })()}
@@ -490,7 +587,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
             {/* Joined */}
             <td className="px-4 py-3">
                 <span className="text-xs text-muted-foreground tabular-nums">
-                    {new Date(employee.joiningDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {formatEmployeeDate(employee.joiningDate, locale, { month: "short", day: "numeric", year: "numeric" })}
                 </span>
             </td>
 
@@ -498,7 +595,7 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
             <td className="px-3 py-3">
                 {config.showCrudActions ? (
                     <div onClick={e => e.stopPropagation()}>
-                        <CardActionMenu employeeId={employee.id} config={config} />
+                        <CardActionMenu employeeId={employee.id} config={config} labels={labels} />
                     </div>
                 ) : (
                     <ChevronRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
@@ -512,19 +609,17 @@ function EmployeeRow({ employee, index, config }: { employee: DirectoryEmployee;
 // EMPTY STATE
 // ══════════════════════════════════════════════════════════════════
 
-function EmptyState({ query, config }: { query: string; config: DirectoryConfig }) {
+function EmptyState({ query, config, labels }: { query: string; config: DirectoryConfig; labels: EmployeeDirectoryLabels }) {
     return (
         <div className="flex flex-col items-center justify-center py-20">
             <div className="w-20 h-20 rounded-2xl bg-hover border border-card-border flex items-center justify-center mb-6">
                 <UserCircle className="w-10 h-10 text-muted-foreground/50" />
             </div>
             <h3 className="text-lg font-semibold text-muted-foreground mb-2">
-                {query ? "No employees found" : "No employees yet"}
+                {query ? labels.noEmployeesFound : labels.noEmployeesYet}
             </h3>
             <p className="text-sm text-muted-foreground/70 max-w-sm text-center">
-                {query
-                    ? `No results matching "${query}". Try a different search term or adjust your filters.`
-                    : "Start building your team by adding your first employee."}
+                {query ? labels.noResults(query) : labels.emptyTeam}
             </p>
             {!query && config.onAddEmployee && (
                 <button
@@ -533,7 +628,7 @@ function EmptyState({ query, config }: { query: string; config: DirectoryConfig 
                                text-white text-sm font-medium transition-all duration-200 shadow-lg shadow-indigo-500/25"
                 >
                     <Plus className="w-4 h-4" />
-                    Add Employee
+                    {labels.addEmployee}
                 </button>
             )}
         </div>
@@ -550,6 +645,8 @@ export function EmployeeDirectory({
     stats,
     config,
 }: EmployeeDirectoryProps) {
+    const locale = useLocale();
+    const labels = getEmployeeDirectoryLabels(locale);
     const [view, setView] = useState<"grid" | "list">("grid");
     const [searchQuery, setSearchQuery] = useState("");
     const [deptFilter, setDeptFilter] = useState("all");
@@ -562,13 +659,13 @@ export function EmployeeDirectory({
     const analyticsData = useMemo(() => {
         const deptMap = new Map<string, number>();
         employees.forEach(e => {
-            const dept = e.department?.name || "Unassigned";
+            const dept = e.department?.name || labels.unassigned;
             deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
         });
         return [...deptMap.entries()]
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count);
-    }, [employees]);
+    }, [employees, labels.unassigned]);
 
     // Filter & Search
     const filteredEmployees = useMemo(() => {
@@ -644,10 +741,10 @@ export function EmployeeDirectory({
             <div className="flex items-start justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground tracking-tight">
-                        {config.title || "Employee Directory"}
+                        {config.title || labels.employee}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        {config.subtitle || "Browse and manage employees across your organization"}
+                        {config.subtitle || labels.emptyTeam}
                     </p>
                 </div>
 
@@ -669,7 +766,7 @@ export function EmployeeDirectory({
                         </select>
                     )}
 
-                    {/* Add Employee Button (tenant only) */}
+                    {/* {labels.addEmployee} Button (tenant only) */}
                     {config.onAddEmployee && (
                         <button
                             onClick={config.onAddEmployee}
@@ -679,7 +776,7 @@ export function EmployeeDirectory({
                                        shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                         >
                             <Plus className="w-4 h-4" />
-                            Add Employee
+                            {labels.addEmployee}
                         </button>
                     )}
                 </div>
@@ -687,10 +784,10 @@ export function EmployeeDirectory({
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <StatCard icon={Users} label="Total Employees" value={stats.total} color="bg-indigo-500/15 text-indigo-400" />
-                <StatCard icon={UserCheck} label="Active" value={stats.active} color="bg-emerald-500/15 text-emerald-400" />
-                <StatCard icon={Clock} label="On Probation" value={stats.onProbation} color="bg-amber-500/15 text-amber-400" />
-                <StatCard icon={Building2} label="Departments" value={stats.departments} color="bg-violet-500/15 text-violet-400" />
+                <StatCard icon={Users} label={labels.totalEmployees} value={stats.total} color="bg-indigo-500/15 text-indigo-400" />
+                <StatCard icon={UserCheck} label={labels.active} value={stats.active} color="bg-emerald-500/15 text-emerald-400" />
+                <StatCard icon={Clock} label={labels.onProbation} value={stats.onProbation} color="bg-amber-500/15 text-amber-400" />
+                <StatCard icon={Building2} label={labels.departments} value={stats.departments} color="bg-violet-500/15 text-violet-400" />
             </div>
 
             {/* Analytics Panel (collapsible) */}
@@ -701,7 +798,7 @@ export function EmployeeDirectory({
                         className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground/80 transition-colors mb-3"
                     >
                         {analyticsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        Workforce Insights
+                        {labels.workforceInsights}
                     </button>
                     {analyticsOpen && (
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -710,10 +807,10 @@ export function EmployeeDirectory({
                                 <div className="flex items-center justify-between mb-5">
                                     <div className="flex items-center gap-2">
                                         <Building2 className="h-4 w-4 text-blue-400" />
-                                        <h3 className="text-sm font-semibold text-foreground">Department Distribution</h3>
+                                        <h3 className="text-sm font-semibold text-foreground">{labels.departmentDistribution}</h3>
                                     </div>
                                     <span className="text-[10px] font-medium text-muted-foreground/70 px-2 py-0.5 rounded-full bg-muted border border-card-border">
-                                        {analyticsData.length} depts
+                                        {analyticsData.length} {labels.deptCount}
                                     </span>
                                 </div>
                                 <DepartmentBar departments={analyticsData} />
@@ -723,9 +820,9 @@ export function EmployeeDirectory({
                             <div className="rounded-xl bg-card border border-card-border p-5">
                                 <div className="flex items-center gap-2 mb-5">
                                     <Briefcase className="h-4 w-4 text-purple-400" />
-                                    <h3 className="text-sm font-semibold text-foreground">Workforce</h3>
+                                    <h3 className="text-sm font-semibold text-foreground">{labels.workforce}</h3>
                                 </div>
-                                <WorkforceComposition employees={employees} total={stats.total} />
+                                <WorkforceComposition employees={employees} total={stats.total} labels={labels} />
                             </div>
                         </div>
                     )}
@@ -739,7 +836,7 @@ export function EmployeeDirectory({
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
                     <input
                         type="text"
-                        placeholder="Search by name, email, code, role..."
+                        placeholder={labels.searchPlaceholder}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-hover border border-card-border
@@ -763,7 +860,7 @@ export function EmployeeDirectory({
                                    text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all cursor-pointer"
                     >
-                        <option value="all" className="bg-popover">All Departments</option>
+                        <option value="all" className="bg-popover">{labels.allDepartments}</option>
                         {departments.map((d) => (
                             <option key={d.id} value={d.code || d.name} className="bg-popover">
                                 {d.name}
@@ -779,11 +876,11 @@ export function EmployeeDirectory({
                                    text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all cursor-pointer"
                     >
-                        <option value="all" className="bg-popover">All Types</option>
-                        <option value="permanent" className="bg-popover">Permanent</option>
-                        <option value="probation" className="bg-popover">Probation</option>
-                        <option value="contractual" className="bg-popover">Contractual</option>
-                        <option value="intern" className="bg-popover">Intern</option>
+                        <option value="all" className="bg-popover">{labels.allTypes}</option>
+                        <option value="permanent" className="bg-popover">{labels.employmentTypes.permanent}</option>
+                        <option value="probation" className="bg-popover">{labels.employmentTypes.probation}</option>
+                        <option value="contractual" className="bg-popover">{labels.employmentTypes.contractual}</option>
+                        <option value="intern" className="bg-popover">{labels.employmentTypes.intern}</option>
                     </select>
                 </div>
 
@@ -793,7 +890,7 @@ export function EmployeeDirectory({
                 {/* View Toggle + Count */}
                 <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground/70 tabular-nums">
-                        {filteredEmployees.length} of {employees.length}
+                        {filteredEmployees.length} {labels.showing} {employees.length}
                     </span>
                     <div className="flex items-center rounded-lg bg-hover border border-card-border p-0.5">
                         <button
@@ -803,7 +900,7 @@ export function EmployeeDirectory({
                                     ? "bg-indigo-500/20 text-indigo-400"
                                     : "text-muted-foreground/70 hover:text-muted-foreground"
                             }`}
-                            title="Grid view"
+                            title={labels.gridView}
                         >
                             <LayoutGrid className="w-4 h-4" />
                         </button>
@@ -814,7 +911,7 @@ export function EmployeeDirectory({
                                     ? "bg-indigo-500/20 text-indigo-400"
                                     : "text-muted-foreground/70 hover:text-muted-foreground"
                             }`}
-                            title="List view"
+                            title={labels.listView}
                         >
                             <List className="w-4 h-4" />
                         </button>
@@ -824,12 +921,12 @@ export function EmployeeDirectory({
 
             {/* Content */}
             {filteredEmployees.length === 0 ? (
-                <EmptyState query={searchQuery} config={config} />
+                <EmptyState query={searchQuery} config={config} labels={labels} />
             ) : view === "grid" ? (
                 /* ═══ GRID VIEW ═══ */
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {filteredEmployees.map((employee) => (
-                        <EmployeeCard key={employee.id} employee={employee} config={config} />
+                        <EmployeeCard key={employee.id} employee={employee} config={config} labels={labels} locale={locale} />
                     ))}
                 </div>
             ) : (
@@ -841,28 +938,28 @@ export function EmployeeDirectory({
                                 <tr className="border-b border-card-border">
                                     <th className="px-4 py-3">
                                         <button onClick={() => handleSort("name")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
-                                            Employee
+                                            {labels.employee}
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Designation</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{labels.designation}</span>
                                     </th>
                                     <th className="px-4 py-3">
                                         <button onClick={() => handleSort("department")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
-                                            Department
+                                            {labels.department}
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Contact</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{labels.contact}</span>
                                     </th>
                                     <th className="px-4 py-3">
-                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Type</span>
+                                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{labels.type}</span>
                                     </th>
                                     <th className="px-4 py-3">
                                         <button onClick={() => handleSort("joined")} className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground/80 transition-colors">
-                                            Joined
+                                            {labels.joined}
                                             <ArrowUpDown className="w-3 h-3" />
                                         </button>
                                     </th>
@@ -871,7 +968,7 @@ export function EmployeeDirectory({
                             </thead>
                             <tbody className="divide-y divide-white/[0.04]">
                                 {filteredEmployees.map((employee, index) => (
-                                    <EmployeeRow key={employee.id} employee={employee} index={index} config={config} />
+                                    <EmployeeRow key={employee.id} employee={employee} index={index} config={config} labels={labels} locale={locale} />
                                 ))}
                             </tbody>
                         </table>

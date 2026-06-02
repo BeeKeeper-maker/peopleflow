@@ -10,6 +10,7 @@
 import { useTheme } from "@/components/providers/theme-provider";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "next-intl";
 
 interface ThemeToggleProps {
     variant?: "default" | "compact" | "dropdown";
@@ -18,6 +19,8 @@ interface ThemeToggleProps {
 
 export function ThemeToggle({ variant = "default", className }: ThemeToggleProps) {
     const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme();
+    const locale = useLocale();
+    const isBn = locale.startsWith("bn");
 
     // Compact - simple toggle button for sidebar
     if (variant === "compact") {
@@ -32,8 +35,8 @@ export function ThemeToggle({ variant = "default", className }: ThemeToggleProps
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                     className
                 )}
-                aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={resolvedTheme === "dark" ? (isBn ? "লাইট মোড চালু করুন" : "Switch to light mode") : (isBn ? "ডার্ক মোড চালু করুন" : "Switch to dark mode")}
+                title={resolvedTheme === "dark" ? (isBn ? "লাইট মোড চালু করুন" : "Switch to light mode") : (isBn ? "ডার্ক মোড চালু করুন" : "Switch to dark mode")}
             >
                 <div className="flex items-center justify-center w-7 h-7 rounded-md">
                     {resolvedTheme === "dark" ? (
@@ -42,7 +45,7 @@ export function ThemeToggle({ variant = "default", className }: ThemeToggleProps
                         <Moon className="h-4 w-4 text-indigo-500" />
                     )}
                 </div>
-                <span>{resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                <span>{resolvedTheme === "dark" ? (isBn ? "লাইট মোড" : "Light Mode") : (isBn ? "ডার্ক মোড" : "Dark Mode")}</span>
             </button>
         );
     }
@@ -52,9 +55,9 @@ export function ThemeToggle({ variant = "default", className }: ThemeToggleProps
         return (
             <div className={cn("flex items-center gap-1 p-1 rounded-lg bg-card border border-border", className)}>
                 {([
-                    { value: "light" as const, icon: Sun, label: "Light" },
-                    { value: "dark" as const, icon: Moon, label: "Dark" },
-                    { value: "system" as const, icon: Monitor, label: "System" },
+                    { value: "light" as const, icon: Sun, label: isBn ? "লাইট" : "Light" },
+                    { value: "dark" as const, icon: Moon, label: isBn ? "ডার্ক" : "Dark" },
+                    { value: "system" as const, icon: Monitor, label: isBn ? "সিস্টেম" : "System" },
                 ]).map(({ value, icon: Icon, label }) => (
                     <button
                         key={value}

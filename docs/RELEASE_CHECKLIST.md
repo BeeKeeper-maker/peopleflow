@@ -66,9 +66,9 @@ Use before paid subscriptions or broader rollout.
 
 | Priority | Blocker | Status | Notes |
 |---|---|---|---|
-| P0 | Worker/migration architecture split | Partially resolved | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; migration release runbook added; explicit migrate job still needs final operational test before schema-changing deploys. |
+| P0 | Worker/migration architecture split | Mostly resolved / RLS blocked | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; migration runbook added; fresh local `prisma migrate deploy` proof passed after documenting required `CREATEROLE`. However RLS runtime integration is not release-safe yet, so production schema-changing deploy must wait for backup verification and RLS route audit/deferral decision. |
 | P0 | TypeScript ignored in Next production build | Mitigated, keep open | Local `npx tsc --noEmit` passed on 2026-06-02; build still skips validation, so CI/local type gate must remain mandatory. |
-| P0 | Tenant isolation proof | Open | Must add tests proving one office cannot access another office's data. |
+| P0 | Tenant isolation proof | In progress | Automated tenant/RBAC guard tests and RLS migration coverage added on 2026-06-02; route-level integration/browser proof still pending. |
 | P1 | Office pilot QA checklist execution | In progress | 2026-06-02 browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance load. Bengali/date/policy issues remain. |
 | P1 | Competitor matrix before major UX refactor | Open | Research plan exists; matrix pending. |
 
@@ -79,9 +79,9 @@ Use before paid subscriptions or broader rollout.
 - Coolify worker: latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f`; Dockerfile worker healthcheck passed and rolling update completed.
 - Worker logs: all 7 workers registered (`event-pipeline`, `subscription-lifecycle`, `impersonation-cleanup`, `usage-tracking`, `biometric-sync`, `device-health`, `attendance-reconciliation`) and recurring jobs are processing.
 - `/api/health`: HTTP 200; server/database/redis healthy; memory check warning observed (`heapUsedMB` close to `heapTotalMB`) and should be watched, not treated as fatal yet.
-- Local gates: `npm run lint` passed with 0 errors / 348 warnings; `npx tsc --noEmit` passed; `npm run build` passed with one Turbopack NFT trace warning; `npm test` passed 9 files / 268 tests.
+- Local gates: full `npm run lint` passed with 0 errors / 348 warnings; full `npx tsc --noEmit` passed; full `npm test` passed 12 files / 288 tests; `npm run build` passed with one Turbopack NFT trace warning. Additional focused tenant/RBAC/RLS/route-guard tests passed: 3 files / 20 tests. Targeted changed-file lint passed with 0 errors / 1 existing image warning.
 - Browser smoke: tenant dashboard, employee directory, leave requests, attendance, biometric devices, and ESS attendance loaded in production session.
-- QA findings: Bengali mode still shows English labels in places (`Employee Directory`, `Total Employees`, device guidance headings, English weekday/date formatting). ESS attendance future days are correctly `আসন্ন`; current day without check-in shows `অনুপস্থিত`, which needs office policy confirmation.
+- QA findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Devices/Sync Agent guidance copy were localized after initial smoke. ESS current-day no-record state now shows “এখনো চিহ্নিত হয়নি” instead of falsely showing absent.
 
 ## Rule
 If a release fails any P0 item, it is not office-ready. It may still be deployed for internal stabilization if the risk is documented.

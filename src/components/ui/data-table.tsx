@@ -14,6 +14,7 @@ import {
     useReactTable,
 } from "@tanstack/react-table"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+import { useLocale } from "next-intl"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,7 +46,7 @@ export function DataTable<TData, TValue>({
     columns,
     data,
     searchKey,
-    placeholder = "Search...",
+    placeholder,
     isLoading = false,
     emptyTitle = "No data found",
     emptyDescription = "There are no records to display yet.",
@@ -53,6 +54,9 @@ export function DataTable<TData, TValue>({
     onAdd,
     addLabel,
 }: DataTableProps<TData, TValue>) {
+    const locale = useLocale()
+    const isBn = locale.startsWith("bn")
+    const defaultPlaceholder = isBn ? "খুঁজুন..." : "Search..."
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
@@ -130,7 +134,7 @@ export function DataTable<TData, TValue>({
                 <div className="flex items-center justify-between">
                     <div className="flex flex-1 items-center space-x-2">
                         <Input
-                            placeholder={placeholder}
+                            placeholder={placeholder ?? defaultPlaceholder}
                             value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
                             onChange={(event) =>
                                 table.getColumn(searchKey)?.setFilterValue(event.target.value)
@@ -205,16 +209,16 @@ export function DataTable<TData, TValue>({
                 <div className="text-sm text-muted-foreground">
                     {table.getFilteredRowModel().rows.length > 0 ? (
                         <>
-                            Showing <span className="font-medium text-foreground">{pageIndex * table.getState().pagination.pageSize + 1}</span>
-                            {" "}to{" "}
+                            {isBn ? "দেখানো হচ্ছে " : "Showing "}<span className="font-medium text-foreground">{pageIndex * table.getState().pagination.pageSize + 1}</span>
+                            {isBn ? " থেকে " : " to "}
                             <span className="font-medium text-foreground">
                                 {Math.min((pageIndex + 1) * table.getState().pagination.pageSize, table.getFilteredRowModel().rows.length)}
                             </span>
-                            {" "}of{" "}
-                            <span className="font-medium text-foreground">{table.getFilteredRowModel().rows.length}</span> results
+                            {isBn ? " / " : " of "}
+                            <span className="font-medium text-foreground">{table.getFilteredRowModel().rows.length}</span>{isBn ? "টি ফল" : " results"}
                         </>
                     ) : (
-                        <span>No results</span>
+                        <span>{isBn ? "কোনো ফল পাওয়া যায়নি" : "No results"}</span>
                     )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -225,7 +229,7 @@ export function DataTable<TData, TValue>({
                         disabled={!table.getCanPreviousPage()}
                         className="h-8 w-8 p-0 border-card-border"
                     >
-                        <span className="sr-only">Go to first page</span>
+                        <span className="sr-only">{isBn ? "প্রথম পেজে যান" : "Go to first page"}</span>
                         <ChevronsLeft className="h-4 w-4" />
                     </Button>
                     <Button
@@ -235,7 +239,7 @@ export function DataTable<TData, TValue>({
                         disabled={!table.getCanPreviousPage()}
                         className="h-8 w-8 p-0 border-card-border"
                     >
-                        <span className="sr-only">Go to previous page</span>
+                        <span className="sr-only">{isBn ? "আগের পেজে যান" : "Go to previous page"}</span>
                         <ChevronLeft className="h-4 w-4" />
                     </Button>
 
@@ -243,7 +247,7 @@ export function DataTable<TData, TValue>({
                     {pageCount > 0 && (
                         <div className="flex items-center gap-1 px-2">
                             <span className="text-sm text-muted-foreground">
-                                Page <span className="font-medium text-foreground">{pageIndex + 1}</span> of{" "}
+                                {isBn ? "পৃষ্ঠা " : "Page "}<span className="font-medium text-foreground">{pageIndex + 1}</span>{isBn ? " / " : " of "}
                                 <span className="font-medium text-foreground">{pageCount}</span>
                             </span>
                         </div>
@@ -256,7 +260,7 @@ export function DataTable<TData, TValue>({
                         disabled={!table.getCanNextPage()}
                         className="h-8 w-8 p-0 border-card-border"
                     >
-                        <span className="sr-only">Go to next page</span>
+                        <span className="sr-only">{isBn ? "পরের পেজে যান" : "Go to next page"}</span>
                         <ChevronRight className="h-4 w-4" />
                     </Button>
                     <Button
@@ -266,7 +270,7 @@ export function DataTable<TData, TValue>({
                         disabled={!table.getCanNextPage()}
                         className="h-8 w-8 p-0 border-card-border"
                     >
-                        <span className="sr-only">Go to last page</span>
+                        <span className="sr-only">{isBn ? "শেষ পেজে যান" : "Go to last page"}</span>
                         <ChevronsRight className="h-4 w-4" />
                     </Button>
                 </div>

@@ -87,10 +87,18 @@ Preferred target architecture already exists in Dockerfile:
 - `worker`: BullMQ worker
 - `migrate`: `npx prisma migrate deploy && node scripts/runtime-seed.js`
 
-Operational gap:
+Operational proof completed locally on 2026-06-02:
 
-- Coolify migration/release execution still needs a tested command or one-off job path.
-- Until tested, do not rely on implicit app boot migrations.
+- `npx prisma validate` passed.
+- Fresh local PostgreSQL `peopleflow` database successfully ran `npx prisma migrate deploy` through all 9 migrations.
+- `npx prisma migrate status` then reported: `Database schema is up to date!`
+
+Important privilege requirement:
+
+- Migration `20260407104400_add_sync_api_key_table` creates PostgreSQL role `peopleflow_app`.
+- The migration user therefore needs role/database owner-level privileges, specifically permission to create roles (`CREATEROLE`) for this migration path.
+- Local proof initially failed with PostgreSQL `42501 permission denied to create role`; after granting `CREATEROLE` to the local migration user and marking the failed local migration attempt rolled back, deploy completed successfully.
+- Before production schema-changing deploy, verify the Coolify/PostgreSQL migration credential can run role-creating migrations, or pre-create `peopleflow_app` with explicit approval and then run `npx prisma migrate deploy`.
 
 ### 5. Post-Deploy Smoke
 
@@ -121,5 +129,5 @@ If a schema migration already ran:
 
 - `/api/health` reports memory warning while server/database/redis are healthy; monitor.
 - Lint has warnings that should be reduced before broader office rollout.
-- Bengali mode has mixed English labels/date/day formatting on office-critical screens.
-- Tenant isolation and RBAC proof are still required before office pilot.
+- Bengali mode polish is in progress: Employee Directory, ESS Attendance, and Devices guidance were improved; remaining pages still need audit.
+- Tenant isolation/RBAC proof has automated guard + RLS migration coverage and static route-level regression proof for employee/leave/expense/attendance APIs; browser workflow proof remains before office pilot.

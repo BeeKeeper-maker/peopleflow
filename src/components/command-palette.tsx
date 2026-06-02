@@ -22,6 +22,7 @@ import {
     ArrowRight, Command as CommandIcon,
 } from "lucide-react";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
+import { useLocale } from "next-intl";
 
 // ── Command Group wrapper (React 19 type compat) ─────────────────
 
@@ -90,6 +91,8 @@ const PLATFORM_NAVIGATION: RouteItem[] = [
 
 export function CommandPalette() {
     const [open, setOpen] = useState(false);
+    const locale = useLocale();
+    const isBn = locale.startsWith("bn");
     const [searchQuery, setSearchQuery] = useState("");
     const router = useRouter();
     const pathname = usePathname();
@@ -135,8 +138,8 @@ export function CommandPalette() {
             <button
                 onClick={() => setOpen(true)}
                 className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-item-hover transition-all duration-200"
-                aria-label="Open command palette (⌘K)"
-                title="Search (⌘K)"
+                aria-label={isBn ? "কমান্ড প্যালেট খুলুন (⌘K)" : "Open command palette (⌘K)"}
+                title={isBn ? "খুঁজুন (⌘K)" : "Search (⌘K)"}
             >
                 <Search className="w-4 h-4" />
             </button>
@@ -162,7 +165,7 @@ export function CommandPalette() {
                                 <Command.Input
                                     value={searchQuery}
                                     onValueChange={setSearchQuery}
-                                    placeholder={isPlatformPlane ? "Search platform..." : "Search actions, pages, employees..."}
+                                    placeholder={isPlatformPlane ? (isBn ? "প্ল্যাটফর্মে খুঁজুন..." : "Search platform...") : (isBn ? "অ্যাকশন, পেজ বা কর্মচারী খুঁজুন..." : "Search actions, pages, employees...")}
                                     className="flex-1 h-14 bg-transparent text-[15px] text-white placeholder-zinc-500 outline-none border-none focus:ring-0 focus:outline-none caret-indigo-400"
                                     autoFocus
                                 />
@@ -176,14 +179,14 @@ export function CommandPalette() {
                                 <Command.Empty className="py-12 text-center text-sm text-zinc-500">
                                     <div className="flex flex-col items-center gap-2">
                                         <Search className="w-8 h-8 text-zinc-700" />
-                                        <span>No results found</span>
+                                        <span>{isBn ? "কোনো ফল পাওয়া যায়নি" : "No results found"}</span>
                                     </div>
                                 </Command.Empty>
 
                                 {/* Quick Actions */}
                                 {actions.length > 0 && (
                                     <CmdGroup
-                                        heading="Quick Actions"
+                                        heading={isBn ? "দ্রুত কাজ" : "Quick Actions"}
                                         className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500 mb-1"
                                     >
                                         {actions.map((item) => (
@@ -205,7 +208,7 @@ export function CommandPalette() {
 
                                 {/* Navigation */}
                                 <CmdGroup
-                                    heading="Navigation"
+                                    heading={isBn ? "নেভিগেশন" : "Navigation"}
                                     className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500 mb-1"
                                 >
                                     {navigation.map((item) => (
@@ -221,7 +224,7 @@ export function CommandPalette() {
                                             <span className="flex-1">{item.label}</span>
                                             {pathname === item.href && (
                                                 <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/15">
-                                                    Current
+                                                    {isBn ? "বর্তমান" : "Current"}
                                                 </span>
                                             )}
                                             <ArrowRight className="w-3.5 h-3.5 text-zinc-600 opacity-0 group-data-[selected=true]:opacity-100 transition-opacity" />
@@ -232,7 +235,7 @@ export function CommandPalette() {
                                 {/* Search Results */}
                                 {searchQuery.length >= 2 && Array.isArray((searchResults as any)?.data) && (
                                     <CmdGroup
-                                        heading="Search Results"
+                                        heading={isBn ? "সার্চ ফলাফল" : "Search Results"}
                                         className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.1em] [&_[cmdk-group-heading]]:text-zinc-500"
                                     >
                                         {(searchResults!.data as any[]).slice(0, 5).map((result: any, i: number) => (

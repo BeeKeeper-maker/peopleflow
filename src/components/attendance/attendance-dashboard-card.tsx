@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Play, Square, Clock, MapPin, AlertCircle, Shield, ShieldAlert, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { differenceInSeconds, format } from "date-fns";
+import { differenceInSeconds } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 interface AttendanceState {
     status: 'checked-in' | 'checked-out' | 'none';
@@ -26,6 +26,8 @@ interface GeoFenceInfo {
 
 export function AttendanceDashboardCard() {
     const t = useTranslations('Attendance');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const { addToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
@@ -212,7 +214,16 @@ export function AttendanceDashboardCard() {
         return <div className="h-48 animate-pulse bg-hover rounded-xl" />;
     }
 
-    const todayStr = format(new Date(), "EEEE, dd MMMM yyyy");
+    const todayStr = new Intl.DateTimeFormat(dateLocale, {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    }).format(new Date());
+    const formatTime = (value: string) => new Intl.DateTimeFormat(dateLocale, {
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(new Date(value));
 
     return (
         <Card className="bg-card border-card-border text-foreground overflow-hidden relative">
@@ -251,13 +262,13 @@ export function AttendanceDashboardCard() {
                     <div className="bg-hover rounded-lg p-3 border border-card-border">
                         <p className="text-xs text-tertiary-foreground mb-1">{t('checkInTime')}</p>
                         <p className="text-xl font-mono font-medium">
-                            {state.checkInTime ? format(new Date(state.checkInTime), "hh:mm a") : "--:--"}
+                            {state.checkInTime ? formatTime(state.checkInTime) : "--:--"}
                         </p>
                     </div>
                     <div className="bg-hover rounded-lg p-3 border border-card-border">
                         <p className="text-xs text-tertiary-foreground mb-1">{t('checkOutTime')}</p>
                         <p className="text-xl font-mono font-medium">
-                            {state.checkOutTime ? format(new Date(state.checkOutTime), "hh:mm a") : "--:--"}
+                            {state.checkOutTime ? formatTime(state.checkOutTime) : "--:--"}
                         </p>
                     </div>
                 </div>

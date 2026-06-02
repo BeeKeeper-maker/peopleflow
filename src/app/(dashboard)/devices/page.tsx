@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
     Dialog,
@@ -99,6 +99,8 @@ interface DeviceFormData {
 
 export default function DevicesPage() {
     const t = useTranslations("Devices");
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const { addToast } = useToast();
 
     const [devices, setDevices] = useState<BiometricDevice[]>([]);
@@ -315,12 +317,12 @@ export default function DevicesPage() {
 
     const formatDateTime = (dateStr: string | null) => {
         if (!dateStr) return t("never");
-        return new Date(dateStr).toLocaleString("en-US", {
+        return new Intl.DateTimeFormat(dateLocale, {
             month: "short",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-        });
+        }).format(new Date(dateStr));
     };
 
 
@@ -740,7 +742,7 @@ export default function DevicesPage() {
                                                     </div>
                                                     <div className="flex items-center gap-3 text-muted-foreground text-xs">
                                                         {log.syncDuration && (
-                                                            <span>{Math.round(log.syncDuration / 1000)}s</span>
+                                                            <span>{t("secondsShort", { count: Math.round(log.syncDuration / 1000) })}</span>
                                                         )}
                                                         <span>{formatDateTime(log.syncedAt)}</span>
                                                     </div>

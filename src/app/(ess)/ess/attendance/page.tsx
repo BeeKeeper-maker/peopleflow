@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
     Clock,
     CheckCircle2,
@@ -20,7 +20,7 @@ interface AttendanceRecord {
     id: string;
     date: string;
     dayOfWeek: string;
-    status: "present" | "absent" | "half_day" | "on_leave" | "late" | "weekend" | "holiday" | "upcoming";
+    status: "present" | "absent" | "half_day" | "on_leave" | "late" | "weekend" | "holiday" | "upcoming" | "not_marked";
     checkIn?: string;
     checkOut?: string;
     workingHours?: string;
@@ -42,12 +42,14 @@ interface MonthlyStats {
 
 export default function ESSAttendancePage() {
     const t = useTranslations("ESSAttendance");
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [stats, setStats] = useState<MonthlyStats | null>(null);
 
-    const monthName = currentMonth.toLocaleString("default", { month: "long", year: "numeric" });
+    const monthName = new Intl.DateTimeFormat(dateLocale, { month: "long", year: "numeric" }).format(currentMonth);
 
     const formatLocalDateKey = (date: Date) => {
         const year = date.getFullYear();
@@ -57,6 +59,23 @@ export default function ESSAttendancePage() {
     };
 
     const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const formatTime = useCallback((value: string | Date) => new Intl.DateTimeFormat(dateLocale, {
+        hour: "numeric",
+        minute: "2-digit",
+    }).format(new Date(value)), [dateLocale]);
+
+    const formatTableDate = (dateKey: string) => new Intl.DateTimeFormat(dateLocale, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(new Date(`${dateKey}T00:00:00`));
+
+    const formatDuration = useCallback((minutes: number) => {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return locale.startsWith("bn") ? `${hours}ঘ ${mins}মি` : `${hours}h ${mins}m`;
+    }, [locale]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -93,14 +112,14 @@ export default function ESSAttendancePage() {
                         recordMap.set(dateStr, {
                             id: r.id,
                             date: dateStr,
-                            dayOfWeek: new Date(r.date).toLocaleDateString("en-US", { weekday: "long" }),
+                            dayOfWeek: new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(new Date(r.date)),
                             status: (r.status as AttendanceRecord["status"]) || "present",
-                            checkIn: r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
-                            checkOut: r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : undefined,
-                            workingHours: r.totalMinutes ? `${Math.floor(r.totalMinutes / 60)}h ${r.totalMinutes % 60}m` : undefined,
+                            checkIn: r.checkInTime ? formatTime(r.checkInTime) : undefined,
+                            checkOut: r.checkOutTime ? formatTime(r.checkOutTime) : undefined,
+                            workingHours: r.totalMinutes ? formatDuration(r.totalMinutes) : undefined,
                             lateMinutes: r.lateMinutes,
                             earlyLeaveMinutes: r.earlyLeaveMinutes,
-                            overtime: r.overtimeMinutes ? `${Math.floor(r.overtimeMinutes / 60)}h ${r.overtimeMinutes % 60}m` : undefined,
+                            overtime: r.overtimeMinutes ? formatDuration(r.overtimeMinutes) : undefined,
                         });
                     });
 
@@ -108,9 +127,10 @@ export default function ESSAttendancePage() {
                     for (let day = 1; day <= daysInMonth; day++) {
                         const date = new Date(year, month - 1, day);
                         const dateStr = formatLocalDateKey(date);
-                        const dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" });
+                        const dayOfWeek = new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(date);
                         const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                         const isFuture = startOfLocalDay(date) > startOfLocalDay(today);
+                        const isToday = startOfLocalDay(date).getTime() === startOfLocalDay(today).getTime();
 
                         if (recordMap.has(dateStr)) {
                             transformedRecords.push(recordMap.get(dateStr)!);
@@ -119,7 +139,7 @@ export default function ESSAttendancePage() {
                                 id: `placeholder-${dateStr}`,
                                 date: dateStr,
                                 dayOfWeek,
-                                status: isFuture ? "upcoming" : (isWeekend ? "weekend" : "absent"),
+                                status: isFuture ? "upcoming" : (isWeekend ? "weekend" : (isToday ? "not_marked" : "absent")),
                             });
                         }
                     }
@@ -134,14 +154,11 @@ export default function ESSAttendancePage() {
                     const halfDayCount = rawRecords.filter((r: { status?: string }) => r.status === "half_day").length;
 
                     const totalMinutes = rawRecords.reduce((acc: number, r: { totalMinutes?: number }) => acc + (r.totalMinutes || 0), 0);
-                    const totalHours = Math.floor(totalMinutes / 60);
-                    const remainingMins = totalMinutes % 60;
-
                     // Calculate average check-in from actual records
                     const checkInTimes = rawRecords
                         .filter((r: { checkInTime?: string }) => r.checkInTime)
                         .map((r: { checkInTime: string }) => new Date(r.checkInTime));
-                    let avgCheckIn = "N/A";
+                    let avgCheckIn = t("notAvailable");
                     if (checkInTimes.length > 0) {
                         const avgMs = checkInTimes.reduce((sum: number, d: Date) => {
                             const dayStart = new Date(d);
@@ -151,7 +168,7 @@ export default function ESSAttendancePage() {
                         const avgDate = new Date();
                         avgDate.setHours(0, 0, 0, 0);
                         avgDate.setMilliseconds(avgMs);
-                        avgCheckIn = avgDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                        avgCheckIn = formatTime(avgDate);
                     }
 
                     setStats({
@@ -161,7 +178,7 @@ export default function ESSAttendancePage() {
                         onLeave: onLeaveCount,
                         late: lateCount,
                         earlyLeave: 0,
-                        totalWorkingHours: `${totalHours}h ${remainingMins}m`,
+                        totalWorkingHours: formatDuration(totalMinutes),
                         averageCheckIn: avgCheckIn,
                     });
                 } else {
@@ -178,7 +195,7 @@ export default function ESSAttendancePage() {
         };
 
         fetchData();
-    }, [currentMonth]);
+    }, [currentMonth, dateLocale, formatDuration, formatTime, locale, t]);
 
     const goToPreviousMonth = () => {
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -241,6 +258,13 @@ export default function ESSAttendancePage() {
                 return (
                     <Badge className="bg-slate-500/15 text-slate-400 border-slate-500/20">
                         {t("upcoming")}
+                    </Badge>
+                );
+            case "not_marked":
+                return (
+                    <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/25">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {t("notMarkedYet")}
                     </Badge>
                 );
             default:
@@ -387,7 +411,7 @@ export default function ESSAttendancePage() {
                                             className="border-b border-card-border hover:bg-hover"
                                         >
                                             <td className="px-4 py-3 text-sm text-foreground">
-                                                {new Date(record.date).toLocaleDateString()}
+                                                {formatTableDate(record.date)}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
                                                 {record.dayOfWeek}

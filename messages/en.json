@@ -683,7 +683,9 @@
     "weekend": "Weekend",
     "holiday": "Holiday",
     "upcoming": "Upcoming",
-    "lateMinutes": "+{minutes}m late"
+    "lateMinutes": "+{minutes}m late",
+    "notMarkedYet": "Not marked yet",
+    "notAvailable": "N/A"
   },
   "ESSLeaves": {
     "title": "My Leaves",
@@ -2607,7 +2609,8 @@
     "existingLanDeviceDesc": "If the office already has a LAN-only device, do not expose it publicly. Use the PeopleFlow Sync Agent on one office PC to read the device locally and push attendance securely.",
     "livePrereqTitle": "Before live sync",
     "livePrereqChecklist": "I completed dry-run successfully, mapped device user IDs to employees, and understand this command will push attendance records to PeopleFlow.",
-    "liveCommandLocked": "Live command is locked until the safety checklist is confirmed. This prevents staff from accidentally running dry-run and live sync back-to-back."
+    "liveCommandLocked": "Live command is locked until the safety checklist is confirmed. This prevents staff from accidentally running dry-run and live sync back-to-back.",
+    "secondsShort": "{count}s"
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",

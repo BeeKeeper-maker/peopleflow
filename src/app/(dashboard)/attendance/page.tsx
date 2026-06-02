@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
     Clock,
     CheckCircle2,
@@ -59,6 +59,9 @@ const statusConfig = {
 
 export default function AttendancePage() {
     const t = useTranslations('Attendance');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatRegularizationDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
     const [activeTab, setActiveTab] = useState("dashboard");
     const [requests, setRequests] = useState<RegularizationRequest[]>([]);
@@ -325,7 +328,7 @@ export default function AttendancePage() {
                                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                             <Calendar className="h-3 w-3" />
-                                                            {new Date(req.date).toLocaleDateString()}
+                                                            {formatRegularizationDate(req.date)}
                                                         </span>
                                                         {req.requestedCheckIn && (
                                                             <span className="text-xs text-blue-400">In: {req.requestedCheckIn}</span>

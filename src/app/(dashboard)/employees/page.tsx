@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useLocale } from "next-intl"
 import { useToast } from "@/components/ui/toast"
 import { EmployeeDirectory } from "@/components/employees/employee-directory"
 import { DeleteConfirmationModal } from "@/components/modals/delete-confirmation-modal"
@@ -15,7 +16,9 @@ import type { DirectoryEmployee, DirectoryDepartment } from "@/components/employ
  */
 export default function EmployeesPage() {
     const router = useRouter()
+    const locale = useLocale()
     const { addToast } = useToast()
+    const isBn = locale.startsWith("bn")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [rawData, setRawData] = useState<any[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -33,7 +36,7 @@ export default function EmployeesPage() {
             const result = await response.json()
             setRawData(result.data || result || [])
         } catch {
-            addToast({ title: "Error", description: "Failed to load employees", type: "error" })
+            addToast({ title: isBn ? "ত্রুটি" : "Error", description: isBn ? "কর্মচারীর তথ্য লোড করা যায়নি" : "Failed to load employees", type: "error" })
         } finally {
             setIsLoading(false)
         }
@@ -94,10 +97,10 @@ export default function EmployeesPage() {
         try {
             const res = await fetch(`/api/employees/${deleteTarget.id}`, { method: "DELETE" })
             if (!res.ok) throw new Error("Failed to delete")
-            addToast({ title: "Success", description: "Employee offboarded and ESS access locked", type: "success" })
+            addToast({ title: isBn ? "সফল" : "Success", description: isBn ? "কর্মচারীকে অফবোর্ড করা হয়েছে এবং ESS অ্যাক্সেস লক করা হয়েছে" : "Employee offboarded and ESS access locked", type: "success" })
             fetchData() // Re-fetch after delete
         } catch {
-            addToast({ title: "Error", description: "Failed to delete employee", type: "error" })
+            addToast({ title: isBn ? "ত্রুটি" : "Error", description: isBn ? "কর্মচারী অফবোর্ড করা যায়নি" : "Failed to delete employee", type: "error" })
         } finally {
             setIsDeleting(false)
             setDeleteTarget(null)
@@ -107,7 +110,7 @@ export default function EmployeesPage() {
     // Find employee name for delete modal
     const findEmployeeName = (id: string) => {
         const emp = rawData.find((e: any) => e.id === id)
-        return emp ? `${emp.firstName} ${emp.lastName}` : "this employee"
+        return emp ? `${emp.firstName} ${emp.lastName}` : (isBn ? "এই কর্মচারী" : "this employee")
     }
 
     if (isLoading) {
@@ -140,8 +143,8 @@ export default function EmployeesPage() {
                     profileBasePath: "/employees",
                     showCrudActions: true,
                     showAnalytics: true,
-                    title: "Employee Directory",
-                    subtitle: "Manage your organization's workforce",
+                    title: isBn ? "কর্মচারী তালিকা" : "Employee Directory",
+                    subtitle: isBn ? "আপনার প্রতিষ্ঠানের কর্মী তথ্য, বিভাগ ও দায়িত্ব এক জায়গায় পরিচালনা করুন" : "Manage your organization's workforce",
                     onAddEmployee: () => router.push("/employees/new"),
                     onEditEmployee: (id) => router.push(`/employees/${id}/edit`),
                     onDeleteEmployee: (id) => setDeleteTarget({ id, name: findEmployeeName(id) }),
@@ -154,10 +157,10 @@ export default function EmployeesPage() {
                 onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
                 onConfirm={handleDelete}
                 isLoading={isDeleting}
-                title={`Offboard ${deleteTarget?.name}?`}
-                description="This will mark the employee as terminated, lock their ESS login, clear active sessions, and preserve payroll/history records."
-                confirmLabel="Offboard employee"
-                loadingLabel="Offboarding..."
+                title={isBn ? `${deleteTarget?.name} অফবোর্ড করবেন?` : `Offboard ${deleteTarget?.name}?`}
+                description={isBn ? "এতে কর্মচারীকে terminated হিসেবে চিহ্নিত করা হবে, ESS লগইন লক হবে, active session clear হবে, তবে payroll/history record সংরক্ষিত থাকবে।" : "This will mark the employee as terminated, lock their ESS login, clear active sessions, and preserve payroll/history records."}
+                confirmLabel={isBn ? "কর্মচারী অফবোর্ড করুন" : "Offboard employee"}
+                loadingLabel={isBn ? "অফবোর্ড করা হচ্ছে..." : "Offboarding..."}
             />
         </>
     )

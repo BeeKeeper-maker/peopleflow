@@ -7,7 +7,7 @@ import { LeaveBalanceCards } from "@/components/leaves/leave-balance-cards"
 import { Button } from "@/components/ui/button"
 import { Plus, Calendar, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { useToast } from "@/components/ui/toast"
 
 export default function LeaveApplicationsPage() {
@@ -15,6 +15,8 @@ export default function LeaveApplicationsPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const t = useTranslations('Leaves')
+    const locale = useLocale()
+    const isBn = locale.startsWith('bn')
     const { addToast } = useToast()
 
     const fetchData = async () => {
@@ -27,14 +29,14 @@ export default function LeaveApplicationsPage() {
                 setData(result.data || result || [])
             } else {
                 const errData = await response.json().catch(() => ({}))
-                const msg = errData.error || "Failed to load leave applications"
+                const msg = errData.error || (isBn ? "ছুটির আবেদন লোড করা যায়নি" : "Failed to load leave applications")
                 setError(msg)
-                addToast({ title: "Error", description: msg, type: "error" })
+                addToast({ title: isBn ? "ত্রুটি" : "Error", description: msg, type: "error" })
             }
         } catch (err) {
-            const msg = "Network error. Please check your connection."
+            const msg = isBn ? "নেটওয়ার্ক সমস্যা। সংযোগ পরীক্ষা করুন।" : "Network error. Please check your connection."
             setError(msg)
-            addToast({ title: "Connection Error", description: msg, type: "error" })
+            addToast({ title: isBn ? "সংযোগ ত্রুটি" : "Connection Error", description: msg, type: "error" })
         } finally {
             setIsLoading(false)
         }
@@ -64,7 +66,7 @@ export default function LeaveApplicationsPage() {
                     {error && (
                         <Button variant="outline" onClick={fetchData} className="gap-2 border-card-border">
                             <RefreshCw className="h-4 w-4" />
-                            Retry
+                            {isBn ? "আবার চেষ্টা করুন" : "Retry"}
                         </Button>
                     )}
                     <Link href="/leaves/apply">
@@ -82,10 +84,10 @@ export default function LeaveApplicationsPage() {
                 columns={columns}
                 data={data}
                 searchKey="employeeName"
-                placeholder="Search by employee name..."
+                placeholder={isBn ? "কর্মচারীর নাম দিয়ে খুঁজুন..." : "Search by employee name..."}
                 isLoading={isLoading}
-                emptyTitle="No leave applications"
-                emptyDescription="There are no leave applications to display. Applications will appear here once submitted."
+                emptyTitle={isBn ? "কোনো ছুটির আবেদন নেই" : "No leave applications"}
+                emptyDescription={isBn ? "দেখানোর মতো কোনো ছুটির আবেদন নেই। আবেদন জমা হলে এখানে দেখা যাবে।" : "There are no leave applications to display. Applications will appear here once submitted."}
                 emptyVariant="calendar"
             />
         </div>

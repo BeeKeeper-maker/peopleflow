@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import {
     Table,
     TableBody,
@@ -13,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Shield, ShieldAlert, MapPin } from "lucide-react";
 
 type AttendanceRecord = {
@@ -31,6 +30,14 @@ type AttendanceRecord = {
 
 export function AttendanceHistory() {
     const t = useTranslations('Attendance');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    const formatTime = (value: string) => new Intl.DateTimeFormat(dateLocale, { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+    const statusLabel = (status: string) => {
+        const labels: Record<string, string> = locale.startsWith("bn") ? { present: "উপস্থিত", late: "দেরিতে", absent: "অনুপস্থিত", half_day: "অর্ধদিবস" } : {};
+        return labels[status] ?? status.replace('_', ' ');
+    };
     const [history, setHistory] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -96,7 +103,7 @@ export function AttendanceHistory() {
                                     return (
                                         <TableRow key={record.id} className="border-card-border hover:bg-hover">
                                             <TableCell className="font-medium text-foreground">
-                                                {format(new Date(record.date), "dd MMM yyyy")}
+                                                {formatDate(record.date)}
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1.5">
@@ -110,7 +117,7 @@ export function AttendanceHistory() {
                                                             record.status === 'half_day' && "bg-blue-500/10 text-blue-500",
                                                         )}
                                                     >
-                                                        {record.status.replace('_', ' ')}
+                                                        {statusLabel(record.status)}
                                                     </Badge>
                                                     {/* GPS indicator */}
                                                     {gps && (
@@ -122,10 +129,10 @@ export function AttendanceHistory() {
                                             </TableCell>
                                             <TableCell className="text-foreground">
                                                 <div className="flex items-center gap-1">
-                                                    {record.checkIn ? format(new Date(record.checkIn), "hh:mm a") : "-"}
+                                                    {record.checkIn ? formatTime(record.checkIn) : "-"}
                                                     {record.lateMinutes > 0 && (
                                                         <span className="text-amber-500 text-xs">
-                                                            (+{record.lateMinutes}m)
+                                                            ({locale.startsWith("bn") ? `+${record.lateMinutes} মি.` : `+${record.lateMinutes}m`})
                                                         </span>
                                                     )}
                                                     {record.source === "web" && record.checkIn && (
@@ -136,11 +143,11 @@ export function AttendanceHistory() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-foreground">
-                                                {record.checkOut ? format(new Date(record.checkOut), "hh:mm a") : "-"}
+                                                {record.checkOut ? formatTime(record.checkOut) : "-"}
                                             </TableCell>
                                             <TableCell className="text-right text-foreground font-mono">
                                                 {record.checkIn && record.checkOut
-                                                    ? ((new Date(record.checkOut).getTime() - new Date(record.checkIn).getTime()) / 3600000).toFixed(1) + "h"
+                                                    ? ((new Date(record.checkOut).getTime() - new Date(record.checkIn).getTime()) / 3600000).toFixed(1) + (locale.startsWith("bn") ? " ঘন্টা" : "h")
                                                     : "-"
                                                 }
                                             </TableCell>
