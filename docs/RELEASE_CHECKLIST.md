@@ -1,6 +1,6 @@
 # PeopleFlow Release Checklist
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-02_
 
 ## Purpose
 No PeopleFlow release should go to production or office handover with hidden risk. This checklist is the minimum gate before claiming a release is ready.
@@ -66,11 +66,21 @@ Use before paid subscriptions or broader rollout.
 
 | Priority | Blocker | Status | Notes |
 |---|---|---|---|
-| P0 | Worker/migration architecture split | Open | Web image is now lean; worker and migration release path must be made explicit. |
-| P0 | TypeScript ignored in Next production build | Open | `ignoreBuildErrors: true`; must be compensated with strict CI/local type gate. |
+| P0 | Worker/migration architecture split | Partially resolved | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; explicit migration/release job still needs final operational test before schema-changing deploys. |
+| P0 | TypeScript ignored in Next production build | Mitigated, keep open | Local `npx tsc --noEmit` passed on 2026-06-02; build still skips validation, so CI/local type gate must remain mandatory. |
 | P0 | Tenant isolation proof | Open | Must add tests proving one office cannot access another office's data. |
-| P1 | Office pilot QA checklist execution | Open | Needs manual/browser QA across leave, ESS, attendance, devices, Bengali UX. |
+| P1 | Office pilot QA checklist execution | In progress | 2026-06-02 browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance load. Bengali/date/policy issues remain. |
 | P1 | Competitor matrix before major UX refactor | Open | Research plan exists; matrix pending. |
+
+## Latest Gate Result — 2026-06-02
+
+- Coolify web app: `running:healthy`.
+- Coolify worker: latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f`; Dockerfile worker healthcheck passed and rolling update completed.
+- Worker logs: all 7 workers registered (`event-pipeline`, `subscription-lifecycle`, `impersonation-cleanup`, `usage-tracking`, `biometric-sync`, `device-health`, `attendance-reconciliation`) and recurring jobs are processing.
+- `/api/health`: HTTP 200; server/database/redis healthy; memory check warning observed (`heapUsedMB` close to `heapTotalMB`) and should be watched, not treated as fatal yet.
+- Local gates: `npm run lint` passed with 0 errors / 348 warnings; `npx tsc --noEmit` passed; `npm run build` passed with one Turbopack NFT trace warning; `npm test` passed 9 files / 268 tests.
+- Browser smoke: tenant dashboard, employee directory, leave requests, attendance, biometric devices, and ESS attendance loaded in production session.
+- QA findings: Bengali mode still shows English labels in places (`Employee Directory`, `Total Employees`, device guidance headings, English weekday/date formatting). ESS attendance future days are correctly `আসন্ন`; current day without check-in shows `অনুপস্থিত`, which needs office policy confirmation.
 
 ## Rule
 If a release fails any P0 item, it is not office-ready. It may still be deployed for internal stabilization if the risk is documented.

@@ -1,6 +1,6 @@
 # PeopleFlow Deployment Architecture Plan
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-02_
 
 ## Current State
 The web app now deploys successfully using a lean Docker image. This fixed repeated Coolify failures caused by heavy runtime dependencies and Docker image unpack/finalization problems.
@@ -13,9 +13,9 @@ The web app now deploys successfully using a lean Docker image. This fixed repea
 - Production app is healthy after deployment.
 
 ## Important Known Gap
-The web image is now intentionally lean. This means migrations, seed/bootstrap, and worker runtime must be handled explicitly, not hidden inside web app boot.
+The web image is now intentionally lean. This means migrations and seed/bootstrap must be handled explicitly, not hidden inside web app boot.
 
-This is not a bug to hide. It is the next architecture task.
+The worker runtime has now been split into a dedicated Docker target and deployed successfully. Migration/release execution remains the next explicit architecture task.
 
 ## Target Architecture
 
@@ -63,18 +63,18 @@ Rules:
 ### Option A — Short-term Coolify-safe
 - Keep web app as current lean image.
 - Create a separate migration command/process in Coolify or manual release checklist.
-- Keep existing worker running until dedicated worker image is prepared.
+- Keep worker on the dedicated `worker` Docker target now that it is stable.
 
 ### Option B — Proper Docker multi-target
-Add Docker targets:
+Docker targets now exist:
 - `runner` for web
 - `worker` for BullMQ
 - `migrate` for migrations/seed
 
-Then configure Coolify:
-- peopleflow-app uses `runner`
+Coolify state:
+- peopleflow-app uses default `runner`
 - peopleflow-worker uses `worker`
-- migrations run via pre-deploy/release command where safe
+- migrations still need an explicit pre-deploy/release command where safe
 
 ### Option C — Mature CI/CD
 - Build images in CI/build server
@@ -86,9 +86,17 @@ Then configure Coolify:
 Use Option A immediately to stay stable. Then implement Option B before office pilot. Move to Option C when customer count/server load grows.
 
 ## Verification Gates
-- [ ] Web deploy succeeds twice in a row
-- [ ] Web `/api/health` healthy
-- [ ] Worker process deploy path documented
-- [ ] Worker logs show all workers registered
+- [x] Web deploy succeeds after lean-image split
+- [x] Web `/api/health` healthy
+- [x] Worker process deploy path documented
+- [x] Worker logs show all workers registered
 - [ ] Migration command tested in non-destructive deploy
 - [ ] Backup rule documented before schema changes
+
+## 2026-06-02 Production Verification
+
+- Web app: `running:healthy`; `/api/health` HTTP 200 with server/database/redis healthy.
+- Worker app: `running:healthy`; latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f` (`Add worker Docker healthcheck`).
+- Worker deployment logs: image build completed, rolling update started, Dockerfile healthcheck passed on first attempt, old containers removed.
+- Worker runtime logs: process starts via `npm run worker`; all 7 workers register and CRON jobs process.
+- Remaining architecture task: formal migration/release job procedure with backup requirement before schema-changing deploys.
