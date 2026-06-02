@@ -44,10 +44,10 @@ For every section, capture:
 | Reports / Analytics | Not audited | P2 | Performance and usefulness unknown | Competitor-informed reporting plan |
 | Bengali UX / Design System | Initial issues found | P1 | Bengali mode still mixes English labels and English date/day formatting on office-critical screens | Run Bengali copy audit for Dashboard, Employees, Devices, ESS Attendance |
 | Security Headers / CSP | Partially present | P1 | CSP may be permissive for compatibility | Review and harden gradually |
-| Observability / Backups | Not audited | P0/P1 | Need alerts, logs, backup/restore | Define operations runbook |
+| Observability / Backups | Started | P0/P1 | Local DB backup schedule exists; off-server backup, restore drill, alerts, and queue failure visibility still missing | Verify first backup execution, then add off-server backup plan |
 
 ## Immediate Audit Order
-1. Migration release path + backup rule
+1. Verify first DB backup execution and test migration release path
 2. Worker / Queues observability and failed-job visibility
 3. Auth / RBAC / Tenant Isolation
 4. Core office workflows: Employee → Leave → Attendance → ESS
@@ -61,4 +61,5 @@ For every section, capture:
 - Local quality gates: lint passed with warnings, typecheck passed, build passed, unit tests passed.
 - Browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance loaded successfully.
 - Product/polish findings: employee directory still has English headings/cards in Bengali mode; biometric devices page has mixed English/Bengali guidance headings; ESS attendance uses English weekday/date strings; current day absent behavior needs policy review before office demo.
+- Backup/ops: Coolify local DB backup schedule `bkxocg8v2jjmbj7smfqfrpws` created for daily `0 3 * * *`, 7-copy/7-day local retention; first execution still needs verification.
 - Infra watch item: `/api/health` reports memory warning while server/database/redis are healthy.

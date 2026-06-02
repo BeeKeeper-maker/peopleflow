@@ -91,7 +91,7 @@ Use Option A immediately to stay stable. Then implement Option B before office p
 - [x] Worker process deploy path documented
 - [x] Worker logs show all workers registered
 - [ ] Migration command tested in non-destructive deploy
-- [ ] Backup rule documented before schema changes
+- [x] Backup rule documented before schema changes
 
 ## 2026-06-02 Production Verification
 
@@ -99,4 +99,5 @@ Use Option A immediately to stay stable. Then implement Option B before office p
 - Worker app: `running:healthy`; latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f` (`Add worker Docker healthcheck`).
 - Worker deployment logs: image build completed, rolling update started, Dockerfile healthcheck passed on first attempt, old containers removed.
 - Worker runtime logs: process starts via `npm run worker`; all 7 workers register and CRON jobs process.
-- Remaining architecture task: formal migration/release job procedure with backup requirement before schema-changing deploys.
+- Backup: Coolify local DB backup schedule `bkxocg8v2jjmbj7smfqfrpws` created on 2026-06-02, daily `0 3 * * *`, 7-copy/7-day local retention.
+- Remaining architecture task: test the formal migration/release job path before schema-changing deploys.

@@ -46,7 +46,7 @@ Use before giving to a real office.
 - [ ] Worker/queue health is visible
 - [ ] Failed background jobs are observable
 - [ ] Database backup exists before schema-changing deploy
-- [ ] Rollback plan documented
+- [x] Rollback plan documented
 - [ ] Office admin can understand next steps without developer help
 
 ### R3 — Paid Customer Release
@@ -66,7 +66,7 @@ Use before paid subscriptions or broader rollout.
 
 | Priority | Blocker | Status | Notes |
 |---|---|---|---|
-| P0 | Worker/migration architecture split | Partially resolved | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; explicit migration/release job still needs final operational test before schema-changing deploys. |
+| P0 | Worker/migration architecture split | Partially resolved | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; migration release runbook added; explicit migrate job still needs final operational test before schema-changing deploys. |
 | P0 | TypeScript ignored in Next production build | Mitigated, keep open | Local `npx tsc --noEmit` passed on 2026-06-02; build still skips validation, so CI/local type gate must remain mandatory. |
 | P0 | Tenant isolation proof | Open | Must add tests proving one office cannot access another office's data. |
 | P1 | Office pilot QA checklist execution | In progress | 2026-06-02 browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance load. Bengali/date/policy issues remain. |
@@ -75,6 +75,7 @@ Use before paid subscriptions or broader rollout.
 ## Latest Gate Result — 2026-06-02
 
 - Coolify web app: `running:healthy`.
+- Coolify DB backup schedule: created `bkxocg8v2jjmbj7smfqfrpws`, daily `0 3 * * *` server time, 7 local backups / 7 days, S3 disabled.
 - Coolify worker: latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f`; Dockerfile worker healthcheck passed and rolling update completed.
 - Worker logs: all 7 workers registered (`event-pipeline`, `subscription-lifecycle`, `impersonation-cleanup`, `usage-tracking`, `biometric-sync`, `device-health`, `attendance-reconciliation`) and recurring jobs are processing.
 - `/api/health`: HTTP 200; server/database/redis healthy; memory check warning observed (`heapUsedMB` close to `heapTotalMB`) and should be watched, not treated as fatal yet.
