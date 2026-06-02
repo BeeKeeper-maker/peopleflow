@@ -27,8 +27,6 @@ import { syncDevice, syncAllDevices } from "@/lib/biometric/sync-engine";
 import { createBulkNotifications } from "@/lib/notifications";
 import { biometricLogger } from "@/lib/logger";
 
-const WORKER_NAME = "BIOMETRIC_SYNC";
-
 // ── Worker Definition ───────────────────────────────────────────────
 
 const biometricSyncWorker = new Worker<BiometricSyncJobData>(

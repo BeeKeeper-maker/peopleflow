@@ -46,6 +46,27 @@ const nextConfig: NextConfig = {
   // Compress responses
   compress: true,
 
+  // Prevent standalone output tracing from accidentally bundling repository
+  // documents/config/build artifacts into API route traces. Runtime-required
+  // assets such as public/, messages/, Prisma schema and query engines are not
+  // excluded here.
+  outputFileTracingExcludes: {
+    "/*": [
+      "./.env*",
+      "./*.md",
+      "./Dockerfile*",
+      "./docker-compose*.yml",
+      "./docker/**",
+      "./docs/**",
+      "./tools/**",
+      "./coverage/**",
+      "./playwright-report/**",
+      "./test-results/**",
+      "./eslint.config.*",
+      "./vitest.config.*",
+    ],
+  },
+
   // Enable source maps for Sentry in production (uploaded, not served)
   productionBrowserSourceMaps: false,
 

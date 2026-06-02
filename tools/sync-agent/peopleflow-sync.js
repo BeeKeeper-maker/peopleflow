@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports -- Distributed CLI script intentionally uses CommonJS for plain Node compatibility. */
 
 /**
  * PeopleFlow Sync Agent v1.1.1

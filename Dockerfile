@@ -71,11 +71,15 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000 && \
-    npm ci --omit=dev --no-audit --no-fund
+    (while true; do echo "[worker] npm ci still running..."; sleep 30; done) & \
+    heartbeat=$!; \
+    npm ci --omit=dev --no-audit --no-fund; \
+    status=$?; \
+    kill "$heartbeat" 2>/dev/null || true; \
+    exit "$status"
 
 COPY prisma ./prisma
 COPY src ./src
-COPY messages ./messages
 COPY tsconfig.json ./tsconfig.json
 
 # Generate Prisma client, then clean caches. Do not run recursive chown over

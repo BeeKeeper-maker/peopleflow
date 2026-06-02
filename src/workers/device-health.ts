@@ -30,8 +30,6 @@ import { biometricLogger } from "@/lib/logger";
 // Import ZKTeco adapter to register it
 import "@/lib/biometric/zkteco-adapter";
 
-const WORKER_NAME = "DEVICE_HEALTH";
-
 // ── Worker Definition ───────────────────────────────────────────────
 
 const deviceHealthWorker = new Worker<DeviceHealthJobData>(

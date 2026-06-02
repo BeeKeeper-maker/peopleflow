@@ -34,8 +34,6 @@ import { log } from "@/lib/logger";
 
 const attendanceLogger = log.child({ domain: "attendance-reconciliation" });
 
-const WORKER_NAME = "ATTENDANCE_RECONCILIATION";
-
 // ── Configuration ───────────────────────────────────────────────────
 
 /** Gap threshold percentage — flag if more than this % of employees have no attendance */
