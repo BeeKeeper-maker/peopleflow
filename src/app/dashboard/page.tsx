@@ -56,28 +56,6 @@ interface AnalyticsData {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
-// Animated Counter
-// ════════════════════════════════════════════════════════════════════════════════
-
-function AnimatedCounter({ target, suffix = "", duration = 1200 }: {
-    target: number; suffix?: string; duration?: number;
-}) {
-    const [count, setCount] = useState(0);
-    useEffect(() => {
-        if (target === 0) { setCount(0); return; }
-        let start = 0;
-        const step = Math.max(1, Math.ceil(target / (duration / 16)));
-        const timer = setInterval(() => {
-            start += step;
-            if (start >= target) { setCount(target); clearInterval(timer); }
-            else setCount(start);
-        }, 16);
-        return () => clearInterval(timer);
-    }, [target, duration]);
-    return <>{count.toLocaleString()}{suffix}</>;
-}
-
-// ════════════════════════════════════════════════════════════════════════════════
 // Sparkline (Tiny inline chart)
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -267,7 +245,13 @@ function PayrollBars({ data }: { data: { month: string; gross: number; net: numb
 // Headcount Area Chart (compact)
 // ════════════════════════════════════════════════════════════════════════════════
 
-function HeadcountMiniChart({ data }: { data: { month: string; hires: number; separations: number }[] }) {
+function HeadcountMiniChart({
+    data,
+    labels,
+}: {
+    data: { month: string; hires: number; separations: number }[];
+    labels: { hires: string; separations: string };
+}) {
     if (data.length < 2) return null;
     const last6 = data.slice(-6);
     const max = Math.max(...last6.map(d => Math.max(d.hires, d.separations)), 1);
@@ -302,11 +286,11 @@ function HeadcountMiniChart({ data }: { data: { month: string; hires: number; se
             <div className="flex gap-4 mt-1.5">
                 <div className="flex items-center gap-1">
                     <div className="h-1.5 w-3 rounded-full bg-emerald-500" />
-                    <span className="text-[9px] text-muted-foreground">Hires</span>
+                    <span className="text-[9px] text-muted-foreground">{labels.hires}</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <div className="h-1.5 w-3 rounded-full bg-red-500/70 border border-red-500/50" style={{ borderStyle: "dashed" }} />
-                    <span className="text-[9px] text-muted-foreground">Exits</span>
+                    <span className="text-[9px] text-muted-foreground">{labels.separations}</span>
                 </div>
             </div>
         </div>
@@ -319,7 +303,7 @@ function HeadcountMiniChart({ data }: { data: { month: string; hires: number; se
 
 const COLORS = ["#3B82F6", "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B", "#EF4444", "#EC4899", "#6366F1"];
 
-function DeptDonut({ departments }: { departments: { name: string; count: number }[] }) {
+function DeptDonut({ departments, totalLabel }: { departments: { name: string; count: number }[]; totalLabel: string }) {
     const total = departments.reduce((s, d) => s + d.count, 0);
     if (total === 0) return null;
 
@@ -327,30 +311,27 @@ function DeptDonut({ departments }: { departments: { name: string; count: number
     const cx = 44;
     const cy = 44;
     const circ = 2 * Math.PI * r;
-    let offset = 0;
-
-    const top5 = departments.sort((a, b) => b.count - a.count).slice(0, 5);
+    const top5 = [...departments].sort((a, b) => b.count - a.count).slice(0, 5);
+    const segments = top5.filter(d => d.count > 0).reduce<Array<{ department: { name: string; count: number }; dashLen: number; offset: number }>>((acc, department) => {
+        const previousOffset = acc.reduce((sum, segment) => sum + segment.dashLen, 0);
+        const dashLen = circ * (department.count / total);
+        return [...acc, { department, dashLen, offset: previousOffset }];
+    }, []);
 
     return (
         <div className="flex items-center gap-4">
             <svg viewBox="0 0 88 88" width={80} height={80} className="shrink-0">
-                {top5.filter(d => d.count > 0).map((d, i) => {
-                    const pct = d.count / total;
-                    const dashLen = circ * pct;
-                    const seg = (
-                        <circle
-                            key={i} cx={cx} cy={cy} r={r}
-                            fill="none" stroke={COLORS[i % COLORS.length]}
-                            strokeWidth="8" strokeDasharray={`${dashLen} ${circ - dashLen}`}
-                            strokeDashoffset={-offset} strokeLinecap="round"
-                            transform={`rotate(-90 ${cx} ${cy})`}
-                        />
-                    );
-                    offset += dashLen;
-                    return seg;
-                })}
+                {segments.map(({ department, dashLen, offset }, i) => (
+                    <circle
+                        key={department.name} cx={cx} cy={cy} r={r}
+                        fill="none" stroke={COLORS[i % COLORS.length]}
+                        strokeWidth="8" strokeDasharray={`${dashLen} ${circ - dashLen}`}
+                        strokeDashoffset={-offset} strokeLinecap="round"
+                        transform={`rotate(-90 ${cx} ${cy})`}
+                    />
+                ))}
                 <text x={cx} y={cy - 2} textAnchor="middle" className="fill-foreground text-[10px] font-bold">{total}</text>
-                <text x={cx} y={cy + 8} textAnchor="middle" className="fill-muted-foreground text-[5px] uppercase">total</text>
+                <text x={cx} y={cy + 8} textAnchor="middle" className="fill-muted-foreground text-[5px] uppercase">{totalLabel}</text>
             </svg>
             <div className="flex-1 space-y-1 min-w-0">
                 {top5.map((d, i) => (
@@ -534,7 +515,10 @@ export default function DashboardPage() {
                             {loading ? (
                                 <Skeleton className="h-[72px] w-full rounded-lg" />
                             ) : analytics?.headcount.trend ? (
-                                <HeadcountMiniChart data={analytics.headcount.trend} />
+                                <HeadcountMiniChart
+                                    data={analytics.headcount.trend}
+                                    labels={{ hires: t('hires'), separations: t('separations') }}
+                                />
                             ) : (
                                 <p className="text-xs text-muted-foreground text-center py-6">{t('noDataAvailable')}</p>
                             )}
@@ -666,7 +650,7 @@ export default function DashboardPage() {
                             {loading ? (
                                 <Skeleton className="h-[80px] w-full rounded-lg" />
                             ) : analytics?.departments && analytics.departments.length > 0 ? (
-                                <DeptDonut departments={analytics.departments} />
+                                <DeptDonut departments={analytics.departments} totalLabel={t('total')} />
                             ) : (
                                 <p className="text-xs text-muted-foreground text-center py-6">{t('noDepartments')}</p>
                             )}

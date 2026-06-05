@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { useToast } from "@/components/ui/toast"
 import Link from "next/link"
 import { LeaveApplicationForm } from "@/components/leaves/applications/leave-application-form"
@@ -11,6 +12,7 @@ import { LeaveApplicationFormValues } from "@/lib/validations/leave-application"
 
 export default function ApplyLeavePage() {
     const router = useRouter()
+    const t = useTranslations("Leaves")
     const { addToast } = useToast()
     const [isLoading, setIsLoading] = useState(false)
 
@@ -28,12 +30,12 @@ export default function ApplyLeavePage() {
                 const errorPayload = contentType.includes("application/json")
                     ? await response.json()
                     : { error: await response.text() }
-                throw new Error(errorPayload.error || "Leave application could not be submitted")
+                throw new Error(errorPayload.error || t("submitFailed"))
             }
 
             addToast({
-                title: "Success",
-                description: "Leave application submitted successfully",
+                title: t("toastSuccess"),
+                description: t("submitSuccess"),
                 type: "success",
             })
 
@@ -41,8 +43,8 @@ export default function ApplyLeavePage() {
             router.refresh()
         } catch (error) {
             addToast({
-                title: "Error",
-                description: error instanceof Error ? error.message : "Something went wrong",
+                title: t("toastError"),
+                description: error instanceof Error ? error.message : t("genericError"),
                 type: "error",
                 duration: 9000,
             })
@@ -60,8 +62,8 @@ export default function ApplyLeavePage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Apply for Leave</h1>
-                    <p className="text-muted-foreground">Submit a new leave request</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t("apply")}</h1>
+                    <p className="text-muted-foreground">{t("applySubtitle")}</p>
                 </div>
             </div>
 

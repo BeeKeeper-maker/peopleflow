@@ -29,7 +29,7 @@ For every section, capture:
 
 | Section | Status | Priority | Main Risk | Next Action |
 |---|---|---:|---|---|
-| Deployment & Infrastructure | Stabilized, monitor | P0 | Web + worker healthy; local migration deploy proof passed; first backup execution still pending | Verify first backup execution, then test production one-off migrate path |
+| Deployment & Infrastructure | Stabilized, monitor | P0 | Web + worker healthy; local migration deploy proof passed; DB backups verified on 2026-06-03/04/05 | Test production one-off migrate path before schema-changing deploy |
 | Auth & Sessions | Not audited | P0 | Security, credentials, role handling, tenant status enforcement | Full auth/RBAC code audit |
 | Tenant Isolation | Proof started | P0 | Cross-tenant data leakage risk must be proven impossible | Add route-level/integration proof after guard + RLS coverage |
 | Platform Admin / SaaS Plans | Not audited | P1 | Plan limits/billing psychology may be incomplete | Audit plan enforcement and UI |
@@ -42,14 +42,14 @@ For every section, capture:
 | Worker / Queues / Cron | Partially stabilized | P0 | Worker deploy now succeeds, but queue observability and migration/release job gate remain incomplete | Add worker/queue health visibility and failed-job review path |
 | Notifications / Email | Not audited | P2 | Delivery reliability unknown | Audit SMTP, templates, retries |
 | Reports / Analytics | Not audited | P2 | Performance and usefulness unknown | Competitor-informed reporting plan |
-| Bengali UX / Design System | In progress | P1 | Employee Directory, ESS Attendance, and Devices guidance improved; remaining pages still need Bengali audit | Browser QA Bengali mode and continue remaining office-critical pages |
+| Bengali UX / Design System | In progress | P1 | Core QA pass found dashboard chart labels and admin leave-apply copy leaking English | Verify fixes after deploy, then continue remaining office-critical pages |
 | Security Headers / CSP | Partially present | P1 | CSP may be permissive for compatibility | Review and harden gradually |
 | Observability / Backups | Started | P0/P1 | Local DB backup schedule exists; off-server backup, restore drill, alerts, and queue failure visibility still missing | Verify first backup execution, then add off-server backup plan |
 
 ## Immediate Audit Order
-1. Verify first DB backup execution and production-safe one-off migrate path
+1. Verify production-safe one-off migrate path before schema-changing deploy
 2. Resolve/decide P0 forced-RLS route integration gap before production RLS activation
-3. Browser QA Bengali mode for Employees, Attendance, Devices, ESS
+3. Browser QA Bengali mode for remaining office-critical pages after current fixes deploy
 3. Worker / Queues observability and failed-job visibility
 4. Auth / RBAC / Tenant Isolation route-level proof
 5. Core office workflows: Employee → Leave → Attendance → ESS
@@ -63,8 +63,9 @@ For every section, capture:
 - Local quality gates: lint passed with warnings, typecheck passed, build passed, unit tests passed.
 - Browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance loaded successfully.
 - Product/polish findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Biometric Devices/Sync Agent guidance copy have been localized. ESS current-day no-record state now avoids false absent.
-- Backup/ops: Coolify local DB backup schedule `bkxocg8v2jjmbj7smfqfrpws` created for daily `0 3 * * *`, 7-copy/7-day local retention; first execution still needs verification.
-- Infra watch item: `/api/health` reports memory warning while server/database/redis are healthy.
+- Backup/ops: Coolify local DB backup schedule `bkxocg8v2jjmbj7smfqfrpws` is running successfully; executions verified on 2026-06-03, 2026-06-04, and 2026-06-05.
+- QA/polish: 2026-06-05 production browser probe loaded 10/10 office-critical screens; found Bengali leaks on dashboard chart labels and admin leave apply page, fixed locally pending deploy.
+- Infra watch item: `/api/health` currently reports server/database/redis/memory healthy.
 
 ## Tenant/RBAC Proof Notes — 2026-06-02
 

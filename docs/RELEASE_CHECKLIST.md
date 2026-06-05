@@ -45,7 +45,7 @@ Use before giving to a real office.
 - [ ] LAN-only biometric path routes to Sync Agent, not false direct cloud claim
 - [ ] Worker/queue health is visible
 - [ ] Failed background jobs are observable
-- [ ] Database backup exists before schema-changing deploy
+- [x] Database backup exists before schema-changing deploy
 - [x] Rollback plan documented
 - [ ] Office admin can understand next steps without developer help
 
@@ -69,19 +69,19 @@ Use before paid subscriptions or broader rollout.
 | P0 | Worker/migration architecture split | Mostly resolved / RLS blocked | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; migration runbook added; fresh local `prisma migrate deploy` proof passed after documenting required `CREATEROLE`. However RLS runtime integration is not release-safe yet, so production schema-changing deploy must wait for backup verification and RLS route audit/deferral decision. |
 | P0 | TypeScript ignored in Next production build | Mitigated, keep open | Local `npx tsc --noEmit` passed on 2026-06-02; build still skips validation, so CI/local type gate must remain mandatory. |
 | P0 | Tenant isolation proof | In progress | Automated tenant/RBAC guard tests and RLS migration coverage added on 2026-06-02; route-level integration/browser proof still pending. |
-| P1 | Office pilot QA checklist execution | In progress | 2026-06-02 browser smoke: dashboard, employees, leave requests, attendance, devices, ESS attendance load. Bengali/date/policy issues remain. |
+| P1 | Office pilot QA checklist execution | In progress | 2026-06-05 production browser probe: 10/10 core pages loaded. Dashboard chart labels and admin leave-apply Bengali leaks fixed locally; deeper workflow QA still pending. |
 | P1 | Competitor matrix before major UX refactor | Open | Research plan exists; matrix pending. |
 
 ## Latest Gate Result — 2026-06-02
 
 - Coolify web app: `running:healthy`.
-- Coolify DB backup schedule: created `bkxocg8v2jjmbj7smfqfrpws`, daily `0 3 * * *` server time, 7 local backups / 7 days, S3 disabled.
+- Coolify DB backup schedule: `bkxocg8v2jjmbj7smfqfrpws`, daily `0 3 * * *` server time, 7 local backups / 7 days, S3 disabled; executions verified successful on 2026-06-03, 2026-06-04, and 2026-06-05.
 - Coolify worker: latest deployment `df8ccmmz2zzf084ixd5bvv7w` finished at commit `94b1a3f`; Dockerfile worker healthcheck passed and rolling update completed.
 - Worker logs: all 7 workers registered (`event-pipeline`, `subscription-lifecycle`, `impersonation-cleanup`, `usage-tracking`, `biometric-sync`, `device-health`, `attendance-reconciliation`) and recurring jobs are processing.
 - `/api/health`: HTTP 200; server/database/redis healthy; memory check warning observed (`heapUsedMB` close to `heapTotalMB`) and should be watched, not treated as fatal yet.
 - Local gates: full `npm run lint` passed with 0 errors / 348 warnings; full `npx tsc --noEmit` passed; full `npm test` passed 12 files / 288 tests; `npm run build` passed with one Turbopack NFT trace warning. Additional focused tenant/RBAC/RLS/route-guard tests passed: 3 files / 20 tests. Targeted changed-file lint passed with 0 errors / 1 existing image warning.
-- Browser smoke: tenant dashboard, employee directory, leave requests, attendance, biometric devices, and ESS attendance loaded in production session.
-- QA findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Devices/Sync Agent guidance copy were localized after initial smoke. ESS current-day no-record state now shows “এখনো চিহ্নিত হয়নি” instead of falsely showing absent.
+- Browser smoke: tenant dashboard, employee directory, add employee, leave requests, admin leave apply, attendance, biometric devices, ESS attendance, shifts, and approval workflows loaded in production session.
+- QA findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Devices/Sync Agent guidance copy were localized after initial smoke. ESS current-day no-record state now shows “এখনো চিহ্নিত হয়নি” instead of falsely showing absent. 2026-06-05 pass fixed dashboard chart labels (`Hires`, `Exits`, `total`) and admin leave-apply heading/subtitle/toasts/dropdown allocation text.
 
 ## Rule
 If a release fails any P0 item, it is not office-ready. It may still be deployed for internal stabilization if the risk is documented.

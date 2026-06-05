@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 interface LeaveType {
     id: string
     name: string
+    nameBn?: string | null
     code: string
     annualAllocation: number
 }
@@ -99,7 +100,7 @@ export function LeaveApplicationForm({
                                         <SelectContent>
                                             {leaveTypes.map((type) => (
                                                 <SelectItem key={type.id} value={type.id}>
-                                                    {type.name} ({type.annualAllocation} days/yr)
+                                                    {type.nameBn || type.name} ({t("daysPerYear", { count: type.annualAllocation })})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

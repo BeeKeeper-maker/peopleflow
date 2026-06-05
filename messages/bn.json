@@ -294,6 +294,12 @@
     "title": "ছুটির আবেদন",
     "subtitle": "কর্মচারীদের ছুটির অনুরোধ দেখুন ও পরিচালনা করুন",
     "apply": "ছুটির জন্য আবেদন করুন",
+    "applySubtitle": "নতুন ছুটির আবেদন জমা দিন",
+    "submitSuccess": "ছুটির আবেদন সফলভাবে জমা হয়েছে",
+    "submitFailed": "ছুটির আবেদন জমা দেওয়া যায়নি",
+    "genericError": "কিছু ভুল হয়েছে",
+    "toastSuccess": "সফল",
+    "toastError": "ত্রুটি",
     "leaveType": "ছুটির ধরন",
     "fromDate": "শুরুর তারিখ",
     "toDate": "শেষ তারিখ",
@@ -1523,7 +1529,8 @@
       "secondHalf": "দ্বিতীয় অর্ধ (বিকেল)",
       "reasonLabel": "কারণ *",
       "reasonPlaceholder": "আপনার ছুটির জন্য একটি বৈধ কারণ প্রদান করুন...",
-      "submitApplication": "আবেদন জমা দিন"
+      "submitApplication": "আবেদন জমা দিন",
+      "daysPerYear": "প্রতি বছরে {count} দিন"
     },
     "leaveApplicationColumns": {
       "employee": "কর্মী",

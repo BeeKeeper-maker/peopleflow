@@ -294,6 +294,12 @@
     "title": "Leave Applications",
     "subtitle": "View and manage employee leave requests",
     "apply": "Apply for Leave",
+    "applySubtitle": "Submit a new leave request",
+    "submitSuccess": "Leave application submitted successfully",
+    "submitFailed": "Leave application could not be submitted",
+    "genericError": "Something went wrong",
+    "toastSuccess": "Success",
+    "toastError": "Error",
     "leaveType": "Leave Type",
     "fromDate": "From Date",
     "toDate": "To Date",
@@ -1383,7 +1389,8 @@
       "secondHalf": "Second Half (Afternoon)",
       "reasonLabel": "Reason *",
       "reasonPlaceholder": "Please provide a valid reason for your leave...",
-      "submitApplication": "Submit Application"
+      "submitApplication": "Submit Application",
+      "daysPerYear": "{count} days/yr"
     },
     "leaveApplicationColumns": {
       "employee": "Employee",
