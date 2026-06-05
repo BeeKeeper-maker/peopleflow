@@ -266,6 +266,7 @@ model Organization {
   approvalWorkflows  ApprovalWorkflow[]
   documentRequests   DocumentRequest[]
   biometricDevices   BiometricDevice[]
+  biometricCloudEvents BiometricCloudEvent[]
   subscription       Subscription?
   usageRecords       UsageRecord[]
   apiKeys            ApiKey[]
@@ -1739,10 +1740,17 @@ model BiometricDevice {
   ip              String                          // Device IP address
   port            Int       @default(4370)        // Communication port
   connectionType  String    @default("tcp")       // tcp, udp
+  connectionMode  String    @default("sync_agent") // sync_agent, direct_cloud
+  cloudProtocol   String?                         // adms, iclock, zkteco_push
+  cloudStatus     String    @default("pending")   // pending, connected, warning, failed
   location        String?                         // Physical location description
   isActive        Boolean   @default(true)
   lastSyncAt      DateTime?                       // Last successful sync
   lastSyncStatus  String?                         // success, failed, partial
+  lastSeenAt      DateTime?                       // Last direct-cloud heartbeat/request
+  firmwareVersion String?                         // Reported by device if available
+  timezone        String    @default("Asia/Dhaka")
+  setupNotes      String?
   syncInterval    Int       @default(15)          // Auto-sync every N minutes
 
   // ── Device Health Monitoring ──
@@ -1763,11 +1771,48 @@ model BiometricDevice {
 
   syncLogs    DeviceSyncLog[]
   healthLogs  DeviceHealthLog[]
+  cloudEvents BiometricCloudEvent[]
 
   @@unique([organizationId, ip, port])
+  @@unique([organizationId, serialNumber])
   @@index([organizationId])
   @@index([isActive])
   @@index([isOnline])
+  @@index([connectionMode])
+  @@index([cloudStatus])
+  @@index([lastSeenAt])
+}
+
+model BiometricCloudEvent {
+  id              String   @id @default(cuid())
+  serialNumber    String?
+  eventType       String   // registry, cdata, getrequest, devicecmd, unknown
+  method          String
+  path            String
+  query           Json     @default("{}")
+  headers         Json     @default("{}")
+  body            String?
+  status          String   @default("captured") // captured, processed, partial, unknown_device, failed
+  recordsReceived Int      @default(0)
+  recordsSynced   Int      @default(0)
+  recordsSkipped  Int      @default(0)
+  unmappedUserIds String[] @default([])
+  errorMessage    String?
+  remoteIp        String?
+  createdAt       DateTime @default(now())
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  deviceId String?
+  device   BiometricDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([serialNumber])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([deviceId])
 }
 
 model DeviceSyncLog {

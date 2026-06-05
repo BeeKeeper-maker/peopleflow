@@ -53,7 +53,22 @@ export async function PUT(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { name, ip, port, model, connectionType, location, branchId, syncInterval, isActive } = body;
+        const {
+            name,
+            ip,
+            port,
+            model,
+            connectionType,
+            connectionMode,
+            cloudProtocol,
+            serialNumber,
+            location,
+            branchId,
+            syncInterval,
+            timezone,
+            setupNotes,
+            isActive,
+        } = body;
 
         // Verify device belongs to org
         const existing = await prisma.biometricDevice.findFirst({
@@ -63,13 +78,33 @@ export async function PUT(req: Request, { params }: RouteParams) {
             return new NextResponse("Device not found", { status: 404 });
         }
 
-        // Check IP+port uniqueness if changed
-        if ((ip && ip !== existing.ip) || (port && port !== existing.port)) {
+        const nextMode = connectionMode === "direct_cloud" ? "direct_cloud" : (connectionMode === "sync_agent" ? "sync_agent" : existing.connectionMode);
+        const cleanSerial = typeof serialNumber === "string" ? serialNumber.trim() : (existing.serialNumber || "");
+        const nextIp = nextMode === "direct_cloud" ? `adms:${cleanSerial}` : (ip || existing.ip);
+        const nextPort = port || existing.port;
+
+        if (nextMode === "direct_cloud" && !cleanSerial) {
+            return NextResponse.json({ error: "Device serial number is required" }, { status: 400 });
+        }
+
+        // Check connection identity uniqueness if changed
+        if (nextMode === "direct_cloud") {
             const duplicate = await prisma.biometricDevice.findFirst({
                 where: {
                     organizationId: auth.organizationId,
-                    ip: ip || existing.ip,
-                    port: port || existing.port,
+                    serialNumber: cleanSerial,
+                    id: { not: id },
+                },
+            });
+            if (duplicate) {
+                return NextResponse.json({ error: "Another device with this serial number already exists" }, { status: 409 });
+            }
+        } else if ((ip && ip !== existing.ip) || (port && port !== existing.port)) {
+            const duplicate = await prisma.biometricDevice.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    ip: nextIp,
+                    port: nextPort,
                     id: { not: id },
                 },
             });
@@ -85,13 +120,18 @@ export async function PUT(req: Request, { params }: RouteParams) {
             where: { id },
             data: {
                 ...(name !== undefined && { name }),
-                ...(ip !== undefined && { ip }),
+                ...(ip !== undefined || connectionMode !== undefined || serialNumber !== undefined ? { ip: nextIp } : {}),
                 ...(port !== undefined && { port }),
                 ...(model !== undefined && { model }),
                 ...(connectionType !== undefined && { connectionType }),
+                ...(connectionMode !== undefined && { connectionMode: nextMode }),
+                ...(cloudProtocol !== undefined && { cloudProtocol: cloudProtocol || null }),
+                ...(serialNumber !== undefined && { serialNumber: cleanSerial || null }),
                 ...(location !== undefined && { location }),
                 ...(branchId !== undefined && { branchId: branchId || null }),
                 ...(syncInterval !== undefined && { syncInterval }),
+                ...(timezone !== undefined && { timezone: timezone || "Asia/Dhaka" }),
+                ...(setupNotes !== undefined && { setupNotes: setupNotes || null }),
                 ...(isActive !== undefined && { isActive }),
             },
             include: {

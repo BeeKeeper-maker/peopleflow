@@ -42,11 +42,32 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { name, ip, port, model, connectionType, location, branchId, syncInterval } = body;
+        const {
+            name,
+            ip,
+            port,
+            model,
+            connectionType,
+            connectionMode,
+            cloudProtocol,
+            serialNumber,
+            location,
+            branchId,
+            syncInterval,
+            timezone,
+            setupNotes,
+        } = body;
+
+        const mode = connectionMode === "direct_cloud" ? "direct_cloud" : "sync_agent";
+        const cleanSerial = typeof serialNumber === "string" ? serialNumber.trim() : "";
+        const normalizedIp = mode === "direct_cloud" ? `adms:${cleanSerial}` : String(ip || "").trim();
 
         // Validate required fields
-        if (!name || !ip) {
-            return NextResponse.json({ error: "Name and IP are required" }, { status: 400 });
+        if (!name || (mode === "sync_agent" && !normalizedIp) || (mode === "direct_cloud" && !cleanSerial)) {
+            return NextResponse.json(
+                { error: mode === "direct_cloud" ? "Device serial number is required" : "Name and IP are required" },
+                { status: 400 }
+            );
         }
 
         const planCheck = await enforcePlanLimit(auth.organizationId, "device");
@@ -62,18 +83,20 @@ export async function POST(req: Request) {
             );
         }
 
-        // Check for duplicate IP+port in same org
+        // Check for duplicate connection identity in same org
         const existing = await prisma.biometricDevice.findFirst({
-            where: {
-                organizationId: auth.organizationId,
-                ip,
-                port: port || 4370,
-            },
+            where: mode === "direct_cloud"
+                ? { organizationId: auth.organizationId, serialNumber: cleanSerial }
+                : {
+                    organizationId: auth.organizationId,
+                    ip: normalizedIp,
+                    port: port || 4370,
+                },
         });
 
         if (existing) {
             return NextResponse.json(
-                { error: "A device with this IP and port already exists" },
+                { error: mode === "direct_cloud" ? "A device with this serial number already exists" : "A device with this IP and port already exists" },
                 { status: 409 }
             );
         }
@@ -91,13 +114,19 @@ export async function POST(req: Request) {
         const device = await prisma.biometricDevice.create({
             data: {
                 name,
-                ip,
+                ip: normalizedIp,
                 port: port || 4370,
                 model: model || "ZKTeco",
-                connectionType: connectionType || "tcp",
+                connectionType: connectionType || (mode === "direct_cloud" ? "adms" : "tcp"),
+                connectionMode: mode,
+                cloudProtocol: mode === "direct_cloud" ? (cloudProtocol || "adms") : null,
+                cloudStatus: mode === "direct_cloud" ? "pending" : "pending",
+                serialNumber: cleanSerial || null,
                 location: location || null,
                 branchId: branchId || null,
                 syncInterval: syncInterval || 15,
+                timezone: timezone || "Asia/Dhaka",
+                setupNotes: setupNotes || null,
                 organizationId: auth.organizationId,
             },
             include: {

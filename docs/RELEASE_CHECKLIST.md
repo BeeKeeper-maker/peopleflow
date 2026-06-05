@@ -85,3 +85,12 @@ Use before paid subscriptions or broader rollout.
 
 ## Rule
 If a release fails any P0 item, it is not office-ready. It may still be deployed for internal stabilization if the risk is documented.
+
+## ADMS Direct-Cloud Biometric SaaS Layer — 2026-06-05
+- [x] Backend foundation added for tenant-bound direct-cloud biometric devices.
+- [x] Public ADMS/iClock receiver routes added: `/iclock/cdata`, `/iclock/registry`, `/iclock/getrequest`, `/iclock/devicecmd`.
+- [x] Safe payload capture added for unknown/unverified devices so office firmware behavior can be inspected.
+- [x] Devices UI now separates Direct Cloud / ADMS from Local Sync Agent setup.
+- [x] Sync Agent remains fallback for LAN-only/private-network devices.
+- [ ] Production deploy requires explicit DB backup + migration before web app deployment because `BiometricDevice` columns and `BiometricCloudEvent` table were added.
+- [ ] Real ZKTeco M2-LR office test still required before marking direct cloud certified.

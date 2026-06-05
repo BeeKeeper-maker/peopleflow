@@ -72,6 +72,13 @@ interface BiometricDevice {
     ip: string;
     port: number;
     connectionType: string;
+    connectionMode: string;
+    cloudProtocol: string | null;
+    cloudStatus: string;
+    lastSeenAt: string | null;
+    firmwareVersion: string | null;
+    timezone: string;
+    setupNotes: string | null;
     location: string | null;
     isActive: boolean;
     lastSyncAt: string | null;
@@ -90,6 +97,11 @@ interface DeviceFormData {
     port: number;
     model: string;
     connectionType: string;
+    connectionMode: string;
+    cloudProtocol: string;
+    serialNumber: string;
+    timezone: string;
+    setupNotes: string;
     location: string;
     branchId: string;
     syncInterval: number;
@@ -123,6 +135,11 @@ export default function DevicesPage() {
         port: 4370,
         model: "ZKTeco",
         connectionType: "tcp",
+        connectionMode: "sync_agent",
+        cloudProtocol: "adms",
+        serialNumber: "",
+        timezone: "Asia/Dhaka",
+        setupNotes: "",
         location: "",
         branchId: "",
         syncInterval: 15,
@@ -163,13 +180,18 @@ export default function DevicesPage() {
 
     // ── Add/Edit Device ───────────────────────────────────────────
 
-    const handleOpenAdd = () => {
+    const handleOpenAdd = (mode: "sync_agent" | "direct_cloud" = "sync_agent") => {
         setForm({
             name: "",
             ip: "",
             port: 4370,
             model: "ZKTeco",
-            connectionType: "tcp",
+            connectionType: mode === "direct_cloud" ? "adms" : "tcp",
+            connectionMode: mode,
+            cloudProtocol: "adms",
+            serialNumber: "",
+            timezone: "Asia/Dhaka",
+            setupNotes: "",
             location: "",
             branchId: "",
             syncInterval: 15,
@@ -185,6 +207,11 @@ export default function DevicesPage() {
             port: device.port,
             model: device.model,
             connectionType: device.connectionType,
+            connectionMode: device.connectionMode || "sync_agent",
+            cloudProtocol: device.cloudProtocol || "adms",
+            serialNumber: device.serialNumber || "",
+            timezone: device.timezone || "Asia/Dhaka",
+            setupNotes: device.setupNotes || "",
             location: device.location || "",
             branchId: device.branchId || "",
             syncInterval: device.syncInterval,
@@ -194,8 +221,8 @@ export default function DevicesPage() {
     };
 
     const handleSave = async () => {
-        if (!form.name || !form.ip) {
-            addToast({ title: t("nameIpRequired"), type: "error" });
+        if (!form.name || (form.connectionMode === "sync_agent" && !form.ip) || (form.connectionMode === "direct_cloud" && !form.serialNumber)) {
+            addToast({ title: form.connectionMode === "direct_cloud" ? t("nameSerialRequired") : t("nameIpRequired"), type: "error" });
             return;
         }
 
@@ -391,7 +418,7 @@ export default function DevicesPage() {
                         <Zap className="h-4 w-4" />
                         {t("syncAgentBtn")}
                     </Button>
-                    <Button onClick={handleOpenAdd} className="gap-2">
+                    <Button onClick={() => handleOpenAdd("sync_agent")} className="gap-2">
                         <Plus className="h-4 w-4" />
                         {t("addDevice")}
                     </Button>
@@ -412,13 +439,23 @@ export default function DevicesPage() {
                             {t.rich("officeDeviceFlowDesc", { ip: (chunks) => <span className="font-mono text-foreground">{chunks}</span> })}
                         </p>
                     </div>
-                    <Button
-                        onClick={() => setSyncAgentOpen(true)}
-                        className="gap-2 shrink-0 bg-linear-to-r from-emerald-600 to-cyan-600 text-white hover:from-emerald-700 hover:to-cyan-700 shadow-lg shadow-emerald-500/10"
-                    >
-                        <Zap className="h-4 w-4" />
-                        {t("startGuidedSetup")}
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <Button
+                            onClick={() => handleOpenAdd("direct_cloud")}
+                            className="gap-2 bg-linear-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/10"
+                        >
+                            <ShieldCheck className="h-4 w-4" />
+                            {t("addDirectCloudDevice")}
+                        </Button>
+                        <Button
+                            onClick={() => setSyncAgentOpen(true)}
+                            variant="outline"
+                            className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                        >
+                            <Zap className="h-4 w-4" />
+                            {t("startGuidedSetup")}
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -458,14 +495,16 @@ export default function DevicesPage() {
                                 <p className="text-sm text-muted-foreground leading-relaxed">{t("existingLanDeviceDesc")}</p>
                             </div>
                         </div>
-                        <Button
-                            onClick={() => setSyncAgentOpen(true)}
-                            variant="outline"
-                            className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                        >
-                            <Zap className="h-4 w-4" />
-                            {t("openSyncAgent")}
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                onClick={() => handleOpenAdd("direct_cloud")}
+                                variant="outline"
+                                className="gap-2 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                            >
+                                <ShieldCheck className="h-4 w-4" />
+                                {t("setupDirectCloud")}
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -541,7 +580,7 @@ export default function DevicesPage() {
                         <h3 className="text-lg font-semibold text-foreground mb-2">{t("noDevices")}</h3>
                         <p className="text-muted-foreground mb-6 max-w-xl mx-auto">{t("emptyGuidedDesc")}</p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                            <Button onClick={handleOpenAdd} className="gap-2">
+                            <Button onClick={() => handleOpenAdd("sync_agent")} className="gap-2">
                                 <Plus className="h-4 w-4" />
                                 {t("addFirstDevice")}
                             </Button>
@@ -557,7 +596,8 @@ export default function DevicesPage() {
             {/* Device List */}
             <div className="grid grid-cols-1 gap-4">
                 {devices.map((device) => {
-                    const isPrivateLanDevice = isPrivateLanIp(device.ip);
+                    const isDirectCloudDevice = device.connectionMode === "direct_cloud";
+                    const isPrivateLanDevice = !isDirectCloudDevice && isPrivateLanIp(device.ip);
 
                     return (
                     <Card
@@ -593,6 +633,11 @@ export default function DevicesPage() {
                                             <Badge className="bg-primary/10 text-primary border-0 text-xs">
                                                 {device.model}
                                             </Badge>
+                                            {isDirectCloudDevice && (
+                                                <Badge className="bg-cyan-500/10 text-cyan-300 border-cyan-500/20 text-xs">
+                                                    {t("directCloudDevice")}
+                                                </Badge>
+                                            )}
                                             {isPrivateLanDevice && (
                                                 <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/20 text-xs">
                                                     {t("privateLanDevice")}
@@ -602,7 +647,7 @@ export default function DevicesPage() {
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                                             <span className="flex items-center gap-1">
                                                 <Server className="h-3.5 w-3.5" />
-                                                {device.ip}:{device.port}
+                                                {isDirectCloudDevice ? `${t("serialShort")}: ${device.serialNumber || "—"}` : `${device.ip}:${device.port}`}
                                             </span>
                                             {device.branch && (
                                                 <span className="flex items-center gap-1">
@@ -626,7 +671,7 @@ export default function DevicesPage() {
                                     <div className="text-right">
                                         {getSyncStatusBadge(device.lastSyncStatus)}
                                         <p className="text-xs text-muted-foreground mt-1">
-                                            {t("lastSync")}: {formatDateTime(device.lastSyncAt)}
+                                            {isDirectCloudDevice ? t("lastSeen") : t("lastSync")}: {formatDateTime(isDirectCloudDevice ? device.lastSeenAt : device.lastSyncAt)}
                                         </p>
                                     </div>
 
@@ -636,8 +681,8 @@ export default function DevicesPage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleTest(device.id)}
-                                            disabled={testingId === device.id || isPrivateLanDevice}
-                                            title={isPrivateLanDevice ? t("privateLanActionTooltip") : t("advancedTestTooltip")}
+                                            disabled={testingId === device.id || isPrivateLanDevice || isDirectCloudDevice}
+                                            title={isDirectCloudDevice ? t("directCloudPassiveTooltip") : isPrivateLanDevice ? t("privateLanActionTooltip") : t("advancedTestTooltip")}
                                             className="gap-1"
                                         >
                                             {testingId === device.id ? (
@@ -651,8 +696,8 @@ export default function DevicesPage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleSync(device.id)}
-                                            disabled={syncingId === device.id || isPrivateLanDevice}
-                                            title={isPrivateLanDevice ? t("privateLanActionTooltip") : t("advancedSyncTooltip")}
+                                            disabled={syncingId === device.id || isPrivateLanDevice || isDirectCloudDevice}
+                                            title={isDirectCloudDevice ? t("directCloudPassiveTooltip") : isPrivateLanDevice ? t("privateLanActionTooltip") : t("advancedSyncTooltip")}
                                             className="gap-1"
                                         >
                                             {syncingId === device.id ? (
@@ -666,8 +711,8 @@ export default function DevicesPage() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => setMappingDevice(device)}
-                                            disabled={isPrivateLanDevice}
-                                            title={isPrivateLanDevice ? t("privateLanUsersTooltip") : t("mapUsersTooltip")}
+                                            disabled={isPrivateLanDevice || isDirectCloudDevice}
+                                            title={isDirectCloudDevice ? t("directCloudMappingTooltip") : isPrivateLanDevice ? t("privateLanUsersTooltip") : t("mapUsersTooltip")}
                                             className="gap-1"
                                         >
                                             <Link2 className="h-3.5 w-3.5" />
@@ -772,6 +817,43 @@ export default function DevicesPage() {
                     </DialogHeader>
 
                     <div className="grid gap-4 py-4">
+                        {/* Setup Type */}
+                        <div className="grid gap-2">
+                            <Label>{t("setupType")}</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, connectionMode: "direct_cloud", connectionType: "adms", ip: "" })}
+                                    className={cn(
+                                        "rounded-xl border p-3 text-left transition-all",
+                                        form.connectionMode === "direct_cloud"
+                                            ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-100"
+                                            : "border-card-border bg-background hover:bg-hover"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2 font-semibold text-sm">
+                                        <ShieldCheck className="h-4 w-4" /> {t("directCloudOption")}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{t("directCloudOptionDesc")}</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setForm({ ...form, connectionMode: "sync_agent", connectionType: "tcp" })}
+                                    className={cn(
+                                        "rounded-xl border p-3 text-left transition-all",
+                                        form.connectionMode === "sync_agent"
+                                            ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-100"
+                                            : "border-card-border bg-background hover:bg-hover"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2 font-semibold text-sm">
+                                        <Router className="h-4 w-4" /> {t("syncAgentOption")}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{t("syncAgentOptionDesc")}</p>
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Name */}
                         <div className="grid gap-2">
                             <Label>{t("deviceName")}</Label>
@@ -782,27 +864,48 @@ export default function DevicesPage() {
                             />
                         </div>
 
-                        {/* IP + Port */}
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="col-span-2 grid gap-2">
-                                <Label>{t("ipAddress")}</Label>
-                                <Input
-                                    placeholder="192.168.1.201"
-                                    value={form.ip}
-                                    onChange={(e) => setForm({ ...form, ip: e.target.value })}
-                                />
+                        {form.connectionMode === "direct_cloud" ? (
+                            <div className="grid gap-3">
+                                <div className="grid gap-2">
+                                    <Label>{t("serialNumber")}</Label>
+                                    <Input
+                                        placeholder="FQQ2251600165"
+                                        value={form.serialNumber}
+                                        onChange={(e) => setForm({ ...form, serialNumber: e.target.value.toUpperCase().trim() })}
+                                    />
+                                </div>
+                                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-xs text-muted-foreground leading-relaxed">
+                                    <p className="font-semibold text-cyan-200 mb-1">{t("directCloudServerBoxTitle")}</p>
+                                    <p>{t("directCloudServerBoxDesc")}</p>
+                                    <div className="mt-2 grid gap-1 font-mono text-foreground">
+                                        <span>Server: peopleflowbd.online</span>
+                                        <span>Port: 443</span>
+                                        <span>Path: /iclock/cdata</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="grid gap-2">
-                                <Label>{t("port")}</Label>
-                                <Input
-                                    type="number"
-                                    value={form.port}
-                                    onChange={(e) =>
-                                        setForm({ ...form, port: parseInt(e.target.value) || 4370 })
-                                    }
-                                />
+                        ) : (
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2 grid gap-2">
+                                    <Label>{t("ipAddress")}</Label>
+                                    <Input
+                                        placeholder="192.168.1.201"
+                                        value={form.ip}
+                                        onChange={(e) => setForm({ ...form, ip: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>{t("port")}</Label>
+                                    <Input
+                                        type="number"
+                                        value={form.port}
+                                        onChange={(e) =>
+                                            setForm({ ...form, port: parseInt(e.target.value) || 4370 })
+                                        }
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Model + Connection Type */}
                         <div className="grid grid-cols-2 gap-3">
@@ -829,8 +932,14 @@ export default function DevicesPage() {
                                         setForm({ ...form, connectionType: e.target.value })
                                     }
                                 >
-                                    <option value="tcp">TCP</option>
-                                    <option value="udp">UDP</option>
+                                    {form.connectionMode === "direct_cloud" ? (
+                                        <option value="adms">ADMS / iClock</option>
+                                    ) : (
+                                        <>
+                                            <option value="tcp">TCP</option>
+                                            <option value="udp">UDP</option>
+                                        </>
+                                    )}
                                 </select>
                             </div>
                         </div>
@@ -865,7 +974,7 @@ export default function DevicesPage() {
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <Label>{t("syncIntervalMin")}</Label>
+                                <Label>{form.connectionMode === "direct_cloud" ? t("heartbeatIntervalMin") : t("syncIntervalMin")}</Label>
                                 <Input
                                     type="number"
                                     min={5}
