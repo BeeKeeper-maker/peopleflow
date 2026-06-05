@@ -49,6 +49,12 @@ const PUBLIC_API_ROUTES = [
     "/api/v1",
 ];
 
+const PUBLIC_MACHINE_ROUTES = [
+    // ZKTeco ADMS/iClock devices are not browser users; route handlers perform
+    // tenant/serial registration and unknown-device capture safely.
+    "/iclock",
+];
+
 
 function denyModuleAccess(pathname: string, req: NextAuthRequest, kind: "page" | "api", features?: EntitlementFeatures) {
     const access = canAccessPath(features, pathname, kind);
@@ -108,6 +114,11 @@ export default auth((req: NextAuthRequest) => {
         return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
     }
     if (PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route))) {
+        return NextResponse.next();
+    }
+
+    // Machine/device callbacks — route handlers secure these without browser auth.
+    if (PUBLIC_MACHINE_ROUTES.some((route) => pathname.startsWith(route))) {
         return NextResponse.next();
     }
 
