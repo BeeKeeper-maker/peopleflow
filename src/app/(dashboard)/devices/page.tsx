@@ -805,8 +805,8 @@ export default function DevicesPage() {
 
             {/* Add/Edit Dialog */}
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogContent className="sm:max-w-lg bg-card border-card-border">
-                    <DialogHeader>
+                <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden bg-card p-0 sm:max-w-lg border-card-border">
+                    <DialogHeader className="shrink-0 border-b border-card-border px-6 py-4">
                         <DialogTitle className="flex items-center gap-2">
                             <Fingerprint className="h-5 w-5 text-primary" />
                             {editDevice ? t("editDevice") : t("addDevice")}
@@ -816,7 +816,7 @@ export default function DevicesPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
+                    <div className="grid gap-4 overflow-y-auto px-6 py-4">
                         {/* Setup Type */}
                         <div className="grid gap-2">
                             <Label>{t("setupType")}</Label>
@@ -991,7 +991,7 @@ export default function DevicesPage() {
                         </div>
                     </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="shrink-0 border-t border-card-border bg-card/95 px-6 py-4 shadow-[0_-10px_30px_rgba(0,0,0,0.25)] backdrop-blur sm:justify-end">
                         <Button
                             variant="outline"
                             onClick={() => setShowAddDialog(false)}
