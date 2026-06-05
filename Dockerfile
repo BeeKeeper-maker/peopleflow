@@ -126,7 +126,7 @@ RUN npx prisma generate && \
     npm cache clean --force && \
     rm -rf /root/.npm /root/.cache /tmp/*
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node scripts/runtime-seed.js"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && node scripts/runtime-seed.js"]
 
 # ───────────────────────────────────────
 # Stage 3: Final production image (LEAN)
@@ -156,12 +156,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma schema + generated client + pinned Prisma CLI for explicit bootstrap migrations.
 # Do not rely on `npx prisma` in the lean runtime image: if the local CLI is
 # absent, npx downloads latest Prisma and can break old-but-pinned schemas.
+# Call node_modules/prisma/build/index.js directly so its adjacent WASM assets resolve.
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # i18n translation files
 COPY --from=builder --chown=nextjs:nodejs /app/messages ./messages

@@ -22,7 +22,7 @@ echo ""
 
 if [ "${PEOPLEFLOW_RUN_BOOTSTRAP:-false}" = "true" ]; then
     echo "[BOOT] Step 1/$TOTAL_STEPS: Running database migrations..."
-    if /app/node_modules/.bin/prisma migrate deploy 2>&1; then
+    if node /app/node_modules/prisma/build/index.js migrate deploy 2>&1; then
         echo "[BOOT] ✅ Database migrations applied successfully"
     else
         MIGRATE_EXIT=$?
