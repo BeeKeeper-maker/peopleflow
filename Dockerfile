@@ -167,6 +167,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@opentelemetry ./nod
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@standard-schema ./node_modules/@standard-schema
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/acorn ./node_modules/acorn
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/acorn-import-attributes ./node_modules/acorn-import-attributes
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/c12 ./node_modules/c12
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/chokidar ./node_modules/chokidar
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/citty ./node_modules/citty
