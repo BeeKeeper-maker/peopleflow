@@ -31,7 +31,7 @@ For every section, capture:
 |---|---|---:|---|---|
 | Deployment & Infrastructure | Stabilized, monitor | P0 | Web + worker healthy; local migration deploy proof passed; DB backups verified on 2026-06-03/04/05 | Test production one-off migrate path before schema-changing deploy |
 | Auth & Sessions | Not audited | P0 | Security, credentials, role handling, tenant status enforcement | Full auth/RBAC code audit |
-| Tenant Isolation | Proof started | P0 | Cross-tenant data leakage risk must be proven impossible | Add route-level/integration proof after guard + RLS coverage |
+| Tenant Isolation | Blocked for RLS activation | P0 | 2026-06-05 scan: only 7/115 API route files use explicit `withTenant`/`withPlatform`; forced RLS can hide app data | Audit/convert routes before enabling production RLS, or explicitly defer forced-RLS activation |
 | Platform Admin / SaaS Plans | Not audited | P1 | Plan limits/billing psychology may be incomplete | Audit plan enforcement and UI |
 | Employee Management | Not audited | P1 | Core office workflow; data quality and import UX matter | Review CRUD, import, profile mapping |
 | Leave Management | Partially improved | P1 | Approval workflow and Bengali table UX need QA | Browser QA + policy edge cases |
@@ -50,11 +50,11 @@ For every section, capture:
 1. Verify production-safe one-off migrate path before schema-changing deploy
 2. Resolve/decide P0 forced-RLS route integration gap before production RLS activation
 3. Browser QA Bengali mode for remaining office-critical pages after current fixes deploy
-3. Worker / Queues observability and failed-job visibility
-4. Auth / RBAC / Tenant Isolation route-level proof
-5. Core office workflows: Employee → Leave → Attendance → ESS
-6. Sir’s additional ideas
-7. Competitor matrix and product differentiation
+4. Worker / Queues observability and failed-job visibility
+5. Auth / RBAC / Tenant Isolation route-level proof
+6. Core office workflows: Employee → Leave → Attendance → ESS
+7. Sir’s additional ideas
+8. Competitor matrix and product differentiation
 
 ## Latest Audit Notes — 2026-06-02
 
@@ -72,7 +72,7 @@ For every section, capture:
 - Added centralized tenant/RBAC guard helper tests for employee, leave, expense, and attendance access scenarios.
 - Added RLS migration coverage test that checks all direct organization-scoped Prisma models have ENABLE/FORCE RLS and tenant isolation policies.
 - Focused test result: 2 files / 16 tests passed.
-- Remaining proof: route-level integration/browser checks for representative API endpoints.
+- Remaining proof: route-level integration/browser checks for representative API endpoints. 2026-06-05 route scan found only 7/115 API route files using explicit `withTenant`/`withPlatform`, so production forced-RLS activation remains blocked.
 
 ## Migration Proof Notes — 2026-06-02
 
