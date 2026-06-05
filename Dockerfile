@@ -153,52 +153,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Docker image. Database migrations/seed are handled as an explicit release step,
 # not as heavy app-container boot work.
 
-# Prisma schema + generated client + pinned Prisma CLI for explicit bootstrap migrations.
-# Do not rely on `npx prisma` in the lean runtime image: if the local CLI is
-# absent, npx downloads latest Prisma and can break old-but-pinned schemas.
-# Call node_modules/prisma/build/index.js directly so its adjacent WASM assets resolve.
+# Prisma schema + generated client
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-# Prisma CLI runtime dependency closure. Next standalone traces app deps, not CLI deps.
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@opentelemetry ./node_modules/@opentelemetry
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@standard-schema ./node_modules/@standard-schema
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/acorn ./node_modules/acorn
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/acorn-import-attributes ./node_modules/acorn-import-attributes
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/c12 ./node_modules/c12
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/chokidar ./node_modules/chokidar
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/citty ./node_modules/citty
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/cjs-module-lexer ./node_modules/cjs-module-lexer
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/confbox ./node_modules/confbox
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/consola ./node_modules/consola
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/debug ./node_modules/debug
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/deepmerge-ts ./node_modules/deepmerge-ts
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/defu ./node_modules/defu
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/destr ./node_modules/destr
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/effect ./node_modules/effect
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/empathic ./node_modules/empathic
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/exsolve ./node_modules/exsolve
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/fast-check ./node_modules/fast-check
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/giget ./node_modules/giget
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/import-in-the-middle ./node_modules/import-in-the-middle
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/jiti ./node_modules/jiti
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/module-details-from-path ./node_modules/module-details-from-path
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/ms ./node_modules/ms
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/node-fetch-native ./node_modules/node-fetch-native
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/nypm ./node_modules/nypm
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/ohash ./node_modules/ohash
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pathe ./node_modules/pathe
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/perfect-debounce ./node_modules/perfect-debounce
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pkg-types ./node_modules/pkg-types
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pure-rand ./node_modules/pure-rand
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/rc9 ./node_modules/rc9
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/readdirp ./node_modules/readdirp
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/require-in-the-middle ./node_modules/require-in-the-middle
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tinyexec ./node_modules/tinyexec
 
 # i18n translation files
 COPY --from=builder --chown=nextjs:nodejs /app/messages ./messages
