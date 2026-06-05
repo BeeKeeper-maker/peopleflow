@@ -36,7 +36,7 @@ For every section, capture:
 | Employee Management | Not audited | P1 | Core office workflow; data quality and import UX matter | Review CRUD, import, profile mapping |
 | Leave Management | Partially improved | P1 | Approval workflow and Bengali table UX need QA | Browser QA + policy edge cases |
 | Attendance | Partially improved | P1 | Future date handling fixed; device/sync edge cases remain | Audit attendance policy, shifts, reconciliation |
-| Biometric Devices / Sync Agent | Partially improved | P1 | Must not overpromise universal device compatibility | Create Sync Agent readiness checklist |
+| Biometric Devices / Sync Agent | Beta-ready with guided setup | P1 | Native ADMS/direct-cloud push is not implemented; beta-safe path is office PC Sync Agent + ZKTeco/local TCP compatibility | Physical device dry-run with exact model before client starts live attendance |
 | ESS Portal | Partially improved | P1 | Missing profile state improved; full ESS needs QA | Audit attendance/leave/doc flows |
 | Payroll | Not audited | P1/P2 | High sensitivity; compliance and correctness critical | Delay major expansion until employee/attendance stable |
 | Worker / Queues / Cron | Partially stabilized | P0 | Worker deploy now succeeds, but queue observability and migration/release job gate remain incomplete | Add worker/queue health visibility and failed-job review path |

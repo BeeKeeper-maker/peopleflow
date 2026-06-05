@@ -42,7 +42,7 @@ Use before giving to a real office.
 - [ ] Leave policy setup tested
 - [ ] Attendance policy/shift setup tested
 - [ ] Device setup path is clearly explained
-- [ ] LAN-only biometric path routes to Sync Agent, not false direct cloud claim
+- [x] LAN-only biometric path routes to Sync Agent, not false direct cloud claim
 - [ ] Worker/queue health is visible
 - [ ] Failed background jobs are observable
 - [x] Database backup exists before schema-changing deploy
@@ -69,7 +69,7 @@ Use before paid subscriptions or broader rollout.
 | P0 | Worker/migration architecture split | Mostly resolved / RLS blocked | Worker Docker target deployed successfully on 2026-06-02 (`94b1a3f`) with Docker healthcheck; migration runbook added; fresh local `prisma migrate deploy` proof passed after documenting required `CREATEROLE`. However RLS runtime integration is not release-safe yet, so production schema-changing deploy must wait for backup verification and RLS route audit/deferral decision. |
 | P0 | TypeScript ignored in Next production build | Mitigated, keep open | Local `npx tsc --noEmit` passed on 2026-06-02; build still skips validation, so CI/local type gate must remain mandatory. |
 | P0 | Tenant isolation proof | In progress | Automated tenant/RBAC guard tests and RLS migration coverage added on 2026-06-02; route-level integration/browser proof still pending. |
-| P1 | Office pilot QA checklist execution | In progress | 2026-06-05 production browser probe: 10/10 core pages loaded. Dashboard chart labels and admin leave-apply Bengali leaks fixed locally; deeper workflow QA still pending. |
+| P1 | Office pilot QA checklist execution | In progress | 2026-06-05 production browser probe: 10/10 core pages loaded. Dashboard chart labels/admin leave-apply Bengali leaks fixed. Device handover copy corrected to avoid unverified ADMS/direct-cloud promise; deeper workflow QA still pending. |
 | P1 | Competitor matrix before major UX refactor | Open | Research plan exists; matrix pending. |
 
 ## Latest Gate Result — 2026-06-02
@@ -81,7 +81,7 @@ Use before paid subscriptions or broader rollout.
 - `/api/health`: HTTP 200; server/database/redis healthy; memory check warning observed (`heapUsedMB` close to `heapTotalMB`) and should be watched, not treated as fatal yet.
 - Local gates: full `npm run lint` passed with 0 errors / 348 warnings; full `npx tsc --noEmit` passed; full `npm test` passed 12 files / 288 tests; `npm run build` passed with one Turbopack NFT trace warning. Additional focused tenant/RBAC/RLS/route-guard tests passed: 3 files / 20 tests. Targeted changed-file lint passed with 0 errors / 1 existing image warning.
 - Browser smoke: tenant dashboard, employee directory, add employee, leave requests, admin leave apply, attendance, biometric devices, ESS attendance, shifts, and approval workflows loaded in production session.
-- QA findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Devices/Sync Agent guidance copy were localized after initial smoke. ESS current-day no-record state now shows “এখনো চিহ্নিত হয়নি” instead of falsely showing absent. 2026-06-05 pass fixed dashboard chart labels (`Hires`, `Exits`, `total`) and admin leave-apply heading/subtitle/toasts/dropdown allocation text.
+- QA findings: Employee Directory core labels/actions/filters, ESS Attendance date/day/time formatting, and Devices/Sync Agent guidance copy were localized after initial smoke. ESS current-day no-record state now shows “এখনো চিহ্নিত হয়নি” instead of falsely showing absent. 2026-06-05 pass fixed dashboard chart labels (`Hires`, `Exits`, `total`) and admin leave-apply heading/subtitle/toasts/dropdown allocation text. Device copy now explicitly says beta-supported path is Sync Agent and direct ADMS/cloud push requires exact-model verification.
 
 ## Rule
 If a release fails any P0 item, it is not office-ready. It may still be deployed for internal stabilization if the risk is documented.
