@@ -30,35 +30,49 @@ function parseTime(timeStr: string): { hours: number; minutes: number } {
     return { hours: h || 0, minutes: m || 0 };
 }
 
-function startOfDay(date: Date): Date {
+const BUSINESS_TIMEZONE_OFFSET_MINUTES = 6 * 60; // Bangladesh / Asia-Dhaka
+
+function getBusinessLocalDate(date: Date): Date {
+    return new Date(date.getTime() + BUSINESS_TIMEZONE_OFFSET_MINUTES * 60_000);
+}
+
+function startOfBusinessDay(date: Date): Date {
+    const local = getBusinessLocalDate(date);
+    // Store attendance.date as UTC midnight for the business-local calendar day.
+    return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 0, 0, 0, 0));
+}
+
+function addBusinessDays(date: Date, days: number): Date {
     const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + days);
     return d;
 }
 
-function addDays(date: Date, days: number): Date {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    return d;
-}
-
-function buildDateTime(baseDate: Date, timeStr: string): Date {
+function buildBusinessDateTime(baseBusinessDate: Date, timeStr: string): Date {
     const { hours, minutes } = parseTime(timeStr);
-    const d = new Date(baseDate);
-    d.setHours(hours, minutes, 0, 0);
-    return d;
+    const utcMs = Date.UTC(
+        baseBusinessDate.getUTCFullYear(),
+        baseBusinessDate.getUTCMonth(),
+        baseBusinessDate.getUTCDate(),
+        hours,
+        minutes,
+        0,
+        0
+    ) - BUSINESS_TIMEZONE_OFFSET_MINUTES * 60_000;
+    return new Date(utcMs);
 }
 
 function getShiftDate(punchTimestamp: Date, shift: ShiftConfig | null): Date {
-    const shiftDate = startOfDay(punchTimestamp);
+    const shiftDate = startOfBusinessDay(punchTimestamp);
     if (!shift || !shift.crossesMidnight) return shiftDate;
 
     const { hours: startH } = parseTime(shift.startTime);
     const { hours: endH, minutes: endM } = parseTime(shift.endTime);
-    const punchH = punchTimestamp.getHours();
-    const punchM = punchTimestamp.getMinutes();
+    const localPunch = getBusinessLocalDate(punchTimestamp);
+    const punchH = localPunch.getUTCHours();
+    const punchM = localPunch.getUTCMinutes();
 
-    if (punchH < endH || (punchH === endH && punchM <= endM)) return addDays(shiftDate, -1);
+    if (punchH < endH || (punchH === endH && punchM <= endM)) return addBusinessDays(shiftDate, -1);
     if (punchH >= startH) return shiftDate;
     return shiftDate;
 }
@@ -70,8 +84,8 @@ function diffMinutes(a: Date, b: Date): number {
 function calculateShiftMetrics(checkIn: Date, checkOut: Date | null, shiftDate: Date, shift: ShiftConfig | null) {
     if (!shift) return { lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0 };
 
-    const shiftStart = buildDateTime(shiftDate, shift.startTime);
-    const shiftEnd = buildDateTime(shift.crossesMidnight ? addDays(shiftDate, 1) : shiftDate, shift.endTime);
+    const shiftStart = buildBusinessDateTime(shiftDate, shift.startTime);
+    const shiftEnd = buildBusinessDateTime(shift.crossesMidnight ? addBusinessDays(shiftDate, 1) : shiftDate, shift.endTime);
     const graceMinutes = shift.graceMinutes || 0;
 
     const lateMinutes = Math.max(0, diffMinutes(checkIn, shiftStart) - graceMinutes);

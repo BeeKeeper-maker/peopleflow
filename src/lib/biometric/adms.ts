@@ -66,13 +66,23 @@ async function buildContext(req: Request): Promise<AdmsRequestContext> {
     };
 }
 
+const DEVICE_TIMEZONE_OFFSET_MINUTES = 6 * 60; // Bangladesh / Asia-Dhaka. ADMS terminals send local wall-clock time.
+
 function parseTimestamp(value: string): string | null {
     const normalized = value.trim().replace(/^"|"$/g, "");
     if (!normalized) return null;
 
-    // ZKTeco commonly sends `YYYY-MM-DD HH:mm:ss`. Make it browser/Node safe.
-    const isoCandidate = normalized.includes("T") ? normalized : normalized.replace(" ", "T");
-    const date = new Date(isoCandidate);
+    // ZKTeco commonly sends `YYYY-MM-DD HH:mm:ss` without timezone. Treat it as
+    // device/office local time, not server-local time; production servers run UTC.
+    const localMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (localMatch) {
+        const [, y, mo, d, h, mi, s = "0"] = localMatch;
+        const utcMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s))
+            - DEVICE_TIMEZONE_OFFSET_MINUTES * 60_000;
+        return new Date(utcMs).toISOString();
+    }
+
+    const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) return null;
     return date.toISOString();
 }
@@ -104,9 +114,21 @@ export function parseAdmsAttendanceLogs(bodyText: string, serialNumber?: string 
     return records;
 }
 
+function getUploadTable(query: Record<string, string>): string {
+    return (query.table || query.Table || query.TABLE || "").trim().toLowerCase();
+}
+
+function isOperationUpload(query: Record<string, string>, bodyText: string): boolean {
+    const table = getUploadTable(query);
+    if (["operlog", "oplog", "operationlog"].includes(table)) return true;
+    return /^\s*(OPLOG|OPERLOG)\b/im.test(bodyText);
+}
+
 function isAttendanceUpload(query: Record<string, string>, bodyText: string): boolean {
-    const table = (query.table || query.Table || "").toLowerCase();
+    if (isOperationUpload(query, bodyText)) return false;
+    const table = getUploadTable(query);
     if (table === "attlog") return true;
+    if (table && table !== "attlog") return false;
     return /\d+\t\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(bodyText);
 }
 
