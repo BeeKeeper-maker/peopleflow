@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { BadgeCheck, Ban, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
@@ -20,10 +18,11 @@ import { cn } from "@/lib/utils"
 
 interface LeaveRequestActionsProps {
     id: string
+    status: string
+    onCompleted?: () => void
 }
 
-export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
-    const router = useRouter()
+export function LeaveRequestActions({ id, status, onCompleted }: LeaveRequestActionsProps) {
     const { addToast } = useToast()
     const [isLoading, setIsLoading] = useState(false)
     const [action, setAction] = useState<"approved" | "rejected" | null>(null)
@@ -32,8 +31,17 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
     const t = useTranslations("SharedComponents.leaveRequestActions")
     const tc = useTranslations("SharedComponents.common")
 
+    const isPending = status.toLowerCase() === "pending"
+
     async function onAction() {
         if (!action) return
+        if (action === "rejected" && !comment.trim()) {
+            addToast({
+                title: t("rejectionNoteRequired"),
+                type: "error",
+            })
+            return
+        }
 
         setIsLoading(true)
         try {
@@ -42,7 +50,7 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     status: action,
-                    managerComment: comment,
+                    managerComment: comment.trim(),
                 }),
             })
 
@@ -57,7 +65,8 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
             })
 
             setIsOpen(false)
-            router.refresh()
+            onCompleted?.()
+            window.dispatchEvent(new CustomEvent("leave-request-updated"))
         } catch (error) {
             addToast({
                 title: tc("error"),
@@ -73,6 +82,10 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
         setAction(type)
         setComment("")
         setIsOpen(true)
+    }
+
+    if (!isPending) {
+        return <span className="text-xs text-muted-foreground">{t("noActionNeeded")}</span>
     }
 
     return (
@@ -97,7 +110,7 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
                     {t("reject")}
                 </Button>
 
-                <DialogContent className="sm:max-w-[425px] bg-muted border-card-border text-foreground">
+                <DialogContent className="sm:max-w-[460px] bg-muted border-card-border text-foreground">
                     <DialogHeader>
                         <DialogTitle>
                             {action === "approved" ? t("approveTitle") : t("rejectTitle")}
@@ -109,13 +122,16 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
                             }
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-4 py-4">
+                    <div className="grid gap-2 py-4">
                         <Textarea
                             placeholder={action === "approved" ? t("approveComment") : t("rejectComment")}
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
-                            className="bg-hover border-card-border text-foreground min-h-[100px]"
+                            className="bg-hover border-card-border text-foreground min-h-[110px]"
                         />
+                        {action === "rejected" && (
+                            <p className="text-xs text-amber-400">{t("rejectCommentRequiredHint")}</p>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button
@@ -127,7 +143,7 @@ export function LeaveRequestActions({ id }: LeaveRequestActionsProps) {
                         </Button>
                         <Button
                             onClick={onAction}
-                            disabled={isLoading}
+                            disabled={isLoading || (action === "rejected" && !comment.trim())}
                             className={cn(
                                 "text-foreground",
                                 action === "approved" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"

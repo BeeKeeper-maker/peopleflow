@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+    AlertTriangle,
     CalendarOff,
     Clock,
     CheckCircle2,
@@ -20,45 +21,45 @@ import { useLocale, useTranslations } from "next-intl"
 
 type ActiveFilter = "all" | "pending" | "approved" | "rejected" | "onLeaveToday"
 
-function formatLocalDateKey(date: Date) {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    return `${year}-${month}-${day}`
+const BD_OFFSET_MINUTES = 6 * 60
+
+function bangladeshDateKey(date: Date) {
+    const local = new Date(date.getTime() + BD_OFFSET_MINUTES * 60_000)
+    return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`
 }
 
-function dateStringToLocalKey(value: string) {
+function dateStringToKey(value: string) {
     return value.split("T")[0] || value
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// Animated Counter
-// ════════════════════════════════════════════════════════════════════════
+function normalizeStatus(status: string) {
+    return status.toLowerCase()
+}
 
 function AnimatedCounter({ target }: { target: number; duration?: number }) {
     return <>{target}</>
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// Main Page
-// ════════════════════════════════════════════════════════════════════════
-
 export default function LeaveRequestsPage() {
     const [allData, setAllData] = useState<LeaveRequest[]>([])
+    const [totalRecords, setTotalRecords] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
     const [activeFilter, setActiveFilter] = useState<ActiveFilter>("pending")
-    const t = useTranslations('Leaves')
+    const t = useTranslations("Leaves")
     const locale = useLocale()
-    const columns = useMemo(() => createLeaveRequestColumns(t, locale), [t, locale])
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
         try {
-            // Fetch all requests for comprehensive stats
-            const response = await fetch("/api/leaves/applications")
+            const response = await fetch("/api/leaves/applications?limit=100")
             if (response.ok) {
                 const result = await response.json()
-                setAllData(Array.isArray(result) ? result : result.data || [])
+                const data = Array.isArray(result) ? result : result.data || []
+                setAllData(data.map((request: LeaveRequest) => ({
+                    ...request,
+                    status: normalizeStatus(request.status),
+                })))
+                setTotalRecords(result.pagination?.total ?? data.length)
             }
         } catch (error) {
             console.error("Failed to fetch leave requests", error)
@@ -69,43 +70,39 @@ export default function LeaveRequestsPage() {
 
     useEffect(() => { fetchData() }, [fetchData])
 
-    // ── Computed Stats ─────────────────────────────────────────────
+    useEffect(() => {
+        const handler = () => fetchData()
+        window.addEventListener("leave-request-updated", handler)
+        return () => window.removeEventListener("leave-request-updated", handler)
+    }, [fetchData])
+
+    const columns = useMemo(() => createLeaveRequestColumns(t, locale, fetchData), [t, locale, fetchData])
+
+    const isOnLeaveToday = useCallback((request: LeaveRequest) => {
+        if (normalizeStatus(request.status) !== "approved") return false
+        const today = bangladeshDateKey(new Date())
+        const from = dateStringToKey(request.fromDate)
+        const to = dateStringToKey(request.toDate)
+        return from <= today && to >= today
+    }, [])
+
     const stats = useMemo(() => {
-        const pending = allData.filter(r => r.status === "pending").length
-        const approved = allData.filter(r => r.status === "approved").length
-        const rejected = allData.filter(r => r.status === "rejected").length
-
-        // Today's on-leave count
-        const today = formatLocalDateKey(new Date())
-        const onLeaveToday = allData.filter(r => {
-            if (r.status !== "approved") return false
-            const from = dateStringToLocalKey(r.fromDate)
-            const to = dateStringToLocalKey(r.toDate)
-            return from <= today && to >= today
-        }).length
-
-        // Total days requested this month
+        const pending = allData.filter((request) => normalizeStatus(request.status) === "pending").length
+        const approved = allData.filter((request) => normalizeStatus(request.status) === "approved").length
+        const rejected = allData.filter((request) => normalizeStatus(request.status) === "rejected").length
+        const onLeaveToday = allData.filter(isOnLeaveToday).length
         const totalDays = allData
-            .filter(r => r.status === "approved")
-            .reduce((sum, r) => sum + r.totalDays, 0)
+            .filter((request) => normalizeStatus(request.status) === "approved")
+            .reduce((sum, request) => sum + request.totalDays, 0)
 
-        return { pending, approved, rejected, onLeaveToday, totalDays, total: allData.length }
-    }, [allData])
+        return { pending, approved, rejected, onLeaveToday, totalDays, total: totalRecords || allData.length }
+    }, [allData, isOnLeaveToday, totalRecords])
 
-    // ── Filtered Data ──────────────────────────────────────────────
     const filteredData = useMemo(() => {
         if (activeFilter === "all") return allData
-        if (activeFilter === "onLeaveToday") {
-            const today = formatLocalDateKey(new Date())
-            return allData.filter(r => {
-                if (r.status !== "approved") return false
-                const from = dateStringToLocalKey(r.fromDate)
-                const to = dateStringToLocalKey(r.toDate)
-                return from <= today && to >= today
-            })
-        }
-        return allData.filter(r => r.status === activeFilter)
-    }, [allData, activeFilter])
+        if (activeFilter === "onLeaveToday") return allData.filter(isOnLeaveToday)
+        return allData.filter((request) => normalizeStatus(request.status) === activeFilter)
+    }, [allData, activeFilter, isOnLeaveToday])
 
     const activeFilterLabel = {
         all: t("showAll"),
@@ -118,7 +115,7 @@ export default function LeaveRequestsPage() {
     const statCards = [
         {
             key: "pending",
-            label: t('pendingApproval') || "Pending",
+            label: t("pendingApproval"),
             value: stats.pending,
             Icon: Clock,
             color: "from-amber-500 to-amber-600",
@@ -128,7 +125,7 @@ export default function LeaveRequestsPage() {
         },
         {
             key: "approved",
-            label: t('approved') || "Approved",
+            label: t("approved"),
             value: stats.approved,
             Icon: CheckCircle2,
             color: "from-emerald-500 to-emerald-600",
@@ -136,7 +133,7 @@ export default function LeaveRequestsPage() {
         },
         {
             key: "rejected",
-            label: t('rejected') || "Rejected",
+            label: t("rejected"),
             value: stats.rejected,
             Icon: XCircle,
             color: "from-red-500 to-red-600",
@@ -144,7 +141,7 @@ export default function LeaveRequestsPage() {
         },
         {
             key: "onLeaveToday",
-            label: t('onLeaveToday') || "On Leave Today",
+            label: t("onLeaveToday"),
             value: stats.onLeaveToday,
             Icon: CalendarDays,
             color: "from-purple-500 to-purple-600",
@@ -154,16 +151,15 @@ export default function LeaveRequestsPage() {
 
     return (
         <div className="space-y-6">
-            {/* ── Hero Header ──────────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 shadow-lg shadow-violet-500/25">
                         <CalendarOff className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t('requestsTitle')}</h1>
+                        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("requestsTitle")}</h1>
                         <p className="text-sm text-muted-foreground">
-                            {t('requestsSubtitle')}
+                            {t("requestsSubtitle")}
                             {!isLoading && (
                                 <Badge variant="default" className="ml-2">
                                     {t("total", { count: stats.total })}
@@ -179,11 +175,28 @@ export default function LeaveRequestsPage() {
                     className="gap-2 border-card-border hover:border-border"
                 >
                     <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-                    <span className="hidden sm:inline">{t('refresh') || "Refresh"}</span>
+                    <span className="hidden sm:inline">{t("refresh")}</span>
                 </Button>
             </div>
 
-            {/* ── Stats Row ────────────────────────────────────────── */}
+            <Card className="bg-linear-to-r from-violet-500/10 via-card to-card border-violet-500/20">
+                <CardContent className="p-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 font-semibold text-foreground">
+                            <AlertTriangle className="h-5 w-5 text-violet-400" />
+                            {t("decisionQueueTitle")}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1 max-w-3xl leading-relaxed">
+                            {t("decisionQueueDesc")}
+                        </p>
+                    </div>
+                    <Button onClick={() => setActiveFilter("pending")} className="gap-2 self-start lg:self-auto">
+                        <Clock className="h-4 w-4" />
+                        {t("reviewPending")}
+                    </Button>
+                </CardContent>
+            </Card>
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
@@ -206,9 +219,8 @@ export default function LeaveRequestsPage() {
                             className={`relative overflow-hidden group cursor-pointer transition-all duration-300 hover:-translate-y-0.5 ${
                                 activeFilter === card.key ? "border-border ring-1 ring-blue-500/30" : ""
                             }`}
-                            onClick={() => setActiveFilter(prev => prev === card.key ? "all" : card.key as ActiveFilter)}
+                            onClick={() => setActiveFilter((prev) => prev === card.key ? "all" : card.key as ActiveFilter)}
                         >
-                            {/* Glow */}
                             <div className={`absolute -top-12 -right-12 h-32 w-32 rounded-full ${card.glowColor} opacity-20 blur-3xl group-hover:opacity-40 transition-opacity duration-500`} />
                             <CardContent className="p-5 relative">
                                 <div className="flex items-start justify-between">
@@ -233,7 +245,6 @@ export default function LeaveRequestsPage() {
                 )}
             </div>
 
-            {/* ── Active Filter Indicator ──────────────────────────── */}
             {activeFilter !== "all" && !isLoading && (
                 <div className="flex items-center gap-2">
                     <Filter className="h-3.5 w-3.5 text-muted-foreground" />
@@ -249,7 +260,6 @@ export default function LeaveRequestsPage() {
                 </div>
             )}
 
-            {/* ── DataTable ────────────────────────────────────────── */}
             {isLoading ? (
                 <Card>
                     <CardContent className="p-8">
@@ -266,11 +276,11 @@ export default function LeaveRequestsPage() {
                     columns={columns}
                     data={filteredData}
                     searchKey="employeeName"
-                    placeholder={t('requestsSearchPlaceholder')}
-                    emptyTitle={activeFilter === "pending" ? (t('noPendingRequests') || "No pending requests") : (t('noRequests') || "No requests found")}
+                    placeholder={t("requestsSearchPlaceholder")}
+                    emptyTitle={activeFilter === "pending" ? t("noPendingRequests") : t("noRequests")}
                     emptyDescription={activeFilter === "pending"
-                        ? (t('noPendingDesc') || "All leave requests have been processed. Great job!")
-                        : (t('noRequestsDesc') || "No leave requests match your current filter.")}
+                        ? t("noPendingDesc")
+                        : t("noRequestsDesc")}
                     emptyVariant="calendar"
                 />
             )}

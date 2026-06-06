@@ -331,7 +331,7 @@
     "searchPlaceholder": "কর্মচারীর নাম দিয়ে খুঁজুন...",
     "requestsTitle": "ছুটির অনুরোধ",
     "requestsSubtitle": "কর্মচারীদের ছুটির অনুরোধ পর্যালোচনা এবং পরিচালনা করুন",
-    "requestsSearchPlaceholder": "কর্মচারীর নাম দিয়ে খুঁজুন...",
+    "requestsSearchPlaceholder": "Employee, designation, leave type, reason, বা status খুঁজুন...",
     "typesTitle": "ছুটির ধরন",
     "typesSubtitle": "ছুটির ধরন এবং নীতি কনফিগার করুন",
     "addLeaveType": "ছুটির ধরন যোগ করুন",
@@ -356,7 +356,14 @@
     "reason": "কারণ",
     "actions": "পদক্ষেপ",
     "noDesignation": "পদবী নেই",
-    "dayCount": "{count} দিন"
+    "dayCount": "{count} দিন",
+    "decisionQueueTitle": "Leave request decision queue",
+    "decisionQueueDesc": "Approve বা reject করার আগে employee, leave type, date, reason, status, এবং applied date দেখে সিদ্ধান্ত নিন। Reject করলে audit এবং employee correction-এর জন্য clear note দিন।",
+    "reviewPending": "Pending review করুন",
+    "status": "Status",
+    "appliedOn": "Applied On",
+    "pending": "Pending",
+    "cancelled": "Cancelled"
   },
   "Notifications": {
     "title": "বিজ্ঞপ্তি",
@@ -1631,7 +1638,10 @@
       "confirmApproval": "অনুমোদন নিশ্চিত করুন",
       "confirmRejection": "প্রত্যাখ্যান নিশ্চিত করুন",
       "applicationApproved": "আবেদন অনুমোদিত",
-      "applicationRejected": "আবেদন প্রত্যাখ্যাত"
+      "applicationRejected": "আবেদন প্রত্যাখ্যাত",
+      "rejectionNoteRequired": "Rejection note দরকার",
+      "rejectCommentRequiredHint": "Reject করার জন্য required — employee কী ঠিক/clarify করবে তা লিখুন।",
+      "noActionNeeded": "Action দরকার নেই"
     },
     "profileHeader": {
       "editProfile": "প্রোফাইল সম্পাদনা"

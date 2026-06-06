@@ -331,7 +331,7 @@
     "searchPlaceholder": "Search by employee name...",
     "requestsTitle": "Leave Requests",
     "requestsSubtitle": "Review and manage employee leave requests",
-    "requestsSearchPlaceholder": "Search by employee name...",
+    "requestsSearchPlaceholder": "Search employee, designation, leave type, reason, or status...",
     "typesTitle": "Leave Types",
     "typesSubtitle": "Configure leave types and policies",
     "addLeaveType": "Add Leave Type",
@@ -356,7 +356,14 @@
     "reason": "Reason",
     "actions": "Actions",
     "noDesignation": "No designation",
-    "dayCount": "{count, plural, one {# day} other {# days}}"
+    "dayCount": "{count, plural, one {# day} other {# days}}",
+    "decisionQueueTitle": "Leave request decision queue",
+    "decisionQueueDesc": "Review pending requests with employee, leave type, dates, reason, status, and applied date before approving or rejecting. Rejections should include a clear note for audit and employee correction.",
+    "reviewPending": "Review pending",
+    "status": "Status",
+    "appliedOn": "Applied On",
+    "pending": "Pending",
+    "cancelled": "Cancelled"
   },
   "Notifications": {
     "title": "Notifications",
@@ -1491,7 +1498,10 @@
       "confirmApproval": "Confirm Approval",
       "confirmRejection": "Confirm Rejection",
       "applicationApproved": "Application Approved",
-      "applicationRejected": "Application Rejected"
+      "applicationRejected": "Application Rejected",
+      "rejectionNoteRequired": "Rejection note is required",
+      "rejectCommentRequiredHint": "Required for rejection — explain what the employee should correct or clarify.",
+      "noActionNeeded": "No action needed"
     },
     "profileHeader": {
       "editProfile": "Edit Profile"
