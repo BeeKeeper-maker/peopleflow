@@ -472,6 +472,14 @@ export default function DevicesPage() {
                 <div className="flex items-center gap-2">
                     <Button
                         variant="outline"
+                        onClick={() => window.location.href = "/devices/events"}
+                        className="gap-2"
+                    >
+                        <History className="h-4 w-4" />
+                        {t("eventCenterBtn")}
+                    </Button>
+                    <Button
+                        variant="outline"
                         onClick={() => setSyncAgentOpen(true)}
                         className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                     >

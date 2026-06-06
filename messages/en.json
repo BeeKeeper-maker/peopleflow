@@ -302,7 +302,8 @@
     "searchEmployeeAttendance": "Search employee, code, status, or source",
     "source": "Source",
     "filterAll": "All",
-    "recordedBy": "Recorded by"
+    "recordedBy": "Recorded by",
+    "exportCsv": "Export CSV"
   },
   "Leaves": {
     "title": "Leave Applications",
@@ -2675,7 +2676,8 @@
     "syncAgentAttentionHint": "Check Sync Agent/VPN/LAN reachability, then run Test or Sync from the office network.",
     "directCloudHealthyHint": "Device has contacted PeopleFlow recently. Next proof: punch a mapped employee and verify Attendance.",
     "syncAgentHealthyHint": "Sync Agent device looks reachable. Run a sync after office punches if records are missing.",
-    "cloudSetupMini": "Device COMM setting"
+    "cloudSetupMini": "Device COMM setting",
+    "eventCenterBtn": "Event Center"
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",
@@ -2919,5 +2921,40 @@
     "dialogTitle": "Delegate Authority",
     "dialogDescription": "Grant time-bounded permissions. All delegations are audit-logged and auto-expire.",
     "reason": "Reason (Optional)"
+  },
+  "DeviceEvents": {
+    "title": "Device Event Center",
+    "subtitle": "Audit direct-cloud device heartbeats, attendance uploads, mapping issues, and unknown serial hits from one timeline.",
+    "refresh": "Refresh",
+    "totalEvents": "Total events",
+    "attendanceEvents": "Attendance events",
+    "processed": "Processed",
+    "attention": "Attention",
+    "searchSerial": "Search serial number",
+    "eventTimeline": "Event timeline",
+    "loading": "Loading device events…",
+    "noEvents": "No device events found",
+    "attendanceProcessed": "Attendance upload processed",
+    "needsMapping": "Attendance upload needs mapping",
+    "unknownDevice": "Unknown device hit",
+    "failed": "Device event failed",
+    "heartbeat": "Device heartbeat / command poll",
+    "operationLog": "Operation log — not attendance",
+    "captured": "Device event captured",
+    "unknownDeviceName": "Unknown device",
+    "noSerial": "No serial",
+    "synced": "synced",
+    "skipped": "skipped",
+    "unmapped": "unmapped",
+    "status_all": "All",
+    "status_processed": "Processed",
+    "status_partial": "Needs mapping",
+    "status_failed": "Failed",
+    "status_unknown_device": "Unknown",
+    "status_captured": "Captured",
+    "type_all": "All types",
+    "type_cdata": "Uploads",
+    "type_getrequest": "Heartbeats",
+    "type_registry": "Registry"
   }
 }

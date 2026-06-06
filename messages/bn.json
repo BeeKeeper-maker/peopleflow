@@ -302,7 +302,8 @@
     "searchEmployeeAttendance": "Employee, code, status, বা source খুঁজুন",
     "source": "Source",
     "filterAll": "সব",
-    "recordedBy": "রেকর্ড হয়েছে"
+    "recordedBy": "রেকর্ড হয়েছে",
+    "exportCsv": "CSV Export"
   },
   "Leaves": {
     "title": "ছুটির আবেদন",
@@ -2675,7 +2676,8 @@
     "syncAgentAttentionHint": "Sync Agent/VPN/LAN reachability চেক করুন, তারপর office network থেকে Test বা Sync চালান।",
     "directCloudHealthyHint": "Device সাম্প্রতিক সময়ে PeopleFlow-তে contact করেছে। পরের proof: mapped employee punch দিয়ে Attendance verify।",
     "syncAgentHealthyHint": "Sync Agent device reachable দেখাচ্ছে। office punch missing হলে sync চালান।",
-    "cloudSetupMini": "Device COMM setting"
+    "cloudSetupMini": "Device COMM setting",
+    "eventCenterBtn": "Event Center"
   },
   "FestivalBonus": {
     "title": "উৎসব বোনাস ইঞ্জিন",
@@ -2919,5 +2921,40 @@
     "dialogTitle": "কর্তৃত্ব অর্পণ",
     "dialogDescription": "সময়-সীমিত অনুমতি প্রদান করুন। সমস্ত অর্পণ অডিট-লগকৃত এবং স্বয়ংক্রিয়ভাবে মেয়াদ শেষ হয়।",
     "reason": "কারণ (ঐচ্ছিক)"
+  },
+  "DeviceEvents": {
+    "title": "ডিভাইস ইভেন্ট সেন্টার",
+    "subtitle": "Direct-cloud device heartbeat, attendance upload, mapping issue, এবং unknown serial hit এক timeline-এ audit করুন।",
+    "refresh": "Refresh",
+    "totalEvents": "মোট ইভেন্ট",
+    "attendanceEvents": "Attendance event",
+    "processed": "Processed",
+    "attention": "Attention",
+    "searchSerial": "Serial number খুঁজুন",
+    "eventTimeline": "Event timeline",
+    "loading": "Device event loading…",
+    "noEvents": "কোনো device event পাওয়া যায়নি",
+    "attendanceProcessed": "Attendance upload processed",
+    "needsMapping": "Attendance upload mapping দরকার",
+    "unknownDevice": "Unknown device hit",
+    "failed": "Device event failed",
+    "heartbeat": "Device heartbeat / command poll",
+    "operationLog": "Operation log — attendance নয়",
+    "captured": "Device event captured",
+    "unknownDeviceName": "Unknown device",
+    "noSerial": "No serial",
+    "synced": "synced",
+    "skipped": "skipped",
+    "unmapped": "unmapped",
+    "status_all": "সব",
+    "status_processed": "Processed",
+    "status_partial": "Mapping দরকার",
+    "status_failed": "Failed",
+    "status_unknown_device": "Unknown",
+    "status_captured": "Captured",
+    "type_all": "সব type",
+    "type_cdata": "Uploads",
+    "type_getrequest": "Heartbeats",
+    "type_registry": "Registry"
   }
 }

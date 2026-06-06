@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
-import { AlertTriangle, Clock, Fingerprint, Filter, MapPin, RefreshCw, Search, Shield, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Clock, Download, Fingerprint, Filter, MapPin, RefreshCw, Search, Shield, ShieldAlert } from "lucide-react";
 
 type AttendanceRecord = {
     id: string;
@@ -91,6 +91,12 @@ export function AttendanceHistory() {
     const openShiftCount = history.filter((r) => r.checkIn && !r.checkOut).length;
     const exceptionCount = history.filter((r) => r.lateMinutes > 0 || r.status === "absent" || r.status === "half_day").length;
 
+    const exportAttendance = () => {
+        const params = new URLSearchParams();
+        if (sourceFilter !== "all") params.set("source", sourceFilter);
+        window.location.href = `/api/attendance/export${params.toString() ? `?${params.toString()}` : ""}`;
+    };
+
     // Parse GPS status from notes
     const getGpsIndicator = (notes: string | null) => {
         if (!notes) return null;
@@ -115,10 +121,16 @@ export function AttendanceHistory() {
                         <CardTitle className="text-lg font-semibold text-foreground">{t('recentActivity')}</CardTitle>
                         <p className="mt-1 text-sm text-muted-foreground">{t("attendanceHistoryHelp")}</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={fetchHistory} className="gap-2 self-start lg:self-auto">
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        {t("refresh")}
-                    </Button>
+                    <div className="flex flex-wrap gap-2 self-start lg:self-auto">
+                        <Button variant="outline" size="sm" onClick={exportAttendance} className="gap-2">
+                            <Download className="h-3.5 w-3.5" />
+                            {t("exportCsv")}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={fetchHistory} className="gap-2">
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            {t("refresh")}
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4 px-0">
