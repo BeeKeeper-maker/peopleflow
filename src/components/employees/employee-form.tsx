@@ -51,6 +51,7 @@ interface EmployeeFormProps {
 const STEPS = [
     { id: "personal", icon: User, color: "bg-blue-500/10 text-blue-400 border-blue-500/20", activeColor: "bg-blue-500 text-white", label: "personalInfo" },
     { id: "employment", icon: Briefcase, color: "bg-violet-500/10 text-violet-400 border-violet-500/20", activeColor: "bg-violet-500 text-white", label: "employmentDetails" },
+    { id: "access", icon: ShieldCheck, color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20", activeColor: "bg-cyan-500 text-white", label: "accessSetup" },
     { id: "financial", icon: Wallet, color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", activeColor: "bg-emerald-500 text-white", label: "financialInfo" },
     { id: "address", icon: MapPin, color: "bg-amber-500/10 text-amber-400 border-amber-500/20", activeColor: "bg-amber-500 text-white", label: "addressInfo" },
     { id: "emergency", icon: Phone, color: "bg-rose-500/10 text-rose-400 border-rose-500/20", activeColor: "bg-rose-500 text-white", label: "emergencyContact" },
@@ -60,6 +61,7 @@ const STEPS = [
 const STEP_REQUIRED_FIELDS: Record<string, string[]> = {
     personal: ["firstName", "lastName"],
     employment: ["employeeCode", "departmentId", "designationId", "joiningDate"],
+    access: [],
     financial: ["grossSalary"],
     address: [],
     emergency: [],
@@ -249,6 +251,9 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     const watchedGross = form.watch("grossSalary")
     const watchedStructureId = form.watch("salaryStructureId")
     const watchedStatus = form.watch("employmentStatus")
+    const watchedEmail = form.watch("email")
+    const watchedManagerId = form.watch("reportingManagerId")
+    const watchedBiometricId = form.watch("biometricUserId")
     const selectedStructure = structures.find(s => s.id === watchedStructureId)
     const initialStatus = initialData?.employmentStatus || "active"
     const isOffboardingChange = !!initialData && initialStatus === "active" && watchedStatus !== "active"
@@ -792,8 +797,85 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                         </div>
                     )}
 
-                    {/* ─── Step 3: Financial Information ─── */}
+                    {/* ─── Step 3: Access & Approval Setup ─── */}
                     {currentStep === 2 && (
+                        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400">
+                                    <ShieldCheck className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-foreground">Access & Approval Setup</h2>
+                                    <p className="text-xs text-muted-foreground">Login access, reporting manager, and biometric readiness</p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 lg:grid-cols-3">
+                                <div className={`rounded-xl border p-4 ${watchedEmail ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                                    <div className="flex items-start gap-3">
+                                        {watchedEmail ? <Check className="mt-0.5 h-5 w-5 text-emerald-400" /> : <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-400" />}
+                                        <div>
+                                            <p className="font-semibold text-foreground">ESS login account</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {watchedEmail
+                                                    ? "An employee login will be created with Employee access. Admin can promote to Manager/HR from Settings → Access Control after saving."
+                                                    : "No email means no ESS login. This is okay for non-portal staff, but leave/attendance self-service will not work."
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`rounded-xl border p-4 ${watchedManagerId ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                                    <div className="flex items-start gap-3">
+                                        {watchedManagerId ? <Check className="mt-0.5 h-5 w-5 text-emerald-400" /> : <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-400" />}
+                                        <div>
+                                            <p className="font-semibold text-foreground">Leave approval routing</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {watchedManagerId
+                                                    ? "Reporting manager is selected. Leave requests can route to the manager first, then HR/Admin according to workflow."
+                                                    : "No reporting manager selected. HR/Admin may still see requests, but manager approval flow will be unclear."
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`rounded-xl border p-4 ${watchedBiometricId ? "border-emerald-500/30 bg-emerald-500/10" : "border-card-border bg-hover"}`}>
+                                    <div className="flex items-start gap-3">
+                                        <Fingerprint className={`mt-0.5 h-5 w-5 ${watchedBiometricId ? "text-emerald-400" : "text-muted-foreground"}`} />
+                                        <div>
+                                            <p className="font-semibold text-foreground">Biometric mapping</p>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {watchedBiometricId
+                                                    ? "Biometric user ID is set. It must match the device user ID exactly for attendance sync."
+                                                    : "Optional now. Add the device user ID later before office biometric acceptance testing."
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 rounded-xl border border-blue-500/20 bg-blue-500/10 p-4">
+                                <div className="flex items-start gap-3">
+                                    <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-400" />
+                                    <div>
+                                        <p className="font-semibold text-foreground">Best-practice office flow</p>
+                                        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
+                                            <li>Create the employee profile with email, department, designation, joining date, and manager.</li>
+                                            <li>Save the employee. The default login role is Employee for safety.</li>
+                                            <li>Go to Settings → Access Control to promote selected users to Manager, HR Admin, or Office Admin.</li>
+                                            <li>Review setup issues there before handover so approval routing is clean.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ─── Step 4: Financial Information ─── */}
+                    {currentStep === 3 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400">
@@ -942,8 +1024,8 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                         </div>
                     )}
 
-                    {/* ─── Step 4: Address ─── */}
-                    {currentStep === 3 && (
+                    {/* ─── Step 5: Address ─── */}
+                    {currentStep === 4 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400">
@@ -979,8 +1061,8 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                         </div>
                     )}
 
-                    {/* ─── Step 5: Emergency Contact ─── */}
-                    {currentStep === 4 && (
+                    {/* ─── Step 6: Emergency Contact ─── */}
+                    {currentStep === 5 && (
                         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                             <div className="flex items-center gap-3 mb-6">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400">
