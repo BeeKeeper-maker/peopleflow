@@ -104,7 +104,8 @@
     "delegations": "Delegations",
     "signOut": "Sign out",
     "billing": "Billing",
-    "apiKeys": "API Keys"
+    "apiKeys": "API Keys",
+    "accessControl": "Access Control"
   },
   "Header": {
     "search": "Search...",

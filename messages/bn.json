@@ -104,7 +104,8 @@
     "delegations": "ক্ষমতা অর্পণ",
     "signOut": "সাইন আউট",
     "billing": "বিলিং",
-    "apiKeys": "এপিআই কী"
+    "apiKeys": "এপিআই কী",
+    "accessControl": "Access Control"
   },
   "Header": {
     "search": "অনুসন্ধান...",
