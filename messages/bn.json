@@ -1103,7 +1103,22 @@
     "absent": "অনুপস্থিত",
     "late": "দেরি",
     "onLeave": "ছুটিতে",
-    "notCheckedIn": "চেক-ইন হয়নি"
+    "notCheckedIn": "চেক-ইন হয়নি",
+    "managerPurposeTitle": "Manager attendance command view",
+    "managerPurposeDesc": "আজকের missing/late team member ধরতে এবং monthly attendance pattern follow-up করার জন্য এই page ব্যবহার করুন।",
+    "showAttentionOnly": "Attention only দেখুন",
+    "needsAttention": "Attention দরকার",
+    "refresh": "Refresh",
+    "searchTeamAttendance": "Employee, code, department, বা designation খুঁজুন",
+    "filterAll": "সব",
+    "attention": "Attention",
+    "exportCsv": "CSV Export",
+    "individualAttendanceDesc": "আজকের status এবং monthly pattern review-এর জন্য একটাই operational list।",
+    "noDepartment": "No Department",
+    "noDesignation": "No Designation",
+    "missingCol": "Missing",
+    "reliabilityCol": "Reliability",
+    "halfDay": "Half Day"
   },
   "ManagerLeaves": {
     "title": "টিম ছুটিসমূহ",

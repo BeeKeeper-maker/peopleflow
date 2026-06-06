@@ -963,7 +963,22 @@
     "absent": "Absent",
     "late": "Late",
     "onLeave": "On Leave",
-    "notCheckedIn": "Not Checked In"
+    "notCheckedIn": "Not Checked In",
+    "managerPurposeTitle": "Manager attendance command view",
+    "managerPurposeDesc": "Use this page to spot today’s missing/late team members and review monthly attendance patterns before follow-up.",
+    "showAttentionOnly": "Show attention only",
+    "needsAttention": "Needs Attention",
+    "refresh": "Refresh",
+    "searchTeamAttendance": "Search employee, code, department, or designation",
+    "filterAll": "All",
+    "attention": "Attention",
+    "exportCsv": "Export CSV",
+    "individualAttendanceDesc": "One operational list for today’s status and monthly pattern review.",
+    "noDepartment": "No Department",
+    "noDesignation": "No Designation",
+    "missingCol": "Missing",
+    "reliabilityCol": "Reliability",
+    "halfDay": "Half Day"
   },
   "ManagerLeaves": {
     "title": "Team Leaves",
