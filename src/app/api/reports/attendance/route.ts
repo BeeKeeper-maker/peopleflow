@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
-import { startOfDay, endOfDay, subDays, format } from "date-fns";
+import { subDays, format } from "date-fns";
 import { apiLogger } from "@/lib/logger";
+import { startOfBusinessDay, addBusinessDays } from "@/lib/biometric/attendance-ingest";
 
-export async function GET(req: Request) {
+export async function GET() {
     try {
         const auth = await requireAdminOrHR();
         if (!isAuthenticated(auth)) return auth;
 
         const orgId = auth.organizationId;
-        const todayStart = startOfDay(new Date());
-        const todayEnd = endOfDay(new Date());
+        const todayStart = startOfBusinessDay(new Date());
+        const todayEnd = addBusinessDays(todayStart, 1);
         const thirtyDaysAgo = subDays(todayStart, 30);
 
         // 1. Daily Stats (Today)
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
                 employee: { organizationId: orgId },
                 date: {
                     gte: todayStart,
-                    lte: todayEnd
+                    lt: todayEnd
                 }
             },
             _count: {
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
                 employee: { organizationId: orgId },
                 date: {
                     gte: thirtyDaysAgo,
-                    lte: todayEnd
+                    lt: todayEnd
                 }
             },
             select: {
@@ -46,20 +47,20 @@ export async function GET(req: Request) {
         });
 
         // Process monthly data for chart chart: { date: '2023-10-01', present: 5, late: 2, absent: 1 }
-        const trendMap = new Map();
+        const trendMap = new Map<string, Record<string, number | string>>();
         monthlyData.forEach(record => {
             const dateStr = format(new Date(record.date), 'yyyy-MM-dd');
             if (!trendMap.has(dateStr)) {
                 trendMap.set(dateStr, { date: dateStr, present: 0, late: 0, absent: 0, half_day: 0 });
             }
-            const entry = trendMap.get(dateStr);
+            const entry = trendMap.get(dateStr) as Record<string, number | string>;
             // Map status directly or categorize
             const status = record.status.toLowerCase(); // present, late, absent, half-day
-            if (entry[status] !== undefined) {
-                entry[status]++;
+            if (typeof entry[status] === "number") {
+                entry[status] = Number(entry[status]) + 1;
             } else if (status === 'check-in') {
                 // Counts as present for now if incomplete
-                entry['present']++;
+                entry['present'] = Number(entry['present']) + 1;
             }
         });
         const monthlyTrends = Array.from(trendMap.values());
@@ -92,7 +93,12 @@ export async function GET(req: Request) {
             }
         });
 
-        const offenderMap = new Map();
+        const offenderMap = new Map<string, {
+            employee: (typeof lateEarlyRecords)[number]["employee"];
+            lateCount: number;
+            earlyLeaveCount: number;
+            totalLateMinutes: number;
+        }>();
         lateEarlyRecords.forEach(record => {
             const empId = record.employeeId;
             if (!offenderMap.has(empId)) {
@@ -104,6 +110,7 @@ export async function GET(req: Request) {
                 });
             }
             const entry = offenderMap.get(empId);
+            if (!entry) return;
             if (record.status === 'late') entry.lateCount++;
             if (record.earlyLeaveMinutes && record.earlyLeaveMinutes > 0) entry.earlyLeaveCount++;
         });
@@ -113,7 +120,7 @@ export async function GET(req: Request) {
             .slice(0, 10); // Top 10
 
         return NextResponse.json({
-            daily: dailyStats.reduce((acc: any, curr) => {
+            daily: dailyStats.reduce<Record<string, number>>((acc, curr) => {
                 acc[curr.status.toLowerCase()] = curr._count.status;
                 return acc;
             }, {}), // { present: 5, late: 2 }

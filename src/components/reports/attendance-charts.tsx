@@ -5,21 +5,20 @@ import {
     BarChart,
     CartesianGrid,
     Legend,
-    Line,
-    LineChart,
     ResponsiveContainer,
     Tooltip,
     XAxis,
     YAxis,
     Area,
-    AreaChart
+    AreaChart,
+    Cell
 } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
 
 interface AttendanceChartsProps {
-    dailyData: any
-    monthlyData: any[]
+    dailyData: Record<string, number>
+    monthlyData: Array<Record<string, number | string>>
 }
 
 export function AttendanceCharts({ dailyData, monthlyData }: AttendanceChartsProps) {
@@ -111,14 +110,11 @@ export function AttendanceCharts({ dailyData, monthlyData }: AttendanceChartsPro
                                 itemStyle={{ color: "var(--text-primary)" }}
                             />
                             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={32}>
-                                {
-                                    // No need for Cell mapping if we passed fill in data, recharts handles it automatically or via <Cell> 
-                                    // But Bar doesn't use data.fill by default unless Cell is used or we bind fill to a payload prop (complex).
-                                    // Simpler: Just map Cells.
-                                }
+                                {dailyChartData.map((entry) => (
+                                    <Cell key={entry.name} fill={entry.fill} />
+                                ))}
                             </Bar>
                         </BarChart>
-                        {/* Recharts Bar with individual colors needs Cell mapping, fixing below */}
                     </ResponsiveContainer>
                     {/* Custom Legend/Summary since BarChart 'fill' in data needs manual Cell implementation or similar */}
                     <div className="mt-4 grid grid-cols-2 gap-4">

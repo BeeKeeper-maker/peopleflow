@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
     BarChart3,
     Users,
@@ -17,6 +19,9 @@ import {
     RefreshCw,
     TrendingUp,
     Loader2,
+    ShieldCheck,
+    AlertTriangle,
+    Target,
 } from "lucide-react"
 import {
     exportToExcel,
@@ -28,7 +33,7 @@ import {
 } from "@/lib/export"
 import { useToast } from "@/components/ui/toast"
 import { AttendanceCharts } from "@/components/reports/attendance-charts"
-import { LateEarlyTable } from "@/components/reports/late-early-table"
+import { LateEarlyTable, type LateEarlyRecord } from "@/components/reports/late-early-table"
 import { useTranslations } from "next-intl"
 
 interface ReportCard {
@@ -40,13 +45,25 @@ interface ReportCard {
     count?: number | string
 }
 
+interface AttendanceReportData {
+    daily?: Record<string, number>
+    monthly?: Array<Record<string, number | string>>
+    offenders?: LateEarlyRecord[]
+}
+
+interface EmployeeRecord {
+    employmentStatus?: string
+}
+
 export default function ReportsPage() {
     const { addToast } = useToast()
     const t = useTranslations('Reports')
     const [activeTab, setActiveTab] = useState("overview")
     const [loading, setLoading] = useState(false)
     const [exporting, setExporting] = useState<string | null>(null)
-    const [attendanceData, setAttendanceData] = useState<any>(null)
+    const [attendanceData, setAttendanceData] = useState<AttendanceReportData | null>(null)
+    const [reportMonth, setReportMonth] = useState(String(new Date().getMonth() + 1).padStart(2, "0"))
+    const [reportYear, setReportYear] = useState(String(new Date().getFullYear()))
     const [stats, setStats] = useState({
         totalEmployees: 0,
         activeEmployees: 0,
@@ -67,16 +84,21 @@ export default function ReportsPage() {
 
                 if (empRes.ok) {
                     const data = await empRes.json()
-                    const empList = Array.isArray(data) ? data : data.data || []
+                    const empList: EmployeeRecord[] = Array.isArray(data) ? data : data.data || []
                     setStats(prev => ({
                         ...prev,
                         totalEmployees: data.meta?.total || empList.length || 0,
-                        activeEmployees: empList.filter((e: any) => e.employmentStatus === "active").length || 0,
+                        activeEmployees: empList.filter((e) => e.employmentStatus === "active").length || 0,
                     }))
                 }
 
                 if (attRes.ok) {
-                    setAttendanceData(await attRes.json())
+                    const report = await attRes.json() as AttendanceReportData
+                    setAttendanceData(report)
+                    const daily = report.daily || {}
+                    const presentish = (daily.present || 0) + (daily.late || 0) + (daily.half_day || 0) + (daily["half-day"] || 0)
+                    const total = presentish + (daily.absent || 0)
+                    setStats(prev => ({ ...prev, avgAttendance: total > 0 ? Math.round((presentish / total) * 100) : 0 }))
                 }
             } catch (error) {
                 console.error("Failed to fetch stats", error)
@@ -90,8 +112,8 @@ export default function ReportsPage() {
     const handleExport = async (reportType: string, format: "excel" | "csv") => {
         setExporting(`${reportType}-${format}`)
         try {
-            let data: any[] = []
-            let formattedData: any[] = []
+            let data: unknown[] = []
+            let formattedData: Record<string, unknown>[] = []
             let filename = ""
 
             switch (reportType) {
@@ -105,8 +127,8 @@ export default function ReportsPage() {
                     break
 
                 case "attendance":
-                    const month = new Date().getMonth() + 1
-                    const year = new Date().getFullYear()
+                    const month = Number(reportMonth)
+                    const year = Number(reportYear)
                     const attRes = await fetch(`/api/reports/attendance?month=${month}&year=${year}`)
                     if (!attRes.ok) throw new Error("Failed to fetch attendance")
                     const attData = await attRes.json()
@@ -125,8 +147,8 @@ export default function ReportsPage() {
                     break
 
                 case "payroll":
-                    const payMonth = new Date().getMonth() + 1
-                    const payYear = new Date().getFullYear()
+                    const payMonth = Number(reportMonth)
+                    const payYear = Number(reportYear)
                     const payRes = await fetch(`/api/payroll/process?month=${payMonth}&year=${payYear}`)
                     if (!payRes.ok) throw new Error("Failed to fetch payroll")
                     const payData = await payRes.json()
@@ -205,14 +227,27 @@ export default function ReportsPage() {
         },
     ]
 
+    const reportPurposeCards = [
+        { icon: Target, title: t('purposeDecisionTitle'), desc: t('purposeDecisionDesc') },
+        { icon: Download, title: t('purposeExportTitle'), desc: t('purposeExportDesc') },
+        { icon: ShieldCheck, title: t('purposeComplianceTitle'), desc: t('purposeComplianceDesc') },
+    ]
+
+    const attendanceDaily = attendanceData?.daily || {}
+    const todayExceptions = (attendanceDaily.late || 0) + (attendanceDaily.absent || 0) + (attendanceDaily.half_day || 0) + (attendanceDaily["half-day"] || 0)
+
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
-                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+                    <p className="text-muted-foreground mt-1 max-w-3xl">{t('subtitle')}</p>
                 </div>
+                <Button variant="outline" className="gap-2 self-start lg:self-auto" onClick={() => window.location.reload()}>
+                    <RefreshCw className="h-4 w-4" />
+                    {t('refreshReports')}
+                </Button>
             </div>
 
             {/* Tabs */}
@@ -283,16 +318,70 @@ export default function ReportsPage() {
                         </Card>
                     </div>
 
-                    {/* Attendance Charts */}
-                    {attendanceData && (
-                        <AttendanceCharts
-                            dailyData={attendanceData.daily}
-                            monthlyData={attendanceData.monthly}
-                        />
-                    )}
+                    <div className="grid gap-4 lg:grid-cols-3">
+                        {reportPurposeCards.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <Card key={item.title} className="bg-card border-card-border">
+                                    <CardContent className="p-5">
+                                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                                            <Icon className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <h3 className="font-semibold text-foreground">{item.title}</h3>
+                                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{item.desc}</p>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </div>
+
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-amber-400" />
+                                {t('todayActionSummary')}
+                            </CardTitle>
+                            <CardDescription>{t('todayActionSummaryDesc')}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-xl bg-hover p-4">
+                                <p className="text-sm text-muted-foreground">{t('present')}</p>
+                                <p className="text-2xl font-bold text-emerald-400">{attendanceDaily.present || 0}</p>
+                            </div>
+                            <div className="rounded-xl bg-hover p-4">
+                                <p className="text-sm text-muted-foreground">{t('late')}</p>
+                                <p className="text-2xl font-bold text-amber-400">{attendanceDaily.late || 0}</p>
+                            </div>
+                            <div className="rounded-xl bg-hover p-4">
+                                <p className="text-sm text-muted-foreground">{t('needsReview')}</p>
+                                <p className="text-2xl font-bold text-red-400">{todayExceptions}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </TabsContent>
 
-                <TabsContent value="exports" className="mt-4">
+                <TabsContent value="exports" className="mt-4 space-y-6">
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle>{t('exportControlTitle')}</CardTitle>
+                            <CardDescription>{t('exportControlDesc')}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 sm:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label>{t('month')}</Label>
+                                <Input type="number" min="1" max="12" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t('year')}</Label>
+                                <Input type="number" min="2020" value={reportYear} onChange={(e) => setReportYear(e.target.value)} />
+                            </div>
+                            <div className="rounded-xl bg-hover p-4 text-sm text-muted-foreground">
+                                <p className="font-medium text-foreground">{t('exportScopeTitle')}</p>
+                                <p className="mt-1">{t('exportScopeDesc')}</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Report Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {reportCards.map((report) => (
@@ -345,28 +434,16 @@ export default function ReportsPage() {
                             </Card>
                         ))}
                     </div>
-
-                    {/* Custom Report Builder (Future) */}
-                    <Card className="bg-card border-card-border border-dashed mt-6">
-                        <CardContent className="py-12 text-center">
-                            <BarChart3 className="h-12 w-12 mx-auto text-muted-text mb-4" />
-                            <h3 className="text-lg font-medium text-foreground mb-2">{t('customReportBuilder')}</h3>
-                            <p className="text-tertiary-foreground mb-4">
-                                {t('customReportDesc')}
-                            </p>
-                            <Badge variant="secondary">{t('comingSoon')}</Badge>
-                        </CardContent>
-                    </Card>
                 </TabsContent>
 
                 <TabsContent value="attendance" className="mt-4 space-y-6">
                     {attendanceData ? (
                         <>
                             <AttendanceCharts
-                                dailyData={attendanceData.daily}
-                                monthlyData={attendanceData.monthly}
+                                dailyData={attendanceData.daily || {}}
+                                monthlyData={attendanceData.monthly || []}
                             />
-                            <LateEarlyTable data={attendanceData.offenders} />
+                            <LateEarlyTable data={attendanceData.offenders || []} />
                         </>
                     ) : loading ? (
                         <div className="flex items-center justify-center py-12">

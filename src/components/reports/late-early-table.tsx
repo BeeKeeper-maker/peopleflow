@@ -13,8 +13,21 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
 
+export interface LateEarlyRecord {
+    employee: {
+        id: string
+        firstName: string
+        lastName: string
+        employeeCode: string
+        photoUrl?: string | null
+        department?: { name: string } | null
+    }
+    lateCount: number
+    earlyLeaveCount: number
+}
+
 interface LateEarlyTableProps {
-    data: any[]
+    data: LateEarlyRecord[]
 }
 
 export function LateEarlyTable({ data }: LateEarlyTableProps) {
@@ -52,7 +65,7 @@ export function LateEarlyTable({ data }: LateEarlyTableProps) {
                                     <TableCell className="font-medium">
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-9 w-9 border border-card-border">
-                                                <AvatarImage src={item.employee.photoUrl} alt={item.employee.firstName} />
+                                                <AvatarImage src={item.employee.photoUrl || undefined} alt={item.employee.firstName} />
                                                 <AvatarFallback className="bg-blue-600 text-xs">
                                                     {item.employee.firstName[0]}{item.employee.lastName[0]}
                                                 </AvatarFallback>
