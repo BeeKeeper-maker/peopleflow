@@ -1,8 +1,51 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth, requireAdminOrHR } from "@/lib/api-auth";
+import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import type { Prisma } from "@/generated/prisma";
 import { attendanceLogger } from "@/lib/logger";
+
+
+type RegularizationStatus = "PENDING" | "APPROVED" | "REJECTED";
+type RegularizationMeta = {
+    status?: RegularizationStatus;
+    reason?: string;
+    requestedStatus?: string;
+    requestedCheckIn?: string | null;
+    requestedCheckOut?: string | null;
+    submittedAt?: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    rejectedBy?: string;
+    rejectedAt?: string;
+};
+
+function parseRegularizationNotes(notes: string | null): RegularizationMeta {
+    try {
+        const jsonStr = notes?.replace("[REGULARIZATION] ", "") || "{}";
+        return JSON.parse(jsonStr) as RegularizationMeta;
+    } catch {
+        return { status: "PENDING" };
+    }
+}
+
+function formatRequestedTime(value?: string | null): string | null {
+    if (!value) return null;
+    if (/^\d{2}:\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function businessDateFromInput(value: string): Date {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [, y, m, d] = match;
+        return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0));
+    }
+    const parsed = new Date(value);
+    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), 0, 0, 0, 0));
+}
 
 /**
  * GET — List regularization requests.
@@ -21,6 +64,8 @@ export async function GET(req: Request) {
         const ctx = auth as AuthContext;
 
         const isAdmin = ["super_admin", "admin", "hr_admin"].includes(ctx.role);
+        const { searchParams } = new URL(req.url);
+        const statusFilter = (searchParams.get("status") || "all").toUpperCase();
 
         // Build employee scope
         let employeeFilter: Record<string, unknown> = {};
@@ -39,7 +84,7 @@ export async function GET(req: Request) {
                 employee: { organizationId: ctx.organizationId },
                 notes: { startsWith: "[REGULARIZATION]" },
                 ...employeeFilter,
-            } as any,
+            } satisfies Prisma.AttendanceWhereInput,
             orderBy: { createdAt: "desc" },
             take: 100,
             include: {
@@ -56,25 +101,14 @@ export async function GET(req: Request) {
         });
 
         const requests = records.map((r) => {
-            // Parse structured notes
-            let regData: Record<string, any> = {};
-            try {
-                const jsonStr = r.notes?.replace("[REGULARIZATION] ", "") || "{}";
-                regData = JSON.parse(jsonStr);
-            } catch {
-                regData = { status: "PENDING" };
-            }
+            const regData = parseRegularizationNotes(r.notes);
 
             return {
                 id: r.id,
                 date: r.date.toISOString(),
                 reason: regData.reason || "",
-                requestedCheckIn: regData.requestedCheckIn
-                    ? new Date(regData.requestedCheckIn).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-                    : null,
-                requestedCheckOut: regData.requestedCheckOut
-                    ? new Date(regData.requestedCheckOut).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-                    : null,
+                requestedCheckIn: formatRequestedTime(regData.requestedCheckIn),
+                requestedCheckOut: formatRequestedTime(regData.requestedCheckOut),
                 status: (regData.status || "PENDING").toLowerCase(),
                 createdAt: r.createdAt.toISOString(),
                 employee: {
@@ -86,7 +120,11 @@ export async function GET(req: Request) {
             };
         });
 
-        return NextResponse.json({ requests });
+        const filteredRequests = statusFilter === "ALL"
+            ? requests
+            : requests.filter((request) => request.status.toUpperCase() === statusFilter);
+
+        return NextResponse.json({ requests: filteredRequests });
     } catch (error) {
         attendanceLogger.error({ err: error }, "Regularization list error:");
         return NextResponse.json({ error: "Failed to fetch requests" }, { status: 500 });
@@ -134,16 +172,15 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Employee record not found" }, { status: 404 });
         }
 
-        const dateStart = new Date(parsedDate);
-        dateStart.setHours(0, 0, 0, 0);
+        const dateStart = businessDateFromInput(date);
 
         // Build regularization metadata
         const regularizationData = {
             status: "PENDING",
             reason: reason.trim(),
             requestedStatus: "present",
-            requestedCheckIn: requestedCheckIn || null,
-            requestedCheckOut: requestedCheckOut || null,
+            requestedCheckIn: typeof requestedCheckIn === "string" && /^\d{2}:\d{2}$/.test(requestedCheckIn) ? requestedCheckIn : null,
+            requestedCheckOut: typeof requestedCheckOut === "string" && /^\d{2}:\d{2}$/.test(requestedCheckOut) ? requestedCheckOut : null,
             submittedAt: new Date().toISOString(),
         };
         const notesStr = `[REGULARIZATION] ${JSON.stringify(regularizationData)}`;

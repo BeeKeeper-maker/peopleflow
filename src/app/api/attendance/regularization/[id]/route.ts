@@ -4,6 +4,31 @@ import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { emit } from "@/lib/event-bus";
 import { attendanceLogger } from "@/lib/logger";
+import { buildBusinessDateTime } from "@/lib/biometric/attendance-ingest";
+
+
+type RegularizationStatus = "PENDING" | "APPROVED" | "REJECTED";
+type RegularizationMeta = {
+    status?: RegularizationStatus;
+    reason?: string;
+    requestedStatus?: string;
+    requestedCheckIn?: string | null;
+    requestedCheckOut?: string | null;
+    submittedAt?: string;
+    approvedBy?: string;
+    approvedAt?: string;
+    rejectedBy?: string;
+    rejectedAt?: string;
+};
+
+function parseRegularizationNotes(notes: string | null): RegularizationMeta {
+    try {
+        const jsonStr = notes?.replace("[REGULARIZATION] ", "") || "{}";
+        return JSON.parse(jsonStr) as RegularizationMeta;
+    } catch {
+        return { status: "PENDING" };
+    }
+}
 
 /**
  * PUT — Approve or reject a regularization request.
@@ -60,14 +85,7 @@ export async function PUT(
             return NextResponse.json({ error: "Request not found" }, { status: 404 });
         }
 
-        // Parse existing regularization data
-        let regData: Record<string, any> = {};
-        try {
-            const jsonStr = attendance.notes?.replace("[REGULARIZATION] ", "") || "{}";
-            regData = JSON.parse(jsonStr);
-        } catch {
-            regData = { status: "PENDING" };
-        }
+        const regData = parseRegularizationNotes(attendance.notes);
 
         if (regData.status === "APPROVED") {
             return NextResponse.json({ error: "Already approved" }, { status: 400 });
@@ -88,7 +106,15 @@ export async function PUT(
 
         if (action === "approve") {
             // Build updated attendance from regularization data
-            const updateData: Record<string, any> = {
+            const updateData: {
+                status: string;
+                source: string;
+                checkIn?: Date;
+                checkOut?: Date;
+                notes?: string;
+                lateMinutes?: number;
+                earlyLeaveMinutes?: number;
+            } = {
                 status: regData.requestedStatus || "present",
                 source: "regularization",
             };
@@ -97,18 +123,14 @@ export async function PUT(
             if (regData.requestedCheckIn) {
                 const [hours, minutes] = regData.requestedCheckIn.split(":");
                 if (hours && minutes) {
-                    const checkIn = new Date(attendance.date);
-                    checkIn.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    updateData.checkIn = checkIn;
+                    updateData.checkIn = buildBusinessDateTime(attendance.date, `${hours}:${minutes}`);
                 }
             }
 
             if (regData.requestedCheckOut) {
                 const [hours, minutes] = regData.requestedCheckOut.split(":");
                 if (hours && minutes) {
-                    const checkOut = new Date(attendance.date);
-                    checkOut.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    updateData.checkOut = checkOut;
+                    updateData.checkOut = buildBusinessDateTime(attendance.date, `${hours}:${minutes}`);
                 }
             }
 

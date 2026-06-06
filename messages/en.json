@@ -303,7 +303,11 @@
     "source": "Source",
     "filterAll": "All",
     "recordedBy": "Recorded by",
-    "exportCsv": "Export CSV"
+    "exportCsv": "Export CSV",
+    "searchRegularization": "Search employee, code, department, reason, or status",
+    "statusFilter": "Status",
+    "approveAction": "Approve",
+    "rejectAction": "Reject"
   },
   "Leaves": {
     "title": "Leave Applications",

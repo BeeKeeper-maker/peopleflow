@@ -303,7 +303,11 @@
     "source": "Source",
     "filterAll": "সব",
     "recordedBy": "রেকর্ড হয়েছে",
-    "exportCsv": "CSV Export"
+    "exportCsv": "CSV Export",
+    "searchRegularization": "Employee, code, department, reason, বা status খুঁজুন",
+    "statusFilter": "Status",
+    "approveAction": "Approve",
+    "rejectAction": "Reject"
   },
   "Leaves": {
     "title": "ছুটির আবেদন",

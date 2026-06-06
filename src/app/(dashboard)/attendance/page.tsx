@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { AttendanceDashboardCard } from "@/components/attendance/attendance-dashboard-card";
 import { AttendanceHistory } from "@/components/attendance/attendance-history";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,6 +21,9 @@ import {
     ClipboardEdit,
     Loader2,
     Plus,
+    RefreshCw,
+    Search,
+    Filter,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -68,6 +71,8 @@ export default function AttendancePage() {
     const [loadingReqs, setLoadingReqs] = useState(false);
     const [processing, setProcessing] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
+    const [regularizationStatusFilter, setRegularizationStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+    const [regularizationSearch, setRegularizationSearch] = useState("");
 
     // New request form
     const [formDate, setFormDate] = useState("");
@@ -76,14 +81,12 @@ export default function AttendancePage() {
     const [formReason, setFormReason] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        if (activeTab === "regularization") fetchRequests();
-    }, [activeTab]);
-
-    const fetchRequests = async () => {
+    const fetchRequests = useCallback(async () => {
         setLoadingReqs(true);
         try {
-            const res = await fetch("/api/attendance/regularization");
+            const params = new URLSearchParams();
+            if (regularizationStatusFilter !== "all") params.set("status", regularizationStatusFilter);
+            const res = await fetch(`/api/attendance/regularization${params.toString() ? `?${params.toString()}` : ""}`);
             if (res.ok) {
                 const data = await res.json();
                 setRequests(data.requests || []);
@@ -93,7 +96,11 @@ export default function AttendancePage() {
         } finally {
             setLoadingReqs(false);
         }
-    };
+    }, [regularizationStatusFilter]);
+
+    useEffect(() => {
+        if (activeTab === "regularization") fetchRequests();
+    }, [activeTab, fetchRequests]);
 
     const handleAction = async (id: string, action: "approve" | "reject") => {
         setProcessing(id);
@@ -115,6 +122,21 @@ export default function AttendancePage() {
         } finally {
             setProcessing(null);
         }
+    };
+
+    const filteredRequests = useMemo(() => {
+        const q = regularizationSearch.trim().toLowerCase();
+        if (!q) return requests;
+        return requests.filter((req) => {
+            const employeeText = `${req.employee.firstName} ${req.employee.lastName} ${req.employee.employeeCode} ${req.employee.department?.name || ""}`.toLowerCase();
+            return employeeText.includes(q) || req.reason.toLowerCase().includes(q) || req.status.includes(q);
+        });
+    }, [regularizationSearch, requests]);
+
+    const statusLabel = (status: RegularizationRequest["status"]) => {
+        if (status === "pending") return t("pendingLabel");
+        if (status === "approved") return t("approvedLabel");
+        return t("rejectedLabel");
     };
 
     const handleSubmitRequest = async () => {
@@ -195,10 +217,16 @@ export default function AttendancePage() {
                             <h3 className="text-lg font-semibold text-foreground">{t("regularizationTitle")}</h3>
                             <p className="text-sm text-muted-foreground">{t("regularizationSubtitle")}</p>
                         </div>
-                        <Button className="gap-2" onClick={() => setShowForm(!showForm)}>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" className="gap-2" onClick={fetchRequests} disabled={loadingReqs}>
+                                <RefreshCw className={`h-4 w-4 ${loadingReqs ? "animate-spin" : ""}`} />
+                                {t("refresh")}
+                            </Button>
+                            <Button className="gap-2" onClick={() => setShowForm(!showForm)}>
                             <Plus className="h-4 w-4" />
-                            {t("newRequest")}
-                        </Button>
+                                {t("newRequest")}
+                            </Button>
+                        </div>
                     </div>
 
                     {/* New Request Form */}
@@ -280,6 +308,33 @@ export default function AttendancePage() {
                         ))}
                     </div>
 
+                    <Card className="border-card-border bg-card">
+                        <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="relative flex-1 lg:max-w-sm">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={regularizationSearch}
+                                    onChange={(e) => setRegularizationSearch(e.target.value)}
+                                    placeholder={t("searchRegularization")}
+                                    className="pl-9"
+                                />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground"><Filter className="h-3.5 w-3.5" />{t("statusFilter")}</span>
+                                {(["all", "pending", "approved", "rejected"] as const).map((value) => (
+                                    <Button
+                                        key={value}
+                                        variant={regularizationStatusFilter === value ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setRegularizationStatusFilter(value)}
+                                    >
+                                        {value === "all" ? t("filterAll") : statusLabel(value)}
+                                    </Button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Requests List */}
                     <div className="space-y-3">
                         {loadingReqs ? (
@@ -296,7 +351,7 @@ export default function AttendancePage() {
                                     </CardContent>
                                 </Card>
                             ))
-                        ) : requests.length === 0 ? (
+                        ) : filteredRequests.length === 0 ? (
                             <Card>
                                 <CardContent className="p-8 text-center">
                                     <ClipboardEdit className="h-12 w-12 text-tertiary-foreground mx-auto mb-3" />
@@ -307,7 +362,7 @@ export default function AttendancePage() {
                                 </CardContent>
                             </Card>
                         ) : (
-                            requests.map((req) => {
+                            filteredRequests.map((req) => {
                                 const config = statusConfig[req.status];
                                 const StatusIcon = config.icon;
                                 return (
@@ -340,31 +395,33 @@ export default function AttendancePage() {
                                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{req.reason}</p>
                                                 </div>
 
-                                                <div className="flex items-center gap-3 shrink-0">
+                                                <div className="flex flex-col gap-2 shrink-0 sm:items-end">
                                                     <Badge className={`${config.color} text-[10px]`}>
                                                         <StatusIcon className="h-3 w-3 mr-1" />
-                                                        {t(config.labelKey as any)}
+                                                        {statusLabel(req.status)}
                                                     </Badge>
 
                                                     {req.status === "pending" && (
-                                                        <div className="flex gap-1.5">
+                                                        <div className="flex flex-wrap gap-1.5 sm:justify-end">
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                                                className="h-8 gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                                                                 onClick={() => handleAction(req.id, "approve")}
                                                                 disabled={processing === req.id}
                                                             >
                                                                 {processing === req.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                                {t("approveAction")}
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                                className="h-8 gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                                                                 onClick={() => handleAction(req.id, "reject")}
                                                                 disabled={processing === req.id}
                                                             >
                                                                 <XCircle className="h-4 w-4" />
+                                                                {t("rejectAction")}
                                                             </Button>
                                                         </div>
                                                     )}
