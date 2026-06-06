@@ -42,6 +42,9 @@ import {
     Router,
     ShieldCheck,
     ArrowRight,
+    AlertTriangle,
+    ClipboardCheck,
+    Filter,
 } from "lucide-react";
 import { BiometricMappingHub } from "@/components/biometric/mapping-hub";
 import { SyncAgentSetup } from "@/components/biometric/sync-agent-setup";
@@ -140,6 +143,7 @@ export default function DevicesPage() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [expandedLogs, setExpandedLogs] = useState<SyncLog[]>([]);
     const [expandedCloudEvents, setExpandedCloudEvents] = useState<CloudEventLog[]>([]);
+    const [deviceFilter, setDeviceFilter] = useState<"all" | "attention" | "direct_cloud" | "sync_agent">("all");
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [mappingDevice, setMappingDevice] = useState<BiometricDevice | null>(null);
     const [syncAgentOpen, setSyncAgentOpen] = useState(false);
@@ -393,6 +397,24 @@ export default function DevicesPage() {
         return t("deviceEventCaptured");
     };
 
+    const hasAttention = (device: BiometricDevice) => {
+        if (!device.isActive) return false;
+        if (device.connectionMode === "direct_cloud") {
+            return !isDeviceOnline(device) || device.cloudStatus === "failed" || device.cloudStatus === "unknown_device" || device.lastSyncStatus === "partial" || device.lastSyncStatus === "failed";
+        }
+        return !isDeviceOnline(device) || device.lastSyncStatus === "failed";
+    };
+
+    const directCloudCount = devices.filter((d) => d.connectionMode === "direct_cloud").length;
+    const syncAgentCount = devices.filter((d) => d.connectionMode !== "direct_cloud").length;
+    const attentionCount = devices.filter(hasAttention).length;
+    const filteredDevices = (() => {
+        if (deviceFilter === "attention") return devices.filter(hasAttention);
+        if (deviceFilter === "direct_cloud") return devices.filter((d) => d.connectionMode === "direct_cloud");
+        if (deviceFilter === "sync_agent") return devices.filter((d) => d.connectionMode !== "direct_cloud");
+        return devices;
+    })();
+
     const getSyncStatusBadge = (status: string | null) => {
         switch (status) {
             case "success":
@@ -547,30 +569,39 @@ export default function DevicesPage() {
                 </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                {[
-                    { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },
-                    { icon: Zap, title: t("guideStep2Title"), desc: t("guideStep2Desc") },
-                    { icon: MonitorCheck, title: t("guideStep3Title"), desc: t("guideStep3Desc") },
-                    { icon: Link2, title: t("guideStep4Title"), desc: t("guideStep4Desc") },
-                ].map((step) => {
-                    const Icon = step.icon;
-                    return (
-                        <Card key={step.title} className="bg-card border-card-border">
-                            <CardContent className="p-4">
-                                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
-                                    <Icon className="h-4 w-4 text-primary" />
-                                </div>
-                                <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{step.desc}</p>
-                            </CardContent>
-                        </Card>
-                    );
-                })}
-            </div>
+            <Card className="border-card-border bg-card">
+                <CardContent className="p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                <ClipboardCheck className="h-4 w-4 text-primary" />
+                                {t("handoverReadinessTitle")}
+                            </div>
+                            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("handoverReadinessDesc")}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 lg:min-w-[520px]">
+                            {[
+                                { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },
+                                { icon: Zap, title: t("guideStep2Title"), desc: t("guideStep2Desc") },
+                                { icon: MonitorCheck, title: t("guideStep3Title"), desc: t("guideStep3Desc") },
+                                { icon: Link2, title: t("guideStep4Title"), desc: t("guideStep4Desc") },
+                            ].map((step) => {
+                                const Icon = step.icon;
+                                return (
+                                    <div key={step.title} className="rounded-xl border border-card-border bg-hover p-3">
+                                        <Icon className="mb-2 h-4 w-4 text-primary" />
+                                        <p className="font-semibold text-foreground">{step.title}</p>
+                                        <p className="mt-1 leading-relaxed text-muted-foreground">{step.desc}</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="bg-card border-card-border">
                     <CardContent className="p-4 flex items-center gap-4">
                         <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -598,17 +629,54 @@ export default function DevicesPage() {
                 <Card className="bg-card border-card-border">
                     <CardContent className="p-4 flex items-center gap-4">
                         <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                            <RefreshCw className="h-6 w-6 text-blue-400" />
+                            <ShieldCheck className="h-6 w-6 text-blue-400" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-foreground">
-                                {devices.filter((d) => d.lastSyncStatus === "success" || (d.connectionMode === "direct_cloud" && d.cloudStatus === "connected")).length}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{t("lastSyncOk")}</p>
+                            <p className="text-2xl font-bold text-foreground">{directCloudCount}</p>
+                            <p className="text-sm text-muted-foreground">{t("cloudDevices")}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="bg-card border-card-border">
+                    <CardContent className="p-4 flex items-center gap-4">
+                        <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center", attentionCount > 0 ? "bg-amber-500/10" : "bg-emerald-500/10")}>
+                            {attentionCount > 0 ? <AlertTriangle className="h-6 w-6 text-amber-400" /> : <CheckCircle2 className="h-6 w-6 text-emerald-400" />}
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-foreground">{attentionCount}</p>
+                            <p className="text-sm text-muted-foreground">{t("needsAttention")}</p>
                         </div>
                     </CardContent>
                 </Card>
             </div>
+
+            {devices.length > 0 && (
+                <div className="flex flex-col gap-3 rounded-2xl border border-card-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <Filter className="h-4 w-4 text-muted-foreground" />
+                        {t("deviceViewFilter")}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            ["all", t("filterAll"), devices.length],
+                            ["attention", t("filterAttention"), attentionCount],
+                            ["direct_cloud", t("filterDirectCloud"), directCloudCount],
+                            ["sync_agent", t("filterSyncAgent"), syncAgentCount],
+                        ].map(([value, label, count]) => (
+                            <Button
+                                key={String(value)}
+                                variant={deviceFilter === value ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setDeviceFilter(value as typeof deviceFilter)}
+                                className="gap-2"
+                            >
+                                {label}
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{count}</Badge>
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Empty State */}
             {devices.length === 0 && (
@@ -633,10 +701,20 @@ export default function DevicesPage() {
 
             {/* Device List */}
             <div className="grid grid-cols-1 gap-4">
-                {devices.map((device) => {
+                {filteredDevices.map((device) => {
                     const isDirectCloudDevice = device.connectionMode === "direct_cloud";
                     const isPrivateLanDevice = !isDirectCloudDevice && isPrivateLanIp(device.ip);
                     const online = isDeviceOnline(device);
+                    const needsAttention = hasAttention(device);
+                    const healthCopy = !device.isActive
+                        ? t("inactiveDeviceHint")
+                        : needsAttention
+                            ? isDirectCloudDevice
+                                ? t("directCloudAttentionHint")
+                                : t("syncAgentAttentionHint")
+                            : isDirectCloudDevice
+                                ? t("directCloudHealthyHint")
+                                : t("syncAgentHealthyHint");
 
                     return (
                     <Card
@@ -790,6 +868,30 @@ export default function DevicesPage() {
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <div className={cn(
+                                "mt-4 rounded-xl border p-3 text-sm",
+                                needsAttention ? "border-amber-500/20 bg-amber-500/5" : "border-emerald-500/20 bg-emerald-500/5"
+                            )}>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex items-start gap-2">
+                                        {needsAttention ? (
+                                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                                        ) : (
+                                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                                        )}
+                                        <div>
+                                            <p className="font-medium text-foreground">{needsAttention ? t("attentionRequired") : t("readyForAttendance")}</p>
+                                            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{healthCopy}</p>
+                                        </div>
+                                    </div>
+                                    {isDirectCloudDevice && (
+                                        <div className="rounded-lg bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                                            {t("cloudSetupMini")}: <span className="font-mono text-foreground">peopleflowbd.online : 80</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -956,7 +1058,7 @@ export default function DevicesPage() {
                                     <p>{t("directCloudServerBoxDesc")}</p>
                                     <div className="mt-2 grid gap-1 font-mono text-foreground">
                                         <span>Server: peopleflowbd.online</span>
-                                        <span>Port: 443</span>
+                                        <span>Port: 80</span>
                                         <span>Path: /iclock/cdata</span>
                                     </div>
                                 </div>

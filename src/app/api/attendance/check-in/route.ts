@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireEmployee, isAuthenticated } from "@/lib/api-auth";
-import { startOfDay, differenceInMinutes, set } from "date-fns";
+import { differenceInMinutes } from "date-fns";
 import { attendanceLogger } from "@/lib/logger";
 import { validateGeoFence } from "@/lib/attendance-engine";
+import { buildBusinessDateTime, startOfBusinessDay, addBusinessDays } from "@/lib/biometric/attendance-ingest";
 
 // ── Helper: Get org geo-fence settings from Organization.settings JSON ──
 function getGeoFenceSettings(settings: unknown): {
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
         const { location, source } = await req.json(); // { lat, lng }
 
         const now = new Date();
-        const today = startOfDay(now);
+        const today = startOfBusinessDay(now);
 
         // Check if already checked in
         const existing = await prisma.attendance.findUnique({
@@ -116,8 +117,7 @@ export async function POST(req: Request) {
         let status = "present";
 
         if (employee.shift) {
-            const [hours, minutes] = employee.shift.startTime.split(':').map(Number);
-            const shiftStart = set(now, { hours, minutes, seconds: 0, milliseconds: 0 });
+            const shiftStart = buildBusinessDateTime(today, employee.shift.startTime);
 
             // Add grace period
             const lateThreshold = new Date(shiftStart.getTime() + (employee.shift.graceMinutes || 15) * 60000);
@@ -194,7 +194,7 @@ export async function PUT(req: Request) {
         const { location } = await req.json();
 
         const now = new Date();
-        const today = startOfDay(now);
+        const today = startOfBusinessDay(now);
 
         const attendance = await prisma.attendance.findUnique({
             where: {
@@ -218,8 +218,7 @@ export async function PUT(req: Request) {
         let overtimeMinutes = 0;
 
         if (employee.shift) {
-            const [hours, minutes] = employee.shift.endTime.split(':').map(Number);
-            const shiftEnd = set(now, { hours, minutes, seconds: 0, milliseconds: 0 });
+            const shiftEnd = buildBusinessDateTime(employee.shift.crossesMidnight ? addBusinessDays(today, 1) : today, employee.shift.endTime);
 
             if (now < shiftEnd) {
                 earlyLeaveMinutes = differenceInMinutes(shiftEnd, now);

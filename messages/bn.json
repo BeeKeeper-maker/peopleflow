@@ -293,7 +293,16 @@
     "sourceManual": "ম্যানুয়াল",
     "sourceRegularization": "সংশোধিত",
     "sourceWeb": "ওয়েব",
-    "sourceUnknown": "অজানা উৎস"
+    "sourceUnknown": "অজানা উৎস",
+    "attendanceHistoryHelp": "Real punch, web check-in, regularization, এবং exception এক জায়গা থেকে review করুন।",
+    "refresh": "Refresh",
+    "biometricPunches": "Biometric punch",
+    "openShifts": "Open shift",
+    "exceptions": "Exception",
+    "searchEmployeeAttendance": "Employee, code, status, বা source খুঁজুন",
+    "source": "Source",
+    "filterAll": "সব",
+    "recordedBy": "রেকর্ড হয়েছে"
   },
   "Leaves": {
     "title": "ছুটির আবেদন",
@@ -2649,7 +2658,24 @@
     "deviceEventFailed": "ডিভাইস ইভেন্ট ব্যর্থ",
     "deviceHeartbeatEvent": "ডিভাইস heartbeat / command poll",
     "deviceOperationEvent": "ডিভাইস operation log captured — attendance নয়",
-    "deviceEventCaptured": "ডিভাইস ইভেন্ট captured"
+    "deviceEventCaptured": "ডিভাইস ইভেন্ট captured",
+    "handoverReadinessTitle": "অফিস handover readiness",
+    "handoverReadinessDesc": "এই পেজটা setup checklist হিসেবে ব্যবহার করুন: device add, cloud contact confirm, employee biometric ID map, তারপর Attendance-এ একটি real punch verify।",
+    "cloudDevices": "Cloud ডিভাইস",
+    "needsAttention": "খেয়াল দরকার",
+    "deviceViewFilter": "ডিভাইস view",
+    "filterAll": "সব",
+    "filterAttention": "Attention",
+    "filterDirectCloud": "Direct cloud",
+    "filterSyncAgent": "Sync Agent",
+    "attentionRequired": "Action দরকার",
+    "readyForAttendance": "Attendance-এর জন্য ready",
+    "inactiveDeviceHint": "এই ডিভাইস inactive, তাই attendance source হিসেবে ধরা হবে না।",
+    "directCloudAttentionHint": "Cloud server setting, device serial, recent heartbeat, এবং employee biometric ID mapping চেক করুন।",
+    "syncAgentAttentionHint": "Sync Agent/VPN/LAN reachability চেক করুন, তারপর office network থেকে Test বা Sync চালান।",
+    "directCloudHealthyHint": "Device সাম্প্রতিক সময়ে PeopleFlow-তে contact করেছে। পরের proof: mapped employee punch দিয়ে Attendance verify।",
+    "syncAgentHealthyHint": "Sync Agent device reachable দেখাচ্ছে। office punch missing হলে sync চালান।",
+    "cloudSetupMini": "Device COMM setting"
   },
   "FestivalBonus": {
     "title": "উৎসব বোনাস ইঞ্জিন",

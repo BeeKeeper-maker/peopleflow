@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Square, Clock, MapPin, AlertCircle, Shield, ShieldAlert, Loader2 } from "lucide-react";
+import { Square, Clock, MapPin, AlertCircle, Shield, ShieldAlert, Loader2, Fingerprint, Globe2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { differenceInSeconds } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ interface AttendanceState {
     shiftStartTime: string | null;
     shiftEndTime: string | null;
     lateMinutes: number;
+    source: string | null;
 }
 
 interface GeoFenceInfo {
@@ -37,7 +38,8 @@ export function AttendanceDashboardCard() {
         checkOutTime: null,
         shiftStartTime: null,
         shiftEndTime: null,
-        lateMinutes: 0
+        lateMinutes: 0,
+        source: null
     });
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [geoInfo, setGeoInfo] = useState<GeoFenceInfo>({ status: "unchecked", distance: null });
@@ -50,13 +52,14 @@ export function AttendanceDashboardCard() {
 
                 if (data.attendance) {
                     if (data.attendance.checkOut) {
-                        setState(prev => ({ ...prev, status: 'checked-out', checkInTime: data.attendance.checkIn, checkOutTime: data.attendance.checkOut }));
+                        setState(prev => ({ ...prev, status: 'checked-out', checkInTime: data.attendance.checkIn, checkOutTime: data.attendance.checkOut, lateMinutes: data.attendance.lateMinutes || 0, source: data.attendance.source || null }));
                     } else if (data.attendance.checkIn) {
                         setState(prev => ({
                             ...prev,
                             status: 'checked-in',
                             checkInTime: data.attendance.checkIn,
-                            lateMinutes: data.attendance.lateMinutes
+                            lateMinutes: data.attendance.lateMinutes,
+                            source: data.attendance.source || null
                         }));
                         // Calculate initial elapsed
                         const start = new Date(data.attendance.checkIn);
@@ -99,7 +102,15 @@ export function AttendanceDashboardCard() {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = seconds % 60;
-        return `${h}h ${m}m ${s}s`;
+        return locale.startsWith("bn") ? `${h}ঘ ${m}মি ${s}সে` : `${h}h ${m}m ${s}s`;
+    };
+
+    const sourceLabel = (source: string | null) => {
+        if (source === "biometric") return t("sourceBiometric");
+        if (source === "web") return t("sourceWeb");
+        if (source === "manual") return t("sourceManual");
+        if (source === "regularization") return t("sourceRegularization");
+        return t("sourceUnknown");
     };
 
     // ── Get location helper ──────────────────────────────────────
@@ -189,8 +200,8 @@ export function AttendanceDashboardCard() {
             // Get Location
             const location = await getLocation();
 
-            const res = await fetch("/api/attendance/check-in", { // Same route, PUT method
-                method: "PUT",
+            const res = await fetch("/api/attendance/check-out", {
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ location })
             });
@@ -257,6 +268,16 @@ export function AttendanceDashboardCard() {
                         </Badge>
                     )}
                 </div>
+
+                {state.source && (
+                    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-card-border bg-hover px-3 py-2 text-sm">
+                        {state.source === "biometric" ? <Fingerprint className="h-4 w-4 text-cyan-400" /> : <Globe2 className="h-4 w-4 text-blue-400" />}
+                        <span className="text-muted-foreground">{t("recordedBy")}</span>
+                        <Badge className={cn("border-0", state.source === "biometric" ? "bg-cyan-500/10 text-cyan-400" : "bg-blue-500/10 text-blue-400")}>
+                            {sourceLabel(state.source)}
+                        </Badge>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-hover rounded-lg p-3 border border-card-border">

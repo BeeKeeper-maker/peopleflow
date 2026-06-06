@@ -36,19 +36,19 @@ function getBusinessLocalDate(date: Date): Date {
     return new Date(date.getTime() + BUSINESS_TIMEZONE_OFFSET_MINUTES * 60_000);
 }
 
-function startOfBusinessDay(date: Date): Date {
+export function startOfBusinessDay(date: Date): Date {
     const local = getBusinessLocalDate(date);
     // Store attendance.date as UTC midnight for the business-local calendar day.
     return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), 0, 0, 0, 0));
 }
 
-function addBusinessDays(date: Date, days: number): Date {
+export function addBusinessDays(date: Date, days: number): Date {
     const d = new Date(date);
     d.setUTCDate(d.getUTCDate() + days);
     return d;
 }
 
-function buildBusinessDateTime(baseBusinessDate: Date, timeStr: string): Date {
+export function buildBusinessDateTime(baseBusinessDate: Date, timeStr: string): Date {
     const { hours, minutes } = parseTime(timeStr);
     const utcMs = Date.UTC(
         baseBusinessDate.getUTCFullYear(),

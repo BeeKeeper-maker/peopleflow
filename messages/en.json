@@ -293,7 +293,16 @@
     "sourceManual": "Manual",
     "sourceRegularization": "Regularized",
     "sourceWeb": "Web",
-    "sourceUnknown": "Unknown source"
+    "sourceUnknown": "Unknown source",
+    "attendanceHistoryHelp": "Review real punches, web check-ins, regularizations, and exceptions from one place.",
+    "refresh": "Refresh",
+    "biometricPunches": "Biometric punches",
+    "openShifts": "Open shifts",
+    "exceptions": "Exceptions",
+    "searchEmployeeAttendance": "Search employee, code, status, or source",
+    "source": "Source",
+    "filterAll": "All",
+    "recordedBy": "Recorded by"
   },
   "Leaves": {
     "title": "Leave Applications",
@@ -2649,7 +2658,24 @@
     "deviceEventFailed": "Device event failed",
     "deviceHeartbeatEvent": "Device heartbeat / command poll",
     "deviceOperationEvent": "Device operation log captured — not attendance",
-    "deviceEventCaptured": "Device event captured"
+    "deviceEventCaptured": "Device event captured",
+    "handoverReadinessTitle": "Office handover readiness",
+    "handoverReadinessDesc": "Use this page as a setup checklist: add the device, confirm cloud contact, map employee biometric IDs, then verify one real punch in Attendance.",
+    "cloudDevices": "Cloud devices",
+    "needsAttention": "Needs attention",
+    "deviceViewFilter": "Device view",
+    "filterAll": "All",
+    "filterAttention": "Attention",
+    "filterDirectCloud": "Direct cloud",
+    "filterSyncAgent": "Sync Agent",
+    "attentionRequired": "Action needed",
+    "readyForAttendance": "Ready for attendance",
+    "inactiveDeviceHint": "This device is inactive, so it will not be treated as an attendance source.",
+    "directCloudAttentionHint": "Check cloud server settings, device serial, recent heartbeat, and employee biometric ID mapping.",
+    "syncAgentAttentionHint": "Check Sync Agent/VPN/LAN reachability, then run Test or Sync from the office network.",
+    "directCloudHealthyHint": "Device has contacted PeopleFlow recently. Next proof: punch a mapped employee and verify Attendance.",
+    "syncAgentHealthyHint": "Sync Agent device looks reachable. Run a sync after office punches if records are missing.",
+    "cloudSetupMini": "Device COMM setting"
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",

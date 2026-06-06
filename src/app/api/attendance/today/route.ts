@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { startOfDay } from "date-fns";
 import { attendanceLogger } from "@/lib/logger";
+import { startOfBusinessDay } from "@/lib/biometric/attendance-ingest";
 
 export async function GET() {
     try {
@@ -20,13 +20,14 @@ export async function GET() {
         }
 
         const today = new Date();
+        const businessDay = startOfBusinessDay(today);
 
         // Find today's attendance record
         const attendance = await prisma.attendance.findUnique({
             where: {
                 employeeId_date: {
                     employeeId: employee.id,
-                    date: startOfDay(today), // Using startOfDay to normalize date part
+                    date: businessDay,
                 }
             }
         });
