@@ -107,9 +107,19 @@ export async function GET(req: Request) {
                     leaveType: true,
                     employee: {
                         select: {
+                            id: true,
                             firstName: true,
                             lastName: true,
                             photoUrl: true,
+                            reportingManagerId: true,
+                            reportingManager: {
+                                select: {
+                                    id: true,
+                                    firstName: true,
+                                    lastName: true,
+                                    employeeCode: true,
+                                }
+                            },
                             designation: {
                                 select: { name: true }
                             }
@@ -123,8 +133,106 @@ export async function GET(req: Request) {
             prisma.leaveApplication.count({ where }),
         ]);
 
+        const approvalRequests = await prisma.approvalRequest.findMany({
+            where: {
+                organizationId: auth.organizationId,
+                entityType: "leave",
+                entityId: { in: applications.map((application) => application.id) },
+            },
+            include: {
+                steps: { orderBy: { stepNumber: "asc" } },
+            },
+        });
+
+        const approvalEmployeeIds = new Set<string>();
+        approvalRequests.forEach((request) => {
+            if (request.currentApproverId) approvalEmployeeIds.add(request.currentApproverId);
+            request.steps.forEach((step) => {
+                if (step.assignedToId) approvalEmployeeIds.add(step.assignedToId);
+                if (step.actedById) approvalEmployeeIds.add(step.actedById);
+            });
+        });
+
+        const approvalEmployees = approvalEmployeeIds.size
+            ? await prisma.employee.findMany({
+                where: {
+                    organizationId: auth.organizationId,
+                    id: { in: Array.from(approvalEmployeeIds) },
+                },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    employeeCode: true,
+                    user: { select: { role: true, isActive: true } },
+                },
+            })
+            : [];
+
+        const employeeById = new Map(approvalEmployees.map((employee) => [employee.id, employee]));
+        const requestByEntityId = new Map(approvalRequests.map((request) => [request.entityId, request]));
+
+        const data = applications.map((application) => {
+            const approvalRequest = requestByEntityId.get(application.id);
+            const currentApprover = approvalRequest?.currentApproverId
+                ? employeeById.get(approvalRequest.currentApproverId) || null
+                : null;
+            const warnings: string[] = [];
+
+            if (approvalRequest?.status === "in_progress" && !currentApprover) {
+                warnings.push("Current approver is not resolved. Check reporting manager or role assignment.");
+            }
+            if (approvalRequest?.currentApproverRole === "manager" && !application.employee.reportingManagerId) {
+                warnings.push("Employee has no reporting manager; manager approval may be blocked.");
+            }
+
+            return {
+                ...application,
+                approvalTrail: approvalRequest ? {
+                    id: approvalRequest.id,
+                    status: approvalRequest.status,
+                    currentStep: approvalRequest.currentStep,
+                    totalSteps: approvalRequest.totalSteps,
+                    currentApproverRole: approvalRequest.currentApproverRole,
+                    currentApprover: currentApprover ? {
+                        id: currentApprover.id,
+                        firstName: currentApprover.firstName,
+                        lastName: currentApprover.lastName,
+                        employeeCode: currentApprover.employeeCode,
+                        role: currentApprover.user?.role || null,
+                        isActive: currentApprover.user?.isActive ?? null,
+                    } : null,
+                    steps: approvalRequest.steps.map((step) => {
+                        const assignedTo = step.assignedToId ? employeeById.get(step.assignedToId) : null;
+                        const actedBy = step.actedById ? employeeById.get(step.actedById) : null;
+                        return {
+                            stepNumber: step.stepNumber,
+                            stepName: step.stepName,
+                            assignedRole: step.assignedRole,
+                            status: step.status,
+                            assignedTo: assignedTo ? {
+                                id: assignedTo.id,
+                                firstName: assignedTo.firstName,
+                                lastName: assignedTo.lastName,
+                                employeeCode: assignedTo.employeeCode,
+                            } : null,
+                            actedBy: actedBy ? {
+                                id: actedBy.id,
+                                firstName: actedBy.firstName,
+                                lastName: actedBy.lastName,
+                                employeeCode: actedBy.employeeCode,
+                            } : null,
+                            actedAt: step.actedAt,
+                            notes: step.notes,
+                        };
+                    }),
+                    warnings,
+                } : null,
+            };
+        });
+
         return NextResponse.json({
-            data: applications,
+            data,
             pagination: {
                 total,
                 page,
