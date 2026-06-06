@@ -25,6 +25,21 @@ export async function GET(req: Request, { params }: RouteParams) {
                     orderBy: { syncedAt: "desc" },
                     take: 20,
                 },
+                cloudEvents: {
+                    orderBy: { createdAt: "desc" },
+                    take: 20,
+                    select: {
+                        id: true,
+                        eventType: true,
+                        status: true,
+                        recordsReceived: true,
+                        recordsSynced: true,
+                        recordsSkipped: true,
+                        unmappedUserIds: true,
+                        errorMessage: true,
+                        createdAt: true,
+                    },
+                },
             },
         });
 

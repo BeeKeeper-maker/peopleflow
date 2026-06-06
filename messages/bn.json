@@ -288,7 +288,12 @@
     "requestRejected": "অনুরোধ প্রত্যাখ্যাত",
     "approvedDesc": "নিয়মিতকরণ অনুরোধ অনুমোদিত হয়েছে।",
     "rejectedDesc": "নিয়মিতকরণ অনুরোধ প্রত্যাখ্যাত হয়েছে।",
-    "missingFieldsDesc": "তারিখ এবং কারণ আবশ্যক।"
+    "missingFieldsDesc": "তারিখ এবং কারণ আবশ্যক।",
+    "sourceBiometric": "বায়োমেট্রিক",
+    "sourceManual": "ম্যানুয়াল",
+    "sourceRegularization": "সংশোধিত",
+    "sourceWeb": "ওয়েব",
+    "sourceUnknown": "অজানা উৎস"
   },
   "Leaves": {
     "title": "ছুটির আবেদন",
@@ -2634,7 +2639,17 @@
     "serialNumber": "সিরিয়াল নম্বর",
     "directCloudServerBoxTitle": "ডিভাইস ক্লাউড সার্ভার সেটিংস",
     "directCloudServerBoxDesc": "Save করার পরে device-এর COMM → Cloud Server / ADMS মেনুতে এই values বসান।",
-    "heartbeatIntervalMin": "Heartbeat interval (মিনিট)"
+    "heartbeatIntervalMin": "Heartbeat interval (মিনিট)",
+    "onlineDevices": "অনলাইন ডিভাইস",
+    "deviceEventHistory": "ডিভাইস ইভেন্ট ইতিহাস",
+    "noDeviceEvents": "এখনো কোনো ডিভাইস ইভেন্ট নেই",
+    "attendanceUploadProcessed": "অ্যাটেনডেন্স আপলোড সম্পন্ন",
+    "attendanceUploadNeedsMapping": "অ্যাটেনডেন্স এসেছে — employee mapping দরকার",
+    "unknownDeviceEvent": "অচেনা ডিভাইস hit করেছে — আগে serial add করুন",
+    "deviceEventFailed": "ডিভাইস ইভেন্ট ব্যর্থ",
+    "deviceHeartbeatEvent": "ডিভাইস heartbeat / command poll",
+    "deviceOperationEvent": "ডিভাইস operation log captured — attendance নয়",
+    "deviceEventCaptured": "ডিভাইস ইভেন্ট captured"
   },
   "FestivalBonus": {
     "title": "উৎসব বোনাস ইঞ্জিন",

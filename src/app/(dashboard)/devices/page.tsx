@@ -64,6 +64,18 @@ interface SyncLog {
     syncedAt: string;
 }
 
+interface CloudEventLog {
+    id: string;
+    eventType: string;
+    status: string;
+    recordsReceived: number;
+    recordsSynced: number;
+    recordsSkipped: number;
+    unmappedUserIds: string[];
+    errorMessage: string | null;
+    createdAt: string;
+}
+
 interface BiometricDevice {
     id: string;
     name: string;
@@ -81,6 +93,7 @@ interface BiometricDevice {
     setupNotes: string | null;
     location: string | null;
     isActive: boolean;
+    isOnline: boolean;
     lastSyncAt: string | null;
     lastSyncStatus: string | null;
     syncInterval: number;
@@ -88,6 +101,7 @@ interface BiometricDevice {
     branch: Branch | null;
     _count?: { syncLogs: number };
     syncLogs?: SyncLog[];
+    cloudEvents?: CloudEventLog[];
     createdAt: string;
 }
 
@@ -125,6 +139,7 @@ export default function DevicesPage() {
     const [syncingId, setSyncingId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [expandedLogs, setExpandedLogs] = useState<SyncLog[]>([]);
+    const [expandedCloudEvents, setExpandedCloudEvents] = useState<CloudEventLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [mappingDevice, setMappingDevice] = useState<BiometricDevice | null>(null);
     const [syncAgentOpen, setSyncAgentOpen] = useState(false);
@@ -332,9 +347,11 @@ export default function DevicesPage() {
             if (res.ok) {
                 const data = await res.json();
                 setExpandedLogs(data.syncLogs || []);
+                setExpandedCloudEvents(data.cloudEvents || []);
             }
         } catch {
             setExpandedLogs([]);
+            setExpandedCloudEvents([]);
         } finally {
             setLoadingLogs(false);
         }
@@ -354,6 +371,27 @@ export default function DevicesPage() {
 
 
     const isPrivateLanIp = (ip: string) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|127\.)/.test(ip);
+
+    const isFresh = (dateStr: string | null, minutes = 30) => {
+        if (!dateStr) return false;
+        return Date.now() - new Date(dateStr).getTime() <= minutes * 60 * 1000;
+    };
+
+    const isDeviceOnline = (device: BiometricDevice) => {
+        if (!device.isActive) return false;
+        if (device.connectionMode === "direct_cloud") return device.cloudStatus === "connected" && isFresh(device.lastSeenAt, 30);
+        return device.isOnline || isFresh(device.lastSyncAt, Math.max(device.syncInterval * 3, 30));
+    };
+
+    const getCloudEventLabel = (event: CloudEventLog) => {
+        if (event.status === "processed") return t("attendanceUploadProcessed");
+        if (event.status === "partial") return t("attendanceUploadNeedsMapping");
+        if (event.status === "unknown_device") return t("unknownDeviceEvent");
+        if (event.status === "failed") return t("deviceEventFailed");
+        if (event.eventType === "getrequest") return t("deviceHeartbeatEvent");
+        if (event.eventType === "cdata" && event.recordsReceived === 0) return t("deviceOperationEvent");
+        return t("deviceEventCaptured");
+    };
 
     const getSyncStatusBadge = (status: string | null) => {
         switch (status) {
@@ -551,9 +589,9 @@ export default function DevicesPage() {
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-foreground">
-                                {devices.filter((d) => d.isActive).length}
+                                {devices.filter((d) => isDeviceOnline(d)).length}
                             </p>
-                            <p className="text-sm text-muted-foreground">{t("activeDevices")}</p>
+                            <p className="text-sm text-muted-foreground">{t("onlineDevices")}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -564,7 +602,7 @@ export default function DevicesPage() {
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-foreground">
-                                {devices.filter((d) => d.lastSyncStatus === "success").length}
+                                {devices.filter((d) => d.lastSyncStatus === "success" || (d.connectionMode === "direct_cloud" && d.cloudStatus === "connected")).length}
                             </p>
                             <p className="text-sm text-muted-foreground">{t("lastSyncOk")}</p>
                         </div>
@@ -598,6 +636,7 @@ export default function DevicesPage() {
                 {devices.map((device) => {
                     const isDirectCloudDevice = device.connectionMode === "direct_cloud";
                     const isPrivateLanDevice = !isDirectCloudDevice && isPrivateLanIp(device.ip);
+                    const online = isDeviceOnline(device);
 
                     return (
                     <Card
@@ -614,12 +653,12 @@ export default function DevicesPage() {
                                     <div
                                         className={cn(
                                             "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
-                                            device.isActive
+                                            online
                                                 ? "bg-emerald-500/10"
                                                 : "bg-zinc-500/10"
                                         )}
                                     >
-                                        {device.isActive ? (
+                                        {online ? (
                                             <Wifi className="h-6 w-6 text-emerald-400" />
                                         ) : (
                                             <WifiOff className="h-6 w-6 text-zinc-400" />
@@ -669,7 +708,13 @@ export default function DevicesPage() {
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                                     {/* Sync Status */}
                                     <div className="text-right">
-                                        {getSyncStatusBadge(device.lastSyncStatus)}
+                                        <div className="flex flex-col items-end gap-1">
+                                            <Badge className={cn("border-0 gap-1", online ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-500/20 text-zinc-400")}>
+                                                {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                                                {online ? t("online") : t("offline")}
+                                            </Badge>
+                                            {getSyncStatusBadge(device.lastSyncStatus)}
+                                        </div>
                                         <p className="text-xs text-muted-foreground mt-1">
                                             {isDirectCloudDevice ? t("lastSeen") : t("lastSync")}: {formatDateTime(isDirectCloudDevice ? device.lastSeenAt : device.lastSyncAt)}
                                         </p>
@@ -753,12 +798,44 @@ export default function DevicesPage() {
                                 <div className="mt-4 pt-4 border-t border-card-border">
                                     <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                                         <History className="h-4 w-4" />
-                                        {t("syncHistory")}
+                                        {isDirectCloudDevice ? t("deviceEventHistory") : t("syncHistory")}
                                     </h4>
                                     {loadingLogs ? (
                                         <div className="flex items-center justify-center py-4">
                                             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                                         </div>
+                                    ) : isDirectCloudDevice ? (
+                                        expandedCloudEvents.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground py-2">{t("noDeviceEvents")}</p>
+                                        ) : (
+                                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                {expandedCloudEvents.map((event) => (
+                                                    <div
+                                                        key={event.id}
+                                                        className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-hover text-sm"
+                                                    >
+                                                        <div className="flex min-w-0 items-center gap-3">
+                                                            {event.status === "processed" ? (
+                                                                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                                                            ) : event.status === "failed" || event.status === "unknown_device" ? (
+                                                                <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+                                                            ) : (
+                                                                <Activity className="h-4 w-4 text-cyan-400 shrink-0" />
+                                                            )}
+                                                            <div className="min-w-0">
+                                                                <p className="text-foreground">{getCloudEventLabel(event)}</p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {event.recordsSynced} {t("synced")} / {event.recordsSkipped} {t("skipped")}
+                                                                    {event.unmappedUserIds.length > 0 ? ` • ${t("unmappedUsers")}: ${event.unmappedUserIds.join(", ")}` : ""}
+                                                                </p>
+                                                                {event.errorMessage && <p className="truncate text-xs text-red-400">{event.errorMessage}</p>}
+                                                            </div>
+                                                        </div>
+                                                        <span className="shrink-0 text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )
                                     ) : expandedLogs.length === 0 ? (
                                         <p className="text-sm text-muted-foreground py-2">{t("noSyncHistory")}</p>
                                     ) : (

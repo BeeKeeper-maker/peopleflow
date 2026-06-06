@@ -288,7 +288,12 @@
     "requestRejected": "Request rejected",
     "approvedDesc": "Regularization request has been approved.",
     "rejectedDesc": "Regularization request has been rejected.",
-    "missingFieldsDesc": "Date and reason are required."
+    "missingFieldsDesc": "Date and reason are required.",
+    "sourceBiometric": "Biometric",
+    "sourceManual": "Manual",
+    "sourceRegularization": "Regularized",
+    "sourceWeb": "Web",
+    "sourceUnknown": "Unknown source"
   },
   "Leaves": {
     "title": "Leave Applications",
@@ -2634,7 +2639,17 @@
     "serialNumber": "Serial number",
     "directCloudServerBoxTitle": "Device cloud server settings",
     "directCloudServerBoxDesc": "After saving, enter these values in the device COMM → Cloud Server / ADMS menu.",
-    "heartbeatIntervalMin": "Heartbeat interval (min)"
+    "heartbeatIntervalMin": "Heartbeat interval (min)",
+    "onlineDevices": "Online devices",
+    "deviceEventHistory": "Device event history",
+    "noDeviceEvents": "No device events yet",
+    "attendanceUploadProcessed": "Attendance upload processed",
+    "attendanceUploadNeedsMapping": "Attendance upload needs employee mapping",
+    "unknownDeviceEvent": "Unknown device hit — add this serial first",
+    "deviceEventFailed": "Device event failed",
+    "deviceHeartbeatEvent": "Device heartbeat / command poll",
+    "deviceOperationEvent": "Device operation log captured — not attendance",
+    "deviceEventCaptured": "Device event captured"
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",

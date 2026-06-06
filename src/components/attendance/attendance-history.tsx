@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useLocale, useTranslations } from "next-intl";
-import { Shield, ShieldAlert, MapPin } from "lucide-react";
+import { Fingerprint, Shield, ShieldAlert, MapPin } from "lucide-react";
 
 type AttendanceRecord = {
     id: string;
@@ -26,6 +26,11 @@ type AttendanceRecord = {
     overtimeMinutes: number;
     notes: string | null;
     source: string | null;
+    employee?: {
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+    };
 };
 
 export function AttendanceHistory() {
@@ -34,6 +39,13 @@ export function AttendanceHistory() {
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const formatTime = (value: string) => new Intl.DateTimeFormat(dateLocale, { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+    const sourceLabel = (source: string | null) => {
+        if (source === "biometric") return t("sourceBiometric");
+        if (source === "manual") return t("sourceManual");
+        if (source === "regularization") return t("sourceRegularization");
+        if (source === "web") return t("sourceWeb");
+        return source || t("sourceUnknown");
+    };
     const statusLabel = (status: string) => {
         const labels: Record<string, string> = locale.startsWith("bn") ? { present: "উপস্থিত", late: "দেরিতে", absent: "অনুপস্থিত", half_day: "অর্ধদিবস" } : {};
         return labels[status] ?? status.replace('_', ' ');
@@ -103,7 +115,12 @@ export function AttendanceHistory() {
                                     return (
                                         <TableRow key={record.id} className="border-card-border hover:bg-hover">
                                             <TableCell className="font-medium text-foreground">
-                                                {formatDate(record.date)}
+                                                <div>{formatDate(record.date)}</div>
+                                                {record.employee && (
+                                                    <div className="mt-1 text-xs font-normal text-muted-foreground">
+                                                        {record.employee.firstName} {record.employee.lastName} · {record.employee.employeeCode}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1.5">
@@ -119,6 +136,20 @@ export function AttendanceHistory() {
                                                     >
                                                         {statusLabel(record.status)}
                                                     </Badge>
+                                                    {record.source && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "border-0 gap-1 text-xs",
+                                                                record.source === "biometric"
+                                                                    ? "bg-cyan-500/10 text-cyan-400"
+                                                                    : "bg-zinc-500/10 text-zinc-400"
+                                                            )}
+                                                        >
+                                                            {record.source === "biometric" ? <Fingerprint className="h-3 w-3" /> : null}
+                                                            {sourceLabel(record.source)}
+                                                        </Badge>
+                                                    )}
                                                     {/* GPS indicator */}
                                                     {gps && (
                                                         <span title={gps.status === "inside" ? "GPS: Office-এর মধ্যে" : "GPS: Office-এর বাইরে"}>
