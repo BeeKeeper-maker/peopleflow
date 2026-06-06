@@ -996,7 +996,22 @@
     "reasonCol": "Reason",
     "statusCol": "Status",
     "staffingAlert": "Staffing Alert",
-    "staffingAlertDesc": "{count} pending leave request(s) need your attention. Review and take action to maintain optimal team coverage."
+    "staffingAlertDesc": "{count} pending leave request(s) need your attention. Review and take action to maintain optimal team coverage.",
+    "managerPurposeTitle": "Team leave staffing view",
+    "managerPurposeDesc": "Use this page to understand who is away, which requests may affect staffing, and what leave patterns need manager follow-up.",
+    "showActiveOnly": "Show active impact",
+    "affectedEmployees": "Affected Employees",
+    "refresh": "Refresh",
+    "searchLeaves": "Search employee, designation, leave type, or reason",
+    "filterAll": "All",
+    "active": "Active Impact",
+    "cancelled": "Cancelled",
+    "exportCsv": "Export CSV",
+    "leaveApplicationsDesc": "Monthly team leave visibility with status, duration, reason, and applied date.",
+    "appliedCol": "Applied",
+    "unknownEmployee": "Unknown Employee",
+    "noDesignation": "N/A",
+    "genericLeave": "Leave"
   },
   "ManagerTeam": {
     "title": "My Team",

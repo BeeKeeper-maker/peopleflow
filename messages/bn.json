@@ -1136,7 +1136,22 @@
     "reasonCol": "কারণ",
     "statusCol": "অবস্থা",
     "staffingAlert": "কর্মী সংকট সতর্কতা",
-    "staffingAlertDesc": "{count}টি অপেক্ষমাণ ছুটির আবেদন আপনার মনোযোগ প্রয়োজন। সর্বোত্তম টিম কভারেজ বজায় রাখতে পর্যালোচনা করুন।"
+    "staffingAlertDesc": "{count}টি অপেক্ষমাণ ছুটির আবেদন আপনার মনোযোগ প্রয়োজন। সর্বোত্তম টিম কভারেজ বজায় রাখতে পর্যালোচনা করুন।",
+    "managerPurposeTitle": "Team leave staffing view",
+    "managerPurposeDesc": "কে ছুটিতে যাচ্ছে, কোন request staffing impact করতে পারে, এবং কোন leave pattern manager follow-up দরকার—এগুলো দেখার জন্য এই page।",
+    "showActiveOnly": "Active impact দেখুন",
+    "affectedEmployees": "Affected Employees",
+    "refresh": "Refresh",
+    "searchLeaves": "Employee, designation, leave type, বা reason খুঁজুন",
+    "filterAll": "সব",
+    "active": "Active Impact",
+    "cancelled": "Cancelled",
+    "exportCsv": "CSV Export",
+    "leaveApplicationsDesc": "Status, duration, reason, এবং applied date সহ monthly team leave visibility।",
+    "appliedCol": "Applied",
+    "unknownEmployee": "Unknown Employee",
+    "noDesignation": "N/A",
+    "genericLeave": "Leave"
   },
   "ManagerTeam": {
     "title": "আমার টিম",
