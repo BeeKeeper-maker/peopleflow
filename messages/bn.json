@@ -1081,7 +1081,15 @@
     "approveFailed": "অনুমোদন করা যায়নি",
     "rejectSuccess": "সফলভাবে প্রত্যাখ্যাত",
     "rejectFailed": "প্রত্যাখ্যান করা যায়নি",
-    "errorOccurred": "একটি ত্রুটি ঘটেছে"
+    "errorOccurred": "একটি ত্রুটি ঘটেছে",
+    "refresh": "Refresh",
+    "decisionPurposeTitle": "Manager decision queue",
+    "decisionPurposeDesc": "Direct reportee-দের pending leave এবং expense request review করুন; staffing, policy, এবং documentation clear হলে approve করুন।",
+    "leaves": "Leaves",
+    "expenses": "Expenses",
+    "oldestDays": "Oldest Days",
+    "decisionGuardrail": "Approve করলে record সঙ্গে সঙ্গে update হয়। Reject করলে employee যেন কী ঠিক করতে হবে বুঝতে পারে—এজন্য clear note দিন।",
+    "pending": "Pending"
   },
   "ManagerAttendance": {
     "title": "টিম উপস্থিতি",

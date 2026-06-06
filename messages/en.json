@@ -941,7 +941,15 @@
     "approveFailed": "Failed to approve",
     "rejectSuccess": "Rejected successfully",
     "rejectFailed": "Failed to reject",
-    "errorOccurred": "An error occurred"
+    "errorOccurred": "An error occurred",
+    "refresh": "Refresh",
+    "decisionPurposeTitle": "Manager decision queue",
+    "decisionPurposeDesc": "Review pending leave and expense requests from direct reportees, then approve only when staffing, policy, and documentation are clear.",
+    "leaves": "Leaves",
+    "expenses": "Expenses",
+    "oldestDays": "Oldest Days",
+    "decisionGuardrail": "Approval changes records immediately. For rejection, add a clear note so the employee knows what to correct or resubmit.",
+    "pending": "Pending"
   },
   "ManagerAttendance": {
     "title": "Team Attendance",
