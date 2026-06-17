@@ -31,6 +31,44 @@ model PlatformAdmin {
   // Relations
   impersonationSessions ImpersonationSession[]
   platformAuditLogs     PlatformAuditLog[]
+  assignedSupportIssues PlatformSupportIssue[] @relation("SupportIssueAssignee")
+  reportedSupportIssues PlatformSupportIssue[] @relation("SupportIssueReporter")
+}
+
+model PlatformSupportIssue {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String   @default("bug") // bug, training, feature_request, billing, device_sync, data_issue, other
+  priority    String   @default("medium") // low, medium, high, urgent
+  status      String   @default("open") // open, triaging, in_progress, waiting_on_client, resolved, closed
+  scope       String   @default("core_hrms") // core_hrms, tenant_customization, paid_addon, not_aligned, unknown
+  source      String   @default("platform") // platform, client_call, whatsapp, phone, email, system
+  impact      String?
+  nextAction  String?
+  resolution  String?
+  metadata    Json?
+  dueAt       DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedToId String?
+  assignedTo   PlatformAdmin? @relation("SupportIssueAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  reportedById String?
+  reportedBy   PlatformAdmin? @relation("SupportIssueReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([category])
+  @@index([scope])
+  @@index([assignedToId])
+  @@index([createdAt])
 }
 
 model PlatformAuditLog {
@@ -282,6 +320,9 @@ model Organization {
 
   // Phase 4: Sync Agent
   syncApiKeys           SyncApiKey[]
+
+  // Platform support
+  supportIssues         PlatformSupportIssue[]
 
   @@index([status])
 }

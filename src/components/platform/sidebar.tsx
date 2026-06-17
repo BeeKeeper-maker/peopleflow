@@ -13,6 +13,7 @@ import {
     Zap,
     Target,
     Users,
+    LifeBuoy,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
     { href: "/platform/employees", label: "Employees", icon: Users },
     { href: "/platform/leads", label: "Leads", icon: Target },
     { href: "/platform/tenants", label: "Tenants", icon: Building2 },
+    { href: "/platform/support", label: "Support", icon: LifeBuoy },
     { href: "/platform/plans", label: "Plans", icon: CreditCard },
     { href: "/platform/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
