@@ -8,7 +8,7 @@
  *   { "payroll": true, "recruitment": false, ... }
  */
 
-import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { buildSubscriptionAccessError, getOrgSubscription } from "@/lib/plan-enforcement";
 import { canAccessModule, normalizeEntitlements, type ModuleKey } from "@/lib/module-entitlements";
 
 // ============================================
@@ -89,8 +89,7 @@ export async function isFeatureEnabled(
         return {
             allowed: false,
             feature,
-            message: "No active subscription. Please subscribe to access this feature.",
-            upgradeRequired: true,
+            ...buildSubscriptionAccessError(null),
         };
     }
 
@@ -98,8 +97,7 @@ export async function isFeatureEnabled(
         return {
             allowed: false,
             feature,
-            message: "Your subscription is not active.",
-            upgradeRequired: true,
+            ...buildSubscriptionAccessError(sub),
         };
     }
 
@@ -111,7 +109,7 @@ export async function isFeatureEnabled(
         return {
             allowed: false,
             feature,
-            message: `The "${feature}" module is not included in your current plan. Upgrade to unlock it.`,
+            message: `The "${feature}" module is not included in this company package. Please contact platform support if this company needs access.`,
             upgradeRequired: true,
         };
     }

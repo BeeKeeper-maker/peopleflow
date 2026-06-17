@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { buildSubscriptionAccessError, getOrgSubscription } from "@/lib/plan-enforcement";
 import { canAccessModule } from "@/lib/module-entitlements";
 
 export async function authenticateSyncAgent(req: Request) {
@@ -60,13 +60,17 @@ export async function authenticateSyncAgent(req: Request) {
 
     const subscription = await getOrgSubscription(apiKey.organizationId);
     if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+        const accessError = buildSubscriptionAccessError(subscription);
         return {
             valid: false as const,
             response: NextResponse.json(
                 {
                     success: false,
-                    error: "Subscription inactive",
-                    upgradeRequired: true,
+                    error: accessError.message,
+                    code: accessError.code,
+                    title: accessError.title,
+                    action: accessError.action,
+                    upgradeRequired: accessError.upgradeRequired,
                 },
                 { status: 402 }
             ),
@@ -79,7 +83,10 @@ export async function authenticateSyncAgent(req: Request) {
             response: NextResponse.json(
                 {
                     success: false,
-                    error: "Biometric device access is not included in this company package",
+                    error: "Biometric device sync is not included in this company package. Please contact platform support if this company needs device sync access.",
+                    code: "BIOMETRIC_MODULE_NOT_INCLUDED",
+                    title: "Device sync not included",
+                    action: "Contact platform support",
                     upgradeRequired: true,
                 },
                 { status: 403 }

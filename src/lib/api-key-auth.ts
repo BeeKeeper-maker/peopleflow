@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash, randomBytes } from "crypto";
-import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { buildSubscriptionAccessError, getOrgSubscription } from "@/lib/plan-enforcement";
 import { canAccessModule } from "@/lib/module-entitlements";
 
 export interface ApiKeyAuthResult {
@@ -134,12 +134,15 @@ export async function authenticateApiKey(
 
     const subscription = await getOrgSubscription(apiKey.organizationId);
     if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+        const accessError = buildSubscriptionAccessError(subscription);
         return {
             valid: false,
             response: NextResponse.json(
                 {
-                    error: "Subscription inactive",
-                    message: "Your subscription is not active. Please update billing to continue using the API.",
+                    error: accessError.title || "Company package inactive",
+                    message: accessError.message,
+                    code: accessError.code,
+                    action: accessError.action,
                     upgrade_required: true,
                 },
                 { status: 402 }
@@ -152,7 +155,10 @@ export async function authenticateApiKey(
             valid: false,
             response: NextResponse.json(
                 {
-                    error: "API access not on your plan",
+                    error: "API access not included",
+                    message: "API access is not included in this company package. Please contact platform support if this company needs API access.",
+                    code: "API_ACCESS_NOT_INCLUDED",
+                    action: "Contact platform support",
                     upgrade_required: true,
                 },
                 { status: 402 }

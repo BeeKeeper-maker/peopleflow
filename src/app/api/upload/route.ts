@@ -107,6 +107,9 @@ export async function POST(req: NextRequest) {
                 {
                     status: 402,
                     details: {
+                        code: planCheck.code,
+                        title: planCheck.title,
+                        action: planCheck.action,
                         upgradeRequired: planCheck.upgradeRequired,
                         current: planCheck.current,
                         limit: planCheck.limit,

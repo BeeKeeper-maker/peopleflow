@@ -37,8 +37,107 @@ export interface PlanCheckResult {
   allowed: boolean;
   current: number;
   limit: number;
+  code?: string;
+  title?: string;
   message?: string;
+  action?: string;
   upgradeRequired?: boolean;
+}
+
+const RESOURCE_LABELS: Record<ResourceType, { singular: string; plural: string }> = {
+  employee: { singular: "employee", plural: "employees" },
+  admin: { singular: "admin user", plural: "admin users" },
+  branch: { singular: "branch", plural: "branches" },
+  device: { singular: "biometric device", plural: "biometric devices" },
+  storage: { singular: "MB of storage", plural: "MB of storage" },
+};
+
+function formatDate(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+export function buildSubscriptionAccessError(
+  sub: CachedSubscription | null,
+): Pick<PlanCheckResult, "code" | "title" | "message" | "action" | "upgradeRequired"> {
+  if (!sub) {
+    return {
+      code: "SUBSCRIPTION_NOT_FOUND",
+      title: "Company package is not set up",
+      message:
+        "This company does not have an active package configured yet. Please contact platform support to enable access.",
+      action: "Contact platform support",
+      upgradeRequired: true,
+    };
+  }
+
+  if (sub.status === "past_due") {
+    return {
+      code: "SUBSCRIPTION_PAYMENT_OVERDUE",
+      title: "Billing attention required",
+      message:
+        "This company package has a billing issue. Please contact platform support or update billing to continue.",
+      action: "Contact platform support",
+      upgradeRequired: true,
+    };
+  }
+
+  if (sub.status === "expired") {
+    const endedOn = formatDate(sub.trialEnd ?? sub.currentPeriodEnd);
+    return {
+      code: "SUBSCRIPTION_EXPIRED",
+      title: "Company package expired",
+      message: endedOn
+        ? `This company package expired on ${endedOn}. Please contact platform support to renew access.`
+        : "This company package has expired. Please contact platform support to renew access.",
+      action: "Contact platform support",
+      upgradeRequired: true,
+    };
+  }
+
+  if (sub.status === "canceled" || sub.status === "suspended") {
+    return {
+      code: `SUBSCRIPTION_${sub.status.toUpperCase()}`,
+      title: sub.status === "suspended" ? "Company package suspended" : "Company package canceled",
+      message:
+        "This company package is currently not active. Please contact platform support to restore access.",
+      action: "Contact platform support",
+      upgradeRequired: true,
+    };
+  }
+
+  return {
+    code: "SUBSCRIPTION_INACTIVE",
+    title: "Company package inactive",
+    message:
+      "This company package is not active right now. Please contact platform support before continuing.",
+    action: "Contact platform support",
+    upgradeRequired: true,
+  };
+}
+
+function buildLimitReachedError(
+  resource: ResourceType,
+  current: number,
+  limit: number,
+): Pick<PlanCheckResult, "code" | "title" | "message" | "action" | "upgradeRequired"> {
+  const label = RESOURCE_LABELS[resource];
+  const unit = limit === 1 ? label.singular : label.plural;
+  const usage = `${current.toLocaleString()} / ${limit.toLocaleString()} ${label.plural}`;
+
+  return {
+    code: `${resource.toUpperCase()}_LIMIT_REACHED`,
+    title: `${label.singular[0].toUpperCase()}${label.singular.slice(1)} limit reached`,
+    message: `This company package allows up to ${limit.toLocaleString()} ${unit}. Current usage is ${usage}. Please contact platform support if this company needs a higher limit.`,
+    action: "Request a higher package limit",
+    upgradeRequired: true,
+  };
 }
 
 function normalizeSubscriptionStatus<T extends CachedSubscription>(sub: T): T {
@@ -283,9 +382,7 @@ export async function enforcePlanLimit(
       allowed: false,
       current: 0,
       limit: 0,
-      message:
-        "No active subscription found. Please subscribe to a plan to continue.",
-      upgradeRequired: true,
+      ...buildSubscriptionAccessError(null),
     };
   }
 
@@ -295,11 +392,7 @@ export async function enforcePlanLimit(
       allowed: false,
       current: 0,
       limit: 0,
-      message:
-        sub.status === "past_due"
-          ? "Your payment is overdue. Please update your billing information."
-          : "Your subscription is not active. Please contact support.",
-      upgradeRequired: true,
+      ...buildSubscriptionAccessError(sub),
     };
   }
 
@@ -328,8 +421,7 @@ export async function enforcePlanLimit(
       allowed: false,
       current,
       limit,
-      message: `You've reached your plan limit of ${limit} ${resource}${limit !== 1 ? "s" : ""}. Upgrade your plan to add more.`,
-      upgradeRequired: true,
+      ...buildLimitReachedError(resource, current, limit),
     };
   }
 
