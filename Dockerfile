@@ -25,7 +25,15 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000 && \
-    npm ci --no-audit --no-fund
+    for attempt in 1 2 3; do \
+        echo "[deps] npm ci attempt $attempt/3"; \
+        npm ci --no-audit --no-fund && break; \
+        status=$?; \
+        if [ "$attempt" = "3" ]; then exit "$status"; fi; \
+        echo "[deps] npm ci failed with exit $status; retrying in 20s..."; \
+        npm cache verify || true; \
+        sleep 20; \
+    done
 
 # ───────────────────────────────────────
 # Stage 2: Build the application
@@ -73,8 +81,15 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-timeout 300000 && \
     (while true; do echo "[worker] npm ci still running..."; sleep 30; done) & \
     heartbeat=$!; \
-    npm ci --omit=dev --no-audit --no-fund; \
-    status=$?; \
+    for attempt in 1 2 3; do \
+        echo "[worker] npm ci attempt $attempt/3"; \
+        npm ci --omit=dev --no-audit --no-fund && status=0 && break; \
+        status=$?; \
+        if [ "$attempt" = "3" ]; then break; fi; \
+        echo "[worker] npm ci failed with exit $status; retrying in 20s..."; \
+        npm cache verify || true; \
+        sleep 20; \
+    done; \
     kill "$heartbeat" 2>/dev/null || true; \
     exit "$status"
 
@@ -117,7 +132,15 @@ RUN npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-timeout 300000 && \
-    npm ci --omit=dev --no-audit --no-fund
+    for attempt in 1 2 3; do \
+        echo "[migrate] npm ci attempt $attempt/3"; \
+        npm ci --omit=dev --no-audit --no-fund && break; \
+        status=$?; \
+        if [ "$attempt" = "3" ]; then exit "$status"; fi; \
+        echo "[migrate] npm ci failed with exit $status; retrying in 20s..."; \
+        npm cache verify || true; \
+        sleep 20; \
+    done
 
 COPY prisma ./prisma
 COPY scripts/runtime-seed.js ./scripts/runtime-seed.js
