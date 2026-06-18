@@ -105,7 +105,8 @@
     "signOut": "Sign out",
     "billing": "Billing",
     "apiKeys": "API Keys",
-    "accessControl": "Access Control"
+    "accessControl": "Access Control",
+    "setupReadiness": "Setup Readiness"
   },
   "Header": {
     "search": "Search...",

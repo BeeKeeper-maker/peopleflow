@@ -105,7 +105,8 @@
     "signOut": "সাইন আউট",
     "billing": "বিলিং",
     "apiKeys": "এপিআই কী",
-    "accessControl": "Access Control"
+    "accessControl": "Access Control",
+    "setupReadiness": "সেটআপ প্রস্তুতি"
   },
   "Header": {
     "search": "অনুসন্ধান...",

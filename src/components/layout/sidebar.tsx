@@ -34,6 +34,7 @@ import {
     GitPullRequest,
     Fingerprint,
     KeyRound,
+    ClipboardCheck,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -102,6 +103,7 @@ const navSections: NavSection[] = [
             { labelKey: "shifts", href: "/organization/shifts", icon: Clock, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "holidays", href: "/organization/holidays", icon: CalendarDays, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "branches", href: "/organization/branches", icon: Building, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "setupReadiness", href: "/settings/readiness", icon: ClipboardCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "approvalWorkflows", href: "/approval-workflows", icon: GitPullRequest, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "accessControl", href: "/settings/access", icon: KeyRound, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
