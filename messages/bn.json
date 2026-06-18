@@ -1490,6 +1490,7 @@
       "nationalId": "জাতীয় পরিচয়পত্র (NID)",
       "passportNumber": "পাসপোর্ট নম্বর",
       "employmentDetails": "চাকরির বিবরণ",
+      "accessSetup": "অ্যাক্সেস সেটআপ",
       "employeeCode": "কর্মী কোড",
       "department": "বিভাগ",
       "selectDepartment": "বিভাগ নির্বাচন করুন",

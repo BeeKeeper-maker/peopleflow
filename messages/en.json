@@ -1350,6 +1350,7 @@
       "nationalId": "National ID (NID)",
       "passportNumber": "Passport Number",
       "employmentDetails": "Employment Details",
+      "accessSetup": "Access Setup",
       "employeeCode": "Employee Code",
       "department": "Department",
       "selectDepartment": "Select Department",
