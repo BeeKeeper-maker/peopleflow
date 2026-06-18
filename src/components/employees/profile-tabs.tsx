@@ -57,6 +57,7 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
         : null
 
     const currentSalary = employee.salaryAssignments?.[0]
+    const hasActiveCompensation = Boolean(currentSalary?.isActive && currentSalary?.grossSalary > 0)
 
     return (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -111,8 +112,9 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
                     {/* Financial Info */}
                     <InfoCard title="Financial Details" icon={<CreditCard className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                            <InfoItem label="Gross Salary" value={currentSalary ? `৳${currentSalary.grossSalary.toLocaleString()}` : undefined} />
-                            <InfoItem label="Salary Structure" value={currentSalary?.salaryStructure?.name} />
+                            <InfoItem label="Compensation Status" value={hasActiveCompensation ? "Active" : "Deferred / Not set"} />
+                            {hasActiveCompensation && <InfoItem label="Gross Salary" value={`৳${currentSalary?.grossSalary.toLocaleString()}`} />}
+                            {hasActiveCompensation && <InfoItem label="Salary Structure" value={currentSalary?.salaryStructure?.name} />}
                             <InfoItem label="Bank Name" value={employee.bankName} />
                             <InfoItem label="Account Number" value={employee.accountNumber} />
                             <InfoItem label="Bank Branch" value={employee.bankBranch} />

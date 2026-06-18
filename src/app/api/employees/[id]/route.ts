@@ -41,7 +41,7 @@ export async function GET(
             select: { id: true },
         });
 
-        // Full data: HR-level roles, direct-report managers, or the employee themselves
+        // Full profile data for HR; non-HR self/manager views exclude salary assignment data.
         if (isHRLevel || isDirectReport || isSelf) {
             const employee = await prisma.employee.findUnique({
                 where: {
@@ -62,15 +62,18 @@ export async function GET(
                             employeeCode: true,
                         }
                     },
-                    salaryAssignments: {
-                        include: {
-                            salaryStructure: true,
+                    ...(isHRLevel ? {
+                        salaryAssignments: {
+                            where: { isActive: true },
+                            include: {
+                                salaryStructure: true,
+                            },
+                            orderBy: {
+                                effectiveFrom: 'desc' as const,
+                            },
+                            take: 1,
                         },
-                        orderBy: {
-                            effectiveFrom: 'desc',
-                        },
-                        take: 1,
-                    },
+                    } : {}),
                 },
             });
 
@@ -159,6 +162,7 @@ export async function PUT(
             where: { id, organizationId: auth.organizationId },
             include: {
                 salaryAssignments: {
+                    where: { isActive: true },
                     orderBy: { effectiveFrom: 'desc' },
                     take: 1
                 }
@@ -275,13 +279,35 @@ export async function PUT(
                 }
             }
 
-            // ── Salary Update Logic ─────────────────────────────────────
+            // ── Deferred Compensation Update Logic ─────────────────────
+            // No active salary assignment means compensation is intentionally deferred.
+            // Payroll, payslips, PF, bonus, and salary documents already depend on an
+            // active assignment, so onboarding can stay clean without fake salary data.
             const currentSalary = existingEmployee.salaryAssignments[0];
+            const shouldHaveActiveCompensation = grossSalary > 0;
 
-            if (!currentSalary || currentSalary.grossSalary !== grossSalary ||
-                (salaryStructureId && currentSalary.salaryStructureId !== salaryStructureId)) {
+            if (!shouldHaveActiveCompensation) {
+                if (currentSalary?.isActive) {
+                    await tx.salaryStructureAssignment.update({
+                        where: { id: currentSalary.id },
+                        data: { isActive: false }
+                    });
+                }
+            } else if (!currentSalary || currentSalary.grossSalary !== grossSalary ||
+                (salaryStructureId && currentSalary.salaryStructureId !== salaryStructureId) ||
+                !currentSalary.isActive) {
 
-                const structureId = salaryStructureId || currentSalary?.salaryStructureId;
+                let structureId: string | undefined = salaryStructureId || currentSalary?.salaryStructureId;
+                if (!structureId) {
+                    const defaultStructure = await tx.salaryStructure.findFirst({
+                        where: { organizationId, isActive: true }
+                    });
+                    structureId = defaultStructure?.id;
+                }
+
+                if (!structureId) {
+                    throw new Error("No active salary structure found. Save without salary, or configure payroll settings before assigning compensation.");
+                }
 
                 if (currentSalary) {
                     const today = new Date();
@@ -291,9 +317,9 @@ export async function PUT(
                         await tx.salaryStructureAssignment.update({
                             where: { id: currentSalary.id },
                             data: {
-                                grossSalary: grossSalary,
+                                grossSalary,
+                                salaryStructureId: structureId,
                                 isActive: true,
-                                ...(salaryStructureId ? { salaryStructureId } : {}),
                             }
                         });
                     } else {
@@ -305,31 +331,21 @@ export async function PUT(
                         await tx.salaryStructureAssignment.create({
                             data: {
                                 employeeId: id,
-                                salaryStructureId: structureId || currentSalary.salaryStructureId,
-                                grossSalary: grossSalary,
+                                salaryStructureId: structureId,
+                                grossSalary,
                                 effectiveFrom: new Date(),
                             }
                         });
                     }
                 } else {
-                    let targetStructureId = salaryStructureId;
-                    if (!targetStructureId) {
-                        const defaultStructure = await tx.salaryStructure.findFirst({
-                            where: { organizationId }
-                        });
-                        targetStructureId = defaultStructure?.id;
-                    }
-
-                    if (targetStructureId) {
-                        await tx.salaryStructureAssignment.create({
-                            data: {
-                                employeeId: id,
-                                salaryStructureId: targetStructureId,
-                                grossSalary: grossSalary,
-                                effectiveFrom: new Date(),
-                            }
-                        });
-                    }
+                    await tx.salaryStructureAssignment.create({
+                        data: {
+                            employeeId: id,
+                            salaryStructureId: structureId,
+                            grossSalary,
+                            effectiveFrom: new Date(),
+                        }
+                    });
                 }
             }
 

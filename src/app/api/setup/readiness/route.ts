@@ -59,6 +59,7 @@ export async function GET() {
         employeesWithBiometricId,
         recentCloudEvents,
         recentBiometricAttendance,
+        activeCompensationAssignments,
       ] = await Promise.all([
         db.organization.findUnique({
           where: { id: auth.organizationId },
@@ -95,12 +96,23 @@ export async function GET() {
             createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
           },
         }),
+        db.salaryStructureAssignment.findMany({
+          where: {
+            isActive: true,
+            grossSalary: { gt: 0 },
+            employee: { organizationId: auth.organizationId, employmentStatus: "active", deletedAt: null },
+          },
+          select: { employeeId: true },
+          distinct: ["employeeId"],
+        }),
       ]);
 
       const workflowSteps = parseWorkflowSteps(leaveWorkflow?.steps);
       const profileReady = Boolean(organization?.name && organization?.slug && organization?.timezone && organization?.countryCode && organization?.currencyCode);
       const approvalReady = Boolean(leaveWorkflow?.isActive && workflowSteps.length > 0);
       const employeesNeedingManagers = Math.max(employeesMissingManagers - activeAdmins, 0);
+      const employeesWithActiveCompensation = activeCompensationAssignments.length;
+      const employeesMissingCompensation = Math.max(activeEmployees - employeesWithActiveCompensation, 0);
 
       const items: ReadinessItem[] = [
         item({
@@ -184,6 +196,17 @@ export async function GET() {
           fixHref: "/employees",
           fixLabel: "Map reporting managers",
           detail: employeesNeedingManagers > 0 ? `${employeesNeedingManagers} active employee(s) still need reporting manager mapping` : "Reporting manager mapping looks clean",
+        }),
+        item({
+          id: "compensation-setup",
+          title: "Compensation setup",
+          description: "Employees can be onboarded without salary, but payroll, payslips, PF, bonus, and salary certificates require active compensation first.",
+          status: activeEmployees === 0 ? "optional" : employeesMissingCompensation === 0 ? "ready" : "attention",
+          count: employeesWithActiveCompensation,
+          target: activeEmployees,
+          fixHref: "/payroll",
+          fixLabel: "Assign compensation",
+          detail: employeesMissingCompensation > 0 ? `${employeesMissingCompensation} active employee(s) have deferred compensation and will be excluded from payroll` : "All active employees have active compensation",
         }),
         item({
           id: "leave-types",

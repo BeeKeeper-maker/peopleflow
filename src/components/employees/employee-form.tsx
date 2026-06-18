@@ -62,7 +62,7 @@ const STEP_REQUIRED_FIELDS: Record<string, string[]> = {
     personal: ["firstName", "lastName"],
     employment: ["employeeCode", "departmentId", "designationId", "joiningDate"],
     access: [],
-    financial: ["grossSalary"],
+    financial: [],
     address: [],
     emergency: [],
 }
@@ -258,6 +258,7 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
     const initialStatus = initialData?.employmentStatus || "active"
     const isOffboardingChange = !!initialData && initialStatus === "active" && watchedStatus !== "active"
     const isReactivationChange = !!initialData && initialStatus !== "active" && watchedStatus === "active"
+    const isCompensationDeferred = !watchedGross || Number(watchedGross) <= 0
 
     const salaryBreakdown = selectedStructure && watchedGross > 0 ? (() => {
         const basic = (watchedGross * selectedStructure.basicPercentage) / 100
@@ -883,18 +884,31 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                 </div>
                                 <div>
                                     <h2 className="text-lg font-semibold text-foreground">{t("financialInfo")}</h2>
-                                    <p className="text-xs text-muted-foreground">Salary, banking and tax details</p>
+                                    <p className="text-xs text-muted-foreground">Compensation can be deferred for trial, short-term, or evaluation employees.</p>
+                                </div>
+                            </div>
+
+                            <div className="mb-5 rounded-xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-100">
+                                <div className="flex items-start gap-3">
+                                    <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-300" />
+                                    <div className="space-y-1">
+                                        <p className="font-semibold text-blue-50">Deferred compensation setup</p>
+                                        <p className="text-blue-100/80">You may save the employee without salary now. Attendance, leave, ESS access, and biometric mapping will continue to work. Payroll, payslips, PF, bonus, and salary documents will require active compensation before processing.</p>
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="grid gap-5 md:grid-cols-2 mb-5">
                                 <FormField control={form.control} name="grossSalary" render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-foreground text-sm font-medium">{t("grossSalary")} <span className="text-red-400">*</span></FormLabel>
+                                        <FormLabel className="text-foreground text-sm font-medium">{t("grossSalary")} <span className="text-xs font-normal text-muted-foreground">(optional)</span></FormLabel>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">৳</span>
                                             <FormControl><Input type="number" {...field} disabled={isLoading} className={`${inputCls} pl-8`} placeholder="0" /></FormControl>
                                         </div>
+                                        {isCompensationDeferred && (
+                                            <p className="text-xs text-amber-300">Salary is not set yet. This employee will be excluded from payroll until compensation is assigned.</p>
+                                        )}
                                         <FormMessage />
                                     </FormItem>
                                 )} />

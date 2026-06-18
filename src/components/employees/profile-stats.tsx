@@ -35,6 +35,7 @@ export function ProfileStats({ employee, apiBasePath }: ProfileStatsProps) {
     const attendanceRate = profileData?.attendance?.rate ?? "—"
     const leaveRemaining = profileData?.leave?.totalRemaining ?? "—"
     const currentSalary = employee.salaryAssignments?.[0]
+    const hasActiveCompensation = Boolean(currentSalary?.isActive && currentSalary?.grossSalary > 0)
 
     const stats = [
         {
@@ -65,9 +66,9 @@ export function ProfileStats({ employee, apiBasePath }: ProfileStatsProps) {
             border: "border-purple-500/15",
         },
         {
-            label: "Monthly Salary",
-            value: currentSalary ? `৳${(currentSalary.grossSalary / 1000).toFixed(0)}k` : "—",
-            subtext: currentSalary?.salaryStructure?.name || "Not assigned",
+            label: "Compensation",
+            value: hasActiveCompensation ? `৳${((currentSalary?.grossSalary || 0) / 1000).toFixed(0)}k` : "Deferred",
+            subtext: hasActiveCompensation ? currentSalary?.salaryStructure?.name || "Active" : "Not in payroll yet",
             icon: Wallet,
             color: "text-amber-400",
             bg: "bg-amber-500/10",

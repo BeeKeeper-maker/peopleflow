@@ -160,33 +160,40 @@ export async function POST(req: Request) {
         }
       }
 
-      // ── Salary Structure Resolution (ARCH-10 — org-scoped) ──────────
-      let salaryStructure = body.salaryStructureId
-        ? await tx.salaryStructure.findUnique({
-            where: { id: body.salaryStructureId },
-          })
-        : null;
-      if (
-        salaryStructure &&
-        salaryStructure.organizationId !== auth.organizationId
-      ) {
-        salaryStructure = null;
-      }
-      if (!salaryStructure) {
-        salaryStructure = await tx.salaryStructure.findFirst({
-          where: { organizationId: auth.organizationId, isActive: true },
-        });
-      }
-      if (!salaryStructure) {
-        return {
-          response: NextResponse.json(
-            {
-              error:
-                "No active salary structure found. Please configure payroll settings first.",
-            },
-            { status: 400 },
-          ),
-        };
+      // ── Deferred Compensation Resolution ───────────────────────────
+      // Employee onboarding can proceed without salary. Active payroll only begins
+      // when a positive gross salary is assigned with a valid salary structure.
+      const shouldCreateCompensation = body.grossSalary > 0;
+      let salaryStructure = null;
+
+      if (shouldCreateCompensation) {
+        salaryStructure = body.salaryStructureId
+          ? await tx.salaryStructure.findUnique({
+              where: { id: body.salaryStructureId },
+            })
+          : null;
+        if (
+          salaryStructure &&
+          salaryStructure.organizationId !== auth.organizationId
+        ) {
+          salaryStructure = null;
+        }
+        if (!salaryStructure) {
+          salaryStructure = await tx.salaryStructure.findFirst({
+            where: { organizationId: auth.organizationId, isActive: true },
+          });
+        }
+        if (!salaryStructure) {
+          return {
+            response: NextResponse.json(
+              {
+                error:
+                  "No active salary structure found. Save without salary, or configure payroll settings before assigning compensation.",
+              },
+              { status: 400 },
+            ),
+          };
+        }
       }
 
       const defaultBranch = await tx.branch.findFirst({
@@ -220,14 +227,16 @@ export async function POST(req: Request) {
         },
       });
 
-      await tx.salaryStructureAssignment.create({
-        data: {
-          employeeId: employee.id,
-          salaryStructureId: salaryStructure.id,
-          grossSalary: body.grossSalary,
-          effectiveFrom: new Date(),
-        },
-      });
+      if (shouldCreateCompensation && salaryStructure) {
+        await tx.salaryStructureAssignment.create({
+          data: {
+            employeeId: employee.id,
+            salaryStructureId: salaryStructure.id,
+            grossSalary: body.grossSalary,
+            effectiveFrom: new Date(),
+          },
+        });
+      }
 
       const allocationYear = new Date().getFullYear();
       const leaveTypes = await tx.leaveType.findMany({
