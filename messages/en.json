@@ -1696,7 +1696,10 @@
     "compliance": "Compliance",
     "audit-logs": "Audit Logs",
     "documents": "Documents",
-    "approval-workflows": "Approval Workflows"
+    "approval-workflows": "Approval Workflows",
+    "readiness": "Readiness",
+    "access": "Access",
+    "events": "Events"
   },
   "Settings": {
     "title": "Settings",

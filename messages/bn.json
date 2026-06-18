@@ -105,7 +105,7 @@
     "signOut": "সাইন আউট",
     "billing": "বিলিং",
     "apiKeys": "এপিআই কী",
-    "accessControl": "Access Control",
+    "accessControl": "অ্যাক্সেস কন্ট্রোল",
     "setupReadiness": "সেটআপ প্রস্তুতি"
   },
   "Header": {
@@ -1836,7 +1836,10 @@
     "compliance": "কমপ্লায়েন্স",
     "audit-logs": "অডিট লগ",
     "documents": "ডকুমেন্ট",
-    "approval-workflows": "অনুমোদন ওয়ার্কফ্লো"
+    "approval-workflows": "অনুমোদন ওয়ার্কফ্লো",
+    "readiness": "প্রস্তুতি",
+    "access": "অ্যাক্সেস",
+    "events": "ইভেন্ট"
   },
   "Auth": {
     "login": {

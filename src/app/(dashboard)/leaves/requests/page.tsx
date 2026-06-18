@@ -161,9 +161,12 @@ export default function LeaveRequestsPage() {
                         <p className="text-sm text-muted-foreground">
                             {t("requestsSubtitle")}
                             {!isLoading && (
-                                <Badge variant="default" className="ml-2">
-                                    {t("total", { count: stats.total })}
-                                </Badge>
+                                <>
+                                    {" "}
+                                    <Badge variant="default" className="ml-2">
+                                        {t("total", { count: stats.total })}
+                                    </Badge>
+                                </>
                             )}
                         </p>
                     </div>
