@@ -149,7 +149,13 @@ RUN npx prisma generate && \
     npm cache clean --force && \
     rm -rf /root/.npm /root/.cache /tmp/*
 
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && node scripts/runtime-seed.js"]
+# Coolify rolling updates inspect Docker health state when a Dockerfile contains
+# healthchecks in any stage. The migration target is a one-off release image, so
+# mark it healthy only after the release command completes successfully.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=5 \
+    CMD test -f /tmp/peopleflow-migration-ok || exit 1
+
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && node scripts/runtime-seed.js && touch /tmp/peopleflow-migration-ok && sleep 3600"]
 
 # ───────────────────────────────────────
 # Stage 3: Final production image (LEAN)
