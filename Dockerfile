@@ -48,7 +48,14 @@ COPY . .
 
 # Prisma generate
 ENV DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma"
-RUN npx prisma generate
+RUN for attempt in 1 2 3; do \
+        echo "[prisma] generate attempt $attempt/3"; \
+        npx prisma generate && break; \
+        status=$?; \
+        if [ "$attempt" = "3" ]; then exit "$status"; fi; \
+        echo "[prisma] generate failed with exit $status; retrying in 20s..."; \
+        sleep 20; \
+    done
 
 # CRITICAL: next build MUST run with NODE_ENV=production
 ENV NODE_ENV=production
