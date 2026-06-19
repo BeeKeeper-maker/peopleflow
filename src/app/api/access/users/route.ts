@@ -67,6 +67,7 @@ export async function GET() {
       employees: users.filter((u) => u.role === "employee").length,
       unlinked: users.filter((u) => !u.employee).length,
       managersWithoutReportees: users.filter((u) => u.role === "manager" && (u.employee?._count.reportees || 0) === 0).length,
+      setupPending: users.filter((u) => u.isActive && !u.emailVerified).length,
     };
 
     return NextResponse.json({ data: users, summary });

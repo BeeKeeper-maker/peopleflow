@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, CheckCircle2, Clock, KeyRound, RefreshCw, Search, Shield, ShieldCheck, UserCheck, Users, XCircle } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Clock, KeyRound, Mail, RefreshCw, Search, Shield, ShieldCheck, UserCheck, Users, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,7 @@ interface Summary {
   employees: number;
   unlinked: number;
   managersWithoutReportees: number;
+  setupPending: number;
 }
 
 const roleLabels: Record<Role, string> = {
@@ -67,6 +68,7 @@ const roleHelp: Record<Exclude<Role, "super_admin">, string> = {
 };
 
 function hasSetupIssue(user: AccessUser) {
+  if (!user.emailVerified) return true;
   if (!user.employee) return true;
   if (user.role === "manager" && user.employee._count.reportees === 0) return true;
   if (user.role === "employee" && !user.employee.reportingManager) return true;
@@ -84,6 +86,7 @@ export default function AccessSettingsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [setupSendingId, setSetupSendingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -103,6 +106,25 @@ export default function AccessSettingsPage() {
   }, [addToast]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const sendSetupLink = async (userId: string) => {
+    setSetupSendingId(userId);
+    try {
+      const res = await fetch("/api/access/users/setup-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || await res.text());
+      addToast({ title: "Setup link sent", description: data?.email ? `Sent to ${data.email}` : undefined, type: "success" });
+      await fetchUsers();
+    } catch (error) {
+      addToast({ title: "Setup link failed", description: error instanceof Error ? error.message : undefined, type: "error" });
+    } finally {
+      setSetupSendingId(null);
+    }
+  };
 
   const updateUser = async (userId: string, payload: { role?: string; isActive?: boolean }) => {
     setSavingId(userId);
@@ -177,7 +199,7 @@ export default function AccessSettingsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         {(loading || !summary) ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24" />) : [
-          ["Total", summary.total, Users], ["Active", summary.active, CheckCircle2], ["Inactive", summary.inactive, XCircle], ["Admins", summary.admins, Shield], ["HR", summary.hrAdmins, UserCheck], ["Managers", summary.managers, Building2], ["Unlinked", summary.unlinked, AlertTriangle], ["Setup Issues", summary.managersWithoutReportees, AlertTriangle],
+          ["Total", summary.total, Users], ["Active", summary.active, CheckCircle2], ["Inactive", summary.inactive, XCircle], ["Admins", summary.admins, Shield], ["HR", summary.hrAdmins, UserCheck], ["Managers", summary.managers, Building2], ["Setup Pending", summary.setupPending, Mail], ["Setup Issues", summary.managersWithoutReportees, AlertTriangle],
         ].map(([label, value, Icon]) => {
           const I = Icon as typeof Users;
           return <Card key={String(label)} className="bg-card border-card-border"><CardContent className="p-4"><I className="h-4 w-4 text-blue-400 mb-2" /><p className="text-2xl font-bold text-foreground">{String(value)}</p><p className="text-xs text-muted-foreground">{String(label)}</p></CardContent></Card>;
@@ -204,7 +226,7 @@ export default function AccessSettingsPage() {
                   <div className="flex gap-4 min-w-0">
                     <Avatar className="h-12 w-12"><AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white">{getDisplayName(user).slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground truncate">{getDisplayName(user)}</h3><RoleBadge role={user.role} /><Badge className={user.isActive ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}>{user.isActive ? "Active" : "Inactive"}</Badge></div>
+                      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground truncate">{getDisplayName(user)}</h3><RoleBadge role={user.role} /><Badge className={user.isActive ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}>{user.isActive ? "Active" : "Inactive"}</Badge>{!user.emailVerified && <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/25">Setup pending</Badge>}</div>
                       <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         <span>{user.employee?.employeeCode || "No employee link"}</span>
@@ -219,6 +241,7 @@ export default function AccessSettingsPage() {
                     <div className="rounded-lg border border-card-border bg-hover p-3 text-xs text-muted-foreground">
                       <p className="font-medium text-foreground mb-1">Approval readiness</p>
                       {user.role === "manager" ? <p>{user.employee?._count.reportees || 0} reportees assigned</p> : <p>Manager: {user.employee?.reportingManager ? `${user.employee.reportingManager.firstName} ${user.employee.reportingManager.lastName}` : "Not assigned"}</p>}
+                      {!user.emailVerified && <p className="text-amber-400 mt-1">Account setup link not completed</p>}
                       {issue && <p className="text-amber-400 mt-1">Setup attention needed</p>}
                     </div>
 
@@ -229,9 +252,17 @@ export default function AccessSettingsPage() {
                       </SelectContent>
                     </Select>
 
-                    <Button variant={user.isActive ? "outline" : "default"} disabled={savingId === user.id || user.role === "super_admin"} onClick={() => updateUser(user.id, { isActive: !user.isActive })}>
-                      {savingId === user.id ? <Clock className="h-4 w-4 animate-spin" /> : user.isActive ? "Deactivate" : "Reactivate"}
-                    </Button>
+                    <div className="grid gap-2">
+                      {!user.emailVerified && user.isActive && user.role !== "super_admin" && (
+                        <Button variant="secondary" disabled={setupSendingId === user.id} onClick={() => sendSetupLink(user.id)} className="gap-2">
+                          {setupSendingId === user.id ? <Clock className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                          Send setup link
+                        </Button>
+                      )}
+                      <Button variant={user.isActive ? "outline" : "default"} disabled={savingId === user.id || user.role === "super_admin"} onClick={() => updateUser(user.id, { isActive: !user.isActive })}>
+                        {savingId === user.id ? <Clock className="h-4 w-4 animate-spin" /> : user.isActive ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
