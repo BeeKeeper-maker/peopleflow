@@ -108,7 +108,12 @@ export async function requireAuth(): Promise<AuthContext | NextResponse> {
       return AuthErrors.UNAUTHORIZED();
     }
 
-    if (!user.isActive || !user.emailVerified) {
+    // Normal user login must complete email/password setup before API access.
+    // Platform impersonation is an audited support/QA channel and may need to
+    // inspect setup-pending accounts during handover without activating them.
+    const isPlatformImpersonation = session.user.isImpersonating === true;
+
+    if (!user.isActive || (!user.emailVerified && !isPlatformImpersonation)) {
       return AuthErrors.UNAUTHORIZED();
     }
 
