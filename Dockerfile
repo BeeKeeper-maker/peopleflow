@@ -151,6 +151,7 @@ RUN npm config set fetch-retries 5 && \
 
 COPY prisma ./prisma
 COPY scripts/runtime-seed.js ./scripts/runtime-seed.js
+COPY scripts/provision-qa-tenant.js ./scripts/provision-qa-tenant.js
 
 RUN npx prisma generate && \
     npm cache clean --force && \
