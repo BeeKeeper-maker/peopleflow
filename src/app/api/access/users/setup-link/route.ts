@@ -119,6 +119,10 @@ export async function POST(req: Request) {
       message: "Account setup link sent",
       email: target.email,
       expiresIn: "24 hours",
+      // Returned to organization admins for assisted onboarding/QA.
+      // The token remains one-time-use, expires in 24 hours, and older setup
+      // tokens for the same account are invalidated above.
+      setupUrl,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
