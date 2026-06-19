@@ -121,12 +121,12 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   {
     key: "documents",
     label: "Documents",
-    description: "Document templates, generation, previews and employee document requests.",
+    description: "Document templates, generation, previews, employee requests and HR document vault.",
     category: "operations",
     defaultEnabled: false,
     planFeatureKey: "customDocuments",
     pagePrefixes: ["/documents", "/ess/documents"],
-    apiPrefixes: ["/api/documents", "/api/ess/document-request"],
+    apiPrefixes: ["/api/documents", "/api/employee-documents", "/api/ess/document-request"],
   },
   {
     key: "reports",

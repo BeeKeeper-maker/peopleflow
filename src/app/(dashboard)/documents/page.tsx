@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/toast";
+import { EmployeeDocumentVault } from "@/components/documents/employee-document-vault";
 import {
     FileText,
     Download,
@@ -204,6 +205,20 @@ export default function DocumentsPage() {
                             ← Start Over
                         </Button>
                     )}
+                </div>
+
+                <EmployeeDocumentVault />
+
+                <div className="rounded-xl border border-card-border bg-hover/40 p-5">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                            <FileCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-foreground">HR Letter Generator</h2>
+                            <p className="text-sm text-muted-foreground">Generate official letters and certificates from employee data.</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Step Indicator */}

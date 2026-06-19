@@ -686,17 +686,36 @@ model Employee {
 }
 
 model EmployeeDocument {
-  id         String    @id @default(cuid())
-  name       String
-  type       String // nid, passport, certificate, contract, etc.
-  fileUrl    String
-  expiryDate DateTime?
-  isVerified Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  name           String
+  type           String // nid, passport, certificate, contract, etc.
+  category       String    @default("other") // identity, employment, education, finance, compliance, other
+  fileUrl        String
+  originalName   String?
+  mimeType       String?
+  fileSize       Int?
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  status         String    @default("pending") // pending, verified, rejected
+  isVerified     Boolean   @default(false)
+  notes          String?
+  tags           String[]
+  uploadedById   String?
+  verifiedById   String?
+  verifiedAt     DateTime?
+  rejectedReason String?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([category])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([deletedAt])
 }
 
 // ============================================
