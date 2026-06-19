@@ -37,16 +37,22 @@ export async function GET(
         const isManager = userRole === "manager";
         const isSelf = user.employee?.id === id;
         const isDirectReport = isManager && !!user.employee?.id && await prisma.employee.findFirst({
-            where: { id, organizationId: user.organizationId, reportingManagerId: user.employee.id },
+            where: {
+                id,
+                organizationId: user.organizationId,
+                reportingManagerId: user.employee.id,
+                deletedAt: null,
+            },
             select: { id: true },
         });
 
         // Full profile data for HR; non-HR self/manager views exclude salary assignment data.
         if (isHRLevel || isDirectReport || isSelf) {
-            const employee = await prisma.employee.findUnique({
+            const employee = await prisma.employee.findFirst({
                 where: {
                     id,
                     organizationId: user.organizationId,
+                    deletedAt: null,
                 },
                 include: {
                     department: true,
@@ -85,10 +91,11 @@ export async function GET(
         }
 
         // Regular employees viewing others: public fields only (no salary, NID, bank details)
-        const employee = await prisma.employee.findUnique({
+        const employee = await prisma.employee.findFirst({
             where: {
                 id,
                 organizationId: user.organizationId,
+                deletedAt: null,
             },
             select: {
                 id: true,

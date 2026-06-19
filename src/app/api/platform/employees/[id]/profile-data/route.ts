@@ -29,6 +29,15 @@ export async function GET(
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     try {
+        const employee = await prisma.employee.findFirst({
+            where: { id, deletedAt: null },
+            select: { id: true },
+        });
+
+        if (!employee) {
+            return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+        }
+
         const [attendance90d, leaveAllocations, leaveApplications, salarySlips] =
             await prisma.$transaction([
                 prisma.attendance.findMany({

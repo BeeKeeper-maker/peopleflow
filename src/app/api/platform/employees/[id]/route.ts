@@ -25,8 +25,8 @@ export async function GET(
 
     try {
         const employee = await withPlatform((db) =>
-            db.employee.findUnique({
-                where: { id },
+            db.employee.findFirst({
+                where: { id, deletedAt: null },
                 include: {
                     department: { select: { id: true, name: true, code: true } },
                     designation: { select: { id: true, name: true, grade: true } },
