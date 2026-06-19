@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
                 where: {
                     id,
                     organizationId: auth.organizationId,
+                    deletedAt: null,
                 },
                 include: {
                     department: { select: { id: true, name: true } },
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
         // Build where clause (always scoped to org)
         const where: Record<string, unknown> = {
             organizationId: auth.organizationId,
+            deletedAt: null,
         };
 
         if (search) {
