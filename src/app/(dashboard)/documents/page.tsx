@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/components/ui/toast";
 import { EmployeeDocumentVault } from "@/components/documents/employee-document-vault";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import {
     FileText,
     Download,
@@ -90,6 +91,14 @@ function getInputType(field: string) {
 // ════════════════════════════════════════════════════════════════════════
 
 export default function DocumentsPage() {
+    return (
+        <ProtectedRoute requireHR redirectTo="/ess/dashboard">
+            <DocumentsPageContent />
+        </ProtectedRoute>
+    );
+}
+
+function DocumentsPageContent() {
     const { addToast } = useToast();
     const t = useTranslations('Documents');
     const iframeRef = useRef<HTMLIFrameElement>(null);
