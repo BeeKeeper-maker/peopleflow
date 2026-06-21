@@ -8,7 +8,20 @@ const QA_ORG = {
   slug: "peopleflow-qa-lab",
 };
 
-const PASSWORD = process.env.QA_TENANT_PASSWORD || "PeopleFlowQA@2026!";
+const isProduction = process.env.NODE_ENV === "production";
+
+if (isProduction && process.env.QA_TENANT_ALLOW_PRODUCTION !== "true") {
+  throw new Error(
+    "Refusing to provision QA tenant in production without QA_TENANT_ALLOW_PRODUCTION=true"
+  );
+}
+
+const PASSWORD = process.env.QA_TENANT_PASSWORD || (isProduction ? null : "PeopleFlowQA@2026!");
+
+if (!PASSWORD) {
+  throw new Error("QA_TENANT_PASSWORD is required for production QA tenant provisioning");
+}
+
 const now = () => new Date();
 
 async function upsertUser({ email, name, role, organizationId }) {
