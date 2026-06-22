@@ -31,6 +31,7 @@ import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
+import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
 
 interface ESSLayoutProps {
     children: ReactNode;
@@ -86,7 +87,7 @@ const navSections: NavSection[] = [
     },
 ];
 
-export default function ESSLayout({ children }: ESSLayoutProps) {
+function ESSLayoutInner({ children }: ESSLayoutProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -299,5 +300,14 @@ export default function ESSLayout({ children }: ESSLayoutProps) {
                 </div>
             </nav>
         </div>
+    );
+}
+
+
+export default function ESSLayout(props: ESSLayoutProps) {
+    return (
+        <ProtectedAppProviders>
+            <ESSLayoutInner {...props} />
+        </ProtectedAppProviders>
     );
 }

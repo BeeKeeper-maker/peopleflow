@@ -1,11 +1,16 @@
 "use client";
 
 import { DashboardLayout } from "@/components/layout";
+import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
 
 export default function DashboardGroupLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    return <DashboardLayout>{children}</DashboardLayout>;
+    return (
+        <ProtectedAppProviders>
+            <DashboardLayout>{children}</DashboardLayout>
+        </ProtectedAppProviders>
+    );
 }

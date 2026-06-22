@@ -2,11 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
-import { AuthProvider } from "@/components/providers";
-import { QueryProvider } from "@/components/providers/query-provider";
 import { LocaleProvider } from "@/components/providers/locale-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
-import { PWARegister } from "@/components/pwa/register";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 
@@ -87,20 +84,15 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
-        <AuthProvider>
-          <QueryProvider>
-            <ThemeProvider>
-              <NextIntlClientProvider messages={messages} locale={locale}>
-                <LocaleProvider>
-                  <ToastProvider>
-                    <PWARegister />
-                    {children}
-                  </ToastProvider>
-                </LocaleProvider>
-              </NextIntlClientProvider>
-            </ThemeProvider>
-          </QueryProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <NextIntlClientProvider messages={messages} locale={locale}>
+            <LocaleProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </LocaleProvider>
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

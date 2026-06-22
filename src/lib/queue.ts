@@ -1,24 +1,16 @@
 /**
  * BullMQ Queue Definitions & Job Scheduler
  *
- * Central queue registry for all background jobs.
- * Uses Redis as the backing store (same instance as caching).
- *
- * Queues:
- * - subscription-lifecycle: Trial expiry, payment reminders, suspension cascade, data cleanup
- * - impersonation-cleanup: Auto-expire active impersonation sessions
- * - usage-tracking: Record periodic usage snapshots per tenant
- * - notifications: Email dispatch (payment failed, trial ending, welcome)
- * - biometric-sync: Device data sync with exponential retry + DLQ classification
- * - device-health: Heartbeat monitoring for biometric devices
- * - attendance-reconciliation: Daily attendance gap detection
+ * Queues are created lazily so importing shared modules from the web server
+ * does not eagerly open Redis/BullMQ connections. The worker process and
+ * explicit enqueue/scheduler calls still get real queues on demand.
  */
 
 import { Queue, type ConnectionOptions } from "bullmq";
 import { queueLogger } from "@/lib/logger";
 import { isRedisDisabledForRuntime } from "@/lib/redis";
 
-// ── Redis Connection (shared with existing redis.ts) ──
+// ── Redis Connection (shared with workers) ──
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -34,14 +26,9 @@ function parseRedisUrl(url: string): ConnectionOptions {
 
 export const redisConnection: ConnectionOptions = parseRedisUrl(REDIS_URL);
 
-function createQueue<T = unknown>(
-    name: string,
-    options: ConstructorParameters<typeof Queue<T>>[1]
-): Queue<T> {
-    if (!isRedisDisabledForRuntime()) {
-        return new Queue<T>(name, options);
-    }
+type QueueOptions<T> = ConstructorParameters<typeof Queue<T>>[1];
 
+function createDisabledQueue<T = unknown>(name: string): Queue<T> {
     return {
         name,
         add: async (jobName: string) => {
@@ -56,19 +43,40 @@ function createQueue<T = unknown>(
     } as unknown as Queue<T>;
 }
 
+function createLazyQueue<T = unknown>(name: string, options: QueueOptions<T>): Queue<T> {
+    let queue: Queue<T> | null = null;
+
+    const getQueue = () => {
+        if (isRedisDisabledForRuntime()) {
+            return createDisabledQueue<T>(name);
+        }
+
+        queue ??= new Queue<T>(name, options);
+        return queue;
+    };
+
+    return new Proxy({} as Queue<T>, {
+        get(_target, prop, receiver) {
+            if (prop === "name") return name;
+            const value = Reflect.get(getQueue(), prop, receiver);
+            return typeof value === "function" ? value.bind(getQueue()) : value;
+        },
+    });
+}
+
 // ── Queue Definitions ──
 
-export const subscriptionQueue = createQueue<SubscriptionJobData>("subscription-lifecycle", {
+export const subscriptionQueue = createLazyQueue<SubscriptionJobData>("subscription-lifecycle", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,
         backoff: { type: "exponential", delay: 5000 },
-        removeOnComplete: { count: 1000 }, // Keep last 1000 completed jobs
-        removeOnFail: { count: 5000 }, // Keep last 5000 failed jobs
+        removeOnComplete: { count: 1000 },
+        removeOnFail: { count: 5000 },
     },
 });
 
-export const impersonationQueue = createQueue<ImpersonationJobData>("impersonation-cleanup", {
+export const impersonationQueue = createLazyQueue<ImpersonationJobData>("impersonation-cleanup", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 2,
@@ -78,7 +86,7 @@ export const impersonationQueue = createQueue<ImpersonationJobData>("impersonati
     },
 });
 
-export const usageTrackingQueue = createQueue<UsageTrackingJobData>("usage-tracking", {
+export const usageTrackingQueue = createLazyQueue<UsageTrackingJobData>("usage-tracking", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,
@@ -88,48 +96,46 @@ export const usageTrackingQueue = createQueue<UsageTrackingJobData>("usage-track
     },
 });
 
-export const notificationQueue = createQueue<NotificationJobData>("notifications", {
+export const notificationQueue = createLazyQueue<NotificationJobData>("notifications", {
     connection: redisConnection,
     defaultJobOptions: {
-        attempts: 5, // Emails are critical, retry more
+        attempts: 5,
         backoff: { type: "exponential", delay: 10000 },
         removeOnComplete: { count: 2000 },
         removeOnFail: { count: 5000 },
     },
 });
 
-export const eventPipelineQueue = createQueue("event-pipeline", {
+export const eventPipelineQueue = createLazyQueue("event-pipeline", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 5,
-        backoff: { type: "exponential", delay: 10_000 }, // 10s → 20s → 40s → 80s → 160s
+        backoff: { type: "exponential", delay: 10_000 },
         removeOnComplete: { count: 5000 },
-        removeOnFail: { count: 10_000 }, // Keep failed events for DLQ analysis
+        removeOnFail: { count: 10_000 },
     },
 });
 
-// ── Biometric Device Queues ──
-
-export const biometricSyncQueue = createQueue<BiometricSyncJobData>("biometric-sync", {
+export const biometricSyncQueue = createLazyQueue<BiometricSyncJobData>("biometric-sync", {
     connection: redisConnection,
     defaultJobOptions: {
-        attempts: 5, // Retry up to 5 times with exponential backoff
-        backoff: { type: "exponential", delay: 15000 }, // 15s, 30s, 60s, 120s, 240s
+        attempts: 5,
+        backoff: { type: "exponential", delay: 15000 },
         removeOnComplete: { count: 2000 },
-        removeOnFail: { count: 10000 }, // Keep failed jobs for analysis
+        removeOnFail: { count: 10000 },
     },
 });
 
-export const deviceHealthQueue = createQueue<DeviceHealthJobData>("device-health", {
+export const deviceHealthQueue = createLazyQueue<DeviceHealthJobData>("device-health", {
     connection: redisConnection,
     defaultJobOptions: {
-        attempts: 1, // Health checks don't retry — next scheduled ping will cover it
+        attempts: 1,
         removeOnComplete: { count: 500 },
         removeOnFail: { count: 1000 },
     },
 });
 
-export const attendanceReconciliationQueue = createQueue<ReconciliationJobData>("attendance-reconciliation", {
+export const attendanceReconciliationQueue = createLazyQueue<ReconciliationJobData>("attendance-reconciliation", {
     connection: redisConnection,
     defaultJobOptions: {
         attempts: 3,
@@ -177,24 +183,22 @@ export interface NotificationJobData {
     data: Record<string, unknown>;
 }
 
-// ── Biometric Job Types ──
-
 export type BiometricSyncJobType =
-    | "sync-device"            // Sync a single device
-    | "sync-all-org-devices"   // Sync all devices for an organization
-    | "retry-failed-device";   // Retry a previously failed device sync
+    | "sync-device"
+    | "sync-all-org-devices"
+    | "retry-failed-device";
 
 export interface BiometricSyncJobData {
     type: BiometricSyncJobType;
     deviceId?: string;
     organizationId?: string;
-    attempt?: number;           // Current retry attempt
-    previousError?: string;     // Error from previous attempt
+    attempt?: number;
+    previousError?: string;
 }
 
 export type DeviceHealthJobType =
-    | "ping-all-devices"       // Ping all active devices
-    | "ping-device";           // Ping a single device
+    | "ping-all-devices"
+    | "ping-device";
 
 export interface DeviceHealthJobData {
     type: DeviceHealthJobType;
@@ -203,17 +207,17 @@ export interface DeviceHealthJobData {
 }
 
 export type ReconciliationJobType =
-    | "daily-reconciliation"   // Check all orgs for attendance gaps
-    | "org-reconciliation";    // Check a single org
+    | "daily-reconciliation"
+    | "org-reconciliation";
 
 export interface ReconciliationJobData {
     type: ReconciliationJobType;
     organizationId?: string;
-    date?: string;              // ISO date string — defaults to yesterday
+    date?: string;
 }
 
 // ── CRON Schedule Registration ──
-// Call this once on application startup
+// Call this once from the worker process.
 
 export async function registerCronJobs(): Promise<void> {
     queueLogger.info("Registering CRON jobs...");
@@ -289,8 +293,6 @@ export async function registerCronJobs(): Promise<void> {
             } as SubscriptionJobData,
         }
     );
-
-    // ── Biometric CRON Jobs ──
 
     // Every 5 minutes: Ping all active biometric devices (heartbeat)
     await deviceHealthQueue.upsertJobScheduler(

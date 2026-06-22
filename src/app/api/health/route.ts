@@ -1,66 +1,71 @@
 /**
  * Health Check API Endpoint
- * Used for Docker healthcheck and monitoring
- * 
- * IMPORTANT: This endpoint MUST always return 200 for Docker healthcheck
- * to work correctly. Database status is reported in the response body
- * but does NOT affect the HTTP status code.
+ *
+ * Default mode is intentionally lightweight for Docker/Coolify healthchecks:
+ * it verifies the HTTP server process is alive without touching DB/Redis.
+ *
+ * Use `/api/health?deep=1` for dependency diagnostics. Deep checks are kept
+ * opt-in because Redis/DB latency or retries can otherwise slow every health
+ * probe and create avoidable load on the web container.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
     const startTime = Date.now();
+    const deep = request.nextUrl.searchParams.get("deep") === "1";
 
     const healthStatus: Record<string, unknown> = {
         status: "healthy",
         timestamp: new Date().toISOString(),
         version: process.env.npm_package_version || "1.0.0",
         uptime: process.uptime(),
+        mode: deep ? "deep" : "light",
         checks: {
             server: { status: "healthy" },
-            database: { status: "unknown" as string, latency: 0 },
             memory: { status: "healthy" as string },
         },
     };
 
-    // Check database connectivity (non-fatal — server can run without DB temporarily)
-    try {
-        const { prisma } = await import("@/lib/prisma");
-        const dbStart = Date.now();
-        await prisma.$queryRaw`SELECT 1`;
-        (healthStatus.checks as Record<string, unknown>).database = {
-            status: "healthy",
-            latency: Date.now() - dbStart,
-        };
-    } catch {
-        (healthStatus.checks as Record<string, unknown>).database = {
-            status: "unreachable",
-            latency: -1,
-        };
-    }
-
-    // Check Redis connectivity
-    try {
-        const { getRedis, isRedisDisabledForRuntime } = await import("@/lib/redis");
-        if (isRedisDisabledForRuntime()) {
-            (healthStatus.checks as Record<string, unknown>).redis = {
-                status: "skipped",
-                latency: 0,
-            };
-        } else {
-            const redisStart = Date.now();
-            await getRedis().ping();
-            (healthStatus.checks as Record<string, unknown>).redis = {
+    if (deep) {
+        // Check database connectivity (non-fatal — reported in body only)
+        try {
+            const { prisma } = await import("@/lib/prisma");
+            const dbStart = Date.now();
+            await prisma.$queryRaw`SELECT 1`;
+            (healthStatus.checks as Record<string, unknown>).database = {
                 status: "healthy",
-                latency: Date.now() - redisStart,
+                latency: Date.now() - dbStart,
+            };
+        } catch {
+            (healthStatus.checks as Record<string, unknown>).database = {
+                status: "unreachable",
+                latency: -1,
             };
         }
-    } catch {
-        (healthStatus.checks as Record<string, unknown>).redis = {
-            status: "unreachable",
-            latency: -1,
-        };
+
+        // Check Redis connectivity (non-fatal — reported in body only)
+        try {
+            const { getRedis, isRedisDisabledForRuntime } = await import("@/lib/redis");
+            if (isRedisDisabledForRuntime()) {
+                (healthStatus.checks as Record<string, unknown>).redis = {
+                    status: "skipped",
+                    latency: 0,
+                };
+            } else {
+                const redisStart = Date.now();
+                await getRedis().ping();
+                (healthStatus.checks as Record<string, unknown>).redis = {
+                    status: "healthy",
+                    latency: Date.now() - redisStart,
+                };
+            }
+        } catch {
+            (healthStatus.checks as Record<string, unknown>).redis = {
+                status: "unreachable",
+                latency: -1,
+            };
+        }
     }
 
     // Check memory usage
@@ -76,13 +81,10 @@ export async function GET(request: NextRequest) {
         // Memory check is non-critical
     }
 
-    const responseTime = Date.now() - startTime;
-
-    // ALWAYS return 200 — Docker healthcheck depends on it
     return NextResponse.json(
         {
             ...healthStatus,
-            responseTime,
+            responseTime: Date.now() - startTime,
         },
         {
             status: 200,

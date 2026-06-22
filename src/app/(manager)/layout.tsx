@@ -26,6 +26,7 @@ import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
+import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
 
 interface ManagerNavItem {
     label: string;
@@ -71,7 +72,7 @@ const navSections: NavSection[] = [
     },
 ];
 
-export default function ManagerLayout({ children }: ManagerLayoutProps) {
+function ManagerLayoutInner({ children }: ManagerLayoutProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -274,5 +275,14 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
                 <div className="p-6">{children}</div>
             </main>
         </div>
+    );
+}
+
+
+export default function ManagerLayout(props: ManagerLayoutProps) {
+    return (
+        <ProtectedAppProviders>
+            <ManagerLayoutInner {...props} />
+        </ProtectedAppProviders>
     );
 }
