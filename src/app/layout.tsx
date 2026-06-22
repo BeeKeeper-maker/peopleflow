@@ -10,10 +10,6 @@ import { PWARegister } from "@/components/pwa/register";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 
-// Force dynamic rendering for all pages to avoid SSG issues with client components
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",

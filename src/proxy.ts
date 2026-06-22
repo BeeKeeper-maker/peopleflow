@@ -8,7 +8,7 @@
 import NextAuth from "next-auth";
 import type { NextAuthRequest } from "next-auth";
 import { authConfig } from "@/lib/auth.config";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 
 // ── Role types and route definitions ─────────────────────────────
@@ -97,35 +97,21 @@ const { auth } = NextAuth(authConfig);
 
 // ── Auth.js v5 Proxy ─────────────────────────────────────────────
 
-export default auth((req: NextAuthRequest) => {
+function isPublicPath(pathname: string): boolean {
+    return (
+        pathname === "/" ||
+        pathname.startsWith("/platform") ||
+        PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route)) ||
+        PUBLIC_MACHINE_ROUTES.some((route) => pathname.startsWith(route)) ||
+        PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route))
+    );
+}
+
+const protectedProxy = auth((req: NextAuthRequest) => {
     const pathname = req.nextUrl.pathname;
     const session = req.auth;
     const role = session?.user?.role as UserRole | undefined;
     const features = session?.user?.features as EntitlementFeatures | undefined;
-
-    // Platform routes — handled by separate auth system
-    if (pathname.startsWith("/platform")) {
-        return NextResponse.next();
-    }
-
-    // Public routes — accessible without a session; logged-in users should not remain on login/register.
-    if (pathname === "/" && !session) return NextResponse.next();
-    if ((pathname === "/login" || pathname === "/register") && session) {
-        return NextResponse.redirect(new URL(getDefaultRoute(role), req.url));
-    }
-    if (PUBLIC_ROUTES.some((route: string) => pathname.startsWith(route))) {
-        return NextResponse.next();
-    }
-
-    // Machine/device callbacks — route handlers secure these without browser auth.
-    if (PUBLIC_MACHINE_ROUTES.some((route) => pathname.startsWith(route))) {
-        return NextResponse.next();
-    }
-
-    // API routes for auth, webhooks, health, leads, cron, platform — route handlers secure these.
-    if (PUBLIC_API_ROUTES.some((route) => pathname.startsWith(route))) {
-        return NextResponse.next();
-    }
 
     // API clients should receive JSON status codes, never HTML login redirects.
     if (pathname.startsWith("/api") && !session) {
@@ -144,7 +130,6 @@ export default auth((req: NextAuthRequest) => {
     if (!session) {
         return NextResponse.redirect(new URL("/login", req.url));
     }
-
 
     // Root path → role-based dashboard
     if (pathname === "/") {
@@ -165,13 +150,24 @@ export default auth((req: NextAuthRequest) => {
     const denied = denyModuleAccess(pathname, req, "page", features);
     if (denied) return denied;
 
-    // Suspended/deactivated pages — always accessible
-    if (pathname === "/suspended" || pathname === "/deactivated") {
+    return NextResponse.next();
+});
+
+export default function proxy(
+    req: NextRequest,
+    context: { params: Promise<Record<string, string | string[]>> }
+) {
+    const pathname = req.nextUrl.pathname;
+
+    // Public pages/APIs should not invoke Auth.js. Invoking Auth.js here creates
+    // CSRF/callback cookies and forces private no-store responses, which makes
+    // the marketing and login pages slow on every request.
+    if (isPublicPath(pathname)) {
         return NextResponse.next();
     }
 
-    return NextResponse.next();
-});
+    return protectedProxy(req as unknown as NextAuthRequest, context);
+}
 
 export const config = {
     matcher: [

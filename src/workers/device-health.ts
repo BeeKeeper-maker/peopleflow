@@ -68,9 +68,12 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                 let offlineCount = 0;
                 const newlyOffline: string[] = [];
                 const recovered: string[] = [];
+                const onlineDeviceIds = new Set<string>();
 
-                // Ping devices in parallel (max 10 concurrent)
-                const PING_CONCURRENCY = 10;
+                // Keep network probing conservative. Office biometric devices often sit
+                // behind private LAN/VPN, and aggressive parallel retries can starve the
+                // shared DB/Redis resources used by the web app.
+                const PING_CONCURRENCY = Number(process.env.BIOMETRIC_PING_CONCURRENCY || 2);
                 const deviceQueue = [...devices];
 
                 while (deviceQueue.length > 0) {
@@ -86,6 +89,7 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
 
                         if (result.status === "fulfilled" && result.value.online) {
                             onlineCount++;
+                            onlineDeviceIds.add(device.id);
                             if (!wasOnline) {
                                 recovered.push(device.id);
                             }
@@ -111,19 +115,30 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                     biometricLogger.warn({ count: newlyOffline.length }, "Device(s) newly offline");
                 }
 
-                // Trigger sync for online devices that are overdue
+                // Trigger sync only for devices confirmed online in this health check.
+                // Do not enqueue offline/private-LAN devices: repeated TCP timeouts create
+                // a retry storm and slow down normal HRMS clicks.
                 for (const device of devices) {
-                    if (device.isOnline || onlineCount > 0) {
-                        const syncOverdue = device.lastSyncAt
-                            ? (Date.now() - device.lastSyncAt.getTime()) > device.syncInterval * 60 * 1000
-                            : true; // Never synced
+                    if (!onlineDeviceIds.has(device.id)) continue;
 
-                        if (syncOverdue) {
-                            await biometricSyncQueue.add("sync-device", {
+                    const syncOverdue = device.lastSyncAt
+                        ? (Date.now() - device.lastSyncAt.getTime()) > device.syncInterval * 60 * 1000
+                        : true; // Never synced
+
+                    if (syncOverdue) {
+                        await biometricSyncQueue.add(
+                            "sync-device",
+                            {
                                 type: "sync-device",
                                 deviceId: device.id,
-                            });
-                        }
+                            },
+                            {
+                                jobId: `sync-device:${device.id}`,
+                                attempts: 1,
+                                removeOnComplete: { count: 100 },
+                                removeOnFail: { count: 200 },
+                            }
+                        );
                     }
                 }
 

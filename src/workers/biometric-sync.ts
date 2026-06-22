@@ -132,10 +132,12 @@ const biometricSyncWorker = new Worker<BiometricSyncJobData>(
     },
     {
         connection: redisConnection,
-        concurrency: 3, // Process up to 3 sync jobs in parallel
+        // Keep biometric sync conservative so unreachable office devices never
+        // compete with the web app for DB/Redis capacity.
+        concurrency: Number(process.env.BIOMETRIC_SYNC_CONCURRENCY || 1),
         limiter: {
-            max: 10,       // Max 10 jobs
-            duration: 60000, // per minute (prevent hammering devices)
+            max: Number(process.env.BIOMETRIC_SYNC_RATE_LIMIT_PER_MINUTE || 3),
+            duration: 60000,
         },
     }
 );
