@@ -4,7 +4,6 @@ import { useState } from "react";
 import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,38 +114,17 @@ export default function LoginPage() {
                 {/* Animated Background */}
                 <div className="absolute inset-0 bg-linear-to-br from-blue-600 via-blue-700 to-purple-800">
                     <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
-                    <motion.div
+                    <div
                         className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/30 rounded-full blur-3xl"
-                        animate={{
-                            scale: [1, 1.2, 1],
-                            opacity: [0.3, 0.5, 0.3],
-                        }}
-                        transition={{
-                            duration: 8,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                        }}
                     />
-                    <motion.div
+                    <div
                         className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-400/30 rounded-full blur-3xl"
-                        animate={{
-                            scale: [1.2, 1, 1.2],
-                            opacity: [0.5, 0.3, 0.5],
-                        }}
-                        transition={{
-                            duration: 8,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                        }}
                     />
                 </div>
 
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-center px-16 text-white">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
+                    <div
                     >
                         <div className="flex items-center gap-4 mb-8">
                             <div className="flex h-14 w-14 items-center justify-center overflow-hidden">
@@ -172,27 +150,21 @@ export default function LoginPage() {
 
                         <div className="space-y-4">
                             {features.map((feature, i) => (
-                                <motion.div
+                                <div
                                     key={i}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
                                     className="flex items-center gap-2 text-white/90"
                                 >
                                     {feature}
-                                </motion.div>
+                                </div>
                             ))}
                         </div>
-                    </motion.div>
+                    </div>
                 </div>
             </div>
 
             {/* Right Panel - Login Form */}
             <div className="flex-1 flex items-center justify-center p-8 bg-[#0A0A0F]">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
+                <div
                     className="w-full max-w-md"
                 >
                     {/* Mobile Logo */}
@@ -346,7 +318,7 @@ export default function LoginPage() {
                             </div>
                         </div>
                     )}
-                </motion.div>
+                </div>
             </div>
         </div>
     );
