@@ -294,10 +294,14 @@ export async function registerCronJobs(): Promise<void> {
         }
     );
 
-    // Every 5 minutes: Ping all active biometric devices (heartbeat)
+    // Ping all active biometric devices (heartbeat).
+    // Default is intentionally conservative because office biometric devices are
+    // often private-LAN only; repeated TCP timeouts can keep the worker busy and
+    // create avoidable DB/Redis pressure. Override with BIOMETRIC_HEALTH_CRON_PATTERN.
+    const biometricHealthCronPattern = process.env.BIOMETRIC_HEALTH_CRON_PATTERN || "*/30 * * * *";
     await deviceHealthQueue.upsertJobScheduler(
         "device-health-ping",
-        { pattern: "*/5 * * * *" },
+        { pattern: biometricHealthCronPattern },
         {
             name: "ping-all-devices",
             data: { type: "ping-all-devices" } as DeviceHealthJobData,
