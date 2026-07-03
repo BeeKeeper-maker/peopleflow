@@ -151,13 +151,14 @@ export async function POST(req: Request) {
         // ─── GATHER PHASE: Batch-fetch all data in 2 queries (not N) ───────
         const [existingSlips, allActiveLoans] = await Promise.all([
             // 1. Existing slips for this month/year — prevents per-employee findUnique
+            //    Include isLocked so we can skip locked slips (paid + locked = no re-process)
             prisma.salarySlip.findMany({
                 where: {
                     employeeId: { in: allEmployeeIds },
                     month,
                     year,
                 },
-                select: { employeeId: true },
+                select: { employeeId: true, isLocked: true, isReversed: true, status: true },
             }),
             // 2. All active loans for all employees — prevents N+1 in the loop
             prisma.loan.findMany({
@@ -170,7 +171,20 @@ export async function POST(req: Request) {
         ]);
 
         // ─── BUILD INDEXES: O(1) lookup per employee ───────────────────────
-        const existingSlipSet = new Set(existingSlips.map((s) => s.employeeId));
+        // A slip is "blocking" if it exists AND is not reversed AND (is locked OR not locked)
+        // i.e. any non-reversed existing slip blocks re-processing.
+        // Locked slips explicitly block with a clear error message.
+        const existingSlipMap = new Map<string, { isLocked: boolean; isReversed: boolean; status: string }>();
+        for (const s of existingSlips) {
+            existingSlipMap.set(s.employeeId, {
+                isLocked: s.isLocked,
+                isReversed: s.isReversed,
+                status: s.status,
+            });
+        }
+        const existingSlipSet = new Set(
+            existingSlips.filter((s) => !s.isReversed).map((s) => s.employeeId),
+        );
         const loansByEmployee = new Map<string, typeof allActiveLoans>();
         for (const loan of allActiveLoans) {
             if (!loansByEmployee.has(loan.employeeId)) {
@@ -196,12 +210,17 @@ export async function POST(req: Request) {
             const empName = `${employee.firstName} ${employee.lastName}`;
 
             // ─── MATCH PHASE: O(1) lookup from pre-built indexes ───────────
-            // Skip if slip already exists (from batch-fetched Set)
-            if (existingSlipSet.has(employee.id)) {
+            // Skip if a non-reversed slip already exists.
+            // Locked slips get a specific error message so HR knows to
+            // unlock (with audit) before re-processing.
+            const existingInfo = existingSlipMap.get(employee.id);
+            if (existingInfo && !existingInfo.isReversed) {
                 skipped.push({
                     employeeId: employee.id,
                     name: empName,
-                    error: "Slip already exists",
+                    error: existingInfo.isLocked
+                        ? `Slip is LOCKED (status: ${existingInfo.status}). Unlock it first to re-process.`
+                        : `Slip already exists (status: ${existingInfo.status}). Reverse it first to re-process.`,
                 });
                 continue;
             }

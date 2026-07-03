@@ -1009,10 +1009,24 @@ model SalarySlip {
   // Net
   netSalary Float
 
-  status         String    @default("draft") // draft, approved, paid
+  status         String    @default("draft") // draft, approved, paid, locked
   paymentDate    DateTime?
   paymentMode    String? // bank_transfer, cash, cheque
   transactionRef String?
+
+  // Lock: once paid, a slip is locked and cannot be re-processed.
+  // Lock can only be removed via explicit unlock (with audit log).
+  isLocked        Boolean   @default(false)
+  lockedAt        DateTime?
+  lockedById      String?   // User ID who locked
+  lockedReason    String?
+
+  // Reversal: if a paid slip needs correction, it's reversed (not deleted).
+  // A new corrected slip is then re-processed.
+  isReversed      Boolean   @default(false)
+  reversedAt      DateTime?
+  reversedById    String?
+  reversedReason  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
