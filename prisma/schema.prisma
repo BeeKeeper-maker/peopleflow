@@ -136,6 +136,7 @@ model Plan {
   maxBranches  Int @default(1)
   maxDevices   Int @default(0) // Biometric devices
   maxStorageMB Int @default(500) // File storage limit
+  maxCustomRoles Int @default(0) // 0=none, -1=unlimited (Starter=0, Growth=10, Enterprise=-1)
 
   // Feature Flags
   features Json @default("{}")
@@ -325,6 +326,17 @@ model Organization {
   // Platform support
   supportIssues         PlatformSupportIssue[]
 
+  // RBAC v2
+  roles                 Role[]
+  userRoleAssignments   UserRoleAssignment[]
+
+  // Custom Reports
+  savedReports          SavedReport[]
+  scheduledReports      ScheduledReport[]
+
+  // Custom Fields
+  customFields          CustomField[]
+
   @@index([status])
 }
 
@@ -354,8 +366,10 @@ model User {
   accounts         Account[]
   sessions         Session[]
   notifications    Notification[]
+  notificationPreference NotificationPreference?
   passwordHistory  PasswordHistory[]
   rbacPermissions  RBACPermission[]
+  roleAssignments  UserRoleAssignment[]
 }
 
 model Account {
@@ -1304,6 +1318,127 @@ model PFTransaction {
 }
 
 // ============================================
+// Custom Fields Builder
+// ============================================
+
+/**
+ * CustomField — admin-defined field that extends a standard entity.
+ *
+ * Entities supported: Employee (primary use case), Attendance, LeaveApplication.
+ *
+ * Field types:
+ *   text: single-line string
+ *   textarea: multi-line string
+ *   number: numeric value
+ *   date: date picker
+ *   select: dropdown with predefined options
+ *   boolean: yes/no toggle
+ *
+ * The value is stored in the entity's `customFields` JSONB column
+ * (e.g., Employee.customFields = { "blood_group": "O+", "emergency_contact": "..." }).
+ *
+ * This table defines the FIELD SCHEMA (label, type, options, required).
+ * The actual VALUES are stored per-entity in the JSONB column.
+ */
+model CustomField {
+  id              String   @id @default(cuid())
+  label           String                         // "Blood Group", "Emergency Contact"
+  key             String                         // "blood_group" — used in customFields JSONB
+  entityType      String                         // Employee, Attendance, LeaveApplication
+  fieldType       String                         // text, textarea, number, date, select, boolean
+  options         String[]                       // for select type: ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"]
+  isRequired      Boolean  @default(false)
+  isFilterable    Boolean  @default(false)       // show in report builder filters
+  isSearchable    Boolean  @default(false)       // include in global search
+  defaultValue    String?
+  description     String?
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entityType, key])
+  @@index([organizationId, entityType])
+  @@index([isActive])
+}
+
+// ============================================
+// Custom Reports & Saved Views
+// ============================================
+
+/**
+ * SavedReport — a user-defined custom report configuration.
+ *
+ * Users (HR/admin) can build custom reports by:
+ *   1. Selecting a data source (employees, attendance, payroll, leave, expenses)
+ *   2. Selecting fields to include
+ *   3. Applying filters (date range, department, status, etc.)
+ *   4. Choosing a format (table, bar chart, line chart, pie chart)
+ *   5. Saving the configuration for reuse
+ *
+ * The report is executed on-demand by POST /api/reports/custom/[id]/run
+ * or scheduled via ScheduledReport (email delivery).
+ */
+model SavedReport {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  dataSource      String   // employees, attendance, payroll, leave, expenses, loans
+  fields          String[] // selected field keys: ["firstName", "lastName", "department.name"]
+  filters         Json     @default("{}") // { "departmentId": "...", "status": "active", "dateFrom": "...", "dateTo": "..." }
+  groupBy         String?  // optional field to group by
+  chartType       String?  // table, bar, line, pie — null = table only
+  isShared        Boolean  @default(false) // shared with other admins in the org
+
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  schedules       ScheduledReport[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+  @@index([dataSource])
+}
+
+/**
+ * ScheduledReport — a saved report scheduled for automatic email delivery.
+ *
+ * Cron: daily at 9 AM BD time, weekly on Monday 9 AM, monthly on the 1st.
+ * The scheduled-report-worker picks up due schedules, runs the report,
+ * generates a PDF/CSV, and emails it to the recipients.
+ */
+model ScheduledReport {
+  id              String   @id @default(cuid())
+  frequency       String   // daily, weekly, monthly
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  recipients      String[] // user IDs to email
+  format          String   @default("pdf") // pdf, csv, xlsx
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  savedReportId   String
+  savedReport     SavedReport @relation(fields: [savedReportId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([nextRunAt])
+  @@index([organizationId])
+  @@index([savedReportId])
+}
+
+// ============================================
 // Announcements & Notifications
 // ============================================
 
@@ -1335,7 +1470,7 @@ model Notification {
   id        String    @id @default(cuid())
   title     String
   message   String
-  type      String // leave_approval, payroll, announcement, reminder, etc.
+  type      String // leave_approval, payroll, announcement, reminder, alert, etc.
   link      String?
   isRead    Boolean   @default(false)
   readAt    DateTime?
@@ -1347,6 +1482,52 @@ model Notification {
   // Performance indexes
   @@index([userId, isRead])
   @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+/**
+ * NotificationPreference — per-user control over notification channels.
+ *
+ * Each user can independently enable/disable:
+ *   - in_app: bell icon in the dashboard
+ *   - email: SMTP email
+ *   - push: web push notification (PWA service worker)
+ *
+ * Per category (leave, payroll, attendance, etc.), so a user can get
+ * email for payroll but only in-app for announcements.
+ *
+ * digestMode: if "instant" → each event fires immediately
+ *             if "daily" → events batched into one daily summary email
+ *             if "weekly" → events batched into one weekly summary
+ */
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Channel toggles (global defaults)
+  inAppEnabled    Boolean  @default(true)
+  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean  @default(false)
+
+  // Digest mode
+  digestMode      String   @default("instant") // instant, daily, weekly
+
+  // Quiet hours (no push/email during these hours, BD local time)
+  quietHoursStart String?  // "22:00" — null = no quiet hours
+  quietHoursEnd   String?  // "07:00"
+
+  // Per-category overrides (JSON: { "leave_approval": { "email": false }, ... })
+  // If a category is not in the map, use the global defaults above.
+  categoryOverrides Json?  @default("{}")
+
+  // Push subscription endpoint (for web push)
+  pushSubscription Json?   // { endpoint, keys: { p256dh, auth } }
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ============================================
@@ -1844,6 +2025,128 @@ model RBACPermission {
   @@index([organizationId])
   @@index([permission])
   @@index([isActive])
+}
+
+// ============================================
+// RBAC v2 — Custom Roles, Permission Catalog, Assignments
+// ============================================
+
+/**
+ * Role — a named set of permissions, either system-defined (5 built-in)
+ * or tenant-defined (custom roles created by the org admin).
+ *
+ * System roles (isSystem=true): super_admin, admin, hr_admin, manager, employee.
+ *   - Cannot be deleted.
+ *   - Permissions can be EXTENDED but not REMOVED (to preserve invariants).
+ *
+ * Custom roles (isSystem=false): fully editable by org admin.
+ *   - Subject to Plan.maxCustomRoles limit.
+ *
+ * Backward compatibility:
+ *   User.role (String) remains the "primary role slug" for fast lookup.
+ *   UserRoleAssignment is the source of truth for multi-role (future).
+ *   For now, single-role assignment via UserRoleAssignment mirrors User.role.
+ */
+model Role {
+  id              String   @id @default(cuid())
+  name            String                          // "Branch Manager", "Finance Officer"
+  slug            String                          // "branch_manager" — used in User.role
+  description     String?
+  isSystem        Boolean  @default(false)        // true for 5 built-in roles — cannot be deleted
+  isDefault       Boolean  @default(false)        // true for the role assigned to new users
+  dashboardConfig Json?                           // { widgets: [...] } — per-role dashboard
+  color           String?                         // UI badge color
+  sortOrder       Int      @default(0)            // display order in role list
+
+  // Null = global system role; else tenant-scoped custom role
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  rolePermissions RolePermission[]
+  userAssignments UserRoleAssignment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, slug])                // (null, "admin") and (orgId, "branch_manager") both valid
+  @@index([organizationId])
+  @@index([isSystem])
+}
+
+/**
+ * Permission — system-defined catalog of all available permissions.
+ * Not tenant-editable (admin can't create new permission keys).
+ * Seeded once during migration; new permissions added via future migrations.
+ */
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique                     // "payroll:process", "leave:approve"
+  module      String                              // "payroll", "leave", "attendance", ...
+  action      String                              // "view", "create", "edit", "delete", "approve", "process"
+  description String?
+  isDangerous Boolean @default(false)             // true for destructive: delete, payroll:process
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@index([action])
+}
+
+/**
+ * RolePermission — grants a Permission to a Role, with optional scope.
+ *
+ * Scope determines the data visibility for that permission:
+ *   global     → entire organization
+ *   department → only specified departmentIds
+ *   branch     → only specified branchIds
+ *   self       → only the user's own records
+ *   team       → only direct reportees (for manager-style roles)
+ */
+model RolePermission {
+  id              String   @id @default(cuid())
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId    String
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  scope           String   @default("global")     // global, department, branch, self, team
+  departmentIds   Json?                            // for scope=department: ["dept_1", "dept_2"]
+  branchIds       Json?                            // for scope=branch: ["branch_1"]
+
+  createdAt       DateTime @default(now())
+
+  @@unique([roleId, permissionId, scope])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+/**
+ * UserRoleAssignment — assigns a Role to a User.
+ *
+ * In v1 (current): each user has exactly ONE assignment mirroring User.role.
+ *   This exists to enable the future multi-role feature without a second migration.
+ *
+ * In v2 (future): a user can have MULTIPLE assignments. Effective permissions
+ *   = union of all assigned roles' permissions.
+ *
+ * expiresAt: optional time-bounded assignment (e.g., "acting manager for 2 weeks").
+ */
+model UserRoleAssignment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy      String?                           // User ID who assigned
+  assignedAt      DateTime @default(now())
+  expiresAt       DateTime?                         // optional time-bounded assignment
+
+  @@unique([userId, roleId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ============================================

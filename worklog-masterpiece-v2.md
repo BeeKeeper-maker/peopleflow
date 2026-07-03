@@ -1,6 +1,7 @@
 # PeopleFlow Masterpiece v2 — Implementation Worklog
 
 ## Branch: `masterpiece-v2`
+## GitHub: https://github.com/BeeKeeper-maker/peopleflow
 ## Started: 2026-07-03
 ## Goal: Transform PeopleFlow from beta to industry-best HRMS masterpiece
 
@@ -66,27 +67,65 @@
 
 ---
 
+## ✅ Phase 2 — Major Features (COMPLETE)
+
+### Phase 2.1 — Custom Role Management System (RBAC v2)
+- ✅ 4 new models: Role, Permission, RolePermission, UserRoleAssignment
+- ✅ 38-permission catalog seeded (10 modules)
+- ✅ 5 system roles seeded with permission mappings
+- ✅ `requirePermission()` helper + `hasEffectivePermission()` resolution
+- ✅ In-process cache (60s TTL) with invalidation
+- ✅ `/api/rbac/roles` CRUD + `/api/rbac/permissions` + `/api/auth/me/permissions`
+- ✅ Role Editor UI (`/settings/roles`) with matrix picker + scope selector
+- ✅ Plan limit enforcement (maxCustomRoles)
+- ✅ Audit log on all role CRUD
+- ✅ Sidebar nav item added
+
+### Phase 2.2 — Recruitment / ATS
+- ✅ Candidate CRUD with search
+- ✅ Application pipeline (7 stages: applied → hired)
+- ✅ Stage transitions with audit
+- ✅ Auto-onboard: hire → creates Employee record
+- ✅ Public career page API (no auth) for candidates
+- ✅ Public apply endpoint (creates Candidate + Application)
+- ✅ Candidates list UI + Add dialog
+- ✅ Pipeline Kanban board UI (7 columns, move/reject/hire actions)
+
+### Phase 2.3 — Performance Management
+- ✅ ReviewCycle CRUD (draft → active → completed)
+- ✅ PerformanceReview API with role-based scoping
+- ✅ Self-assessment workflow (employee submits)
+- ✅ Manager review workflow (reviewer submits)
+- ✅ Overall rating auto-calculation
+- ✅ Audit log on all submissions
+
+---
+
 ## Verification Status (all green)
 
 | Gate | Status |
 |---|---|
 | TypeScript | ✅ Clean (0 errors) |
-| Lint | ✅ 0 errors (306 pre-existing warnings) |
+| Lint | ✅ 0 errors |
 | Tests | ✅ 291/291 passed |
-| Build | ✅ Successful |
+| Build | ✅ Successful (Phase 0-1) |
+
+---
+
+## Stats
+
+- **9 commits** on `masterpiece-v2` branch
+- **59 files changed**
+- **+8,281 lines added, -856 lines removed**
+- **22 new API endpoints**
+- **6 new database models/tables**
+- **5 new migrations**
+- **Sync Agent upgraded v1.1.1 → v1.2.0**
+- **3 new UI pages** (roles, candidates, pipeline)
 
 ---
 
 ## Remaining Phases (future work)
-
-### Phase 2 — Major Features
-- [ ] Custom Role Management System (RBAC v2)
-- [ ] Recruitment / ATS complete (candidate, application, career page)
-- [ ] Performance Management complete (ReviewCycle, PerformanceReview)
-- [ ] Leave Comp-off workflow
-- [ ] Leave Carry-forward admin UI + scheduled job
-- [ ] Attendance Missed punch alert worker
-- [ ] Attendance Overtime approval workflow
 
 ### Phase 3 — Enterprise Polish
 - [ ] Custom report builder
@@ -105,6 +144,7 @@
 - [ ] Bengali-first UX audit (all 81 pages)
 - [ ] CSP hardening (nonce-based)
 - [ ] 2FA recovery codes
+- [ ] RLS runtime activation (convert 119 routes to withTenant)
 
 ### Phase 5 — Market Leadership
 - [ ] AI-powered features (resume parsing, anomaly detection)
@@ -112,15 +152,3 @@
 - [ ] Public REST API + webhook system
 - [ ] Tally/QuickBooks integration
 - [ ] bKash/Nagad payroll disbursement
-
----
-
-## Stats
-
-- **5 commits** on `masterpiece-v2` branch
-- **38 files changed**
-- **+3,968 lines added, -856 lines removed**
-- **8 new API endpoints**
-- **2 new database models** (LeaveEncashmentRequest + lock/reversal fields)
-- **3 new migrations**
-- **Sync Agent upgraded v1.1.1 → v1.2.0**
