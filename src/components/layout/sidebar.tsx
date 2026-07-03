@@ -106,6 +106,7 @@ const navSections: NavSection[] = [
             { labelKey: "setupReadiness", href: "/settings/readiness", icon: ClipboardCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "approvalWorkflows", href: "/approval-workflows", icon: GitPullRequest, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "accessControl", href: "/settings/access", icon: KeyRound, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "rolesPermissions", href: "/settings/roles", icon: ShieldCheck, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
 
             { labelKey: "settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },

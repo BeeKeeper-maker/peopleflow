@@ -136,6 +136,7 @@ model Plan {
   maxBranches  Int @default(1)
   maxDevices   Int @default(0) // Biometric devices
   maxStorageMB Int @default(500) // File storage limit
+  maxCustomRoles Int @default(0) // 0=none, -1=unlimited (Starter=0, Growth=10, Enterprise=-1)
 
   // Feature Flags
   features Json @default("{}")
@@ -325,6 +326,10 @@ model Organization {
   // Platform support
   supportIssues         PlatformSupportIssue[]
 
+  // RBAC v2
+  roles                 Role[]
+  userRoleAssignments   UserRoleAssignment[]
+
   @@index([status])
 }
 
@@ -356,6 +361,7 @@ model User {
   notifications    Notification[]
   passwordHistory  PasswordHistory[]
   rbacPermissions  RBACPermission[]
+  roleAssignments  UserRoleAssignment[]
 }
 
 model Account {
@@ -1844,6 +1850,128 @@ model RBACPermission {
   @@index([organizationId])
   @@index([permission])
   @@index([isActive])
+}
+
+// ============================================
+// RBAC v2 — Custom Roles, Permission Catalog, Assignments
+// ============================================
+
+/**
+ * Role — a named set of permissions, either system-defined (5 built-in)
+ * or tenant-defined (custom roles created by the org admin).
+ *
+ * System roles (isSystem=true): super_admin, admin, hr_admin, manager, employee.
+ *   - Cannot be deleted.
+ *   - Permissions can be EXTENDED but not REMOVED (to preserve invariants).
+ *
+ * Custom roles (isSystem=false): fully editable by org admin.
+ *   - Subject to Plan.maxCustomRoles limit.
+ *
+ * Backward compatibility:
+ *   User.role (String) remains the "primary role slug" for fast lookup.
+ *   UserRoleAssignment is the source of truth for multi-role (future).
+ *   For now, single-role assignment via UserRoleAssignment mirrors User.role.
+ */
+model Role {
+  id              String   @id @default(cuid())
+  name            String                          // "Branch Manager", "Finance Officer"
+  slug            String                          // "branch_manager" — used in User.role
+  description     String?
+  isSystem        Boolean  @default(false)        // true for 5 built-in roles — cannot be deleted
+  isDefault       Boolean  @default(false)        // true for the role assigned to new users
+  dashboardConfig Json?                           // { widgets: [...] } — per-role dashboard
+  color           String?                         // UI badge color
+  sortOrder       Int      @default(0)            // display order in role list
+
+  // Null = global system role; else tenant-scoped custom role
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  rolePermissions RolePermission[]
+  userAssignments UserRoleAssignment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, slug])                // (null, "admin") and (orgId, "branch_manager") both valid
+  @@index([organizationId])
+  @@index([isSystem])
+}
+
+/**
+ * Permission — system-defined catalog of all available permissions.
+ * Not tenant-editable (admin can't create new permission keys).
+ * Seeded once during migration; new permissions added via future migrations.
+ */
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique                     // "payroll:process", "leave:approve"
+  module      String                              // "payroll", "leave", "attendance", ...
+  action      String                              // "view", "create", "edit", "delete", "approve", "process"
+  description String?
+  isDangerous Boolean @default(false)             // true for destructive: delete, payroll:process
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@index([action])
+}
+
+/**
+ * RolePermission — grants a Permission to a Role, with optional scope.
+ *
+ * Scope determines the data visibility for that permission:
+ *   global     → entire organization
+ *   department → only specified departmentIds
+ *   branch     → only specified branchIds
+ *   self       → only the user's own records
+ *   team       → only direct reportees (for manager-style roles)
+ */
+model RolePermission {
+  id              String   @id @default(cuid())
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId    String
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  scope           String   @default("global")     // global, department, branch, self, team
+  departmentIds   Json?                            // for scope=department: ["dept_1", "dept_2"]
+  branchIds       Json?                            // for scope=branch: ["branch_1"]
+
+  createdAt       DateTime @default(now())
+
+  @@unique([roleId, permissionId, scope])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+/**
+ * UserRoleAssignment — assigns a Role to a User.
+ *
+ * In v1 (current): each user has exactly ONE assignment mirroring User.role.
+ *   This exists to enable the future multi-role feature without a second migration.
+ *
+ * In v2 (future): a user can have MULTIPLE assignments. Effective permissions
+ *   = union of all assigned roles' permissions.
+ *
+ * expiresAt: optional time-bounded assignment (e.g., "acting manager for 2 weeks").
+ */
+model UserRoleAssignment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy      String?                           // User ID who assigned
+  assignedAt      DateTime @default(now())
+  expiresAt       DateTime?                         // optional time-bounded assignment
+
+  @@unique([userId, roleId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ============================================
