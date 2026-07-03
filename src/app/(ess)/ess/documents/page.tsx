@@ -83,7 +83,7 @@ export default function ESSDocumentsPage() {
                     setProfileMissing(true);
                 }
             } catch (err) {
-                console.error("Failed to fetch document requests:", err);
+                console.error("Failed to fetch data:", err); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
             } finally {
                 setLoadingRequests(false);
             }

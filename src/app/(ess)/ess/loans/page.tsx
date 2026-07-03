@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import {
     Banknote,
     Clock,
@@ -73,6 +74,7 @@ const methodLabels: Record<string, string> = {
 };
 
 export default function ESSLoansPage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSLoans");
     const [loans, setLoans] = useState<Loan[]>([]);
     const [loading, setLoading] = useState(true);
@@ -89,6 +91,7 @@ export default function ESSLoansPage() {
                 }
             } catch (err) {
                 console.error("Failed to fetch loans:", err);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setLoading(false);
             }

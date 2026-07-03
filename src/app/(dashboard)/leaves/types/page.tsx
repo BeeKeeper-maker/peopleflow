@@ -8,7 +8,9 @@ import { Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 
+import { useToast } from "@/components/ui/toast";
 export default function LeaveTypesPage() {
+    const { addToast } = useToast();
     const [data, setData] = useState<LeaveType[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const t = useTranslations('Leaves')
@@ -23,6 +25,7 @@ export default function LeaveTypesPage() {
                 }
             } catch (error) {
                 console.error("Failed to fetch leave types", error)
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setIsLoading(false)
             }

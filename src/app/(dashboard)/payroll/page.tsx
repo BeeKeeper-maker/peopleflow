@@ -28,6 +28,9 @@ import {
     Shield,
     ArrowRight,
     Timer,
+    Banknote,
+    Lock,
+    RotateCcw,
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
@@ -69,6 +72,8 @@ interface SalarySlip {
     netSalary: number
     totalDeductions: number
     status: string
+    isLocked?: boolean
+    isReversed?: boolean
     employee: {
         firstName: string
         lastName: string
@@ -160,6 +165,133 @@ export default function PayrollPage() {
     const totalDeductions = slips.reduce((sum, s) => sum + s.totalDeductions, 0)
     const pendingCount = slips.filter(s => s.status === "draft").length
     const paidCount = slips.filter(s => s.status === "paid").length
+
+    // ── Slip workflow actions ──
+    const [slipActionLoading, setSlipActionLoading] = useState<string | null>(null)
+
+    const handleSlipAction = async (slipId: string, action: "approve" | "pay" | "lock" | "reverse" | "download") => {
+        setSlipActionLoading(`${slipId}:${action}`)
+        try {
+            if (action === "download") {
+                // Download payslip PDF
+                const res = await fetch(`/api/payroll/slips/${slipId}/download`)
+                if (res.ok) {
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `payslip-${slipId}.pdf`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                } else {
+                    addToast({ title: "Download failed", type: "error" })
+                }
+            } else if (action === "lock") {
+                const reason = prompt("Enter a reason for locking this slip:")
+                if (!reason) return
+                const res = await fetch(`/api/payroll/slips/${slipId}/lock`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason }),
+                })
+                if (res.ok) {
+                    addToast({ title: "Slip locked", type: "success" })
+                    fetchData()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || "Lock failed", type: "error" })
+                }
+            } else if (action === "reverse") {
+                const reason = prompt("Enter a reason for reversing this slip:")
+                if (!reason) return
+                const res = await fetch(`/api/payroll/slips/${slipId}/reverse`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason }),
+                })
+                if (res.ok) {
+                    addToast({ title: "Slip reversed — you can re-process now", type: "success" })
+                    fetchData()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || "Reverse failed", type: "error" })
+                }
+            } else {
+                // approve or pay
+                const body = action === "pay" ? { paymentMode: "bank_transfer" } : {}
+                const res = await fetch(`/api/payroll/slips/${slipId}/${action}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                })
+                if (res.ok) {
+                    const data = await res.json()
+                    addToast({ title: data.message || `Slip ${action}d`, type: "success" })
+                    fetchData()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || `${action} failed`, type: "error" })
+                }
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    const handleBulkApprove = async () => {
+        const draftSlips = slips.filter(s => s.status === "draft")
+        if (draftSlips.length === 0) {
+            addToast({ title: "No draft slips to approve", type: "info" })
+            return
+        }
+        if (!confirm(`Approve ${draftSlips.length} draft slip(s) for ${months[processMonth - 1]} ${processYear}?`)) return
+
+        setSlipActionLoading("bulk-approve")
+        try {
+            const res = await fetch("/api/payroll/slips/bulk-approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ month: processMonth, year: processYear }),
+            })
+            if (res.ok) {
+                const data = await res.json()
+                addToast({ title: `${data.approved} slip(s) approved`, type: "success" })
+                fetchData()
+            } else {
+                addToast({ title: "Bulk approve failed", type: "error" })
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    const handleGenerateBankFile = async () => {
+        setSlipActionLoading("bank-file")
+        try {
+            const res = await fetch(`/api/payroll/bank-file?month=${processMonth}&year=${processYear}`)
+            if (res.ok) {
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = `bank-file-${processYear}-${processMonth}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+                addToast({ title: "Bank file generated", type: "success" })
+            } else {
+                const err = await res.json().catch(() => ({}))
+                addToast({ title: err.error || "Bank file generation failed", type: "error" })
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
 
     const stats = [
         {
@@ -439,23 +571,41 @@ export default function PayrollPage() {
                                 </CardTitle>
                                 <CardDescription className="text-muted-foreground">
                                     {slips.length} {t('slipsGenerated')}
+                                    {pendingCount > 0 && (
+                                        <span className="ml-2 text-amber-400">
+                                            ({pendingCount} draft awaiting approval)
+                                        </span>
+                                    )}
                                 </CardDescription>
                             </div>
-                            <Button
-                                variant="outline"
-                                className="border-card-border"
-                                disabled={slips.length === 0}
-                                onClick={() => {
-                                    const formatted = formatPayrollExport(slips)
-                                    exportToExcel(formatted, {
-                                        filename: `Salary_Slips_${months[processMonth - 1]}_${processYear}`,
-                                        sheetName: "Salary Slips",
-                                    })
-                                }}
-                            >
-                                <Download className="h-4 w-4 mr-2" />
-                                {t('exportAll')}
-                            </Button>
+                            <div className="flex gap-2">
+                                {pendingCount > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                                        onClick={handleBulkApprove}
+                                        disabled={slipActionLoading === "bulk-approve"}
+                                    >
+                                        {slipActionLoading === "bulk-approve" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                        Bulk Approve ({pendingCount})
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    className="border-card-border"
+                                    disabled={slips.length === 0}
+                                    onClick={() => {
+                                        const formatted = formatPayrollExport(slips)
+                                        exportToExcel(formatted, {
+                                            filename: `Salary_Slips_${months[processMonth - 1]}_${processYear}`,
+                                            sheetName: "Salary Slips",
+                                        })
+                                    }}
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    {t('exportAll')}
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             {slips.length === 0 ? (
@@ -506,12 +656,76 @@ export default function PayrollPage() {
                                                             }
                                                         >
                                                             {slip.status}
+                                                            {slip.isLocked && " 🔒"}
+                                                            {slip.isReversed && " ↩"}
                                                         </Badge>
                                                     </td>
                                                     <td className="py-4">
-                                                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground">
-                                                            <Download className="h-4 w-4" />
-                                                        </Button>
+                                                        <div className="flex gap-1">
+                                                            {/* Download PDF */}
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                                                onClick={() => handleSlipAction(slip.id, "download")}
+                                                                disabled={slipActionLoading === `${slip.id}:download`}
+                                                                title="Download PDF"
+                                                            >
+                                                                {slipActionLoading === `${slip.id}:download` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                            </Button>
+                                                            {/* Approve (draft → approved) */}
+                                                            {slip.status === "draft" && !slip.isReversed && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "approve")}
+                                                                    disabled={slipActionLoading === `${slip.id}:approve`}
+                                                                    title="Approve"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:approve` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Pay (approved → paid) */}
+                                                            {(slip.status === "approved" || slip.status === "draft") && !slip.isReversed && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "pay")}
+                                                                    disabled={slipActionLoading === `${slip.id}:pay`}
+                                                                    title="Mark as Paid"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:pay` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Lock (paid → locked) */}
+                                                            {slip.status === "paid" && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "lock")}
+                                                                    disabled={slipActionLoading === `${slip.id}:lock`}
+                                                                    title="Lock"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:lock` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Reverse (for correction) */}
+                                                            {(slip.status === "paid" || slip.status === "approved") && !slip.isReversed && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "reverse")}
+                                                                    disabled={slipActionLoading === `${slip.id}:reverse`}
+                                                                    title="Reverse for correction"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:reverse` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -636,8 +850,12 @@ export default function PayrollPage() {
                                             <option>EFT (Individual)</option>
                                         </select>
                                     </div>
-                                    <Button className="bg-cyan-600 hover:bg-cyan-700 gap-2">
-                                        <Download className="h-4 w-4" />
+                                    <Button
+                                        className="bg-cyan-600 hover:bg-cyan-700 gap-2"
+                                        onClick={handleGenerateBankFile}
+                                        disabled={slipActionLoading === "bank-file" || slips.length === 0}
+                                    >
+                                        {slipActionLoading === "bank-file" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                                         {t("generateFile")}
                                     </Button>
                                 </div>

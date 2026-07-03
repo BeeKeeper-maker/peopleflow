@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import {
     Megaphone,
     Clock,
@@ -56,6 +57,7 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
 };
 
 export default function ESSAnnouncementsPage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSAnnouncements");
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,6 +75,7 @@ export default function ESSAnnouncementsPage() {
                 }
             } catch (err) {
                 console.error("Failed to fetch announcements:", err);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setLoading(false);
             }

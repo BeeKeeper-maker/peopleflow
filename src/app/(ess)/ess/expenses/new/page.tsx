@@ -29,9 +29,13 @@ import { useToast } from "@/components/ui/toast";
 interface ExpenseCategory {
     id: string;
     name: string;
+    nameBn?: string;
     maxAmount?: number;
     monthlyLimit?: number;
     requiresReceipt: boolean;
+    categoryType: string; // standard, mileage, per_diem
+    mileageRate?: number | null;
+    perDiemRate?: number | null;
 }
 
 export default function NewExpensePage() {
@@ -42,15 +46,36 @@ export default function NewExpensePage() {
     const [isSuccess, setIsSuccess] = useState(false);
     const [categories, setCategories] = useState<ExpenseCategory[]>([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+    const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
 
     const [formData, setFormData] = useState({
         title: "",
         amount: "",
+        currency: "BDT",
         category: "",
         date: "",
         description: "",
         receipt: null as File | null,
+        // Mileage
+        distance: "",
+        distanceUnit: "km",
+        // Per-diem
+        perDiemDays: "",
     });
+
+    // Fetch exchange rates for currency display
+    useEffect(() => {
+        fetch("/api/settings/exchange-rates")
+            .then((r) => r.json())
+            .then((data) => {
+                const rateMap: Record<string, number> = { BDT: 1.0 };
+                for (const c of data.data || []) {
+                    if (c.rate) rateMap[c.code] = c.rate;
+                }
+                setExchangeRates(rateMap);
+            })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         const fetchCategories = async () => {
@@ -62,11 +87,11 @@ export default function NewExpensePage() {
                 } else {
                     // Use default categories if API not available
                     setCategories([
-                        { id: "travel", name: "Travel", maxAmount: 10000, monthlyLimit: 50000, requiresReceipt: true },
-                        { id: "meals", name: "Meals", maxAmount: 2000, monthlyLimit: 15000, requiresReceipt: false },
-                        { id: "office", name: "Office Supplies", maxAmount: 5000, monthlyLimit: 20000, requiresReceipt: true },
-                        { id: "communication", name: "Communication", maxAmount: 3000, monthlyLimit: 10000, requiresReceipt: false },
-                        { id: "other", name: "Other", maxAmount: 10000, monthlyLimit: 30000, requiresReceipt: true },
+                        { id: "travel", name: "Travel", maxAmount: 10000, monthlyLimit: 50000, requiresReceipt: true, categoryType: "standard" },
+                        { id: "meals", name: "Meals", maxAmount: 2000, monthlyLimit: 15000, requiresReceipt: false, categoryType: "standard" },
+                        { id: "office", name: "Office Supplies", maxAmount: 5000, monthlyLimit: 20000, requiresReceipt: true, categoryType: "standard" },
+                        { id: "communication", name: "Communication", maxAmount: 3000, monthlyLimit: 10000, requiresReceipt: false, categoryType: "standard" },
+                        { id: "other", name: "Other", maxAmount: 10000, monthlyLimit: 30000, requiresReceipt: true, categoryType: "standard" },
                     ]);
                 }
             } catch (error) {
@@ -87,10 +112,6 @@ export default function NewExpensePage() {
             addToast({ title: t("errTitle"), type: "error" });
             return;
         }
-        if (!formData.amount || parseFloat(formData.amount) <= 0) {
-            addToast({ title: t("errAmount"), type: "error" });
-            return;
-        }
         if (!formData.category) {
             addToast({ title: t("errCategory"), type: "error" });
             return;
@@ -99,10 +120,26 @@ export default function NewExpensePage() {
             addToast({ title: t("errExpenseDate"), type: "error" });
             return;
         }
-        if (selectedCategory?.maxAmount && parseFloat(formData.amount) > selectedCategory.maxAmount) {
-            addToast({ title: t("errMaxAmount", { amount: selectedCategory.maxAmount.toLocaleString() }), type: "error" });
-            return;
+
+        // Type-specific validation
+        const catType = selectedCategory?.categoryType || "standard";
+        if (catType === "standard") {
+            if (!formData.amount || parseFloat(formData.amount) <= 0) {
+                addToast({ title: t("errAmount"), type: "error" });
+                return;
+            }
+        } else if (catType === "mileage") {
+            if (!formData.distance || parseFloat(formData.distance) <= 0) {
+                addToast({ title: "Distance is required for mileage claims", type: "error" });
+                return;
+            }
+        } else if (catType === "per_diem") {
+            if (!formData.perDiemDays || parseFloat(formData.perDiemDays) <= 0) {
+                addToast({ title: "Number of days is required for per-diem claims", type: "error" });
+                return;
+            }
         }
+
         if (selectedCategory?.requiresReceipt && !formData.receipt && !asDraft) {
             addToast({ title: t("errReceipt"), type: "error" });
             return;
@@ -133,19 +170,32 @@ export default function NewExpensePage() {
                 receiptName = uploadJson?.data?.originalName || formData.receipt.name;
             }
 
+            // Build request body based on category type
+            const requestBody: Record<string, unknown> = {
+                title: formData.title,
+                categoryId: formData.category,
+                expenseDate: formData.date,
+                description: formData.description || undefined,
+                status: asDraft ? "draft" : "submitted",
+                receiptUrl,
+                receiptName,
+            };
+
+            if (catType === "standard") {
+                requestBody.amount = Number(formData.amount);
+                requestBody.currency = formData.currency;
+            } else if (catType === "mileage") {
+                requestBody.distance = Number(formData.distance);
+                requestBody.distanceUnit = formData.distanceUnit;
+                // Currency is always BDT for mileage
+            } else if (catType === "per_diem") {
+                requestBody.perDiemDays = Number(formData.perDiemDays);
+            }
+
             const res = await fetch("/api/expenses/claims", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    title: formData.title,
-                    amount: Number(formData.amount),
-                    categoryId: formData.category,
-                    expenseDate: formData.date,
-                    description: formData.description || undefined,
-                    status: asDraft ? "draft" : "submitted",
-                    receiptUrl,
-                    receiptName,
-                }),
+                body: JSON.stringify(requestBody),
             });
 
             if (res.ok) {
@@ -269,27 +319,134 @@ export default function NewExpensePage() {
                         />
                     </div>
 
-                    {/* Amount & Date */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label className="text-muted-foreground">{t("amountLabel")}</Label>
-                            <Input
-                                type="number"
-                                value={formData.amount}
-                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                className="bg-background border-card-border text-foreground"
-                            />
+                    {/* Amount / Distance / Per-diem — depends on category type */}
+                    {(!selectedCategory || selectedCategory.categoryType === "standard") && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">{t("amountLabel")}</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        type="number"
+                                        value={formData.amount}
+                                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                        placeholder="0.00"
+                                        className="bg-background border-card-border text-foreground flex-1"
+                                    />
+                                    <select
+                                        value={formData.currency}
+                                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                                        className="bg-background border border-card-border rounded-md px-3 text-sm w-28"
+                                    >
+                                        <option value="BDT">৳ BDT</option>
+                                        <option value="USD">$ USD</option>
+                                        <option value="EUR">€ EUR</option>
+                                        <option value="GBP">£ GBP</option>
+                                        <option value="INR">₹ INR</option>
+                                        <option value="SGD">S$ SGD</option>
+                                        <option value="AED">AED</option>
+                                        <option value="SAR">SAR</option>
+                                        <option value="MYR">RM MYR</option>
+                                        <option value="AUD">A$ AUD</option>
+                                        <option value="CAD">C$ CAD</option>
+                                    </select>
+                                </div>
+                                {/* Show BDT equivalent for foreign currencies */}
+                                {formData.currency !== "BDT" && formData.amount && exchangeRates[formData.currency] && (
+                                    <p className="text-xs text-muted-foreground">
+                                        ≈ ৳{(parseFloat(formData.amount) * exchangeRates[formData.currency]).toLocaleString("en-BD", { maximumFractionDigits: 2 })}
+                                    </p>
+                                )}
+                                {formData.currency !== "BDT" && formData.amount && !exchangeRates[formData.currency] && (
+                                    <p className="text-xs text-yellow-400">
+                                        No exchange rate cached for {formData.currency}. HR must update rates.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">{t("expenseDateLabel")}</Label>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    className="bg-background border-card-border text-foreground"
+                                />
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label className="text-muted-foreground">{t("expenseDateLabel")}</Label>
-                            <Input
-                                type="date"
-                                value={formData.date}
-                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                className="bg-background border-card-border text-foreground"
-                            />
+                    )}
+
+                    {/* Mileage input */}
+                    {selectedCategory?.categoryType === "mileage" && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">Distance</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        type="number"
+                                        step="0.1"
+                                        value={formData.distance}
+                                        onChange={(e) => setFormData({ ...formData, distance: e.target.value })}
+                                        placeholder="0.0"
+                                        className="bg-background border-card-border text-foreground flex-1"
+                                    />
+                                    <select
+                                        value={formData.distanceUnit}
+                                        onChange={(e) => setFormData({ ...formData, distanceUnit: e.target.value })}
+                                        className="bg-background border border-card-border rounded-md px-3 text-sm w-20"
+                                    >
+                                        <option value="km">km</option>
+                                        <option value="mile">mile</option>
+                                    </select>
+                                </div>
+                                {selectedCategory.mileageRate && formData.distance && (
+                                    <p className="text-xs text-muted-foreground">
+                                        ≈ ৳{(parseFloat(formData.distance) * (formData.distanceUnit === "mile" ? 1.60934 : 1) * selectedCategory.mileageRate).toLocaleString("en-BD", { maximumFractionDigits: 2 })}
+                                        {" "}(rate: ৳{selectedCategory.mileageRate}/km)
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">{t("expenseDateLabel")}</Label>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    className="bg-background border-card-border text-foreground"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* Per-diem input */}
+                    {selectedCategory?.categoryType === "per_diem" && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">Number of Days</Label>
+                                <Input
+                                    type="number"
+                                    step="0.5"
+                                    value={formData.perDiemDays}
+                                    onChange={(e) => setFormData({ ...formData, perDiemDays: e.target.value })}
+                                    placeholder="1.0 (use 0.5 for half day)"
+                                    className="bg-background border-card-border text-foreground"
+                                />
+                                {selectedCategory.perDiemRate && formData.perDiemDays && (
+                                    <p className="text-xs text-muted-foreground">
+                                        ≈ ৳{(parseFloat(formData.perDiemDays) * selectedCategory.perDiemRate).toLocaleString("en-BD", { maximumFractionDigits: 2 })}
+                                        {" "}(rate: ৳{selectedCategory.perDiemRate}/day)
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-muted-foreground">{t("expenseDateLabel")}</Label>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    className="bg-background border-card-border text-foreground"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Description */}
                     <div className="space-y-2">

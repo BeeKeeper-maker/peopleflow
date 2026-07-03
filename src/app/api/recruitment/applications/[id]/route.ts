@@ -168,22 +168,74 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             });
             const employeeCode = `EMP${String(empCount + 1).padStart(4, "0")}`;
 
-            // Create employee from candidate
-            const newEmployee = await prisma.employee.create({
-                data: {
-                    employeeCode,
-                    firstName: candidate.firstName,
-                    lastName: candidate.lastName,
-                    email: candidate.email,
-                    phone: candidate.phone,
-                    joiningDate: joinDate ? new Date(joinDate) : new Date(),
-                    employmentType: job.employmentType === "internship" ? "intern" : "permanent",
-                    employmentStatus: "active",
-                    organizationId: ctx.organizationId,
-                    designationId: job.designationId,
-                    departmentId: job.departmentId,
-                },
+            // Create employee + linked user + invitation (same pattern as employees/route.ts)
+            const bcrypt = (await import("bcryptjs")).default;
+            const crypto = (await import("crypto")).default || (await import("crypto"));
+
+            // Generate invitation token
+            const invitationToken = crypto.randomBytes(32).toString("hex");
+            const invitationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+            // Create user + employee + invitation token in a transaction
+            const newEmployee = await prisma.$transaction(async (tx) => {
+                // Create user account (inactive, no password — must set via invitation)
+                const newUser = await tx.user.create({
+                    data: {
+                        email: candidate.email,
+                        name: `${candidate.firstName} ${candidate.lastName}`,
+                        role: "employee",
+                        isActive: false,
+                        password: null,
+                        emailVerified: null,
+                        organizationId: ctx.organizationId,
+                    },
+                });
+
+                // Create employee linked to user
+                const emp = await tx.employee.create({
+                    data: {
+                        employeeCode,
+                        firstName: candidate.firstName,
+                        lastName: candidate.lastName,
+                        email: candidate.email,
+                        phone: candidate.phone,
+                        joiningDate: joinDate ? new Date(joinDate) : new Date(),
+                        employmentType: job.employmentType === "internship" ? "intern" : "permanent",
+                        employmentStatus: "active",
+                        organizationId: ctx.organizationId,
+                        designationId: job.designationId,
+                        departmentId: job.departmentId,
+                        userId: newUser.id,
+                    },
+                });
+
+                // Create invitation token (reuse password reset token table)
+                await tx.passwordResetToken.create({
+                    data: {
+                        token: invitationToken,
+                        email: candidate.email,
+                        purpose: "employee_invitation",
+                        expiresAt: invitationExpiry,
+                    },
+                });
+
+                return emp;
             });
+
+            // Send invitation email (best-effort)
+            try {
+                const { sendTemplateEmail } = await import("@/lib/email");
+                await sendTemplateEmail(candidate.email, "welcomeEmployee", {
+                    employeeName: `${candidate.firstName} ${candidate.lastName}`,
+                    loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://peopleflowbd.online"}/set-password/${invitationToken}`,
+                    tempPassword: undefined, // No temp password — they set their own
+                });
+            } catch (emailErr) {
+                apiLogger.warn(
+                    { err: emailErr, candidateEmail: candidate.email },
+                    "Failed to send onboarding invitation email — HR must relay manually",
+                );
+            }
 
             await createAuditLog({
                 organizationId: ctx.organizationId,

@@ -3,6 +3,14 @@
 import { useEffect, useState, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Plus, Loader2, Megaphone, Trash2, Pencil, Pin, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
@@ -202,68 +210,66 @@ export default function AnnouncementsPage() {
                 </div>
             )}
 
-            {/* Create/Edit Modal */}
-            {showForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay backdrop-blur-sm">
-                    <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card-bg p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-                        <h2 className="text-lg font-semibold text-foreground mb-4">
-                            {editingItem ? t('edit') : t('create')}
-                        </h2>
-                        <div className="space-y-4">
+            {/* Create/Edit Dialog */}
+            <Dialog open={showForm} onOpenChange={setShowForm}>
+                <DialogContent className="max-w-lg bg-card border-card-border max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingItem ? t('edit') : t('create')}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-sm font-medium text-foreground block mb-1">{t('announcementTitle')}</label>
+                            <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                                placeholder={t('titlePlaceholder')}
+                                className="bg-background border-card-border" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-foreground block mb-1">{t('content')}</label>
+                            <Textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
+                                placeholder={t('contentPlaceholder')} rows={4}
+                                className="bg-background border-card-border resize-none" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-sm font-medium text-foreground block mb-1">{t('announcementTitle')}</label>
-                                <input type="text" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                                    placeholder={t('titlePlaceholder')}
-                                    className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground" />
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-foreground block mb-1">{t('content')}</label>
-                                <textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
-                                    placeholder={t('contentPlaceholder')} rows={4}
-                                    className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground resize-none" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-foreground block mb-1">{t('priority')}</label>
-                                    <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
-                                        className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground">
-                                        {TYPES.map(tt => (
-                                            <option key={tt.value} value={tt.value}>{tt.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-foreground block mb-1">{t('publishDate')}</label>
-                                    <input type="date" value={form.publishDate} onChange={e => setForm(p => ({ ...p, publishDate: e.target.value }))}
-                                        className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground" />
-                                </div>
+                                <label className="text-sm font-medium text-foreground block mb-1">{t('priority')}</label>
+                                <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                                    className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground">
+                                    {TYPES.map(tt => (
+                                        <option key={tt.value} value={tt.value}>{tt.label}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-foreground block mb-1">{t('expiryDate')}</label>
-                                <input type="date" value={form.expiryDate} onChange={e => setForm(p => ({ ...p, expiryDate: e.target.value }))}
-                                    className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground" />
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <label className="flex items-center gap-2 text-sm text-foreground">
-                                    <input type="checkbox" checked={form.isPinned} onChange={e => setForm(p => ({ ...p, isPinned: e.target.checked }))} className="rounded" />
-                                    {t('isPinned')}
-                                </label>
-                                <label className="flex items-center gap-2 text-sm text-foreground">
-                                    <input type="checkbox" checked={form.isActive} onChange={e => setForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
-                                    {t('isActive')}
-                                </label>
+                                <label className="text-sm font-medium text-foreground block mb-1">{t('publishDate')}</label>
+                                <Input type="date" value={form.publishDate} onChange={e => setForm(p => ({ ...p, publishDate: e.target.value }))}
+                                    className="bg-background border-card-border" />
                             </div>
                         </div>
-                        <div className="flex justify-end gap-2 mt-6">
-                            <Button variant="outline" onClick={() => setShowForm(false)}>{t('cancel')}</Button>
-                            <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-foreground">
-                                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                {t('save')}
-                            </Button>
+                        <div>
+                            <label className="text-sm font-medium text-foreground block mb-1">{t('expiryDate')}</label>
+                            <Input type="date" value={form.expiryDate} onChange={e => setForm(p => ({ ...p, expiryDate: e.target.value }))}
+                                className="bg-background border-card-border" />
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 text-sm text-foreground">
+                                <input type="checkbox" checked={form.isPinned} onChange={e => setForm(p => ({ ...p, isPinned: e.target.checked }))} className="rounded" />
+                                {t('isPinned')}
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-foreground">
+                                <input type="checkbox" checked={form.isActive} onChange={e => setForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
+                                {t('isActive')}
+                            </label>
                         </div>
                     </div>
-                </div>
-            )}
+                    <div className="flex justify-end gap-2 mt-6">
+                        <Button variant="outline" onClick={() => setShowForm(false)}>{t('cancel')}</Button>
+                        <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-foreground">
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            {t('save')}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +47,8 @@ const DATA_SOURCE_LABELS: Record<string, string> = {
 
 export default function ReportsListPage() {
     const { addToast } = useToast();
+    const t = useTranslations("Reports");
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [reports, setReports] = useState<SavedReport[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -67,7 +71,13 @@ export default function ReportsListPage() {
     }, [fetchReports]);
 
     const handleDelete = async (id: string, name: string) => {
-        if (!confirm(`Delete report "${name}"?`)) return;
+        const ok = await confirm({
+            title: `Delete report "${name}"?`,
+            description: "This action cannot be undone.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         try {
             await fetch(`/api/reports/custom/${id}`, { method: "DELETE" });
             addToast({ title: "Report deleted", type: "success" });
@@ -183,6 +193,7 @@ export default function ReportsListPage() {
                     ))}
                 </div>
             )}
+            {confirmDialog}
         </div>
     );
 }

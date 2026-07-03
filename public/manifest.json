@@ -1,99 +1,109 @@
 {
     "name": "PeopleFlow HRMS",
     "short_name": "PeopleFlow",
-    "description": "Complete Human Resource Management System - Employee Self Service, Leave Management, Payroll & more",
-    "start_url": "/",
+    "description": "বাংলাদেশের সেরা HRMS — উপস্থিতি, ছুটি, পেরোল, বেতন পরিশোধ সব এক জায়গায়",
+    "start_url": "/dashboard",
+    "scope": "/",
     "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
     "background_color": "#0A0A0F",
     "theme_color": "#3B82F6",
     "orientation": "portrait-primary",
-    "categories": [
-        "business",
-        "productivity"
-    ],
+    "dir": "ltr",
+    "lang": "bn-BD",
+    "categories": ["business", "productivity", "finance"],
+    "prefer_related_applications": false,
     "icons": [
         {
             "src": "/icons/icon-72x72.png",
             "sizes": "72x72",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-96x96.png",
             "sizes": "96x96",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-128x128.png",
             "sizes": "128x128",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-144x144.png",
             "sizes": "144x144",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-152x152.png",
             "sizes": "152x152",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-192x192.png",
             "sizes": "192x192",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
         },
         {
             "src": "/icons/icon-384x384.png",
             "sizes": "384x384",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
         },
         {
             "src": "/icons/icon-512x512.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "maskable any"
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
         }
     ],
+    "screenshots": [],
     "shortcuts": [
         {
             "name": "Dashboard",
-            "short_name": "Dashboard",
+            "short_name": "হোম",
+            "description": "আপনার ড্যাশবোর্ড দেখুন",
             "url": "/dashboard",
-            "icons": [
-                {
-                    "src": "/icons/dashboard.png",
-                    "sizes": "96x96"
-                }
-            ]
+            "icons": [{ "src": "/icons/dashboard.png", "sizes": "96x96" }]
         },
         {
-            "name": "My Leaves",
-            "short_name": "Leaves",
-            "url": "/ess/leaves",
-            "icons": [
-                {
-                    "src": "/icons/leaves.png",
-                    "sizes": "96x96"
-                }
-            ]
-        },
-        {
-            "name": "Attendance",
-            "short_name": "Attendance",
+            "name": "Check In/Out",
+            "short_name": "উপস্থিতি",
+            "description": "দ্রুত চেক-ইন বা চেক-আউট করুন",
             "url": "/ess/attendance",
-            "icons": [
-                {
-                    "src": "/icons/attendance.png",
-                    "sizes": "96x96"
-                }
-            ]
+            "icons": [{ "src": "/icons/attendance.png", "sizes": "96x96" }]
+        },
+        {
+            "name": "Apply Leave",
+            "short_name": "ছুটি",
+            "description": "ছুটির আবেদন করুন",
+            "url": "/ess/leaves/apply",
+            "icons": [{ "src": "/icons/leaves.png", "sizes": "96x96" }]
+        },
+        {
+            "name": "Payslips",
+            "short_name": "পেসলিপ",
+            "description": "আপনার বেতন পরিশোধের তথ্য দেখুন",
+            "url": "/ess/payslips",
+            "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
         }
     ]
 }

@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
+import { useToast } from "@/components/ui/toast";
 interface ExpenseClaim {
     id: string;
     claimNumber: string;
@@ -44,6 +45,7 @@ interface ExpenseStats {
 }
 
 export default function ESSExpensesPage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSExpenses");
     const [isLoading, setIsLoading] = useState(true);
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
@@ -80,6 +82,7 @@ export default function ESSExpensesPage() {
                 }
             } catch (error) {
                 console.error("Error fetching expenses:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setIsLoading(false);
             }
