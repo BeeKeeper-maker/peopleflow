@@ -1803,6 +1803,12 @@ model BiometricDevice {
   connectionMode  String    @default("sync_agent") // sync_agent, direct_cloud
   cloudProtocol   String?                         // adms, iclock, zkteco_push
   cloudStatus     String    @default("pending")   // pending, connected, warning, failed
+  // Per-device shared secret for direct-cloud auth (HMAC).
+  // When set, /iclock/* and /api/biometric-devices/adms-capture routes
+  // require an X-PeopleFlow-Signature header = HMAC-SHA256(body, secret).
+  // When null, the device is in "claim mode" — punches are captured to
+  // BiometricCloudEvent but NOT ingested until the admin assigns a secret.
+  cloudSecretHash String?                         // sha256(cloudSecret) — never store raw secret
   location        String?                         // Physical location description
   isActive        Boolean   @default(true)
   lastSyncAt      DateTime?                       // Last successful sync
@@ -1829,6 +1835,15 @@ model BiometricDevice {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  // ── Sync Agent Link ──
+  // Links this device card to the SyncApiKey whose agent pushes data for it.
+  // The agent's push authenticates the API key; we then use this link to
+  // resolve the device card without relying on ip+port matching (which is
+  // fragile for private-LAN devices whose ip is rewritten to adms:SERIAL
+  // when connectionMode = direct_cloud).
+  syncApiKeyId   String?
+  syncApiKey     SyncApiKey? @relation(fields: [syncApiKeyId], references: [id], onDelete: SetNull)
+
   syncLogs    DeviceSyncLog[]
   healthLogs  DeviceHealthLog[]
   cloudEvents BiometricCloudEvent[]
@@ -1841,6 +1856,7 @@ model BiometricDevice {
   @@index([connectionMode])
   @@index([cloudStatus])
   @@index([lastSeenAt])
+  @@index([syncApiKeyId])
 }
 
 model BiometricCloudEvent {
@@ -1928,6 +1944,9 @@ model SyncApiKey {
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Back-relation to devices that use this key
+  biometricDevices BiometricDevice[]
 
   @@index([organizationId])
   @@index([key])

@@ -10,6 +10,14 @@ const processPayrollSchema = z.object({
     month: z.number().min(1).max(12),
     year: z.number().min(2020).max(2100),
     employeeIds: z.array(z.string()).optional(), // If empty, process all
+    // ── Manual adjustments (applied to every processed slip) ──
+    // These let HR give an ad-hoc bonus, arrear, or deduction at process time.
+    // For per-employee adjustments, process each employee separately with
+    // a custom overrides object (future enhancement: overrides map).
+    bonus: z.number().min(0).optional(),
+    arrears: z.number().min(0).optional(),
+    otherEarnings: z.number().min(0).optional(),
+    otherDeductions: z.number().min(0).optional(),
 });
 
 // GET - List salary slips (paginated)
@@ -97,7 +105,7 @@ export async function POST(req: Request) {
             return new NextResponse(validation.error.issues[0].message, { status: 400 });
         }
 
-        const { month, year, employeeIds } = validation.data;
+        const { month, year, employeeIds, bonus, arrears, otherEarnings, otherDeductions } = validation.data;
 
         const hasExplicitEmployeeSelection = !!employeeIds && employeeIds.length > 0;
 
@@ -201,13 +209,19 @@ export async function POST(req: Request) {
             try {
                 // ✅ Use the centralized payroll engine v2
                 // This gives us: proper tax slabs, tiered late deduction,
-                // festival bonus auto-inclusion, PF ledger posting
+                // festival bonus auto-inclusion, PF ledger posting.
+                // Manual adjustments (bonus/arrears/other) are passed through
+                // so HR can give ad-hoc earnings/deductions at process time.
                 const salary = await calculateSalary({
                     employeeId: employee.id,
                     month,
                     year,
                     postPFContributions: true,
                     includeInactiveAssignment: hasExplicitEmployeeSelection,
+                    bonus: bonus ?? 0,
+                    arrears: arrears ?? 0,
+                    otherEarnings: otherEarnings ?? 0,
+                    otherDeductions: otherDeductions ?? 0,
                 });
 
                 // Get active loans from pre-built Map (O(1) instead of DB query)

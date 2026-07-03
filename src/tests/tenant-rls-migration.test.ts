@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
@@ -8,6 +8,22 @@ const rlsMigration = readFileSync(
   path.join(root, "prisma/migrations/20260407104500_rls_tenant_isolation/migration.sql"),
   "utf8",
 );
+
+// Read ALL migration files concatenated — RLS policies may be added in
+// later migrations (e.g., BiometricCloudEvent RLS was backfilled in
+// migration 20260703000000). The test should verify the CUMULATIVE
+// state across all migrations, not just the original RLS migration.
+const migrationsDir = path.join(root, "prisma/migrations");
+const migrationFolders = readdirSync(migrationsDir).filter((f) => !f.endsWith(".toml"));
+const allMigrationsSql = migrationFolders
+  .map((f) => {
+    try {
+      return readFileSync(path.join(migrationsDir, f, "migration.sql"), "utf8");
+    } catch {
+      return "";
+    }
+  })
+  .join("\n\n-- --- NEXT MIGRATION ---\n\n");
 
 function getOrganizationScopedModels() {
   const models: string[] = [];
@@ -31,10 +47,10 @@ describe("Prisma RLS tenant isolation migration", () => {
     expect(scopedModels.length).toBeGreaterThanOrEqual(30);
 
     for (const model of scopedModels) {
-      expect(rlsMigration, `${model} should enable RLS`).toMatch(
+      expect(allMigrationsSql, `${model} should enable RLS`).toMatch(
         new RegExp(`ALTER\\s+TABLE\\s+"${model}"\\s+ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY;`),
       );
-      expect(rlsMigration, `${model} should force RLS`).toMatch(
+      expect(allMigrationsSql, `${model} should force RLS`).toMatch(
         new RegExp(`ALTER\\s+TABLE\\s+"${model}"\\s+FORCE\\s+ROW\\s+LEVEL\\s+SECURITY;`),
       );
     }
@@ -44,7 +60,7 @@ describe("Prisma RLS tenant isolation migration", () => {
     const scopedModels = getOrganizationScopedModels();
 
     for (const model of scopedModels) {
-      expect(rlsMigration, `${model} should have tenant policy`).toContain(
+      expect(allMigrationsSql, `${model} should have tenant policy`).toContain(
         `CREATE POLICY tenant_isolation ON "${model}" FOR ALL`,
       );
     }
