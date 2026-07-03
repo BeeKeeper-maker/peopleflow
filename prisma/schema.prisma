@@ -357,6 +357,11 @@ model User {
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
   twoFactorSecret  String?
+  // 2FA recovery codes — bcrypt-hashed, shown ONCE at setup.
+  // User can use these to log in if they lose their authenticator device.
+  // Each code is single-use (removed from the array after use).
+  twoFactorRecoveryCodes String[] @default([])
+  twoFactorRecoveryCodesGeneratedAt DateTime?
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
