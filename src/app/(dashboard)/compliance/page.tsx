@@ -57,6 +57,13 @@ const severityConfig = {
     medium: { label: "Medium", color: "bg-amber-500/20 text-amber-400", borderColor: "border-amber-500/30" },
     low: { label: "Low", color: "bg-blue-500/20 text-blue-400", borderColor: "border-blue-500/30" },
 };
+// Bengali labels (used when locale is bn)
+const severityLabelsBn: Record<string, string> = {
+    critical: "সংকটজনক",
+    high: "উচ্চ",
+    medium: "মাঝারি",
+    low: "নিম্ন",
+};
 
 const statusIcons = {
     pass: CheckCircle2,
@@ -74,7 +81,7 @@ const statusColors = {
 // Compliance Score Ring
 // ════════════════════════════════════════════════════════════════════════
 
-function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
+function ScoreRing({ score, size = 180, label, sublabel }: { score: number; size?: number; label: string; sublabel: string }) {
     const radius = 70;
     const circumference = 2 * Math.PI * radius;
     const fill = (score / 100) * circumference;
@@ -112,8 +119,8 @@ function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
             />
             {/* Score text */}
             <text x="90" y="80" textAnchor="middle" className="fill-foreground text-[32px] font-bold">{score}%</text>
-            <text x="90" y="103" textAnchor="middle" className="fill-muted-foreground text-[12px]">Compliance</text>
-            <text x="90" y="118" textAnchor="middle" className="fill-muted-foreground text-[10px]">Score</text>
+            <text x="90" y="103" textAnchor="middle" className="fill-muted-foreground text-[12px]">{label}</text>
+            <text x="90" y="118" textAnchor="middle" className="fill-muted-foreground text-[10px]">{sublabel}</text>
         </svg>
     );
 }
@@ -221,7 +228,7 @@ export default function CompliancePage() {
                             {loading ? (
                                 <Skeleton className="h-[180px] w-[180px] rounded-full" />
                             ) : (
-                                <ScoreRing score={overallScore} />
+                                <ScoreRing score={overallScore} label={t('complianceLabel')} sublabel={t('scoreLabel')} />
                             )}
                             <div className="flex gap-4 mt-4">
                                 <div className="text-center">
@@ -243,7 +250,7 @@ export default function CompliancePage() {
                     {/* Category Breakdown */}
                     <Card className="lg:col-span-2">
                         <CardHeader>
-                            <CardTitle className="text-base">Category Breakdown</CardTitle>
+                            <CardTitle className="text-base">{t('categoryBreakdown')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
@@ -279,7 +286,7 @@ export default function CompliancePage() {
                                                         />
                                                     </div>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        {cat.passed}/{cat.total} checks passed
+                                                        {cat.passed}/{cat.total} {t('checksPassed')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -297,10 +304,10 @@ export default function CompliancePage() {
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5 text-amber-400" />
-                                Issues Requiring Attention
+                                {t('issuesRequiringAttention')}
                             </CardTitle>
                             <CardDescription>
-                                {failedChecks.length} violations and {warningChecks.length} warnings detected
+                                {failedChecks.length} + {warningChecks.length} {t('violationsAndWarnings')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -321,7 +328,7 @@ export default function CompliancePage() {
                                                         <Badge className={`${sev.color} text-[10px]`}>{sev.label}</Badge>
                                                         {check.affectedCount > 0 && (
                                                             <Badge variant="default" className="text-[10px]">
-                                                                {check.affectedCount} affected
+                                                                {check.affectedCount} {t('affected')}
                                                             </Badge>
                                                         )}
                                                     </div>
@@ -346,7 +353,7 @@ export default function CompliancePage() {
                     <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                            Passing Checks ({passedChecks.length})
+                            {t('passingChecks')} ({passedChecks.length})
                         </CardTitle>
                     </CardHeader>
                     <CardContent>

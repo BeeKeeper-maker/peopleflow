@@ -2005,7 +2005,18 @@
     "claimApproved": "খরচের দাবি অনুমোদিত",
     "claimRejected": "খরচের দাবি প্রত্যাখ্যাত",
     "actionFailed": "কার্যক্রম ব্যর্থ",
-    "networkError": "নেটওয়ার্ক ত্রুটি"
+    "networkError": "নেটওয়ার্ক ত্রুটি",
+    "statusDraft": "খসড়া",
+    "statusPending": "অপেক্ষমাণ",
+    "statusApproved": "অনুমোদিত",
+    "statusRejected": "প্রত্যাখ্যাত",
+    "statusReimbursed": "পরিশোধিত",
+    "claimActiond": "দাবি {action} সম্পন্ন",
+    "claimActiondDesc": "খরচের দাবিটি {action} করা হয়েছে।",
+    "pendingClaims": "অপেক্ষমাণ",
+    "rejectedClaims": "প্রত্যাখ্যাত",
+    "reimbursedClaims": "পরিশোধিত",
+    "pendingAmount": "অপেক্ষমাণ পরিমাণ"
   },
   "ExpensesNew": {
     "title": "খরচের দাবি জমা দিন",
@@ -2114,7 +2125,16 @@
     "critical": "গুরুতর",
     "high": "উচ্চ",
     "medium": "মাঝারি",
-    "low": "নিম্ন"
+    "low": "নিম্ন",
+    "severityCritical": "সংকটজনক",
+    "severityHigh": "উচ্চ",
+    "severityMedium": "মাঝারি",
+    "severityLow": "নিম্ন",
+    "complianceLabel": "কমপ্লায়েন্স",
+    "scoreLabel": "স্কোর",
+    "noIssues": "কোনো সমস্যা পাওয়া যায়নি। সকল কমপ্লায়েন্স পরীক্ষা উত্তীর্ণ হচ্ছে।",
+    "loadingChecks": "কমপ্লায়েন্স পরীক্ষা লোড হচ্ছে...",
+    "failedToLoad": "কমপ্লায়েন্স ডেটা লোড করতে ব্যর্থ। অনুগ্রহ করে রিফ্রেশ করুন।"
   },
   "Holidays": {
     "title": "ছুটি ব্যবস্থাপনা",
@@ -3041,5 +3061,16 @@
     "type_cdata": "আপলোড",
     "type_getrequest": "হার্টবিট",
     "type_registry": "রেজিস্ট্রি"
+  },
+  "ESSDashboard": {
+    "checkedInSuccess": "সফলভাবে চেক-ইন হয়েছে!",
+    "checkedInFailed": "চেক-ইন করতে ব্যর্থ",
+    "checkedInError": "চেক-ইন করার সময় একটি সমস্যা হয়েছে",
+    "checkedOutSuccess": "সফলভাবে চেক-আউট হয়েছে!",
+    "checkedOutFailed": "চেক-আউট করতে ব্যর্থ",
+    "checkedOutError": "চেক-আউট করার সময় একটি সমস্যা হয়েছে",
+    "failedLoadData": "কিছু ড্যাশবোর্ড ডেটা লোড করতে ব্যর্থ",
+    "installApp": "PeopleFlow ইনস্টল করুন",
+    "installAppDesc": "আপনার ব্রাউজার মেনু ব্যবহার করে হোম স্ক্রিনে যোগ করুন / অ্যাপ ইনস্টল করুন।"
   }
 }

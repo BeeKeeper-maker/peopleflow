@@ -62,6 +62,7 @@ interface TodayAttendance {
 export default function ESSDashboardPage() {
     const { data: session } = useSession();
     const t = useTranslations('ESS');
+    const tDash = useTranslations('ESSDashboard');
     const { addToast } = useToast();
     const { canInstall, promptInstall } = useInstallPrompt();
     const [isLoading, setIsLoading] = useState(true);
@@ -163,7 +164,7 @@ export default function ESSDashboardPage() {
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
-                addToast({ title: "Failed to load some dashboard data", type: "error" });
+                addToast({ title: tDash("failedLoadData"), type: "error" });
             } finally {
                 setIsLoading(false);
             }
@@ -176,7 +177,7 @@ export default function ESSDashboardPage() {
         const outcome = await promptInstall();
         if (outcome === "unavailable") {
             addToast({
-                title: "Install PeopleFlow",
+                title: tDash("installApp"),
                 description: "Use your browser menu and choose Add to Home Screen / Install App.",
                 type: "info",
             });
@@ -202,14 +203,14 @@ export default function ESSDashboardPage() {
                         hour12: true,
                     }),
                 });
-                addToast({ title: "Checked in successfully!", type: "success" });
+                addToast({ title: tDash("checkedInSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || "Failed to check in", type: "error" });
+                addToast({ title: errorText || tDash("checkedInFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Check-in error:", error);
-            addToast({ title: "An error occurred while checking in", type: "error" });
+            addToast({ title: tDash("checkedInError"), type: "error" });
         } finally {
             setIsCheckingIn(false);
         }
@@ -235,14 +236,14 @@ export default function ESSDashboardPage() {
                         hour12: true,
                     }),
                 });
-                addToast({ title: "Checked out successfully!", type: "success" });
+                addToast({ title: tDash("checkedOutSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || "Failed to check out", type: "error" });
+                addToast({ title: errorText || tDash("checkedOutFailed"), type: "error" });
             }
         } catch (error) {
             console.error("Check-out error:", error);
-            addToast({ title: "An error occurred while checking out", type: "error" });
+            addToast({ title: tDash("checkedOutError"), type: "error" });
         } finally {
             setIsCheckingOut(false);
         }

@@ -2005,7 +2005,18 @@
     "claimApproved": "Expense claim approved",
     "claimRejected": "Expense claim rejected",
     "actionFailed": "Action failed",
-    "networkError": "Network error"
+    "networkError": "Network error",
+    "statusDraft": "Draft",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "statusReimbursed": "Reimbursed",
+    "claimActiond": "Claim {action}d",
+    "claimActiondDesc": "The expense claim has been {action}d.",
+    "pendingClaims": "Pending",
+    "rejectedClaims": "Rejected",
+    "reimbursedClaims": "Reimbursed",
+    "pendingAmount": "Pending Amount"
   },
   "ExpensesNew": {
     "title": "Submit Expense Claim",
@@ -2114,7 +2125,16 @@
     "critical": "Critical",
     "high": "High",
     "medium": "Medium",
-    "low": "Low"
+    "low": "Low",
+    "severityCritical": "Critical",
+    "severityHigh": "High",
+    "severityMedium": "Medium",
+    "severityLow": "Low",
+    "complianceLabel": "Compliance",
+    "scoreLabel": "Score",
+    "noIssues": "No issues found. All compliance checks are passing.",
+    "loadingChecks": "Loading compliance checks...",
+    "failedToLoad": "Failed to load compliance data. Please refresh."
   },
   "Holidays": {
     "title": "Holiday Management",
@@ -3041,5 +3061,16 @@
     "type_cdata": "Uploads",
     "type_getrequest": "Heartbeats",
     "type_registry": "Registry"
+  },
+  "ESSDashboard": {
+    "checkedInSuccess": "Checked in successfully!",
+    "checkedInFailed": "Failed to check in",
+    "checkedInError": "An error occurred while checking in",
+    "checkedOutSuccess": "Checked out successfully!",
+    "checkedOutFailed": "Failed to check out",
+    "checkedOutError": "An error occurred while checking out",
+    "failedLoadData": "Failed to load some dashboard data",
+    "installApp": "Install PeopleFlow",
+    "installAppDesc": "Use your browser menu and choose Add to Home Screen / Install App."
   }
 }
