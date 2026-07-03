@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ const FIELD_TYPES = [
 
 export default function CustomFieldsPage() {
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [fields, setFields] = useState<CustomField[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -74,7 +76,7 @@ export default function CustomFieldsPage() {
     }, [fetchFields]);
 
     const handleDelete = async (field: CustomField) => {
-        if (!confirm(`Deactivate field "${field.label}"? Existing values will be preserved.`)) return;
+        const _ok = await confirm({ title: `Deactivate field "${field.label}"?`, description: "Existing values will be preserved. The field will be hidden from forms.", confirmLabel: "Deactivate", variant: "destructive" }); if (!_ok) return;
         try {
             await fetch(`/api/settings/custom-fields/${field.id}`, { method: "DELETE" });
             addToast({ title: "Field deactivated", type: "success" });
@@ -227,6 +229,7 @@ function FieldForm({
     onSaved: () => void;
 }) {
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [saving, setSaving] = useState(false);
     const [label, setLabel] = useState(field?.label || "");
     const [key, setKey] = useState(field?.key || "");

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Loader2, Calendar as CalendarIcon, List, Trash2, Pencil, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface Holiday {
     id: string
@@ -50,6 +51,7 @@ const BD_HOLIDAYS_2026 = [
 export default function HolidaysPage() {
     const t = useTranslations('Holidays')
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [holidayLists, setHolidayLists] = useState<HolidayList[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [view, setView] = useState<"list" | "calendar">("list")
@@ -138,7 +140,7 @@ export default function HolidaysPage() {
 
     // Delete holiday
     const handleDeleteHoliday = async (holidayId: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const _ok = await confirm({ title: t('confirmDelete'), description: 'This holiday will be permanently removed.', confirmLabel: 'Delete', variant: 'destructive' }); if (!_ok) return
         try {
             const res = await fetch(`/api/holidays/${selectedListId}?holidayId=${holidayId}`, {
                 method: "DELETE",

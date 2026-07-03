@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { exportToExcel, formatPayrollExport } from "@/lib/export"
 import { useTranslations } from "next-intl"
 
@@ -89,6 +90,7 @@ const months = [
 
 export default function PayrollPage() {
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const t = useTranslations('Payroll')
     const [activeTab, setActiveTab] = useState("overview")
     const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -246,7 +248,7 @@ export default function PayrollPage() {
             addToast({ title: "No draft slips to approve", type: "info" })
             return
         }
-        if (!confirm(`Approve ${draftSlips.length} draft slip(s) for ${months[processMonth - 1]} ${processYear}?`)) return
+        const _ok = await confirm({ title: `Approve ${draftSlips.length} draft slip(s)?`, description: `All draft slips for ${months[processMonth - 1]} ${processYear} will be approved.`, confirmLabel: "Approve All", variant: "default" }); if (!_ok) return
 
         setSlipActionLoading("bulk-approve")
         try {

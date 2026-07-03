@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
     GitPullRequest,
@@ -52,6 +53,7 @@ const entityTypeIcons: Record<string, string> = {
 export default function ApprovalWorkflowsPage() {
     const t = useTranslations("ApprovalWorkflows");
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -181,7 +183,7 @@ export default function ApprovalWorkflowsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t("confirmDelete"))) return;
+        const _ok = await confirm({ title: t("confirmDelete"), description: "This workflow will be permanently removed.", confirmLabel: "Delete", variant: "destructive" }); if (!_ok) return;
 
         try {
             const res = await fetch(`/api/approval-workflows/${id}`, { method: "DELETE" });

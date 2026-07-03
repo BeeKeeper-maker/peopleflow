@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useTranslations } from "next-intl";
 import {
     Calendar,
@@ -55,6 +56,7 @@ interface LeaveApplication {
 export default function ESSLeavesPage() {
     const t = useTranslations("ESSLeaves");
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [isLoading, setIsLoading] = useState(true);
     const [balances, setBalances] = useState<LeaveBalance[]>([]);
     const [applications, setApplications] = useState<LeaveApplication[]>([]);
@@ -63,7 +65,7 @@ export default function ESSLeavesPage() {
     const [profileMissing, setProfileMissing] = useState(false);
 
     const handleCancelApplication = async (appId: string) => {
-        if (!confirm(t("cancelConfirm"))) return;
+        const _ok = await confirm({ title: t("cancelConfirm"), description: "This leave application will be cancelled.", confirmLabel: "Cancel Leave", variant: "destructive" }); if (!_ok) return;
         setCancellingId(appId);
         try {
             const res = await fetch(`/api/leaves/applications/${appId}`, {

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface Candidate {
     id: string
@@ -69,6 +70,7 @@ export default function RecruitmentJobDetailPage() {
     const params = useParams<{ id: string }>()
     const router = useRouter()
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [job, setJob] = useState<JobPosting | null>(null)
     const [loading, setLoading] = useState(true)
     const [deleting, setDeleting] = useState(false)
@@ -89,7 +91,7 @@ export default function RecruitmentJobDetailPage() {
     }, [params.id, addToast])
 
     const handleDelete = async () => {
-        if (!job || !confirm(`Delete job posting “${job.title}”?`)) return
+        if (!job) return; const _ok = await confirm({ title: `Delete job posting "${job.title}"?`, description: "This job posting and all applications will be permanently removed.", confirmLabel: "Delete", variant: "destructive" }); if (!_ok) return
         setDeleting(true)
         try {
             const res = await fetch(`/api/recruitment/jobs/${job.id}`, { method: "DELETE" })
