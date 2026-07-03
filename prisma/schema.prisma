@@ -334,6 +334,9 @@ model Organization {
   savedReports          SavedReport[]
   scheduledReports      ScheduledReport[]
 
+  // Digital Disbursement
+  salaryDisbursements   SalaryDisbursement[]
+
   // Custom Fields
   customFields          CustomField[]
 
@@ -669,6 +672,7 @@ model Employee {
   leaveEncashmentRequests LeaveEncashmentRequest[]
   salaryAssignments SalaryStructureAssignment[]
   salarySlips       SalarySlip[]
+  salaryDisbursements SalaryDisbursement[]
   loans             Loan[]
 
   // Payroll v2
@@ -1053,10 +1057,65 @@ model SalarySlip {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
+  disbursements SalaryDisbursement[]
+
   @@unique([employeeId, month, year])
   // Performance indexes
   @@index([month, year])
   @@index([status])
+}
+
+// ============================================
+// Digital Disbursement (bKash / Nagad / Bank)
+// ============================================
+
+/**
+ * SalaryDisbursement — tracks individual salary payment disbursements.
+ *
+ * Supports 3 channels:
+ *   - bank_transfer: Traditional bank EFT (existing bank file flow)
+ *   - bkash: bKash personal disbursement API (mobile wallet)
+ *   - nagad: Nagad disbursement API (mobile wallet)
+ *
+ * For bKash/Nagad, the disbursement is initiated via the provider's API.
+ * The status tracks: pending → processing → success / failed.
+ * A single salary slip can have multiple disbursement attempts (retries).
+ *
+ * bKash disbursement requires:
+ *   - Organization-level bKash credentials (stored encrypted)
+ *   - Employee's bKash account number (stored on Employee.bkashNumber)
+ *
+ * Nagad disbursement requires:
+ *   - Organization-level Nagad credentials
+ *   - Employee's Nagad account number
+ */
+model SalaryDisbursement {
+  id              String   @id @default(cuid())
+  amount          Float                          // Amount in BDT
+  channel         String                         // bank_transfer, bkash, nagad
+  status          String   @default("pending")   // pending, processing, success, failed, refunded
+  reference       String?                        // Provider transaction ID
+  providerResponse Json?                         // Full provider response (for audit)
+  errorMessage    String?
+  initiatedAt     DateTime @default(now())
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  salarySlipId    String
+  salarySlip      SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
+
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([salarySlipId])
+  @@index([employeeId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([channel])
 }
 
 // ============================================
