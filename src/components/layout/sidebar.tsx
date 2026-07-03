@@ -270,7 +270,7 @@ export function Sidebar() {
                         return (
                             <div key={section.key} className="pt-2">
                                 {/* Section Header - Clickable toggle */}
-                                <button
+                                <button aria-expanded={isExpanded}
                                     onClick={() => toggleSection(section.key)}
                                     className="flex items-center gap-2 w-full px-3 mb-1 group/header"
                                 >
