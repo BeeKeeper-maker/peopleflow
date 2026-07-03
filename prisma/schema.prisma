@@ -1789,6 +1789,18 @@ model ExpenseCategory {
   isActive        Boolean  @default(true)
   icon            String? // Icon name for UI
   color           String? // Color for UI
+
+  // Category type: standard, mileage, per_diem
+  // mileage: distance-based (e.g., fuel reimbursement per km)
+  // per_diem: daily allowance (e.g., travel allowance per day)
+  categoryType    String   @default("standard") // standard, mileage, per_diem
+
+  // For mileage categories: rate per km (in BDT)
+  mileageRate     Float?   // e.g., 15.0 BDT per km
+
+  // For per-diem categories: daily rate (in BDT)
+  perDiemRate     Float?   // e.g., 1500.0 BDT per day
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1807,9 +1819,30 @@ model ExpenseClaim {
   // Claim details
   title       String
   description String?
-  amount      Float
-  currency    String   @default("BDT")
+  amount      Float    // Original amount in the expense currency
+  currency    String   @default("BDT") // ISO 4217: BDT, USD, EUR, GBP, INR, etc.
   expenseDate DateTime // Date when expense occurred
+
+  // Multi-currency support
+  // exchangeRate: 1 unit of `currency` = exchangeRate units of BDT
+  // amountInBDT: amount × exchangeRate (computed at submission time)
+  // If currency is BDT, exchangeRate = 1 and amountInBDT = amount
+  exchangeRate  Float    @default(1.0)
+  amountInBDT   Float    @default(0) // Converted amount in BDT for payroll/reports
+
+  // Mileage tracking (for categoryType = "mileage")
+  distance      Float?   // Distance in km
+  distanceUnit  String?  // km, mile (default: km)
+  // amount = distance × category.mileageRate (computed)
+
+  // Per-diem tracking (for categoryType = "per_diem")
+  perDiemDays   Float?   // Number of days (can be fractional: 0.5 for half day)
+  perDiemRate   Float?   // Daily rate (copied from category at submission time)
+  // amount = perDiemDays × perDiemRate (computed)
+
+  // Policy violation flag (set by policy engine)
+  policyViolation String? // null = no violation, or description of violation
+  policyViolationType String? // over_limit, missing_receipt, duplicate, out_of_policy
 
   // Receipt/proof
   receiptUrl  String?
@@ -1849,6 +1882,31 @@ model ExpenseClaim {
   @@index([categoryId])
   @@index([status])
   @@index([expenseDate])
+  @@index([currency])
+}
+
+/**
+ * ExchangeRate — cached currency exchange rates for expense conversion.
+ *
+ * Rates are fetched from an external API (e.g., exchangerate-api.com)
+ * daily by a cron job and cached here. The expense submission flow
+ * reads the latest rate for the claim's currency.
+ *
+ * baseCurrency: always "BDT" for PeopleFlow (Bangladesh-focused)
+ * quoteCurrency: the foreign currency (USD, EUR, etc.)
+ * rate: 1 quoteCurrency = rate BDT
+ */
+model ExchangeRate {
+  id              String   @id @default(cuid())
+  baseCurrency    String   @default("BDT")
+  quoteCurrency   String   // USD, EUR, GBP, INR, etc.
+  rate            Float    // 1 USD = rate BDT
+  fetchedAt       DateTime @default(now())
+  source          String?  // exchangerate-api, manual, etc.
+
+  @@unique([baseCurrency, quoteCurrency])
+  @@index([quoteCurrency])
+  @@index([fetchedAt])
 }
 
 // ============================================

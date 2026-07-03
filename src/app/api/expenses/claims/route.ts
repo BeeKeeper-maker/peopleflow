@@ -3,17 +3,24 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { calculateClaim, formatCurrency } from "@/lib/expense-engine";
 import { apiLogger } from "@/lib/logger";
 
 const claimSchema = z.object({
     title: z.string().min(1, "Title is required"),
     description: z.string().optional(),
-    amount: z.number().positive("Amount must be positive"),
+    amount: z.number().positive("Amount must be positive").optional(), // optional for mileage/per_diem
+    currency: z.string().min(3).max(5).default("BDT"),
     categoryId: z.string().min(1, "Category is required"),
     expenseDate: z.string().min(1, "Expense date is required"),
     receiptUrl: z.string().optional(),
     receiptName: z.string().optional(),
     status: z.enum(["draft", "submitted"]).default("draft"),
+    // Mileage fields
+    distance: z.number().positive().optional(),
+    distanceUnit: z.enum(["km", "mile"]).optional(),
+    // Per-diem fields
+    perDiemDays: z.number().positive().optional(),
 });
 
 // Generate claim number with retry for race condition safety
@@ -187,35 +194,43 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Invalid category" }, { status: 400 });
         }
 
-        // Check max amount limit
-        if (category.maxAmount && validatedData.amount > category.maxAmount) {
-            return NextResponse.json({
-                error: `Amount exceeds maximum limit of ${category.maxAmount} for this category`,
-            }, { status: 400 });
+        // ── Calculate claim using the expense engine ──
+        // This handles: multi-currency conversion, mileage computation,
+        // per-diem computation, and policy violation detection.
+        let calculation;
+        try {
+            calculation = await calculateClaim({
+                employeeId: user.employee.id,
+                organizationId: user.organizationId,
+                categoryId: validatedData.categoryId,
+                categoryType: category.categoryType,
+                amount: validatedData.amount,
+                currency: validatedData.currency,
+                distance: validatedData.distance,
+                distanceUnit: validatedData.distanceUnit,
+                perDiemDays: validatedData.perDiemDays,
+                perDiemRate: category.perDiemRate || undefined,
+                receiptUrl: validatedData.receiptUrl || null,
+                expenseDate: new Date(validatedData.expenseDate),
+            });
+        } catch (calcError) {
+            return NextResponse.json(
+                { error: calcError instanceof Error ? calcError.message : "Calculation failed" },
+                { status: 400 },
+            );
         }
 
-        // Check monthly limit
-        if (category.monthlyLimit) {
-            const startOfMonth = new Date();
-            startOfMonth.setDate(1);
-            startOfMonth.setHours(0, 0, 0, 0);
-
-            const monthlyTotal = await prisma.expenseClaim.aggregate({
-                where: {
-                    employeeId: user.employee.id,
-                    categoryId: validatedData.categoryId,
-                    status: { not: "rejected" },
-                    expenseDate: { gte: startOfMonth },
+        // If there's a hard policy violation (over-limit, missing receipt, monthly limit),
+        // block submission but allow draft
+        if (calculation.policyViolation.hasViolation && validatedData.status === "submitted") {
+            return NextResponse.json(
+                {
+                    error: `Policy violation: ${calculation.policyViolation.violationDescription}`,
+                    code: "POLICY_VIOLATION",
+                    violationType: calculation.policyViolation.violationType,
                 },
-                _sum: { amount: true },
-            });
-
-            const currentTotal = (monthlyTotal._sum.amount || 0) + validatedData.amount;
-            if (currentTotal > category.monthlyLimit) {
-                return NextResponse.json({
-                    error: `Monthly limit of ${category.monthlyLimit} exceeded for this category`,
-                }, { status: 400 });
-            }
+                { status: 400 },
+            );
         }
 
         const claimNumber = await generateClaimNumber(user.organizationId);
@@ -225,7 +240,16 @@ export async function POST(request: NextRequest) {
                 claimNumber,
                 title: validatedData.title,
                 description: validatedData.description,
-                amount: validatedData.amount,
+                amount: calculation.amount,
+                currency: calculation.currency,
+                exchangeRate: calculation.exchangeRate,
+                amountInBDT: calculation.amountInBDT,
+                distance: validatedData.distance || null,
+                distanceUnit: validatedData.distanceUnit || null,
+                perDiemDays: validatedData.perDiemDays || null,
+                perDiemRate: category.perDiemRate || null,
+                policyViolation: calculation.policyViolation.violationDescription || null,
+                policyViolationType: calculation.policyViolation.violationType || null,
                 expenseDate: new Date(validatedData.expenseDate),
                 receiptUrl: validatedData.receiptUrl,
                 receiptName: validatedData.receiptName,
@@ -249,9 +273,7 @@ export async function POST(request: NextRequest) {
         // ── ✅ NEW: Create Stateful Approval Request when submitted ──
         if (validatedData.status === "submitted") {
             try {
-                const formattedAmount = new Intl.NumberFormat("en-BD", {
-                    style: "currency", currency: "BDT", maximumFractionDigits: 0,
-                }).format(validatedData.amount);
+                const formattedAmount = formatCurrency(calculation.amountInBDT, "BDT");
 
                 await createApprovalRequest({
                     entityType: "expense",
@@ -259,7 +281,7 @@ export async function POST(request: NextRequest) {
                     requestTitle: `Expense: ${validatedData.title} (${formattedAmount})`,
                     requesterId: user.employee.id,
                     organizationId: user.organizationId,
-                    priority: validatedData.amount >= 50000 ? "high" : "normal",
+                    priority: calculation.amountInBDT >= 50000 ? "high" : "normal",
                 });
             } catch (approvalError) {
                 apiLogger.error({ err: approvalError }, "EXPENSE_APPROVAL_REQUEST_ERROR");
