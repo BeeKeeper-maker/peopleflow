@@ -330,6 +330,10 @@ model Organization {
   roles                 Role[]
   userRoleAssignments   UserRoleAssignment[]
 
+  // Custom Reports
+  savedReports          SavedReport[]
+  scheduledReports      ScheduledReport[]
+
   @@index([status])
 }
 
@@ -1308,6 +1312,78 @@ model PFTransaction {
   @@index([transactionType])
   @@index([transactionDate])
   @@index([referenceMonth, referenceYear])
+}
+
+// ============================================
+// Custom Reports & Saved Views
+// ============================================
+
+/**
+ * SavedReport — a user-defined custom report configuration.
+ *
+ * Users (HR/admin) can build custom reports by:
+ *   1. Selecting a data source (employees, attendance, payroll, leave, expenses)
+ *   2. Selecting fields to include
+ *   3. Applying filters (date range, department, status, etc.)
+ *   4. Choosing a format (table, bar chart, line chart, pie chart)
+ *   5. Saving the configuration for reuse
+ *
+ * The report is executed on-demand by POST /api/reports/custom/[id]/run
+ * or scheduled via ScheduledReport (email delivery).
+ */
+model SavedReport {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  dataSource      String   // employees, attendance, payroll, leave, expenses, loans
+  fields          String[] // selected field keys: ["firstName", "lastName", "department.name"]
+  filters         Json     @default("{}") // { "departmentId": "...", "status": "active", "dateFrom": "...", "dateTo": "..." }
+  groupBy         String?  // optional field to group by
+  chartType       String?  // table, bar, line, pie — null = table only
+  isShared        Boolean  @default(false) // shared with other admins in the org
+
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  schedules       ScheduledReport[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+  @@index([dataSource])
+}
+
+/**
+ * ScheduledReport — a saved report scheduled for automatic email delivery.
+ *
+ * Cron: daily at 9 AM BD time, weekly on Monday 9 AM, monthly on the 1st.
+ * The scheduled-report-worker picks up due schedules, runs the report,
+ * generates a PDF/CSV, and emails it to the recipients.
+ */
+model ScheduledReport {
+  id              String   @id @default(cuid())
+  frequency       String   // daily, weekly, monthly
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  recipients      String[] // user IDs to email
+  format          String   @default("pdf") // pdf, csv, xlsx
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  savedReportId   String
+  savedReport     SavedReport @relation(fields: [savedReportId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([nextRunAt])
+  @@index([organizationId])
+  @@index([savedReportId])
 }
 
 // ============================================
