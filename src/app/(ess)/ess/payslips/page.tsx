@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
+import { useToast } from "@/components/ui/toast";
 interface Payslip {
     id: string;
     month: number; // API returns number (1-12)
@@ -51,6 +52,7 @@ interface Payslip {
 }
 
 export default function ESSPayslipsPage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSPayslips");
     const [isLoading, setIsLoading] = useState(true);
     const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -66,6 +68,7 @@ export default function ESSPayslipsPage() {
                 }
             } catch (error) {
                 console.error("Error fetching payslips:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setIsLoading(false);
             }

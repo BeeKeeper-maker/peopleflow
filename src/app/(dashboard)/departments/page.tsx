@@ -8,7 +8,9 @@ import { Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useTranslations } from "next-intl"
 
+import { useToast } from "@/components/ui/toast";
 export default function DepartmentsPage() {
+    const { addToast } = useToast();
     const [data, setData] = useState<Department[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const t = useTranslations('Departments')
@@ -28,6 +30,7 @@ export default function DepartmentsPage() {
                 }
             } catch (error) {
                 console.error("Failed to fetch departments", error)
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setIsLoading(false)
             }

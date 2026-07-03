@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useTranslations } from "next-intl";
 
+import { useToast } from "@/components/ui/toast";
 interface TeamMember {
     id: string;
     firstName: string;
@@ -28,6 +29,7 @@ interface TeamMember {
 }
 
 export default function ManagerTeamPage() {
+    const { addToast } = useToast();
     const t = useTranslations("ManagerTeam");
     const [isLoading, setIsLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

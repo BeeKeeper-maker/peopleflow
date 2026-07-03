@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslations } from "next-intl";
 
+import { useToast } from "@/components/ui/toast";
 interface TeamMember {
     id: string;
     firstName: string;
@@ -48,6 +49,7 @@ interface UpcomingEvent {
 }
 
 export default function ManagerDashboardPage() {
+    const { addToast } = useToast();
     const { data: session } = useSession();
     const t = useTranslations('Manager');
     const [isLoading, setIsLoading] = useState(true);
@@ -187,6 +189,7 @@ export default function ManagerDashboardPage() {
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setIsLoading(false);
             }

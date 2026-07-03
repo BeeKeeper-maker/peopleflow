@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
+import { useToast } from "@/components/ui/toast";
 type AttendanceStatus = "present" | "absent" | "late" | "on_leave" | "not_checked_in" | "half_day";
 type AttendanceFilter = "all" | "attention" | AttendanceStatus;
 
@@ -99,6 +100,7 @@ export default function ManagerAttendancePage() {
     const t = useTranslations("ManagerAttendance");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [teamAttendance, setTeamAttendance] = useState<TeamMemberAttendance[]>([]);
@@ -212,6 +214,7 @@ export default function ManagerAttendancePage() {
             setTeamAttendance(teamData);
         } catch (error) {
             console.error("Error fetching team attendance:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
         } finally {
             setIsLoading(false);
         }

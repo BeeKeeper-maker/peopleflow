@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { useToast } from "@/components/ui/toast";
 interface AttendanceRecord {
     id: string;
     date: string;
@@ -41,6 +42,7 @@ interface MonthlyStats {
 }
 
 export default function ESSAttendancePage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSAttendance");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
@@ -187,6 +189,7 @@ export default function ESSAttendancePage() {
                 }
             } catch (error) {
                 console.error("Error fetching attendance:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
                 setRecords([]);
                 setStats(null);
             } finally {

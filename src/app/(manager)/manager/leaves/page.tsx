@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
+import { useToast } from "@/components/ui/toast";
 type LeaveStatus = "approved" | "pending" | "rejected" | "cancelled";
 type LeaveFilter = "all" | "active" | LeaveStatus;
 
@@ -79,6 +80,7 @@ export default function ManagerLeavesPage() {
     const t = useTranslations("ManagerLeaves");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const { addToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [teamLeaves, setTeamLeaves] = useState<TeamLeave[]>([]);
@@ -124,6 +126,7 @@ export default function ManagerLeavesPage() {
             setTeamLeaves(transformed);
         } catch (error) {
             console.error("Error fetching team leaves:", error);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
         } finally {
             setIsLoading(false);
         }

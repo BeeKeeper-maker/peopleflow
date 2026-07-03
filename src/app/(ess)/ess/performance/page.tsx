@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import {
     Target,
     TrendingUp,
@@ -56,6 +57,7 @@ const priorityConfig: Record<string, { color: string }> = {
 };
 
 export default function ESSPerformancePage() {
+    const { addToast } = useToast();
     const t = useTranslations("ESSPerformance");
     const [goals, setGoals] = useState<Goal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,6 +75,7 @@ export default function ESSPerformancePage() {
                 }
             } catch (err) {
                 console.error("Failed to fetch goals:", err);
+                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
             } finally {
                 setLoading(false);
             }
