@@ -163,6 +163,7 @@ export default function ESSDashboardPage() {
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
+                addToast({ title: "Failed to load some dashboard data", type: "error" });
             } finally {
                 setIsLoading(false);
             }

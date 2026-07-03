@@ -663,7 +663,17 @@
     "month": "মাস",
     "year": "বছর",
     "exportScopeTitle": "বর্তমান পরিধি",
-    "exportScopeDesc": "Attendance এবং payroll export এই period ব্যবহার করবে। Employee এবং leave export current organization data ব্যবহার করবে।"
+    "exportScopeDesc": "Attendance এবং payroll export এই period ব্যবহার করবে। Employee এবং leave export current organization data ব্যবহার করবে।",
+    "customReports": "কাস্টম রিপোর্ট",
+    "customReportsDesc": "ক্ষেত্র নির্বাচক এবং ফিল্টার সহ কাস্টম রিপোর্ট তৈরি, সংরক্ষণ এবং শিডিউল করুন।",
+    "newReport": "নতুন রিপোর্ট",
+    "noCustomReports": "এখনো কোনো কাস্টম রিপোর্ট নেই",
+    "noCustomReportsDesc": "কর্মী, উপস্থিতি, পেরোল এবং আরও বিশ্লেষণ করতে আপনার প্রথম কাস্টম রিপোর্ট তৈরি করুন।",
+    "createReport": "রিপোর্ট তৈরি করুন",
+    "shared": "শেয়ার্ড",
+    "scheduled": "শিডিউলড",
+    "reportDeleted": "রিপোর্ট মুছে ফেলা হয়েছে",
+    "fields": "ক্ষেত্র"
   },
   "Settings": {
     "title": "সেটিংস",

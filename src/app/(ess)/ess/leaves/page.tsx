@@ -109,7 +109,7 @@ export default function ESSLeavesPage() {
                     setApplications(data.data || data || []);
                 }
             } catch (error) {
-                console.error("Error fetching leave data:", error);
+                console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" }); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
             } finally {
                 setIsLoading(false);
             }

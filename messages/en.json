@@ -663,7 +663,17 @@
     "month": "Month",
     "year": "Year",
     "exportScopeTitle": "Current scope",
-    "exportScopeDesc": "Attendance and payroll exports use this period. Employee and leave exports use current organizational data."
+    "exportScopeDesc": "Attendance and payroll exports use this period. Employee and leave exports use current organizational data.",
+    "customReports": "Custom Reports",
+    "customReportsDesc": "Custom Reports Desc",
+    "newReport": "New Report",
+    "noCustomReports": "No Custom Reports",
+    "noCustomReportsDesc": "No Custom Reports Desc",
+    "createReport": "Create Report",
+    "shared": "Shared",
+    "scheduled": "Scheduled",
+    "reportDeleted": "Report Deleted",
+    "fields": "Fields"
   },
   "ESS": {
     "dashboardTitle": "My Dashboard",

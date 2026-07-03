@@ -82,7 +82,7 @@ export default function RecruitmentPage() {
                 setJobs(response.data || response || [])
             }
         } catch (error) {
-            console.error("Failed to fetch jobs", error)
+            console.error("Failed to fetch data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" })
         } finally {
             setLoading(false)
         }

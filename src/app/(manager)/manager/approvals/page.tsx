@@ -96,7 +96,7 @@ export default function ManagerApprovalsPage() {
                 setExpenseApprovals(Array.isArray(data) ? data : data.data || data.claims || []);
             }
         } catch (error) {
-            console.error("Error fetching approvals:", error);
+            console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" }); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
             addToast({ title: t("errorOccurred"), type: "error" });
         } finally {
             setIsLoading(false);
