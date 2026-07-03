@@ -35,6 +35,7 @@ import {
     Fingerprint,
     KeyRound,
     ClipboardCheck,
+    Bell,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -107,6 +108,7 @@ const navSections: NavSection[] = [
             { labelKey: "approvalWorkflows", href: "/approval-workflows", icon: GitPullRequest, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "accessControl", href: "/settings/access", icon: KeyRound, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "rolesPermissions", href: "/settings/roles", icon: ShieldCheck, roles: ["super_admin", "admin", "hr_admin"] },
+            { labelKey: "notificationPrefs", href: "/settings/notifications", icon: Bell, roles: ["super_admin", "admin", "hr_admin", "manager", "employee"] },
             { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
 
             { labelKey: "settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },

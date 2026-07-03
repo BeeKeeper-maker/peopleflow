@@ -359,6 +359,7 @@ model User {
   accounts         Account[]
   sessions         Session[]
   notifications    Notification[]
+  notificationPreference NotificationPreference?
   passwordHistory  PasswordHistory[]
   rbacPermissions  RBACPermission[]
   roleAssignments  UserRoleAssignment[]
@@ -1341,7 +1342,7 @@ model Notification {
   id        String    @id @default(cuid())
   title     String
   message   String
-  type      String // leave_approval, payroll, announcement, reminder, etc.
+  type      String // leave_approval, payroll, announcement, reminder, alert, etc.
   link      String?
   isRead    Boolean   @default(false)
   readAt    DateTime?
@@ -1353,6 +1354,52 @@ model Notification {
   // Performance indexes
   @@index([userId, isRead])
   @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+/**
+ * NotificationPreference — per-user control over notification channels.
+ *
+ * Each user can independently enable/disable:
+ *   - in_app: bell icon in the dashboard
+ *   - email: SMTP email
+ *   - push: web push notification (PWA service worker)
+ *
+ * Per category (leave, payroll, attendance, etc.), so a user can get
+ * email for payroll but only in-app for announcements.
+ *
+ * digestMode: if "instant" → each event fires immediately
+ *             if "daily" → events batched into one daily summary email
+ *             if "weekly" → events batched into one weekly summary
+ */
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Channel toggles (global defaults)
+  inAppEnabled    Boolean  @default(true)
+  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean  @default(false)
+
+  // Digest mode
+  digestMode      String   @default("instant") // instant, daily, weekly
+
+  // Quiet hours (no push/email during these hours, BD local time)
+  quietHoursStart String?  // "22:00" — null = no quiet hours
+  quietHoursEnd   String?  // "07:00"
+
+  // Per-category overrides (JSON: { "leave_approval": { "email": false }, ... })
+  // If a category is not in the map, use the global defaults above.
+  categoryOverrides Json?  @default("{}")
+
+  // Push subscription endpoint (for web push)
+  pushSubscription Json?   // { endpoint, keys: { p256dh, auth } }
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ============================================
