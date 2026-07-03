@@ -130,12 +130,12 @@ export default function NewExpensePage() {
             }
         } else if (catType === "mileage") {
             if (!formData.distance || parseFloat(formData.distance) <= 0) {
-                addToast({ title: "Distance is required for mileage claims", type: "error" });
+                addToast({ title: "দূরত্ব প্রয়োজন", type: "error" });
                 return;
             }
         } else if (catType === "per_diem") {
             if (!formData.perDiemDays || parseFloat(formData.perDiemDays) <= 0) {
-                addToast({ title: "Number of days is required for per-diem claims", type: "error" });
+                addToast({ title: "দিনের সংখ্যা প্রয়োজন", type: "error" });
                 return;
             }
         }
@@ -358,7 +358,7 @@ export default function NewExpensePage() {
                                 )}
                                 {formData.currency !== "BDT" && formData.amount && !exchangeRates[formData.currency] && (
                                     <p className="text-xs text-yellow-400">
-                                        No exchange rate cached for {formData.currency}. HR must update rates.
+                                        এই মুদ্রার জন্য কোনো এক্সচেঞ্জ রেট নেই: {formData.currency}. HR রেট আপডেট করুন.
                                     </p>
                                 )}
                             </div>
