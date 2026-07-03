@@ -396,22 +396,48 @@ export async function DELETE(
 
         const { id } = await params;
 
+        // Accept an optional separationType in the body so HR can mark
+        // the offboarding reason accurately. Previously every offboard
+        // was force-set to "terminated", mis-categorizing resignations
+        // and retirements — which matters for compliance reports and
+        // final-settlement calculations.
+        let separationType: "resigned" | "terminated" | "retired" = "terminated";
+        try {
+            const body = await req.json();
+            if (body?.separationType === "resigned") separationType = "resigned";
+            else if (body?.separationType === "retired") separationType = "retired";
+            else if (body?.separationType === "terminated") separationType = "terminated";
+        } catch {
+            // No body or invalid JSON — default to "terminated" for backward compat
+        }
+
         const employee = await prisma.employee.findUnique({
             where: { id, organizationId: auth.organizationId },
-            select: { id: true, userId: true }
+            select: { id: true, userId: true, firstName: true, lastName: true, employmentStatus: true }
         });
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
         }
 
+        // Don't double-offboard
+        if (employee.employmentStatus !== "active") {
+            return NextResponse.json(
+                {
+                    error: `Employee is already offboarded (status: ${employee.employmentStatus}).`,
+                    code: "ALREADY_OFFBOARDED",
+                },
+                { status: 409 },
+            );
+        }
+
         await prisma.$transaction(async (tx) => {
-            // Soft delete employee
+            // Soft delete employee with accurate separation type
             await tx.employee.update({
                 where: { id },
                 data: {
                     deletedAt: new Date(),
-                    employmentStatus: "terminated"
+                    employmentStatus: separationType,
                 }
             });
 
@@ -431,7 +457,13 @@ export async function DELETE(
             });
         });
 
-        return new NextResponse(null, { status: 204 });
+        return NextResponse.json(
+            {
+                success: true,
+                message: `Employee ${employee.firstName} ${employee.lastName} offboarded as "${separationType}". ESS access locked, salary assignments deactivated. Payroll history preserved for final settlement.`,
+            },
+            { status: 200 },
+        );
     } catch (error) {
         apiLogger.error({ err: error }, "DELETE_EMPLOYEE_ERROR");
         return new NextResponse("Internal Error", { status: 500 });

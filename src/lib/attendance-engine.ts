@@ -254,8 +254,21 @@ function toRad(deg: number): number {
 // Valid Attendance Statuses
 // ============================================
 
-const VALID_STATUSES = ["present", "absent", "half_day", "on_leave", "late"] as const;
-type AttendanceStatus = typeof VALID_STATUSES[number];
+// IMPORTANT: These MUST match the Attendance.status field's allowed values
+// in prisma/schema.prisma. The schema comment reads:
+//   "present, absent, half_day, on_leave, holiday, weekend"
+// "late" is NOT a valid status — late employees are stored as
+// status="present" with lateMinutes > 0. Reports that need to identify
+// late employees must filter on lateMinutes > 0.
+const VALID_STATUSES = [
+    "present",
+    "absent",
+    "half_day",
+    "on_leave",
+    "holiday",
+    "weekend",
+] as const;
+type AttendanceStatus = (typeof VALID_STATUSES)[number];
 
 function isValidStatus(status: string): status is AttendanceStatus {
     return VALID_STATUSES.includes(status as AttendanceStatus);
@@ -334,11 +347,16 @@ export async function submitRegularization(
                 data: { notes: notesStr },
             });
         } else {
+            // Create a placeholder attendance row so the regularization
+            // request has something to attach to. Status is "absent" until
+            // the regularization is approved (which will set the real
+            // status). "pending" is NOT a valid schema status — see
+            // VALID_STATUSES above.
             await prisma.attendance.create({
                 data: {
                     date: dateStart,
                     employeeId: request.employeeId,
-                    status: "pending",
+                    status: "absent",
                     source: "regularization",
                     notes: notesStr,
                 },

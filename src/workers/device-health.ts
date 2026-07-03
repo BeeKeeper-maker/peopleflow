@@ -49,12 +49,21 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                         model: true,
                         ip: true,
                         port: true,
+                        connectionMode: true,
                         isOnline: true,
                         consecutiveFailures: true,
                         organizationId: true,
                         syncInterval: true,
                         lastSyncAt: true,
                         alertSentAt: true,
+                        syncApiKey: {
+                            select: {
+                                id: true,
+                                lastHeartbeat: true,
+                                lastSyncAt: true,
+                                agentVersion: true,
+                            },
+                        },
                         branch: { select: { name: true } },
                     },
                 });
@@ -165,10 +174,21 @@ const deviceHealthWorker = new Worker<DeviceHealthJobData>(
                         model: true,
                         ip: true,
                         port: true,
+                        connectionMode: true,
                         isOnline: true,
                         consecutiveFailures: true,
                         organizationId: true,
                         alertSentAt: true,
+                        syncInterval: true,
+                        lastSyncAt: true,
+                        syncApiKey: {
+                            select: {
+                                id: true,
+                                lastHeartbeat: true,
+                                lastSyncAt: true,
+                                agentVersion: true,
+                            },
+                        },
                         branch: { select: { name: true } },
                     },
                 });
@@ -204,43 +224,80 @@ interface DeviceForPing {
     model: string;
     ip: string;
     port: number;
+    connectionMode: string;
     isOnline: boolean;
     consecutiveFailures: number;
     organizationId: string;
     alertSentAt: Date | null;
+    syncInterval: number;
+    lastSyncAt: Date | null;
+    syncApiKey: {
+        id: string;
+        lastHeartbeat: Date | null;
+        lastSyncAt: Date | null;
+        agentVersion: string | null;
+    } | null;
     branch: { name: string } | null;
 }
 
 /**
- * Ping a single device by attempting a TCP connection.
- * If successful → mark online, log health.
- * If failed → increment failure counter, log health, optionally alert.
+ * Ping a single device.
+ *
+ * For sync_agent devices: The cloud CANNOT open a TCP socket to a private-LAN
+ * device. Instead, "health" is defined as "agent heartbeat received within
+ * 3 × syncInterval". This prevents false offline alerts for devices that
+ * are being synced fine by an agent running on the office PC.
+ *
+ * For direct_cloud devices: Attempt a TCP connection. If successful → online.
+ * If failed → increment failure counter, log, optionally alert.
  */
 async function pingDevice(device: DeviceForPing): Promise<PingResult> {
     const startTime = Date.now();
     let online = false;
     let errorMsg: string | undefined;
     let status = "offline";
+    let latencyMs: number | null = null;
 
-    try {
-        const adapter = getAdapter(device.model);
-        const connResult = await adapter.connect(device.ip, device.port);
+    // ── sync_agent: heartbeat-based health ──
+    if (device.connectionMode === "sync_agent") {
+        const heartbeat = device.syncApiKey?.lastHeartbeat || device.syncApiKey?.lastSyncAt || device.lastSyncAt;
+        const staleAfterMs = Math.max(3 * device.syncInterval * 60 * 1000, 15 * 60 * 1000); // at least 15 min
 
-        if (connResult.success) {
-            online = true;
-            status = "online";
-            await adapter.disconnect();
+        if (heartbeat) {
+            const ageMs = Date.now() - heartbeat.getTime();
+            if (ageMs <= staleAfterMs) {
+                online = true;
+                status = "online";
+                latencyMs = Date.now() - startTime;
+            } else {
+                status = "timeout";
+                errorMsg = `Sync Agent has not pushed data in ${Math.round(ageMs / 60000)} minutes (stale after ${Math.round(staleAfterMs / 60000)} min). Check that the PeopleFlow Sync Agent is running.`;
+            }
         } else {
-            status = connResult.message.includes("timeout") ? "timeout" : "connection_refused";
-            errorMsg = connResult.message;
+            status = "timeout";
+            errorMsg = "Sync Agent has never pushed data. Install and start the PeopleFlow Sync Agent on the office PC.";
         }
-    } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        status = msg.includes("timeout") || msg.includes("ETIMEDOUT") ? "timeout" : "offline";
-        errorMsg = msg;
-    }
+    } else {
+        // ── direct_cloud: TCP ping ──
+        try {
+            const adapter = getAdapter(device.model);
+            const connResult = await adapter.connect(device.ip, device.port);
 
-    const latencyMs = online ? Date.now() - startTime : null;
+            if (connResult.success) {
+                online = true;
+                status = "online";
+                latencyMs = Date.now() - startTime;
+                await adapter.disconnect();
+            } else {
+                status = connResult.message.includes("timeout") ? "timeout" : "connection_refused";
+                errorMsg = connResult.message;
+            }
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            status = msg.includes("timeout") || msg.includes("ETIMEDOUT") ? "timeout" : "offline";
+            errorMsg = msg;
+        }
+    }
 
     // Update DB: device status + health log
     try {

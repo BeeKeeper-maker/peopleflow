@@ -290,6 +290,7 @@ model Organization {
   employees          Employee[]
   holidayLists       HolidayList[]
   leaveTypes         LeaveType[]
+  leaveEncashmentRequests LeaveEncashmentRequest[]
   salaryStructures   SalaryStructure[]
   announcements      Announcement[]
   auditLogs          AuditLog[]
@@ -646,6 +647,7 @@ model Employee {
   attendances       Attendance[]
   leaveAllocations  LeaveAllocation[]
   leaveApplications LeaveApplication[]
+  leaveEncashmentRequests LeaveEncashmentRequest[]
   salaryAssignments SalaryStructureAssignment[]
   salarySlips       SalarySlip[]
   loans             Loan[]
@@ -683,6 +685,10 @@ model Employee {
   @@index([designationId])
   @@index([reportingManagerId])
   @@index([deletedAt])
+  // Biometric punch lookup: every punch ingestion queries by
+  // (organizationId, biometricUserId). Without this index, each push
+  // scans all employees in the org linearly — slow for 5000+ employees.
+  @@index([organizationId, biometricUserId])
 }
 
 model EmployeeDocument {
@@ -756,6 +762,7 @@ model LeaveType {
 
   allocations  LeaveAllocation[]
   applications LeaveApplication[]
+  encashmentRequests LeaveEncashmentRequest[]
 
   @@unique([organizationId, code])
 }
@@ -775,7 +782,70 @@ model LeaveAllocation {
   leaveTypeId String
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
+  encashmentRequests LeaveEncashmentRequest[]
+
   @@unique([employeeId, leaveTypeId, year])
+}
+
+// ============================================
+// Leave Encashment Requests
+// ============================================
+
+/**
+ * LeaveEncashmentRequest — employee request to convert unused leave into cash.
+ *
+ * Workflow:
+ *   pending → approved → paid (included in next payroll)
+ *   pending → rejected
+ *
+ * Calculation:
+ *   encashmentAmount = encashableDays × dailyBasicRate × (encashmentRate / 100)
+ *
+ * Where:
+ *   - encashableDays: min(requestedDays, allocation.allocatedDays - allocation.usedDays - carriedForward)
+ *   - dailyBasicRate: (grossSalary / 30) — uses gross, not basic, for fairness
+ *   - encashmentRate: from LeaveType.encashmentRate (default 100%)
+ *
+ * On approval:
+ *   - LeaveAllocation.usedDays is incremented by encashableDays
+ *   - The encashment amount is queued for inclusion in the next payroll run
+ *     (SalarySlip.otherEarnings or a dedicated encashment line)
+ */
+model LeaveEncashmentRequest {
+  id              String   @id @default(cuid())
+  status          String   @default("pending") // pending, approved, rejected, paid
+  requestedDays   Float    // Days the employee wants to encash
+  encashableDays  Float    // Actual days eligible (after balance check)
+  dailyBasicRate  Float    // (grossSalary / 30) at time of request
+  encashmentRate  Float    // % from LeaveType.encashmentRate
+  encashmentAmount Float   // final amount = encashableDays × dailyBasicRate × (rate/100)
+  reason          String?  // Employee's reason for encashment
+  rejectionReason String?
+  requestedAt     DateTime @default(now())
+  approvedAt      DateTime?
+  approvedById    String?  // Employee ID of approver (HR/manager)
+  paidAt          DateTime? // When included in payroll
+  payrollMonth    Int?     // Month paid in
+  payrollYear     Int?     // Year paid in
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  allocationId String?
+  allocation   LeaveAllocation? @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([organizationId])
+  @@index([leaveTypeId])
 }
 
 model LeaveApplication {
@@ -939,10 +1009,24 @@ model SalarySlip {
   // Net
   netSalary Float
 
-  status         String    @default("draft") // draft, approved, paid
+  status         String    @default("draft") // draft, approved, paid, locked
   paymentDate    DateTime?
   paymentMode    String? // bank_transfer, cash, cheque
   transactionRef String?
+
+  // Lock: once paid, a slip is locked and cannot be re-processed.
+  // Lock can only be removed via explicit unlock (with audit log).
+  isLocked        Boolean   @default(false)
+  lockedAt        DateTime?
+  lockedById      String?   // User ID who locked
+  lockedReason    String?
+
+  // Reversal: if a paid slip needs correction, it's reversed (not deleted).
+  // A new corrected slip is then re-processed.
+  isReversed      Boolean   @default(false)
+  reversedAt      DateTime?
+  reversedById    String?
+  reversedReason  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1803,6 +1887,12 @@ model BiometricDevice {
   connectionMode  String    @default("sync_agent") // sync_agent, direct_cloud
   cloudProtocol   String?                         // adms, iclock, zkteco_push
   cloudStatus     String    @default("pending")   // pending, connected, warning, failed
+  // Per-device shared secret for direct-cloud auth (HMAC).
+  // When set, /iclock/* and /api/biometric-devices/adms-capture routes
+  // require an X-PeopleFlow-Signature header = HMAC-SHA256(body, secret).
+  // When null, the device is in "claim mode" — punches are captured to
+  // BiometricCloudEvent but NOT ingested until the admin assigns a secret.
+  cloudSecretHash String?                         // sha256(cloudSecret) — never store raw secret
   location        String?                         // Physical location description
   isActive        Boolean   @default(true)
   lastSyncAt      DateTime?                       // Last successful sync
@@ -1829,6 +1919,15 @@ model BiometricDevice {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  // ── Sync Agent Link ──
+  // Links this device card to the SyncApiKey whose agent pushes data for it.
+  // The agent's push authenticates the API key; we then use this link to
+  // resolve the device card without relying on ip+port matching (which is
+  // fragile for private-LAN devices whose ip is rewritten to adms:SERIAL
+  // when connectionMode = direct_cloud).
+  syncApiKeyId   String?
+  syncApiKey     SyncApiKey? @relation(fields: [syncApiKeyId], references: [id], onDelete: SetNull)
+
   syncLogs    DeviceSyncLog[]
   healthLogs  DeviceHealthLog[]
   cloudEvents BiometricCloudEvent[]
@@ -1841,6 +1940,7 @@ model BiometricDevice {
   @@index([connectionMode])
   @@index([cloudStatus])
   @@index([lastSeenAt])
+  @@index([syncApiKeyId])
 }
 
 model BiometricCloudEvent {
@@ -1928,6 +2028,9 @@ model SyncApiKey {
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Back-relation to devices that use this key
+  biometricDevices BiometricDevice[]
 
   @@index([organizationId])
   @@index([key])

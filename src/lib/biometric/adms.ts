@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { biometricLogger } from "@/lib/logger";
-import { ingestBiometricPunches, type BiometricPunchRecord } from "@/lib/biometric/attendance-ingest";
+import { ingestBiometricPunches, type BiometricPunchRecord } from "@/lib/biometric/punch-processor";
+import { authenticateDirectCloudDevice } from "@/lib/biometric/direct-cloud-auth";
 
 const MAX_CAPTURE_BODY_CHARS = 120_000;
 const DEVICE_OK = "OK";
@@ -13,6 +14,7 @@ interface AdmsRequestContext {
     remoteIp: string;
     path: string;
     method: string;
+    signatureHeader: string | null;
 }
 
 function getSerialFromQuery(searchParams: URLSearchParams): string | null {
@@ -63,6 +65,12 @@ async function buildContext(req: Request): Promise<AdmsRequestContext> {
         remoteIp: getRemoteIp(req),
         path: url.pathname,
         method: req.method,
+        // Read the auth header. We accept either X-PeopleFlow-Secret (raw secret)
+        // or X-PeopleFlow-Signature (for future HMAC support).
+        signatureHeader:
+            req.headers.get("x-peopleflow-secret") ||
+            req.headers.get("x-peopleflow-signature") ||
+            null,
     };
 }
 
@@ -145,6 +153,7 @@ async function findDirectCloudDevice(serialNumber: string | null) {
             organizationId: true,
             serialNumber: true,
             name: true,
+            cloudSecretHash: true,
         },
     });
 }
@@ -218,24 +227,102 @@ function plainOk(body = DEVICE_OK) {
 
 export async function handleAdmsRequest(req: Request, eventType: "registry" | "cdata" | "getrequest" | "devicecmd") {
     const ctx = await buildContext(req);
-    const device = await findDirectCloudDevice(ctx.serialNumber);
     const now = new Date();
 
+    // ── AUTHENTICATION ──
+    // Direct-cloud devices must authenticate via X-PeopleFlow-Secret header.
+    // Devices without a secret set are in "claim mode" — we capture their
+    // events so the admin can see them, but we do NOT ingest punches.
+    const authResult = await authenticateDirectCloudDevice(
+        ctx.serialNumber,
+        ctx.bodyText,
+        ctx.signatureHeader,
+    );
+
+    const device = authResult.device
+        ? {
+              id: authResult.device.id,
+              organizationId: authResult.device.organizationId,
+              serialNumber: authResult.device.serialNumber,
+              name: authResult.device.name,
+          }
+        : null;
+
     try {
+        // Unknown device → capture and return OK so firmware keeps trying
         if (!device) {
             await captureEvent({
                 req,
                 ctx,
                 eventType,
                 status: "unknown_device",
-                errorMessage: ctx.serialNumber ? "Serial is not registered for direct-cloud sync" : "Device did not provide serial number",
+                errorMessage: ctx.serialNumber
+                    ? "Serial is not registered for direct-cloud sync. Register this device in the dashboard first."
+                    : "Device did not provide serial number",
             });
 
-            // Keep device protocol alive so the admin can see captured serial/payload and claim it.
             if (eventType === "cdata" && req.method === "GET") return deviceOptionsResponse(ctx.serialNumber);
             return plainOk();
         }
 
+        // Known device but in claim mode (no secret set) → capture but don't ingest
+        if (!authResult.authenticated && authResult.reason === "claim_mode") {
+            await prisma.biometricDevice.update({
+                where: { id: device.id },
+                data: {
+                    lastSeenAt: now,
+                    lastPingAt: now,
+                    isOnline: true,
+                    cloudStatus: "warning",
+                    cloudProtocol: "adms",
+                },
+            });
+
+            await captureEvent({
+                req,
+                ctx,
+                eventType,
+                status: "captured",
+                deviceId: device.id,
+                organizationId: device.organizationId,
+                errorMessage:
+                    "Device is in claim mode — assign a cloud secret in the dashboard to enable punch ingestion.",
+            });
+
+            if (eventType === "cdata" && req.method === "GET") return deviceOptionsResponse(ctx.serialNumber);
+            return plainOk();
+        }
+
+        // Known device but failed authentication → capture and reject
+        if (!authResult.authenticated) {
+            await prisma.biometricDevice.update({
+                where: { id: device.id },
+                data: {
+                    lastSeenAt: now,
+                    lastPingAt: now,
+                    isOnline: true,
+                    cloudStatus: "failed",
+                    cloudProtocol: "adms",
+                    consecutiveFailures: { increment: 1 },
+                },
+            });
+
+            await captureEvent({
+                req,
+                ctx,
+                eventType,
+                status: "failed",
+                deviceId: device.id,
+                organizationId: device.organizationId,
+                errorMessage: `Authentication failed: ${authResult.reason}`,
+            });
+
+            // Return OK to keep firmware happy, but punches are NOT ingested
+            if (eventType === "cdata" && req.method === "GET") return deviceOptionsResponse(ctx.serialNumber);
+            return plainOk();
+        }
+
+        // ── AUTHENTICATED — process the request ──
         await prisma.biometricDevice.update({
             where: { id: device.id },
             data: {
@@ -256,7 +343,13 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
         if (eventType === "cdata" && req.method === "POST" && isAttendanceUpload(ctx.query, ctx.bodyText)) {
             const records = parseAdmsAttendanceLogs(ctx.bodyText, ctx.serialNumber);
             const result = records.length > 0
-                ? await ingestBiometricPunches({ organizationId: device.organizationId, records })
+                ? await ingestBiometricPunches({
+                      organizationId: device.organizationId,
+                      records,
+                      source: "biometric",
+                      deviceId: device.id,
+                      deviceName: device.name,
+                  })
                 : { received: 0, synced: 0, skipped: 0, unmappedUsers: 0, unmappedUserIds: [], attendanceDays: 0 };
 
             const status = result.synced > 0 && result.unmappedUsers === 0 && !result.errors ? "processed" : "partial";
@@ -301,6 +394,7 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
             return plainOk();
         }
 
+        // Non-attendance requests (registry, getrequest, devicecmd, operlog) — capture and OK
         await captureEvent({ req, ctx, eventType, status: "captured", deviceId: device.id, organizationId: device.organizationId });
         return plainOk();
     } catch (error) {

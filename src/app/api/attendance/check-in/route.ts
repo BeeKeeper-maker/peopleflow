@@ -113,18 +113,22 @@ export async function POST(req: Request) {
         }
 
         // ── Calculate Late Status ─────────────────────────────────
+        // IMPORTANT: Attendance.status enum is { present, absent, half_day,
+        // on_leave, holiday, weekend }. "late" is NOT a valid status.
+        // Late employees are stored as status="present" with lateMinutes > 0.
+        // Reports that need to identify late employees must filter on
+        // lateMinutes > 0, not status = "late".
         let lateMinutes = 0;
-        let status = "present";
+        const status = "present";
 
         if (employee.shift) {
             const shiftStart = buildBusinessDateTime(today, employee.shift.startTime);
 
-            // Add grace period
+            // Late = arrived after shiftStart + graceMinutes
             const lateThreshold = new Date(shiftStart.getTime() + (employee.shift.graceMinutes || 15) * 60000);
 
             if (now > lateThreshold) {
                 lateMinutes = differenceInMinutes(now, shiftStart);
-                status = "late";
             }
         }
 

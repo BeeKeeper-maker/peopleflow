@@ -10,10 +10,12 @@ const nextConfig: NextConfig = {
   // Optimize production builds
   reactStrictMode: true,
 
-  // Local CI/QA still runs `npx tsc --noEmit`. Skipping Next's duplicate
-  // production type gate keeps VPS/Coolify Docker builds from timing out.
+  // TypeScript errors are NO LONGER ignored in production builds.
+  // The local `npx tsc --noEmit` gate plus this production gate together
+  // ensure type safety is enforced before any deploy. If a build fails
+  // here, fix the type error rather than re-enabling ignoreBuildErrors.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
   // Enable experimental features for performance

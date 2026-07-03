@@ -79,6 +79,34 @@ export async function POST(req: Request, { params }: RouteParams) {
         const principal = principalPart || amount;
         const interest = interestPart || 0;
 
+        // ✅ Validation: principal + interest must equal total amount
+        // Previously, a client could inflate principalPart while paying a
+        // tiny amount, "closing" the loan without fully paying it.
+        if (Math.abs((principal + interest) - amount) > 0.01) {
+            return NextResponse.json(
+                {
+                    error: `principalPart (${principal}) + interestPart (${interest}) must equal amount (${amount})`,
+                    code: "INVALID_SPLIT",
+                },
+                { status: 400 },
+            );
+        }
+
+        // ✅ Validation: principal cannot exceed remaining amount
+        if (principal > loan.remainingAmount) {
+            return NextResponse.json(
+                {
+                    error: `principalPart (${principal}) cannot exceed remaining loan amount (${loan.remainingAmount})`,
+                    code: "PRINCIPAL_EXCEEDS_REMAINING",
+                },
+                { status: 400 },
+            );
+        }
+
+        // ✅ Validation: method must be a valid enum value
+        const validMethods = ["payroll", "bank_transfer", "cash"];
+        const repaymentMethod = validMethods.includes(method) ? method : "payroll";
+
         // Create repayment and update loan balances in a transaction
         const [repayment] = await prisma.$transaction([
             prisma.loanRepayment.create({
@@ -88,7 +116,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     principalPart: principal,
                     interestPart: interest,
                     paidDate: new Date(paidDate),
-                    method: method || "payroll",
+                    method: repaymentMethod,
                     reference: reference || null,
                     note: note || null,
                     loanId: id,
@@ -99,8 +127,8 @@ export async function POST(req: Request, { params }: RouteParams) {
                 data: {
                     paidAmount: { increment: amount },
                     remainingAmount: { decrement: principal },
-                    // Auto-close loan if fully paid
-                    ...(loan.remainingAmount - principal <= 0
+                    // Auto-close loan if principal fully repaid
+                    ...(loan.remainingAmount - principal <= 0.01
                         ? { status: "closed" }
                         : {}),
                 },

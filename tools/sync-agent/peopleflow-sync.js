@@ -28,12 +28,13 @@ const { createRequire } = require("module");
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const VERSION = "1.1.1";
+const VERSION = "1.2.0";
 const CONFIG_FILE = path.join(os.homedir(), ".peopleflow-sync.json");
 const STATE_FILE = path.join(os.homedir(), ".peopleflow-sync-state.json");
 const LOCK_FILE = path.join(os.homedir(), ".peopleflow-sync.lock");
 const RUNTIME_DIR = path.join(os.homedir(), ".peopleflow-sync-agent");
 const RUNTIME_PACKAGE_DIR = path.join(RUNTIME_DIR, "runtime");
+const LOG_FILE = path.join(RUNTIME_DIR, "agent.log");
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 3 * 60 * 1000;
 const ZKTECO_PORT = 4370;
@@ -43,6 +44,10 @@ const DEFAULT_INITIAL_LOOKBACK_DAYS = 7;
 const DEFAULT_BATCH_SIZE = 500;
 const DEVICE_TIMEOUT_MS = 15000;
 const DEVICE_INPORT = 4000;
+const PUSH_RETRY_ATTEMPTS = 3;
+const PUSH_RETRY_BACKOFF_MS = [2000, 4000, 8000];
+const SYNCED_KEYS_TTL_DAYS = 7;
+const LOG_ROTATION_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 // ── Colorful Terminal Output ─────────────────────────────────────────
 
@@ -62,6 +67,7 @@ const c = {
 function log(icon, msg, color = c.white) {
     const time = new Date().toLocaleTimeString();
     console.log(`${c.dim}[${time}]${c.reset} ${icon}  ${color}${msg}${c.reset}`);
+    appendLogFile(icon, msg);
 }
 function logSuccess(msg) { log("✅", msg, c.green); }
 function logError(msg) { log("❌", msg, c.red); }
@@ -69,6 +75,36 @@ function logInfo(msg) { log("ℹ️ ", msg, c.cyan); }
 function logWarn(msg) { log("⚠️ ", msg, c.yellow); }
 function logSync(msg) { log("🔄", msg, c.blue); }
 function logHeart(msg) { log("💓", msg, c.magenta); }
+
+// ── File Logger (with rotation) ──────────────────────────────────────
+// All log output is tee'd to ~/.peopleflow-sync-agent/agent.log so that
+// the agent's history is preserved even when run as a background service
+// (pm2 / node-windows / systemd) where stdout isn't visible to the user.
+let _logStream = null;
+function getLogStream() {
+    if (_logStream) return _logStream;
+    try {
+        if (!fs.existsSync(RUNTIME_DIR)) fs.mkdirSync(RUNTIME_DIR, { recursive: true });
+        // Rotate if the file is too big: rename current to .1 and start fresh
+        try {
+            const stats = fs.statSync(LOG_FILE);
+            if (stats.size > LOG_ROTATION_MAX_BYTES) {
+                fs.renameSync(LOG_FILE, `${LOG_FILE}.1`);
+            }
+        } catch { /* file doesn't exist yet — fine */ }
+        _logStream = fs.createWriteStream(LOG_FILE, { flags: "a" });
+        _logStream.on("error", () => { _logStream = null; }); // don't crash on log errors
+    } catch {
+        _logStream = null; // logging is best-effort
+    }
+    return _logStream;
+}
+function appendLogFile(icon, msg) {
+    const stream = getLogStream();
+    if (!stream) return;
+    const line = `[${new Date().toISOString()}] ${icon}  ${msg}\n`;
+    stream.write(line);
+}
 
 function errorMessage(err) {
     if (!err) return "Unknown error";
@@ -482,6 +518,42 @@ async function pushAttendance(config, records) {
     });
 }
 
+/**
+ * Push a batch with retry on transient failures.
+ *
+ * Retries up to PUSH_RETRY_ATTEMPTS times with exponential backoff
+ * (2s, 4s, 8s). Only retries on NETWORK errors (timeout, ECONNRESET,
+ * DNS failure) — HTTP 4xx errors (bad request, auth failure) are not
+ * retried because they won't succeed on retry.
+ *
+ * This prevents a single network blip from dropping an entire batch
+ * (which was the previous behavior — a 5-minute wait until the next
+ * sync cycle, with the risk of the `lastSuccessfulTimestamp` filter
+ * excluding older punches if the outage was long).
+ */
+async function pushAttendanceWithRetry(config, records) {
+    let lastErr = null;
+    for (let attempt = 1; attempt <= PUSH_RETRY_ATTEMPTS; attempt++) {
+        try {
+            const result = await pushAttendance(config, records);
+            return result;
+        } catch (err) {
+            lastErr = err;
+            const msg = err.message || String(err);
+            // Don't retry on HTTP 4xx (client error — won't succeed on retry)
+            if (/HTTP 4\d\d/.test(msg) || /HTTP 401|HTTP 403|HTTP 422/.test(msg)) {
+                throw err;
+            }
+            if (attempt < PUSH_RETRY_ATTEMPTS) {
+                const backoff = PUSH_RETRY_BACKOFF_MS[attempt - 1] || 8000;
+                logWarn(`Push attempt ${attempt}/${PUSH_RETRY_ATTEMPTS} failed: ${msg}. Retrying in ${backoff / 1000}s...`);
+                await new Promise((r) => setTimeout(r, backoff));
+            }
+        }
+    }
+    throw lastErr || new Error("Push failed after all retries");
+}
+
 // ── Sync Logic ───────────────────────────────────────────────────────
 
 function recordKey(record) {
@@ -583,8 +655,22 @@ async function syncCycle(config) {
     for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         logSync(`Pushing batch ${i + 1}/${batches.length} (${batch.length} records)...`);
-        const result = await pushAttendance(config, batch);
-        if (!result.success) throw new Error(result.error || "Cloud rejected push");
+        const result = await pushAttendanceWithRetry(config, batch);
+        // The cloud may return success=false with a 422 status when all
+        // punches were unmapped. We treat that as a configuration warning,
+        // not a hard failure — but we DON'T mark the batch as synced so
+        // the punches will be retried on the next cycle (giving the admin
+        // time to fix the biometric user ID mappings).
+        if (!result.success && result.code === "ALL_PUNCHES_UNMAPPED") {
+            logWarn(`Batch ${i + 1}: all ${batch.length} punches were for unmapped biometric user IDs.`);
+            logWarn(`Unmapped IDs: ${(result.summary?.unmappedUserIds || []).join(", ")}`);
+            logWarn("Map these in PeopleFlow employee profiles. The batch will be retried on the next cycle.");
+            totalUnmapped += Number(result.summary?.unmappedUsers || 0);
+            for (const id of result.summary?.unmappedUserIds || []) unmappedIds.add(id);
+            // Do NOT add to syncedKeys — let it retry
+            continue;
+        }
+        if (!result.success) throw new Error(result.error || result.message || "Cloud rejected push");
 
         const summary = result.summary || {};
         totalSynced += Number(summary.synced || 0);
@@ -595,7 +681,15 @@ async function syncCycle(config) {
 
         const latest = batch[batch.length - 1]?.timestamp;
         if (latest) state.lastSuccessfulTimestamp = latest;
-        state.syncedKeys = Array.from(syncedKeys).slice(-20000);
+        // Prune syncedKeys older than SYNCED_KEYS_TTL_DAYS to keep the
+        // state file from growing unbounded over months of operation.
+        const ttlCutoff = Date.now() - SYNCED_KEYS_TTL_DAYS * 24 * 60 * 60 * 1000;
+        const prunedKeys = Array.from(syncedKeys).filter((key) => {
+            const parts = key.split("::");
+            const ts = parts[1] ? new Date(parts[1]).getTime() : 0;
+            return ts >= ttlCutoff;
+        });
+        state.syncedKeys = prunedKeys.slice(-20000);
         state.firstRunCompleted = true;
         saveState(state);
     }
@@ -645,22 +739,40 @@ ${c.green}${c.bold}Configuration:${c.reset}
     }
 
     const syncIntervalMs = (config.syncInterval || 5) * 60 * 1000;
-    setInterval(async () => {
-        try { await syncCycle(config); }
-        catch (err) { logError(`Sync cycle failed: ${err.message}`); }
-    }, syncIntervalMs);
 
+    // Use RECURSIVE setTimeout instead of setInterval to prevent overlapping
+    // cycles. If a sync takes longer than the interval (e.g., large history
+    // pull on a slow device), setInterval would fire a second concurrent
+    // cycle, which opens a 2nd TCP connection to the device — ZKTeco devices
+    // typically allow only 1-2 concurrent connections, so the 2nd would
+    // fail with ECONNRESET and pollute the logs.
+    let syncTimer = null;
+    const scheduleNextSync = () => {
+        syncTimer = setTimeout(async () => {
+            try { await syncCycle(config); }
+            catch (err) { logError(`Sync cycle failed: ${err.message}`); }
+            scheduleNextSync();
+        }, syncIntervalMs);
+    };
+    scheduleNextSync();
+
+    // Heartbeat can stay on setInterval — it's a quick HTTP POST that
+    // won't overlap with itself meaningfully.
     setInterval(async () => {
-        await sendHeartbeat(config);
+        try { await sendHeartbeat(config); }
+        catch (err) { logWarn(`Heartbeat failed: ${err.message}`); }
     }, HEARTBEAT_INTERVAL_MS);
 
     const shutdown = async () => {
         console.log(`\n${c.yellow}${c.bold}Shutting down gracefully...${c.reset}`);
+        if (syncTimer) clearTimeout(syncTimer);
+        if (_logStream) { try { _logStream.end(); } catch { /* ignore */ } }
         process.exit(0);
     };
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
     logInfo("Press Ctrl+C to stop the agent.");
+    logInfo(`Log file: ${LOG_FILE}`);
 }
 
 main().catch((err) => {

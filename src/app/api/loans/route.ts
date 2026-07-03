@@ -103,9 +103,22 @@ export async function POST(req: Request) {
         }
 
         const rate = interestRate || 0;
-        const emiAmount = rate > 0
-            ? (amount * (1 + (rate / 100) * (tenure / 12))) / tenure
-            : amount / tenure;
+        // EMI calculation: use standard reducing-balance amortization formula
+        // (the same formula banks use). The previous simple-interest formula
+        // produced EMI values that didn't match bank statements.
+        //
+        // Formula: EMI = P × r × (1+r)^n / ((1+r)^n − 1)
+        //   where P = principal, r = monthly rate (annual/12/100), n = tenure months
+        //
+        // For zero-interest loans (rate=0): EMI = P / n (simple division)
+        const monthlyRate = rate > 0 ? rate / 100 / 12 : 0;
+        let emiAmount: number;
+        if (monthlyRate > 0) {
+            const pow = Math.pow(1 + monthlyRate, tenure);
+            emiAmount = (amount * monthlyRate * pow) / (pow - 1);
+        } else {
+            emiAmount = amount / tenure;
+        }
 
         const loan = await prisma.loan.create({
             data: {

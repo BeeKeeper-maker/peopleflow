@@ -4,6 +4,18 @@ import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/announcements — List announcements
+//
+// Visibility rules:
+//   - admin / hr_admin / super_admin: see ALL announcements in the org
+//     (including drafts and department-targeted ones they're not in).
+//   - manager / employee: see only announcements where:
+//       a) targetDepartments is NULL (org-wide), OR
+//       b) targetDepartments includes their own department ID, OR
+//       c) they have no department set (fallback: see org-wide only)
+//
+// The previous implementation ignored targetDepartments entirely, so a
+// private HR-only announcement was visible to every employee — a real
+// privacy leak for sensitive policy/celebration notices.
 export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
@@ -22,6 +34,25 @@ export async function GET(req: Request) {
             where.OR = [
                 { expiryDate: null },
                 { expiryDate: { gte: new Date() } },
+            ];
+        }
+
+        // Department-targeting filter for non-HR roles
+        const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(auth.role);
+        if (!isHRLevel) {
+            // Look up the caller's employee record to get their departmentId
+            const callerEmployee = await prisma.employee.findFirst({
+                where: { userId: auth.userId, organizationId: auth.organizationId },
+                select: { departmentId: true },
+            });
+            const deptId = callerEmployee?.departmentId || null;
+
+            // Visible if: org-wide (targetDepartments IS NULL) OR
+            //             includes my department
+            // If I have no department, I only see org-wide announcements.
+            where.OR = [
+                { targetDepartments: null },
+                ...(deptId ? [{ targetDepartments: { contains: `"${deptId}"` } }] : []),
             ];
         }
 
