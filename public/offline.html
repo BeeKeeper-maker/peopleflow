@@ -1,88 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Offline - PeopleFlow HRMS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#3B82F6">
+    <title>অফলাইন — PeopleFlow HRMS</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Bengali', sans-serif;
             background: linear-gradient(135deg, #0A0A0F 0%, #1A1A2E 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            color: #fff; padding: 1rem;
         }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            max-width: 400px;
-        }
+        .container { text-align: center; max-width: 400px; }
         .icon {
-            width: 80px;
-            height: 80px;
+            width: 80px; height: 80px;
             background: linear-gradient(135deg, #3B82F6, #8B5CF6);
-            border-radius: 20px;
-            margin: 0 auto 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 20px; margin: 0 auto 1.5rem;
+            display: flex; align-items: center; justify-content: center;
             font-size: 2rem;
         }
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-        p {
-            color: rgba(255,255,255,0.6);
-            margin-bottom: 1.5rem;
-            line-height: 1.6;
-        }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; font-weight: 700; }
+        p { color: rgba(255,255,255,0.6); margin-bottom: 1.5rem; line-height: 1.6; font-size: 0.95rem; }
         .retry-btn {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
+            display: inline-block; padding: 0.875rem 2rem;
             background: linear-gradient(135deg, #3B82F6, #8B5CF6);
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
+            color: #fff; border: none; border-radius: 12px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            text-decoration: none; transition: transform 0.2s, box-shadow 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
-        .retry-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
-        }
-        .footer {
-            margin-top: 2rem;
-            color: rgba(255,255,255,0.4);
-            font-size: 0.875rem;
-        }
+        .retry-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3); }
+        .retry-btn:active { transform: translateY(0); }
+        .footer { margin-top: 2rem; color: rgba(255,255,255,0.3); font-size: 0.8rem; }
+        .features { margin-top: 2rem; text-align: left; }
+        .features h2 { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 0.75rem; }
+        .features ul { list-style: none; }
+        .features li { color: rgba(255,255,255,0.5); font-size: 0.85rem; padding: 0.3rem 0; }
+        .features li::before { content: "✓ "; color: #3B82F6; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="icon">📶</div>
-        <h1>You're Offline</h1>
+        <h1>আপনি অফলাইনে আছেন</h1>
         <p>
-            It looks like you've lost your internet connection. 
-            Please check your connection and try again.
+            ইন্টারনেট সংযোগ বিচ্ছিন্ন হয়েছে। অনুগ্রহ করে সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।<br>
+            <span style="font-size: 0.85rem; opacity: 0.7;">You're offline. Please check your connection.</span>
         </p>
         <a href="/" class="retry-btn" onclick="location.reload(); return false;">
-            Try Again
+            আবার চেষ্টা করুন / Try Again
         </a>
-        <div class="footer">
-            PeopleFlow HRMS
+        <div class="features">
+            <h2>অফলাইনে কী কী করতে পারবেন:</h2>
+            <ul>
+                <li>পূর্বে দেখা ড্যাশবোর্ড ও পেসলিপ</li>
+                <li>অফলাইন চেক-ইন (সংযোগ ফিরলে সিঙ্ক হবে)</li>
+                <li>ছুটির আবেদন তৈরি (সংযোগ ফিরলে পাঠানো হবে)</li>
+            </ul>
         </div>
+        <div class="footer">PeopleFlow HRMS</div>
     </div>
 </body>
 </html>
