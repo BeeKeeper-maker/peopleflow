@@ -19,21 +19,35 @@ import { formatCurrency } from "@/lib/utils";
 
 interface Payslip {
     id: string;
-    month: string;
+    month: number; // API returns number (1-12)
     year: number;
     basicSalary: number;
     houseRent: number;
-    medical: number;
+    medicalAllowance: number; // API field name
     conveyance: number;
+    specialAllowance?: number;
+    overtime?: number;
+    bonus?: number;
+    festivalBonus?: number;
+    arrears?: number;
     otherEarnings: number;
-    pfDeduction: number;
-    taxDeduction: number;
+    pfEmployee: number; // API field name (not pfDeduction)
+    pfEmployer?: number;
+    incomeTax: number; // API field name (not taxDeduction)
+    loanDeduction?: number;
+    absentDeduction?: number;
+    lateDeduction?: number;
     otherDeductions: number;
     grossSalary: number;
     totalDeductions: number;
     netSalary: number;
-    status: "paid" | "pending";
-    paidDate?: string;
+    status: "draft" | "approved" | "paid" | "reversed"; // actual API statuses
+    paymentDate?: string; // API field name (not paidDate)
+    paymentMode?: string;
+    presentDays?: number;
+    absentDays?: number;
+    leaveDays?: number;
+    totalWorkingDays?: number;
 }
 
 export default function ESSPayslipsPage() {
@@ -185,7 +199,7 @@ export default function ESSPayslipsPage() {
                                             </div>
                                             <div>
                                                 <p className="font-medium text-foreground">
-                                                    {payslip.month} {payslip.year}
+                                                    {new Date(payslip.year, payslip.month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
                                                     {t("net")}: {formatCurrency(payslip.netSalary)}
@@ -202,9 +216,9 @@ export default function ESSPayslipsPage() {
                                             >
                                                 {payslip.status === "paid" ? t("paid") : t("pending")}
                                             </Badge>
-                                            {payslip.paidDate && (
+                                            {payslip.paymentDate && (
                                                 <span className="text-xs text-tertiary-foreground">
-                                                    {t("paidOn")} {new Date(payslip.paidDate).toLocaleDateString()}
+                                                    {t("paidOn")} {new Date(payslip.paymentDate).toLocaleDateString()}
                                                 </span>
                                             )}
                                             <Button
@@ -231,7 +245,7 @@ export default function ESSPayslipsPage() {
                     <Card className="bg-background border-card-border w-full max-w-lg max-h-[80vh] overflow-y-auto">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-foreground">
-                                {t("payslipTitle", { month: selectedPayslip.month, year: selectedPayslip.year })}
+                                {t("payslipTitle", { month: new Date(selectedPayslip.year, selectedPayslip.month - 1, 1).toLocaleDateString("en-US", { month: "long" }), year: selectedPayslip.year })}
                             </CardTitle>
                             <Button
                                 variant="ghost"
@@ -257,7 +271,7 @@ export default function ESSPayslipsPage() {
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">{t("medical")}</span>
-                                        <span className="text-foreground">{formatCurrency(selectedPayslip.medical)}</span>
+                                        <span className="text-foreground">{formatCurrency(selectedPayslip.medicalAllowance)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">{t("conveyance")}</span>
@@ -282,11 +296,11 @@ export default function ESSPayslipsPage() {
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">{t("pfEmployee")}</span>
-                                        <span className="text-foreground">{formatCurrency(selectedPayslip.pfDeduction)}</span>
+                                        <span className="text-foreground">{formatCurrency(selectedPayslip.pfEmployee)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
                                         <span className="text-muted-foreground">{t("incomeTax")}</span>
-                                        <span className="text-foreground">{formatCurrency(selectedPayslip.taxDeduction)}</span>
+                                        <span className="text-foreground">{formatCurrency(selectedPayslip.incomeTax)}</span>
                                     </div>
                                     {selectedPayslip.otherDeductions > 0 && (
                                         <div className="flex justify-between text-sm">

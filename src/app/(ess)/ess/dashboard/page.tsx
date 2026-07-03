@@ -132,13 +132,15 @@ export default function ESSDashboardPage() {
                     const data = await summaryRes.json();
                     const records = data.data || data || [];
 
-                    // Count statuses
+                    // Count statuses — "late" is NOT a valid status (stored as present + lateMinutes > 0)
                     let present = 0, absent = 0, late = 0, onLeave = 0;
-                    records.forEach((record: { status: string }) => {
+                    records.forEach((record: { status: string; lateMinutes?: number }) => {
                         switch (record.status) {
-                            case "present": present++; break;
+                            case "present":
+                                present++;
+                                if (record.lateMinutes && record.lateMinutes > 0) late++;
+                                break;
                             case "absent": absent++; break;
-                            case "late": late++; break;
                             case "on_leave": onLeave++; break;
                         }
                     });

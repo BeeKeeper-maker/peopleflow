@@ -29,9 +29,14 @@ export async function GET(req: Request) {
         }
 
         // Fetch salary slips for this employee
+        // IMPORTANT: Only show approved/paid slips to employees.
+        // Draft slips are HR-internal (may contain errors, not yet reviewed).
+        // Reversed slips are excluded (they're corrections, not final).
         const salarySlips = await prisma.salarySlip.findMany({
             where: {
                 employeeId: employee.id,
+                status: { in: ["approved", "paid"] },
+                isReversed: false,
             },
             orderBy: [{ year: "desc" }, { month: "desc" }],
         });
