@@ -47,6 +47,18 @@ CREATE INDEX IF NOT EXISTS "BiometricDevice_syncApiKeyId_idx"
     ON "BiometricDevice"("syncApiKeyId");
 
 -- ═══════════════════════════════════════════════════════════════════
+-- Performance: composite index for biometric punch lookup
+--
+-- Every punch ingestion (sync agent push, ADMS push, cloud-pull) queries
+-- Employee by (organizationId, biometricUserId) to map device user IDs
+-- to employees. Without this index, each push scans all employees in
+-- the org linearly — for a 5000-employee org with 5-min sync cycles,
+-- that's 1.5M row scans/day. This index makes it O(log n).
+-- ═══════════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS "Employee_organizationId_biometricUserId_idx"
+    ON "Employee"("organizationId", "biometricUserId");
+
+-- ═══════════════════════════════════════════════════════════════════
 -- Backfill: Enable RLS on BiometricCloudEvent
 --
 -- BiometricCloudEvent was added in migration 20260605151500 but RLS was

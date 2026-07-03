@@ -683,6 +683,10 @@ model Employee {
   @@index([designationId])
   @@index([reportingManagerId])
   @@index([deletedAt])
+  // Biometric punch lookup: every punch ingestion queries by
+  // (organizationId, biometricUserId). Without this index, each push
+  // scans all employees in the org linearly — slow for 5000+ employees.
+  @@index([organizationId, biometricUserId])
 }
 
 model EmployeeDocument {

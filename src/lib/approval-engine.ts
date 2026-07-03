@@ -220,11 +220,16 @@ export async function processApprovalStep(
 
     // Authorization: actor must be the assigned person OR have the correct role
     if (currentStepLog.assignedToId && currentStepLog.assignedToId !== actorId) {
-        // Check if actor has the required role via RBAC
+        // Check if actor has the required role via RBAC.
+        // For "manager" role, also verify the actor is the requester's
+        // direct reporting manager — prevents a Sales manager from
+        // approving an Engineering employee's leave just because both
+        // have role "manager".
         const hasAuth = await hasApprovalAuthority(
             actorId,
             currentStepLog.assignedRole,
-            request.organizationId
+            request.organizationId,
+            request.requesterId, // pass requester for direct-report check
         );
         if (!hasAuth) {
             return { success: false, message: `Only the assigned ${formatRole(currentStepLog.assignedRole)} can act on this step.` };
@@ -632,12 +637,30 @@ function checkRolePermission(role: string, permission: string): boolean {
 
 /**
  * Check if an employee has authority to act on an approval step.
- * Combines role check + RBAC permission check.
+ * Combines role check + RBAC permission check + direct-report check.
+ *
+ * For "manager" role:
+ *   The actor must be the requester's direct reporting manager
+ *   (requester.reportingManagerId === actorEmployeeId). This prevents
+ *   a Sales manager from approving an Engineering employee's leave
+ *   just because both have role "manager".
+ *
+ * For "hr_admin" / "admin" / "super_admin" roles:
+ *   Role match is sufficient — these are org-wide authority roles.
+ *
+ * RBAC permission "approval:act" is checked as a fallback for
+ * delegated authority (e.g., time-bounded delegation via RBACPermission).
+ *
+ * @param actorEmployeeId  The employee trying to act
+ * @param requiredRole     The role required by the current workflow step
+ * @param organizationId   The org scope
+ * @param requesterId      The employee who submitted the request (for direct-report check)
  */
 async function hasApprovalAuthority(
     actorEmployeeId: string,
     requiredRole: string,
-    organizationId: string
+    organizationId: string,
+    requesterId?: string,
 ): Promise<boolean> {
     // Get user for this employee
     const employee = await prisma.employee.findUnique({
@@ -654,16 +677,35 @@ async function hasApprovalAuthority(
 
     if (!user) return false;
 
-    // Direct role match
+    // Admin / super_admin can act on any step (org-wide authority)
+    if (user.role === "admin" || user.role === "super_admin") return true;
+
+    // HR admin can act on HR steps AND manager steps (HR is above manager in the ladder)
+    if (user.role === "hr_admin" && ["hr_admin", "manager"].includes(requiredRole)) {
+        return true;
+    }
+
+    // For manager role: the actor must be the requester's DIRECT reporting manager.
+    // This is the critical fix — without it, any manager in the org could approve
+    // any other employee's request, which is a serious privacy/authority violation.
+    if (requiredRole === "manager" && user.role === "manager") {
+        if (!requesterId) return false; // No requester context → can't verify → deny
+
+        const requester = await prisma.employee.findUnique({
+            where: { id: requesterId },
+            select: { reportingManagerId: true, organizationId: true },
+        });
+
+        if (!requester) return false;
+        if (requester.organizationId !== organizationId) return false; // cross-tenant guard
+        // Actor must be the requester's direct reporting manager
+        return requester.reportingManagerId === actorEmployeeId;
+    }
+
+    // Direct role match for non-manager roles (e.g., department_head)
     if (user.role === requiredRole) return true;
 
-    // Admin can act on any step
-    if (user.role === "admin") return true;
-
-    // HR admin can act on HR steps
-    if (user.role === "hr_admin" && ["hr_admin", "manager"].includes(requiredRole)) return true;
-
-    // Check RBAC permission (leave:approve, expense:approve, etc.)
+    // Check RBAC permission (leave:approve, expense:approve, etc.) for delegated authority
     return hasPermission(employee.userId, `approval:act`, { organizationId });
 }
 
@@ -848,14 +890,111 @@ async function updateEntityStatus(
                 },
             });
             break;
-        case "attendance_regularize":
-            await prisma.attendance.update({
+        case "attendance_regularize": {
+            // The attendance record's `notes` field contains the
+            // regularization request data as a JSON string:
+            //   [REGULARIZATION] {"status":"PENDING","requestedStatus":"present","requestedCheckIn":"09:00","requestedCheckOut":"18:00",...}
+            // We parse it, apply the requested check-in/out times and
+            // status, and write back the updated metadata.
+            //
+            // Previously this case only wrote a status string to `notes`
+            // and never applied the requested times — so a fully-approved
+            // regularization left the attendance record unchanged.
+            const attendanceRecord = await prisma.attendance.findUnique({
                 where: { id: entityId },
-                data: {
-                    notes: `[${status.toUpperCase()}] by ${actorId}. ${notes || ""}`.trim(),
-                },
+                select: { id: true, date: true, notes: true, employeeId: true },
             });
+
+            if (!attendanceRecord) break;
+
+            // Parse existing regularization metadata from notes
+            let regData: {
+                status?: string;
+                requestedStatus?: string;
+                requestedCheckIn?: string | null;
+                requestedCheckOut?: string | null;
+                reason?: string;
+                approvedBy?: string;
+                approvedAt?: string;
+                rejectionReason?: string;
+                rejectedAt?: string;
+            } = {};
+
+            if (attendanceRecord.notes) {
+                const match = attendanceRecord.notes.match(/\[REGULARIZATION\]\s*(\{.*\})/);
+                if (match) {
+                    try {
+                        regData = JSON.parse(match[1]);
+                    } catch {
+                        // Malformed JSON — start fresh
+                    }
+                }
+            }
+
+            if (status === "approved") {
+                const updateData: {
+                    status: string;
+                    source: string;
+                    checkIn?: Date;
+                    checkOut?: Date;
+                    lateMinutes: number;
+                    earlyLeaveMinutes: number;
+                    notes: string;
+                } = {
+                    status: regData.requestedStatus || "present",
+                    source: "regularization",
+                    lateMinutes: 0, // Reset penalties — attendance is being regularized
+                    earlyLeaveMinutes: 0,
+                    notes: "",
+                };
+
+                // Apply requested check-in time
+                if (regData.requestedCheckIn && /^\d{2}:\d{2}$/.test(regData.requestedCheckIn)) {
+                    const [h, m] = regData.requestedCheckIn.split(":");
+                    const d = new Date(attendanceRecord.date);
+                    d.setUTCHours(Number(h), Number(m), 0, 0);
+                    updateData.checkIn = d;
+                }
+
+                // Apply requested check-out time
+                if (regData.requestedCheckOut && /^\d{2}:\d{2}$/.test(regData.requestedCheckOut)) {
+                    const [h, m] = regData.requestedCheckOut.split(":");
+                    const d = new Date(attendanceRecord.date);
+                    d.setUTCHours(Number(h), Number(m), 0, 0);
+                    updateData.checkOut = d;
+                }
+
+                // Update metadata
+                regData.status = "APPROVED";
+                regData.approvedAt = new Date().toISOString();
+                updateData.notes = `[REGULARIZATION] ${JSON.stringify(regData)}`;
+
+                await prisma.attendance.update({
+                    where: { id: entityId },
+                    data: updateData,
+                });
+            } else if (status === "rejected") {
+                regData.status = "REJECTED";
+                regData.rejectionReason = notes;
+                regData.rejectedAt = new Date().toISOString();
+                await prisma.attendance.update({
+                    where: { id: entityId },
+                    data: {
+                        notes: `[REGULARIZATION] ${JSON.stringify(regData)}`,
+                    },
+                });
+            } else {
+                // cancelled
+                regData.status = "CANCELLED";
+                await prisma.attendance.update({
+                    where: { id: entityId },
+                    data: {
+                        notes: `[REGULARIZATION] ${JSON.stringify(regData)}`,
+                    },
+                });
+            }
             break;
+        }
         case "document_request":
             await prisma.documentRequest.update({
                 where: { id: entityId },
