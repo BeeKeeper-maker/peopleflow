@@ -334,6 +334,9 @@ model Organization {
   savedReports          SavedReport[]
   scheduledReports      ScheduledReport[]
 
+  // Custom Fields
+  customFields          CustomField[]
+
   @@index([status])
 }
 
@@ -1312,6 +1315,55 @@ model PFTransaction {
   @@index([transactionType])
   @@index([transactionDate])
   @@index([referenceMonth, referenceYear])
+}
+
+// ============================================
+// Custom Fields Builder
+// ============================================
+
+/**
+ * CustomField — admin-defined field that extends a standard entity.
+ *
+ * Entities supported: Employee (primary use case), Attendance, LeaveApplication.
+ *
+ * Field types:
+ *   text: single-line string
+ *   textarea: multi-line string
+ *   number: numeric value
+ *   date: date picker
+ *   select: dropdown with predefined options
+ *   boolean: yes/no toggle
+ *
+ * The value is stored in the entity's `customFields` JSONB column
+ * (e.g., Employee.customFields = { "blood_group": "O+", "emergency_contact": "..." }).
+ *
+ * This table defines the FIELD SCHEMA (label, type, options, required).
+ * The actual VALUES are stored per-entity in the JSONB column.
+ */
+model CustomField {
+  id              String   @id @default(cuid())
+  label           String                         // "Blood Group", "Emergency Contact"
+  key             String                         // "blood_group" — used in customFields JSONB
+  entityType      String                         // Employee, Attendance, LeaveApplication
+  fieldType       String                         // text, textarea, number, date, select, boolean
+  options         String[]                       // for select type: ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"]
+  isRequired      Boolean  @default(false)
+  isFilterable    Boolean  @default(false)       // show in report builder filters
+  isSearchable    Boolean  @default(false)       // include in global search
+  defaultValue    String?
+  description     String?
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entityType, key])
+  @@index([organizationId, entityType])
+  @@index([isActive])
 }
 
 // ============================================
