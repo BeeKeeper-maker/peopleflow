@@ -15,6 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 
 import { useToast } from "@/components/ui/toast";
@@ -242,24 +248,16 @@ export default function ESSPayslipsPage() {
                 </CardContent>
             </Card>
 
-            {/* Payslip Detail Modal */}
-            {selectedPayslip && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <Card className="bg-background border-card-border w-full max-w-lg max-h-[80vh] overflow-y-auto">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-foreground">
-                                {t("payslipTitle", { month: new Date(selectedPayslip.year, selectedPayslip.month - 1, 1).toLocaleDateString("en-US", { month: "long" }), year: selectedPayslip.year })}
-                            </CardTitle>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedPayslip(null)}
-                                className="text-muted-foreground"
-                            >
-                                {t("close")}
-                            </Button>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
+            {/* Payslip Detail Dialog */}
+            <Dialog open={!!selectedPayslip} onOpenChange={(open) => { if (!open) setSelectedPayslip(null); }}>
+                <DialogContent className="max-w-lg bg-card border-card-border max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-foreground">
+                            {selectedPayslip && t("payslipTitle", { month: new Date(selectedPayslip.year, selectedPayslip.month - 1, 1).toLocaleDateString("en-US", { month: "long" }), year: selectedPayslip.year })}
+                        </DialogTitle>
+                    </DialogHeader>
+                    {selectedPayslip && (
+                        <div className="space-y-6">
                             {/* Earnings */}
                             <div>
                                 <h3 className="text-sm font-semibold text-green-400 mb-3">{t("earnings")}</h3>
@@ -325,10 +323,10 @@ export default function ESSPayslipsPage() {
                                     {formatCurrency(selectedPayslip.netSalary)}
                                 </span>
                             </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -280,9 +280,15 @@ export default function ESSExpensesPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-1">
-                                                    <Button size="sm" variant="ghost" className="text-blue-400 h-8 w-8 p-0">
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
+                                                    {claim.receiptUrl ? (
+                                                        <a href={claim.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                            <Button size="sm" variant="ghost" className="text-blue-400 h-8 w-8 p-0" aria-label="View receipt">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

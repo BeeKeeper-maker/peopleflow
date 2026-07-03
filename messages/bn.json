@@ -1074,7 +1074,8 @@
     "bankRouting": "রাউটিং নম্বর",
     "notProvided": "প্রদান করা হয়নি",
     "updateSuccess": "প্রোফাইল সফলভাবে আপডেট হয়েছে",
-    "updateFailed": "প্রোফাইল আপডেট করা যায়নি"
+    "updateFailed": "প্রোফাইল আপডেট করা যায়নি",
+    "contactInfo": "যোগাযোগের তথ্য"
   },
   "ManagerApprovals": {
     "title": "অনুমোদন অপেক্ষমাণ",
