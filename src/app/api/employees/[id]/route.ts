@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { employeeSchema, toPrismaEmployeeData, buildEmergencyContactJson } from "@/lib/validations/employee";
 import { z } from "zod";
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { sendTemplateEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
@@ -17,71 +15,69 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            select: { id: true, organizationId: true, role: true, employee: { select: { id: true } } },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
-        const userRole = user.role as string;
+        const userRole = auth.role;
         const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(userRole);
         const isManager = userRole === "manager";
-        const isSelf = user.employee?.id === id;
-        const isDirectReport = isManager && !!user.employee?.id && await prisma.employee.findFirst({
-            where: {
-                id,
-                organizationId: user.organizationId,
-                reportingManagerId: user.employee.id,
-                deletedAt: null,
-            },
-            select: { id: true },
-        });
+        const isSelf = auth.employeeId === id;
+
+        let isDirectReport = false;
+        if (isManager && auth.employeeId) {
+            const directReport = await auth.withDB((db) =>
+                db.employee.findFirst({
+                    where: {
+                        id,
+                        organizationId: auth.organizationId,
+                        reportingManagerId: auth.employeeId,
+                        deletedAt: null,
+                    },
+                    select: { id: true },
+                }),
+            );
+            isDirectReport = !!directReport;
+        }
 
         // Full profile data for HR; non-HR self/manager views exclude salary assignment data.
         if (isHRLevel || isDirectReport || isSelf) {
-            const employee = await prisma.employee.findFirst({
-                where: {
-                    id,
-                    organizationId: user.organizationId,
-                    deletedAt: null,
-                },
-                include: {
-                    department: true,
-                    designation: true,
-                    shift: true,
-                    branch: true,
-                    reportingManager: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            email: true,
-                            employeeCode: true,
-                        }
+            const employee = await auth.withDB((db) =>
+                db.employee.findFirst({
+                    where: {
+                        id,
+                        organizationId: auth.organizationId,
+                        deletedAt: null,
                     },
-                    ...(isHRLevel ? {
-                        salaryAssignments: {
-                            where: { isActive: true },
-                            include: {
-                                salaryStructure: true,
-                            },
-                            orderBy: {
-                                effectiveFrom: 'desc' as const,
-                            },
-                            take: 1,
+                    include: {
+                        department: true,
+                        designation: true,
+                        shift: true,
+                        branch: true,
+                        reportingManager: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                email: true,
+                                employeeCode: true,
+                            }
                         },
-                    } : {}),
-                },
-            });
+                        ...(isHRLevel ? {
+                            salaryAssignments: {
+                                where: { isActive: true },
+                                include: {
+                                    salaryStructure: true,
+                                },
+                                orderBy: {
+                                    effectiveFrom: 'desc' as const,
+                                },
+                                take: 1,
+                            },
+                        } : {}),
+                    },
+                }),
+            );
 
             if (!employee) {
                 return new NextResponse("Employee not found", { status: 404 });
@@ -91,38 +87,40 @@ export async function GET(
         }
 
         // Regular employees viewing others: public fields only (no salary, NID, bank details)
-        const employee = await prisma.employee.findFirst({
-            where: {
-                id,
-                organizationId: user.organizationId,
-                deletedAt: null,
-            },
-            select: {
-                id: true,
-                employeeCode: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-                photoUrl: true,
-                gender: true,
-                joiningDate: true,
-                employmentType: true,
-                employmentStatus: true,
-                department: { select: { id: true, name: true, code: true } },
-                designation: { select: { id: true, name: true, grade: true } },
-                branch: { select: { id: true, name: true } },
-                shift: { select: { id: true, name: true, startTime: true, endTime: true } },
-                reportingManager: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        employeeCode: true,
-                    }
+        const employee = await auth.withDB((db) =>
+            db.employee.findFirst({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                    deletedAt: null,
                 },
-            },
-        });
+                select: {
+                    id: true,
+                    employeeCode: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phone: true,
+                    photoUrl: true,
+                    gender: true,
+                    joiningDate: true,
+                    employmentType: true,
+                    employmentStatus: true,
+                    department: { select: { id: true, name: true, code: true } },
+                    designation: { select: { id: true, name: true, grade: true } },
+                    branch: { select: { id: true, name: true } },
+                    shift: { select: { id: true, name: true, startTime: true, endTime: true } },
+                    reportingManager: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            employeeCode: true,
+                        }
+                    },
+                },
+            }),
+        );
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
@@ -165,16 +163,18 @@ export async function PUT(
         }
 
         // ── Verify employee exists ──────────────────────────────────────
-        const existingEmployee = await prisma.employee.findUnique({
-            where: { id, organizationId: auth.organizationId },
-            include: {
-                salaryAssignments: {
-                    where: { isActive: true },
-                    orderBy: { effectiveFrom: 'desc' },
-                    take: 1
+        const existingEmployee = await auth.withDB((db) =>
+            db.employee.findUnique({
+                where: { id, organizationId: auth.organizationId },
+                include: {
+                    salaryAssignments: {
+                        where: { isActive: true },
+                        orderBy: { effectiveFrom: 'desc' },
+                        take: 1
+                    }
                 }
-            }
-        });
+            }),
+        );
 
         if (!existingEmployee) {
             return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -184,40 +184,50 @@ export async function PUT(
         if (normalizedEmail) {
             body.email = normalizedEmail;
 
-            const duplicateEmployee = await prisma.employee.findFirst({
-                where: {
-                    organizationId: auth.organizationId,
-                    email: normalizedEmail,
-                    NOT: { id },
-                },
-                select: { id: true },
-            });
+            const duplicateEmployee = await auth.withDB((db) =>
+                db.employee.findFirst({
+                    where: {
+                        organizationId: auth.organizationId,
+                        email: normalizedEmail,
+                        NOT: { id },
+                    },
+                    select: { id: true },
+                }),
+            );
             if (duplicateEmployee) {
                 return NextResponse.json({ error: "Email already exists" }, { status: 409 });
             }
 
-            const duplicateUser = await prisma.user.findUnique({
-                where: { email: normalizedEmail },
-                select: { id: true },
-            });
+            const duplicateUser = await auth.withDB((db) =>
+                db.user.findUnique({
+                    where: { email: normalizedEmail },
+                    select: { id: true },
+                }),
+            );
             if (duplicateUser && duplicateUser.id !== existingEmployee.userId) {
                 return NextResponse.json({ error: "A user account already exists for this email" }, { status: 409 });
             }
         }
 
         // ── FK Existence Validation (CRIT-07, CRIT-08) ─────────────────
-        const department = await prisma.department.findUnique({ where: { id: body.departmentId } });
+        const department = await auth.withDB((db) =>
+            db.department.findUnique({ where: { id: body.departmentId } }),
+        );
         if (!department || department.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Invalid department selected" }, { status: 400 });
         }
 
-        const designation = await prisma.designation.findUnique({ where: { id: body.designationId } });
+        const designation = await auth.withDB((db) =>
+            db.designation.findUnique({ where: { id: body.designationId } }),
+        );
         if (!designation || designation.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Invalid designation selected" }, { status: 400 });
         }
 
         if (body.shiftId) {
-            const shift = await prisma.shift.findUnique({ where: { id: body.shiftId } });
+            const shift = await auth.withDB((db) =>
+                db.shift.findUnique({ where: { id: body.shiftId } }),
+            );
             if (!shift || shift.organizationId !== auth.organizationId) {
                 return NextResponse.json({ error: "Invalid shift selected" }, { status: 400 });
             }
@@ -227,7 +237,9 @@ export async function PUT(
             if (body.reportingManagerId === id) {
                 return NextResponse.json({ error: "Employee cannot report to themselves" }, { status: 400 });
             }
-            const manager = await prisma.employee.findUnique({ where: { id: body.reportingManagerId } });
+            const manager = await auth.withDB((db) =>
+                db.employee.findUnique({ where: { id: body.reportingManagerId } }),
+            );
             if (!manager || manager.organizationId !== auth.organizationId) {
                 return NextResponse.json({ error: "Invalid reporting manager selected" }, { status: 400 });
             }
@@ -240,12 +252,12 @@ export async function PUT(
         const organizationId = auth.organizationId;
         const { grossSalary, salaryStructureId } = body;
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await auth.withDB(async (db) => {
             const wasInactive = existingEmployee.employmentStatus !== "active" || !!existingEmployee.deletedAt;
             const isActiveEmployment = body.employmentStatus === "active";
             const isReactivation = isActiveEmployment && wasInactive;
 
-            const updatedEmployee = await tx.employee.update({
+            const updatedEmployee = await db.employee.update({
                 where: { id },
                 data: {
                     ...prismaData,
@@ -258,7 +270,7 @@ export async function PUT(
             const linkedUserId = existingEmployee.userId;
             if (linkedUserId) {
                 const userEmail = normalizedEmail || existingEmployee.email;
-                await tx.user.update({
+                await db.user.update({
                     where: { id: linkedUserId },
                     data: {
                         name: `${body.firstName} ${body.lastName}`.trim(),
@@ -269,13 +281,13 @@ export async function PUT(
                 });
 
                 if (!isActiveEmployment || isReactivation) {
-                    await tx.session.deleteMany({ where: { userId: linkedUserId } });
+                    await db.session.deleteMany({ where: { userId: linkedUserId } });
                 }
 
                 if (isReactivation && userEmail) {
-                    await tx.passwordResetToken.deleteMany({ where: { email: userEmail, used: false } });
+                    await db.passwordResetToken.deleteMany({ where: { email: userEmail, used: false } });
                     reactivationToken = randomBytes(32).toString("hex");
-                    await tx.passwordResetToken.create({
+                    await db.passwordResetToken.create({
                         data: {
                             email: userEmail,
                             token: reactivationToken,
@@ -295,7 +307,7 @@ export async function PUT(
 
             if (!shouldHaveActiveCompensation) {
                 if (currentSalary?.isActive) {
-                    await tx.salaryStructureAssignment.update({
+                    await db.salaryStructureAssignment.update({
                         where: { id: currentSalary.id },
                         data: { isActive: false }
                     });
@@ -306,7 +318,7 @@ export async function PUT(
 
                 let structureId: string | undefined = salaryStructureId || currentSalary?.salaryStructureId;
                 if (!structureId) {
-                    const defaultStructure = await tx.salaryStructure.findFirst({
+                    const defaultStructure = await db.salaryStructure.findFirst({
                         where: { organizationId, isActive: true }
                     });
                     structureId = defaultStructure?.id;
@@ -321,7 +333,7 @@ export async function PUT(
                     const isToday = currentSalary.effectiveFrom.toDateString() === today.toDateString();
 
                     if (isToday) {
-                        await tx.salaryStructureAssignment.update({
+                        await db.salaryStructureAssignment.update({
                             where: { id: currentSalary.id },
                             data: {
                                 grossSalary,
@@ -330,12 +342,12 @@ export async function PUT(
                             }
                         });
                     } else {
-                        await tx.salaryStructureAssignment.update({
+                        await db.salaryStructureAssignment.update({
                             where: { id: currentSalary.id },
                             data: { isActive: false }
                         });
 
-                        await tx.salaryStructureAssignment.create({
+                        await db.salaryStructureAssignment.create({
                             data: {
                                 employeeId: id,
                                 salaryStructureId: structureId,
@@ -345,7 +357,7 @@ export async function PUT(
                         });
                     }
                 } else {
-                    await tx.salaryStructureAssignment.create({
+                    await db.salaryStructureAssignment.create({
                         data: {
                             employeeId: id,
                             salaryStructureId: structureId,
@@ -411,10 +423,12 @@ export async function DELETE(
             // No body or invalid JSON — default to "terminated" for backward compat
         }
 
-        const employee = await prisma.employee.findUnique({
-            where: { id, organizationId: auth.organizationId },
-            select: { id: true, userId: true, firstName: true, lastName: true, employmentStatus: true }
-        });
+        const employee = await auth.withDB((db) =>
+            db.employee.findUnique({
+                where: { id, organizationId: auth.organizationId },
+                select: { id: true, userId: true, firstName: true, lastName: true, employmentStatus: true }
+            }),
+        );
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
@@ -431,9 +445,9 @@ export async function DELETE(
             );
         }
 
-        await prisma.$transaction(async (tx) => {
+        await auth.withDB(async (db) => {
             // Soft delete employee with accurate separation type
-            await tx.employee.update({
+            await db.employee.update({
                 where: { id },
                 data: {
                     deletedAt: new Date(),
@@ -443,15 +457,15 @@ export async function DELETE(
 
             // Deactivate linked ESS login and any DB-backed sessions
             if (employee.userId) {
-                await tx.user.update({
+                await db.user.update({
                     where: { id: employee.userId },
                     data: { isActive: false, password: null, emailVerified: null },
                 });
-                await tx.session.deleteMany({ where: { userId: employee.userId } });
+                await db.session.deleteMany({ where: { userId: employee.userId } });
             }
 
             // Deactivate salary assignments (ARCH-08)
-            await tx.salaryStructureAssignment.updateMany({
+            await db.salaryStructureAssignment.updateMany({
                 where: { employeeId: id, isActive: true },
                 data: { isActive: false }
             });
