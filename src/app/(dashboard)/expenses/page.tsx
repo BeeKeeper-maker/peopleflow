@@ -66,15 +66,15 @@ interface ExpenseStats {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Status Config
+// Status Config (colors + icons only — labels are i18n in component)
 // ════════════════════════════════════════════════════════════════════════
 
-const statusConfig = {
-    draft: { label: "Draft", color: "bg-slate-500/20 text-slate-400", icon: Receipt },
-    pending: { label: "Pending", color: "bg-amber-500/20 text-amber-400", icon: Clock },
-    approved: { label: "Approved", color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
-    rejected: { label: "Rejected", color: "bg-red-500/20 text-red-400", icon: XCircle },
-    reimbursed: { label: "Reimbursed", color: "bg-blue-500/20 text-blue-400", icon: Banknote },
+const statusColors = {
+    draft: { color: "bg-slate-500/20 text-slate-400", icon: Receipt },
+    pending: { color: "bg-amber-500/20 text-amber-400", icon: Clock },
+    approved: { color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
+    rejected: { color: "bg-red-500/20 text-red-400", icon: XCircle },
+    reimbursed: { color: "bg-blue-500/20 text-blue-400", icon: Banknote },
 };
 
 // ════════════════════════════════════════════════════════════════════════
@@ -84,6 +84,15 @@ const statusConfig = {
 export default function ExpensesPage() {
     const { addToast } = useToast();
     const t = useTranslations('Expenses');
+
+    const statusConfig: Record<string, { label: string; color: string; icon: typeof Receipt }> = {
+        draft: { label: t("statusDraft"), color: statusColors.draft.color, icon: statusColors.draft.icon },
+        pending: { label: t("statusPending"), color: statusColors.pending.color, icon: statusColors.pending.icon },
+        approved: { label: t("statusApproved"), color: statusColors.approved.color, icon: statusColors.approved.icon },
+        rejected: { label: t("statusRejected"), color: statusColors.rejected.color, icon: statusColors.rejected.icon },
+        reimbursed: { label: t("statusReimbursed"), color: statusColors.reimbursed.color, icon: statusColors.reimbursed.icon },
+    };
+
     const [loading, setLoading] = useState(true);
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
     const [stats, setStats] = useState<ExpenseStats | null>(null);
@@ -130,7 +139,7 @@ export default function ExpensesPage() {
             });
 
             if (res.ok) {
-                addToast({ title: `Claim ${action}d`, description: `The expense claim has been ${action}d.`, type: "success" });
+                addToast({ title: t("claimActiond", { action }), description: t("claimActiondDesc", { action }), type: "success" });
                 fetchClaims();
             } else {
                 const err = await res.json();

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +46,7 @@ const STAGES = [
 
 export default function PipelinePage() {
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedJob, setSelectedJob] = useState<string>("all");
@@ -93,7 +95,7 @@ export default function PipelinePage() {
     };
 
     const reject = async (applicationId: string) => {
-        if (!confirm("Reject this candidate?")) return;
+        const _ok = await confirm({ title: "Reject this candidate?", description: "The candidate will be moved to rejected stage.", confirmLabel: "Reject", variant: "destructive" }); if (!_ok) return;
         try {
             const res = await fetch(`/api/recruitment/applications/${applicationId}`, {
                 method: "PATCH",
@@ -110,7 +112,7 @@ export default function PipelinePage() {
     };
 
     const onboard = async (applicationId: string) => {
-        if (!confirm("Onboard this candidate as an employee?")) return;
+        const _ok2 = await confirm({ title: "Onboard this candidate?", description: "An employee record will be created with invitation email.", confirmLabel: "Hire & Onboard", variant: "default" }); if (!_ok2) return;
         try {
             const res = await fetch(`/api/recruitment/applications/${applicationId}`, {
                 method: "PATCH",

@@ -934,7 +934,8 @@
     "bankRouting": "Routing Number",
     "notProvided": "Not provided",
     "updateSuccess": "Profile updated successfully",
-    "updateFailed": "Failed to update profile"
+    "updateFailed": "Failed to update profile",
+    "contactInfo": "Contact Info"
   },
   "ManagerApprovals": {
     "title": "Pending Approvals",
@@ -1979,7 +1980,27 @@
     "print": "Print",
     "startNew": "Start New",
     "documentPreview": "Document Preview",
-    "step": "Step"
+    "step": "Step",
+    "hrLetterGenerator": "HR Letter Generator",
+    "hrLetterDesc": "Generate official letters and certificates from employee data.",
+    "fillInFields": "Fill in any additional fields. Employee data is auto-populated.",
+    "autoPopulated": "All required data will be auto-populated from the employee record. No additional customization needed.",
+    "optionalOverrides": "Optional Overrides",
+    "signatoryName": "Signatory name",
+    "signatoryDesignation": "Signatory designation",
+    "signatureImageUrl": "Signature image URL",
+    "signatureHint": "Optional. Use a transparent PNG signature/stamp URL for official letters.",
+    "usePrintPdf": "Use Print / PDF to save as PDF on your device.",
+    "refNumber": "Reference number",
+    "orgAddress": "Organization address",
+    "lastWorkingDate": "Last working date",
+    "previousSalary": "Previous salary",
+    "newSalary": "New salary",
+    "effectiveDate": "Effective date",
+    "warningReason": "Warning reason",
+    "warningDetails": "Warning details",
+    "terminationDate": "Termination date",
+    "terminationReason": "Termination reason"
   },
   "Expenses": {
     "title": "Expense Claims",
@@ -2004,7 +2025,18 @@
     "claimApproved": "Expense claim approved",
     "claimRejected": "Expense claim rejected",
     "actionFailed": "Action failed",
-    "networkError": "Network error"
+    "networkError": "Network error",
+    "statusDraft": "Draft",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "statusReimbursed": "Reimbursed",
+    "claimActiond": "Claim {action}d",
+    "claimActiondDesc": "The expense claim has been {action}d.",
+    "pendingClaims": "Pending",
+    "rejectedClaims": "Rejected",
+    "reimbursedClaims": "Reimbursed",
+    "pendingAmount": "Pending Amount"
   },
   "ExpensesNew": {
     "title": "Submit Expense Claim",
@@ -2094,7 +2126,15 @@
     "delete": "Delete",
     "login": "Login",
     "approve": "Approve",
-    "reject": "Reject"
+    "reject": "Reject",
+    "justNow": "just now",
+    "mAgo": "m ago",
+    "hAgo": "h ago",
+    "dAgo": "d ago",
+    "actionCreated": "created",
+    "actionUpdated": "updated",
+    "actionDeleted": "deleted",
+    "actionLogin": "logged in"
   },
   "Compliance": {
     "title": "Compliance Dashboard",
@@ -2113,7 +2153,16 @@
     "critical": "Critical",
     "high": "High",
     "medium": "Medium",
-    "low": "Low"
+    "low": "Low",
+    "severityCritical": "Critical",
+    "severityHigh": "High",
+    "severityMedium": "Medium",
+    "severityLow": "Low",
+    "complianceLabel": "Compliance",
+    "scoreLabel": "Score",
+    "noIssues": "No issues found. All compliance checks are passing.",
+    "loadingChecks": "Loading compliance checks...",
+    "failedToLoad": "Failed to load compliance data. Please refresh."
   },
   "Holidays": {
     "title": "Holiday Management",
@@ -3040,5 +3089,16 @@
     "type_cdata": "Uploads",
     "type_getrequest": "Heartbeats",
     "type_registry": "Registry"
+  },
+  "ESSDashboard": {
+    "checkedInSuccess": "Checked in successfully!",
+    "checkedInFailed": "Failed to check in",
+    "checkedInError": "An error occurred while checking in",
+    "checkedOutSuccess": "Checked out successfully!",
+    "checkedOutFailed": "Failed to check out",
+    "checkedOutError": "An error occurred while checking out",
+    "failedLoadData": "Failed to load some dashboard data",
+    "installApp": "Install PeopleFlow",
+    "installAppDesc": "Use your browser menu and choose Add to Home Screen / Install App."
   }
 }

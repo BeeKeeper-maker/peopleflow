@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,7 @@ const MODULE_LABELS: Record<string, string> = {
 export default function RolesPage() {
     const t = useTranslations("Settings");
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [roles, setRoles] = useState<Role[]>([]);
     const [permissions, setPermissions] = useState<Permission[]>([]);
     const [loading, setLoading] = useState(true);
@@ -125,7 +127,13 @@ export default function RolesPage() {
 
     const handleDelete = async (role: Role) => {
         if (role.isSystem) return;
-        if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+        const ok = await confirm({
+            title: `Delete role "${role.name}"?`,
+            description: "This action cannot be undone. The role will be permanently removed.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         try {
             const res = await fetch(`/api/rbac/roles/${role.id}`, { method: "DELETE" });
             if (res.ok) {
@@ -223,6 +231,8 @@ export default function RolesPage() {
                     </Card>
                 ))}
             </div>
+
+            {confirmDialog}
 
             {showEditor && (
                 <RoleEditor

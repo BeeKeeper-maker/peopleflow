@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 
 // ════════════════════════════════════════════════════════════════════════
 // Types
@@ -103,6 +104,7 @@ function AnimatedCounter({ target, prefix = "", duration = 1200 }: {
 export default function LoansPage() {
     const t = useTranslations('Loans')
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [loans, setLoans] = useState<Loan[]>([])
     const [employees, setEmployees] = useState<Employee[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -180,7 +182,13 @@ export default function LoansPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const ok = await confirm({
+            title: t('confirmDelete'),
+            description: "This action cannot be undone.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        })
+        if (!ok) return
         try {
             const res = await fetch(`/api/loans/${id}`, { method: "DELETE" })
             if (res.ok) fetchData()
@@ -576,6 +584,7 @@ export default function LoansPage() {
                     </div>
                 </div>
             )}
+            {confirmDialog}
         </div>
     )
 }

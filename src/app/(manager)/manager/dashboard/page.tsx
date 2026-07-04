@@ -182,7 +182,7 @@ export default function ManagerDashboardPage() {
                         id: l.id,
                         type: "leave" as const,
                         employeeName: `${l.employee?.firstName || ""} ${l.employee?.lastName || ""}`,
-                        description: `${l.leaveType?.name || "Leave"} - ${l.totalDays} day(s)`,
+                        description: `${l.leaveType?.name || "Leave"} - ${l.totalDays} দিন`,
                         date: `${new Date(l.fromDate).toLocaleDateString()} - ${new Date(l.toDate).toLocaleDateString()}`,
                     }));
                     setPendingApprovals(leaveApprovals);

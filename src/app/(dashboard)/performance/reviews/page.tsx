@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ReviewCyclesPage() {
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [cycles, setCycles] = useState<ReviewCycle[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -82,7 +84,13 @@ export default function ReviewCyclesPage() {
     };
 
     const handleComplete = async (id: string) => {
-        if (!confirm("Complete this review cycle? No more reviews can be submitted.")) return;
+        const ok = await confirm({
+            title: "Complete this review cycle?",
+            description: "No more reviews can be submitted after completion. This action cannot be undone.",
+            confirmLabel: "Complete",
+            variant: "default",
+        });
+        if (!ok) return;
         try {
             const res = await fetch(`/api/performance/review-cycles/${id}`, {
                 method: "PATCH",
@@ -188,6 +196,8 @@ export default function ReviewCyclesPage() {
                     ))}
                 </div>
             )}
+
+            {confirmDialog}
 
             {showForm && (
                 <CycleForm

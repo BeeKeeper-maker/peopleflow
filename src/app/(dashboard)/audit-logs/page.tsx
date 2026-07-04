@@ -174,7 +174,7 @@ const defaultActionConfig = {
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-function getRelativeTime(dateStr: string): string {
+function getRelativeTime(dateStr: string, tFn?: (key: string) => string): string {
     const now = new Date()
     const date = new Date(dateStr)
     const diffMs = now.getTime() - date.getTime()
@@ -183,10 +183,11 @@ function getRelativeTime(dateStr: string): string {
     const diffHr = Math.floor(diffMin / 60)
     const diffDay = Math.floor(diffHr / 24)
 
-    if (diffSec < 60) return "just now"
-    if (diffMin < 60) return `${diffMin}m ago`
-    if (diffHr < 24) return `${diffHr}h ago`
-    if (diffDay < 7) return `${diffDay}d ago`
+    const t = tFn || ((k: string) => k)
+    if (diffSec < 60) return t("justNow")
+    if (diffMin < 60) return `${diffMin} ${t('mAgo')}`
+    if (diffHr < 24) return `${diffHr} ${t('hAgo')}`
+    if (diffDay < 7) return `${diffDay} ${t('dAgo')}`
     return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
 }
 
@@ -209,14 +210,15 @@ function parseDeviceInfo(userAgent: string | null): { browser: string; os: strin
     return { browser, os }
 }
 
-function buildDescription(log: AuditLogEntry): string {
+function buildDescription(log: AuditLogEntry, tFn?: (key: string) => string): string {
+    const t = tFn || ((k: string) => k)
     const actor = log.performedBy?.name || log.performedBy?.email || "System"
     const entity = log.entityType.replace(/([A-Z])/g, " $1").trim()
     const actionMap: Record<string, string> = {
-        create: "created",
-        update: "updated",
-        delete: "deleted",
-        login: "logged in",
+        create: t("actionCreated"),
+        update: t("actionUpdated"),
+        delete: t("actionDeleted"),
+        login: t("actionLogin"),
         approve: "approved",
         reject: "rejected",
         view: "viewed",
@@ -559,7 +561,7 @@ export default function AuditLogsPage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm text-foreground truncate">
-                                                    {buildDescription(log)}
+                                                    {buildDescription(log, t)}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <Badge className={`${config.bgClass} ${config.textClass} text-[9px] uppercase border-0 px-1.5 py-0`}>
@@ -709,7 +711,7 @@ export default function AuditLogsPage() {
                                         {/* Description */}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium text-foreground truncate">
-                                                {buildDescription(log)}
+                                                {buildDescription(log, t)}
                                             </p>
                                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                 <Badge className={`${config.bgClass} ${config.textClass} text-[9px] uppercase border-0 px-1.5 py-0`}>
@@ -807,7 +809,7 @@ export default function AuditLogsPage() {
                             {t('logDetail')}
                         </DialogTitle>
                         <DialogDescription>
-                            {selectedLog && buildDescription(selectedLog)}
+                            {selectedLog && buildDescription(selectedLog, t)}
                         </DialogDescription>
                     </DialogHeader>
 

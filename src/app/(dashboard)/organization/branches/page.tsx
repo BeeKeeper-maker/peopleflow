@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users, Navigation, Shield, ShieldOff, CheckCircle2, Settings2, Crown, ArrowUpRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface Branch {
     id: string
@@ -33,6 +34,7 @@ export default function BranchesPage() {
     const t = useTranslations('Branches')
     const router = useRouter()
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [branches, setBranches] = useState<Branch[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -137,7 +139,7 @@ export default function BranchesPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const _ok = await confirm({ title: t('confirmDelete'), description: 'This branch will be permanently removed.', confirmLabel: 'Delete', variant: 'destructive' }); if (!_ok) return
         try {
             const res = await fetch(`/api/branches/${id}`, { method: "DELETE" })
             if (res.ok) {

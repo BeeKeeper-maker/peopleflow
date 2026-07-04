@@ -333,7 +333,7 @@ export default function ESSProfilePage() {
                             <CardHeader>
                                 <CardTitle className="text-foreground flex items-center gap-2">
                                     <Phone className="h-5 w-5 text-purple-400" />
-                                    {t("personalInfo")}
+                                    {t("contactInfo")}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>

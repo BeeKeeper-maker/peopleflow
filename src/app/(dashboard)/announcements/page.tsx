@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Plus, Loader2, Megaphone, Trash2, Pencil, Pin, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 
 interface Announcement {
     id: string
@@ -37,6 +38,7 @@ const TYPES = [
 export default function AnnouncementsPage() {
     const t = useTranslations('Announcements')
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [announcements, setAnnouncements] = useState<Announcement[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -110,7 +112,12 @@ export default function AnnouncementsPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        if (!await confirm({
+            title: t('confirmDelete'),
+            description: "This announcement will be permanently removed.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        })) return
         try {
             const res = await fetch(`/api/announcements/${id}`, { method: "DELETE" })
             if (res.ok) {
@@ -270,6 +277,7 @@ export default function AnnouncementsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+            {confirmDialog}
         </div>
     )
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
@@ -131,6 +132,7 @@ export default function DevicesPage() {
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
     const [devices, setDevices] = useState<BiometricDevice[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
@@ -276,7 +278,7 @@ export default function DevicesPage() {
     // ── Delete Device ─────────────────────────────────────────────
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t("confirmDelete"))) return;
+        const _ok = await confirm({ title: t("confirmDelete"), description: "This device will be removed.", confirmLabel: "Delete", variant: "destructive" }); if (!_ok) return;
 
         try {
             const res = await fetch(`/api/biometric-devices/${id}`, {

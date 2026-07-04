@@ -1074,7 +1074,8 @@
     "bankRouting": "রাউটিং নম্বর",
     "notProvided": "প্রদান করা হয়নি",
     "updateSuccess": "প্রোফাইল সফলভাবে আপডেট হয়েছে",
-    "updateFailed": "প্রোফাইল আপডেট করা যায়নি"
+    "updateFailed": "প্রোফাইল আপডেট করা যায়নি",
+    "contactInfo": "যোগাযোগের তথ্য"
   },
   "ManagerApprovals": {
     "title": "অনুমোদন অপেক্ষমাণ",
@@ -1979,7 +1980,27 @@
     "print": "প্রিন্ট",
     "startNew": "নতুন শুরু করুন",
     "documentPreview": "ডকুমেন্ট প্রিভিউ",
-    "step": "ধাপ"
+    "step": "ধাপ",
+    "hrLetterGenerator": "এইচআর লেটার জেনারেটর",
+    "hrLetterDesc": "কর্মী ডেটা থেকে অফিসিয়াল চিঠি এবং সার্টিফিকেট তৈরি করুন।",
+    "fillInFields": "অতিরিক্ত ক্ষেত্র পূরণ করুন। কর্মী ডেটা স্বয়ংক্রিয়ভাবে পূরণ হবে।",
+    "autoPopulated": "সকল প্রয়োজনীয় ডেটা কর্মী রেকর্ড থেকে স্বয়ংক্রিয়ভাবে পূরণ হবে। কোনো অতিরিক্ত কাস্টমাইজেশনের প্রয়োজন নেই।",
+    "optionalOverrides": "ঐচ্ছিক ওভাররাইড",
+    "signatoryName": "স্বাক্ষরকারীর নাম",
+    "signatoryDesignation": "স্বাক্ষরকারীর পদবি",
+    "signatureImageUrl": "স্বাক্ষর ছবি URL",
+    "signatureHint": "ঐচ্ছিক। অফিসিয়াল চিঠির জন্য স্বচ্ছ PNG স্বাক্ষর/সিল URL ব্যবহার করুন।",
+    "usePrintPdf": "আপনার ডিভাইসে PDF হিসেবে সংরক্ষণ করতে Print / PDF ব্যবহার করুন।",
+    "refNumber": "রেফারেন্স নম্বর",
+    "orgAddress": "প্রতিষ্ঠানের ঠিকানা",
+    "lastWorkingDate": "শেষ কর্মদিবস",
+    "previousSalary": "পূর্ববর্তী বেতন",
+    "newSalary": "নতুন বেতন",
+    "effectiveDate": "কার্যকর তারিখ",
+    "warningReason": "সতর্কতার কারণ",
+    "warningDetails": "সতর্কতার বিস্তারিত",
+    "terminationDate": "চাকরি শেষের তারিখ",
+    "terminationReason": "চাকরি শেষের কারণ"
   },
   "Expenses": {
     "title": "খরচের দাবি",
@@ -2004,7 +2025,18 @@
     "claimApproved": "খরচের দাবি অনুমোদিত",
     "claimRejected": "খরচের দাবি প্রত্যাখ্যাত",
     "actionFailed": "কার্যক্রম ব্যর্থ",
-    "networkError": "নেটওয়ার্ক ত্রুটি"
+    "networkError": "নেটওয়ার্ক ত্রুটি",
+    "statusDraft": "খসড়া",
+    "statusPending": "অপেক্ষমাণ",
+    "statusApproved": "অনুমোদিত",
+    "statusRejected": "প্রত্যাখ্যাত",
+    "statusReimbursed": "পরিশোধিত",
+    "claimActiond": "দাবি {action} সম্পন্ন",
+    "claimActiondDesc": "খরচের দাবিটি {action} করা হয়েছে।",
+    "pendingClaims": "অপেক্ষমাণ",
+    "rejectedClaims": "প্রত্যাখ্যাত",
+    "reimbursedClaims": "পরিশোধিত",
+    "pendingAmount": "অপেক্ষমাণ পরিমাণ"
   },
   "ExpensesNew": {
     "title": "খরচের দাবি জমা দিন",
@@ -2094,7 +2126,15 @@
     "delete": "মুছুন",
     "login": "লগইন",
     "approve": "অনুমোদন",
-    "reject": "প্রত্যাখ্যান"
+    "reject": "প্রত্যাখ্যান",
+    "justNow": "এইমাত্র",
+    "mAgo": "মিনিট আগে",
+    "hAgo": "ঘন্টা আগে",
+    "dAgo": "দিন আগে",
+    "actionCreated": "তৈরি করা হয়েছে",
+    "actionUpdated": "আপডেট করা হয়েছে",
+    "actionDeleted": "মুছে ফেলা হয়েছে",
+    "actionLogin": "লগইন করেছেন"
   },
   "Compliance": {
     "title": "কমপ্লায়েন্স ড্যাশবোর্ড",
@@ -2113,7 +2153,16 @@
     "critical": "গুরুতর",
     "high": "উচ্চ",
     "medium": "মাঝারি",
-    "low": "নিম্ন"
+    "low": "নিম্ন",
+    "severityCritical": "সংকটজনক",
+    "severityHigh": "উচ্চ",
+    "severityMedium": "মাঝারি",
+    "severityLow": "নিম্ন",
+    "complianceLabel": "কমপ্লায়েন্স",
+    "scoreLabel": "স্কোর",
+    "noIssues": "কোনো সমস্যা পাওয়া যায়নি। সকল কমপ্লায়েন্স পরীক্ষা উত্তীর্ণ হচ্ছে।",
+    "loadingChecks": "কমপ্লায়েন্স পরীক্ষা লোড হচ্ছে...",
+    "failedToLoad": "কমপ্লায়েন্স ডেটা লোড করতে ব্যর্থ। অনুগ্রহ করে রিফ্রেশ করুন।"
   },
   "Holidays": {
     "title": "ছুটি ব্যবস্থাপনা",
@@ -3040,5 +3089,16 @@
     "type_cdata": "আপলোড",
     "type_getrequest": "হার্টবিট",
     "type_registry": "রেজিস্ট্রি"
+  },
+  "ESSDashboard": {
+    "checkedInSuccess": "সফলভাবে চেক-ইন হয়েছে!",
+    "checkedInFailed": "চেক-ইন করতে ব্যর্থ",
+    "checkedInError": "চেক-ইন করার সময় একটি সমস্যা হয়েছে",
+    "checkedOutSuccess": "সফলভাবে চেক-আউট হয়েছে!",
+    "checkedOutFailed": "চেক-আউট করতে ব্যর্থ",
+    "checkedOutError": "চেক-আউট করার সময় একটি সমস্যা হয়েছে",
+    "failedLoadData": "কিছু ড্যাশবোর্ড ডেটা লোড করতে ব্যর্থ",
+    "installApp": "PeopleFlow ইনস্টল করুন",
+    "installAppDesc": "আপনার ব্রাউজার মেনু ব্যবহার করে হোম স্ক্রিনে যোগ করুন / অ্যাপ ইনস্টল করুন।"
   }
 }
