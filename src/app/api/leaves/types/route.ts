@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
 import type { Prisma } from "@/generated/prisma";
 
@@ -25,34 +23,26 @@ function normalizeLeaveTypePayload(json: Record<string, unknown>): Record<string
 
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const fetchAll = searchParams.get("all") === "true";
 
         const where: Prisma.LeaveTypeWhereInput = {
-            organizationId: user.organizationId,
+            organizationId: auth.organizationId,
         };
 
         if (!fetchAll) {
             where.isActive = true;
         }
 
-        const leaveTypes = await prisma.leaveType.findMany({
-            where,
-            orderBy: { name: "asc" },
-        });
+        const leaveTypes = await auth.withDB((db) =>
+            db.leaveType.findMany({
+                where,
+                orderBy: { name: "asc" },
+            }),
+        );
 
         return NextResponse.json(leaveTypes);
     } catch (error) {
@@ -80,24 +70,28 @@ export async function POST(req: Request) {
         }
 
         // Check if code exists
-        const existingCode = await prisma.leaveType.findFirst({
-            where: {
-                organizationId: auth.organizationId,
-                code,
-            },
-        });
+        const existingCode = await auth.withDB((db) =>
+            db.leaveType.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    code,
+                },
+            }),
+        );
 
         if (existingCode) {
             return new NextResponse("Leave type code already exists", { status: 409 });
         }
 
-        const leaveType = await prisma.leaveType.create({
-            data: {
-                code,
-                organizationId: auth.organizationId,
-                ...rest,
-            } as Prisma.LeaveTypeUncheckedCreateInput,
-        });
+        const leaveType = await auth.withDB((db) =>
+            db.leaveType.create({
+                data: {
+                    code,
+                    organizationId: auth.organizationId,
+                    ...rest,
+                } as Prisma.LeaveTypeUncheckedCreateInput,
+            }),
+        );
 
         return NextResponse.json(leaveType);
     } catch (error) {
