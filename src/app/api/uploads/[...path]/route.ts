@@ -3,8 +3,7 @@ import { readFile, stat } from "fs/promises";
 import path from "path";
 import mime from 'mime';
 import { storageLogger } from "@/lib/logger";
-import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated, type AuthContext } from "@/lib/api-auth";
 
 
 function buildUploadUrl(pathSegments: string[]): string {
@@ -15,7 +14,7 @@ function isHRLevel(role: string): boolean {
     return ["super_admin", "admin", "hr_admin"].includes(role);
 }
 
-async function canAccessUpload(pathSegments: string[], auth: { role: string; organizationId: string; employeeId?: string }): Promise<boolean> {
+async function canAccessUpload(pathSegments: string[], auth: AuthContext): Promise<boolean> {
     const folder = pathSegments[1];
     if (!folder) return false;
 
@@ -32,13 +31,15 @@ async function canAccessUpload(pathSegments: string[], auth: { role: string; org
             return true;
         }
 
-        const claim = await prisma.expenseClaim.findFirst({
-            where: {
-                organizationId: auth.organizationId,
-                receiptUrl: fileUrl,
-            },
-            include: { employee: { select: { id: true, reportingManagerId: true } } },
-        });
+        const claim = await auth.withDB((db) =>
+            db.expenseClaim.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    receiptUrl: fileUrl,
+                },
+                include: { employee: { select: { id: true, reportingManagerId: true } } },
+            }),
+        );
 
         if (!claim || !auth.employeeId) return false;
         if (claim.employeeId === auth.employeeId) return true;
