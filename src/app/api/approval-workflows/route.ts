@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -9,10 +9,10 @@ export async function GET() {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const workflows = await prisma.approvalWorkflow.findMany({
+        const workflows = await auth.withDB((db) => db.approvalWorkflow.findMany({
             where: { organizationId: auth.organizationId },
             orderBy: { entityType: "asc" },
-        });
+        }));
 
         return NextResponse.json(workflows);
     } catch (error) {
@@ -40,14 +40,14 @@ export async function POST(req: Request) {
         }
 
         // Check if a workflow already exists for this entity type
-        const existing = await prisma.approvalWorkflow.findUnique({
+        const existing = await auth.withDB((db) => db.approvalWorkflow.findUnique({
             where: {
                 organizationId_entityType: {
                     organizationId: auth.organizationId,
                     entityType,
                 },
             },
-        });
+        }));
 
         if (existing) {
             return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const workflow = await prisma.approvalWorkflow.create({
+        const workflow = await auth.withDB((db) => db.approvalWorkflow.create({
             data: {
                 entityType,
                 name,
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
                 isActive: isActive ?? true,
                 organizationId: auth.organizationId,
             },
-        });
+        }));
 
         return NextResponse.json(workflow, { status: 201 });
     } catch (error) {

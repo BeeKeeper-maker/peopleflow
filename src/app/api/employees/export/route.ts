@@ -6,7 +6,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
@@ -72,14 +72,14 @@ export async function GET(req: NextRequest) {
         if (status) where.employmentStatus = status;
 
         // Fetch employees
-        const employees = await prisma.employee.findMany({
+        const employees = await auth.withDB((db) => db.employee.findMany({
             where,
             include: {
                 department: { select: { name: true } },
                 designation: { select: { name: true } },
             },
             orderBy: { employeeCode: "asc" },
-        });
+        }));
 
         // Format data for export
         const exportData: EmployeeExportRow[] = employees.map(emp => ({

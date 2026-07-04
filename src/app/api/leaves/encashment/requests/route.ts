@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
@@ -49,10 +49,10 @@ export async function GET(req: Request) {
         if (!isHRLevel) {
             if (ctx.role === "manager") {
                 // Manager sees own + direct reportees
-                const reportees = await prisma.employee.findMany({
+                const reportees = await auth.withDB((db) => db.employee.findMany({
                     where: { reportingManagerId: ctx.employeeId, organizationId: ctx.organizationId },
                     select: { id: true },
-                });
+                }));
                 const reporteeIds = reportees.map((r) => r.id);
                 where.OR = [
                     { employeeId: ctx.employeeId },
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
             }
         }
 
-        const requests = await prisma.leaveEncashmentRequest.findMany({
+        const requests = await auth.withDB((db) => db.leaveEncashmentRequest.findMany({
             where,
             include: {
                 employee: {
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { requestedAt: "desc" },
-        });
+        }));
 
         return NextResponse.json({ data: requests, total: requests.length });
     } catch (error) {
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
         }
 
         // Verify employee belongs to org
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: employeeId, organizationId: ctx.organizationId },
             include: {
                 salaryAssignments: {
@@ -164,7 +164,7 @@ export async function POST(req: Request) {
                     take: 1,
                 },
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(
@@ -174,14 +174,14 @@ export async function POST(req: Request) {
         }
 
         // Verify leave type allows encashment
-        const leaveType = await prisma.leaveType.findFirst({
+        const leaveType = await auth.withDB((db) => db.leaveType.findFirst({
             where: {
                 id: leaveTypeId,
                 organizationId: ctx.organizationId,
                 isActive: true,
                 encashmentAllowed: true,
             },
-        });
+        }));
 
         if (!leaveType) {
             return NextResponse.json(
@@ -191,7 +191,7 @@ export async function POST(req: Request) {
         }
 
         // Get current year's allocation
-        const allocation = await prisma.leaveAllocation.findUnique({
+        const allocation = await auth.withDB((db) => db.leaveAllocation.findUnique({
             where: {
                 employeeId_leaveTypeId_year: {
                     employeeId,
@@ -199,7 +199,7 @@ export async function POST(req: Request) {
                     year,
                 },
             },
-        });
+        }));
 
         if (!allocation) {
             return NextResponse.json(
@@ -241,7 +241,7 @@ export async function POST(req: Request) {
         );
 
         // Create the request
-        const request = await prisma.leaveEncashmentRequest.create({
+        const request = await auth.withDB((db) => db.leaveEncashmentRequest.create({
             data: {
                 status: "pending",
                 requestedDays,
@@ -261,7 +261,7 @@ export async function POST(req: Request) {
                 },
                 leaveType: { select: { id: true, name: true, nameBn: true } },
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -12,7 +12,7 @@ export async function GET() {
 
     try {
         // Get the user with organization context
-        const user = await prisma.user.findUnique({
+        const user = await auth.withDB((db) => db.user.findUnique({
             where: { id: auth.userId },
             select: {
                 id: true,
@@ -23,10 +23,10 @@ export async function GET() {
                     select: { name: true, industry: true },
                 },
             },
-        });
+        }));
 
         // Get the employee linked to the current user
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 organizationId: auth.organizationId,
                 userId: auth.userId,
@@ -48,7 +48,7 @@ export async function GET() {
                     select: { name: true },
                 },
             },
-        });
+        }));
 
         if (!employee) {
             // Return user-only data if no employee record linked
@@ -109,18 +109,18 @@ export async function PATCH(req: NextRequest) {
         }
 
         // Find and update the employee
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 organizationId: auth.organizationId,
                 userId: auth.userId,
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json({ error: "Employee profile not found" }, { status: 404 });
         }
 
-        const updatedEmployee = await prisma.employee.update({
+        const updatedEmployee = await auth.withDB((db) => db.employee.update({
             where: { id: employee.id },
             data: updateData,
             include: {
@@ -140,7 +140,7 @@ export async function PATCH(req: NextRequest) {
                     select: { name: true },
                 },
             },
-        });
+        }));
 
         return NextResponse.json({ data: updatedEmployee });
     } catch (error) {

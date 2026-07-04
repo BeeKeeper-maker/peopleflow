@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -14,12 +14,12 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const branch = await prisma.branch.findFirst({
+        const branch = await auth.withDB((db) => db.branch.findFirst({
             where: { id, organizationId: auth.organizationId },
             include: {
                 _count: { select: { employees: true } },
             },
-        });
+        }));
 
         if (!branch) {
             return NextResponse.json({ error: "Branch not found" }, { status: 404 });
@@ -45,15 +45,15 @@ export async function PUT(
         const json = await req.json();
 
         // Verify ownership
-        const existing = await prisma.branch.findFirst({
+        const existing = await auth.withDB((db) => db.branch.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!existing) {
             return NextResponse.json({ error: "Branch not found" }, { status: 404 });
         }
 
-        const branch = await prisma.branch.update({
+        const branch = await auth.withDB((db) => db.branch.update({
             where: { id },
             data: {
                 name: json.name,
@@ -68,7 +68,7 @@ export async function PUT(
                 longitude: json.longitude !== undefined ? (json.longitude != null ? parseFloat(json.longitude) : null) : existing.longitude,
                 geoFenceRadius: json.geoFenceRadius !== undefined ? parseInt(json.geoFenceRadius) : existing.geoFenceRadius,
             },
-        });
+        }));
 
         return NextResponse.json(branch);
     } catch (error) {
@@ -88,15 +88,15 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const branch = await prisma.branch.findFirst({
+        const branch = await auth.withDB((db) => db.branch.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!branch) {
             return NextResponse.json({ error: "Branch not found" }, { status: 404 });
         }
 
-        await prisma.branch.delete({ where: { id } });
+        await auth.withDB((db) => db.branch.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {

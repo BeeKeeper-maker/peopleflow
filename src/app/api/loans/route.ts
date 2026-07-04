@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { createApprovalRequest } from "@/lib/approval-engine";
 import { apiLogger } from "@/lib/logger";
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
         if (status) where.status = status;
 
-        const loans = await prisma.loan.findMany({
+        const loans = await auth.withDB((db) => db.loan.findMany({
             where,
             include: {
                 employee: {
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
         return NextResponse.json(loans);
     } catch (error) {
@@ -90,14 +90,14 @@ export async function POST(req: Request) {
 
         // Verify employee belongs to org and is within the caller's allowed scope.
         // Employees may request only their own loan; managers may request for self/direct reportees only.
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 id: employeeId,
                 organizationId: auth.organizationId,
                 ...(!isHR && isManager ? { OR: [{ id: auth.employeeId }, { reportingManagerId: auth.employeeId }] } : {}),
             },
             select: { id: true, firstName: true, lastName: true },
-        });
+        }));
         if (!employee) {
             return NextResponse.json({ error: isManager ? "Employee not found" : "Employee not found" }, { status: 404 });
         }
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
             emiAmount = amount / tenure;
         }
 
-        const loan = await prisma.loan.create({
+        const loan = await auth.withDB((db) => db.loan.create({
             data: {
                 type,
                 amount,
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
                     select: { id: true, firstName: true, lastName: true, employeeCode: true },
                 },
             },
-        });
+        }));
 
         // ── ✅ NEW: Create Stateful Approval Request ──
         try {

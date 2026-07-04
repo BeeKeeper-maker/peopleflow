@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         }
 
         // Get all allocations for the source year in this organization
-        const allocations = await prisma.leaveAllocation.findMany({
+        const allocations = await auth.withDB((db) => db.leaveAllocation.findMany({
             where: {
                 year: fromYear,
                 employee: {
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         if (allocations.length === 0) {
             return NextResponse.json({
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
             }
 
             // Upsert allocation for the target year
-            await prisma.leaveAllocation.upsert({
+            await auth.withDB((db) => db.leaveAllocation.upsert({
                 where: {
                     employeeId_leaveTypeId_year: {
                         employeeId: allocation.employee.id,
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
                 update: {
                     carriedForward: carryForwardDays,
                 },
-            });
+            }));
 
             results.push({
                 employee: `${allocation.employee.firstName} ${allocation.employee.lastName}`,

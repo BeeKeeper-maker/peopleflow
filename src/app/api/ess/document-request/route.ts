@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -18,9 +18,9 @@ export async function GET(req: Request) {
         if (!isAuthenticated(auth)) return auth;
 
         // Find the logged-in employee
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { userId: auth.userId, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(
@@ -29,13 +29,13 @@ export async function GET(req: Request) {
             );
         }
 
-        const requests = await prisma.documentRequest.findMany({
+        const requests = await auth.withDB((db) => db.documentRequest.findMany({
             where: {
                 employeeId: employee.id,
                 organizationId: auth.organizationId,
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
         return NextResponse.json(requests);
     } catch (error) {
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         }
 
         // Auto-scope to the logged-in employee
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 userId: auth.userId,
                 organizationId: auth.organizationId,
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
                     take: 1,
                 },
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(
@@ -90,14 +90,14 @@ export async function POST(req: Request) {
         }
 
         // Create a tracked document request
-        const docRequest = await prisma.documentRequest.create({
+        const docRequest = await auth.withDB((db) => db.documentRequest.create({
             data: {
                 type,
                 status: "processing",
                 employeeId: employee.id,
                 organizationId: auth.organizationId,
             },
-        });
+        }));
 
         // Try to auto-generate the document
         let html: string | null = null;
@@ -128,23 +128,23 @@ export async function POST(req: Request) {
             html = generateDocumentHTML(type as DocumentType, docData);
 
             // Mark as ready
-            await prisma.documentRequest.update({
+            await auth.withDB((db) => db.documentRequest.update({
                 where: { id: docRequest.id },
                 data: {
                     status: "ready",
                     processedAt: new Date(),
                     processedBy: auth.userId,
                 },
-            });
+            }));
         } catch {
             // If generation fails, leave as processing for HR to handle
             apiLogger.warn("Auto-generation not available for:", type);
         }
 
         // Re-fetch the request to return the latest status (may have been updated to 'ready')
-        const updatedRequest = await prisma.documentRequest.findUnique({
+        const updatedRequest = await auth.withDB((db) => db.documentRequest.findUnique({
             where: { id: docRequest.id },
-        });
+        }));
 
         return NextResponse.json({
             success: true,

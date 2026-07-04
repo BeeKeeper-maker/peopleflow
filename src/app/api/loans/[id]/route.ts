@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { resolveApprovalActorEmployee } from "@/lib/approval-actor";
 import { processApprovalStep } from "@/lib/approval-engine";
@@ -25,7 +25,7 @@ export async function PUT(
         const isHR = ["super_admin", "admin", "hr_admin"].includes(auth.role);
         const isManager = auth.role === "manager";
 
-        const existing = await prisma.loan.findFirst({
+        const existing = await auth.withDB((db) => db.loan.findFirst({
             where: {
                 id,
                 employee: {
@@ -34,7 +34,7 @@ export async function PUT(
                 },
             },
             include: { employee: { select: { organizationId: true, reportingManagerId: true } } },
-        });
+        }));
 
         if (!existing || existing.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
@@ -42,9 +42,9 @@ export async function PUT(
 
         // ── ✅ Route approve/reject through Stateful Approval Engine ──
         if (json.status === "approved" || json.status === "rejected") {
-            const approvalRequest = await prisma.approvalRequest.findUnique({
+            const approvalRequest = await auth.withDB((db) => db.approvalRequest.findUnique({
                 where: { entityType_entityId: { entityType: "loan", entityId: id } },
-            });
+            }));
 
             if (approvalRequest && approvalRequest.status === "in_progress") {
                 const actorEmployee = await resolveApprovalActorEmployee(auth);
@@ -65,7 +65,7 @@ export async function PUT(
                 }
 
                 // Fetch updated loan
-                const updatedLoan = await prisma.loan.findUnique({
+                const updatedLoan = await auth.withDB((db) => db.loan.findUnique({
                     where: { id },
                     include: {
                         employee: {
@@ -78,7 +78,7 @@ export async function PUT(
                             },
                         },
                     },
-                });
+                }));
 
                 // 🔔 Emit notification for loan approval/rejection
                 if (updatedLoan?.employee?.user?.id) {
@@ -116,7 +116,7 @@ export async function PUT(
             }
         }
 
-        const loan = await prisma.loan.update({
+        const loan = await auth.withDB((db) => db.loan.update({
             where: { id },
             data,
             include: {
@@ -124,7 +124,7 @@ export async function PUT(
                     select: { id: true, firstName: true, lastName: true, employeeCode: true },
                 },
             },
-        });
+        }));
 
         return NextResponse.json(loan);
     } catch (error) {
@@ -149,16 +149,16 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const existing = await prisma.loan.findFirst({
+        const existing = await auth.withDB((db) => db.loan.findFirst({
             where: { id },
             include: { employee: { select: { organizationId: true } } },
-        });
+        }));
 
         if (!existing || existing.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
         }
 
-        await prisma.loan.delete({ where: { id } });
+        await auth.withDB((db) => db.loan.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
