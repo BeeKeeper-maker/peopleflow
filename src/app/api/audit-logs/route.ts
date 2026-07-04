@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { auditLogger } from "@/lib/logger";
@@ -66,19 +65,23 @@ export async function GET(req: Request) {
 
         // ── CSV Export ────────────────────────────────────────────────────
         if (format === "csv") {
-            const allLogs = await prisma.auditLog.findMany({
-                where: where as any,
-                orderBy: { createdAt: "desc" },
-                take: 5000,
-            });
+            const csvBundle = await ctx.withDB(async (db) => {
+                const allLogs = await db.auditLog.findMany({
+                    where: where as any,
+                    orderBy: { createdAt: "desc" },
+                    take: 5000,
+                });
 
-            const logUserIds = [...new Set(allLogs.filter(l => l.userId).map(l => l.userId!))];
-            const users = logUserIds.length > 0
-                ? await prisma.user.findMany({
-                    where: { id: { in: logUserIds } },
-                    select: { id: true, name: true, email: true },
-                })
-                : [];
+                const logUserIds = [...new Set(allLogs.filter(l => l.userId).map(l => l.userId!))];
+                const users = logUserIds.length > 0
+                    ? await db.user.findMany({
+                        where: { id: { in: logUserIds } },
+                        select: { id: true, name: true, email: true },
+                    })
+                    : [];
+                return { allLogs, users };
+            });
+            const { allLogs, users } = csvBundle;
             const userMap = new Map(users.map(u => [u.id, u]));
 
             const csvHeaders = "Date,Time,Action,Entity Type,Entity ID,Performed By,IP Address,User Agent";
@@ -110,52 +113,58 @@ export async function GET(req: Request) {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        const [logs, total, todayCount, criticalCount, activeUsersRaw, filterActions, filterEntities] = await Promise.all([
-            prisma.auditLog.findMany({
-                where: where as any,
-                orderBy: { createdAt: "desc" },
-                skip: (page - 1) * limit,
-                take: limit,
-            }),
-            prisma.auditLog.count({ where: where as any }),
-            // Today's log count
-            prisma.auditLog.count({
-                where: { ...orgFilter, createdAt: { gte: todayStart } } as any,
-            }),
-            // Critical actions count (delete, approve, reject)
-            prisma.auditLog.count({
-                where: {
-                    ...orgFilter,
-                    action: { in: ["delete", "approve", "reject"] },
-                    createdAt: { gte: todayStart },
-                } as any,
-            }),
-            // Active users today (distinct userIds)
-            prisma.auditLog.findMany({
-                where: { ...orgFilter, createdAt: { gte: todayStart }, userId: { not: null } } as any,
-                select: { userId: true },
-                distinct: ["userId"],
-            }),
-            // Filter options
-            prisma.auditLog.findMany({
-                where: orgFilter as any,
-                select: { action: true },
-                distinct: ["action"],
-            }),
-            prisma.auditLog.findMany({
-                where: orgFilter as any,
-                select: { entityType: true },
-                distinct: ["entityType"],
-            }),
-        ]);
+        const statsBundle = await ctx.withDB(async (db) => {
+            const [logs, total, todayCount, criticalCount, activeUsersRaw, filterActions, filterEntities] = await Promise.all([
+                db.auditLog.findMany({
+                    where: where as any,
+                    orderBy: { createdAt: "desc" },
+                    skip: (page - 1) * limit,
+                    take: limit,
+                }),
+                db.auditLog.count({ where: where as any }),
+                // Today's log count
+                db.auditLog.count({
+                    where: { ...orgFilter, createdAt: { gte: todayStart } } as any,
+                }),
+                // Critical actions count (delete, approve, reject)
+                db.auditLog.count({
+                    where: {
+                        ...orgFilter,
+                        action: { in: ["delete", "approve", "reject"] },
+                        createdAt: { gte: todayStart },
+                    } as any,
+                }),
+                // Active users today (distinct userIds)
+                db.auditLog.findMany({
+                    where: { ...orgFilter, createdAt: { gte: todayStart }, userId: { not: null } } as any,
+                    select: { userId: true },
+                    distinct: ["userId"],
+                }),
+                // Filter options
+                db.auditLog.findMany({
+                    where: orgFilter as any,
+                    select: { action: true },
+                    distinct: ["action"],
+                }),
+                db.auditLog.findMany({
+                    where: orgFilter as any,
+                    select: { entityType: true },
+                    distinct: ["entityType"],
+                }),
+            ]);
+            return { logs, total, todayCount, criticalCount, activeUsersRaw, filterActions, filterEntities };
+        });
+        const { logs, total, todayCount, criticalCount, activeUsersRaw, filterActions, filterEntities } = statsBundle;
 
         // Lookup user names for log entries
         const logUserIds = [...new Set(logs.filter(l => l.userId).map(l => l.userId!))];
         const users = logUserIds.length > 0
-            ? await prisma.user.findMany({
-                where: { id: { in: logUserIds } },
-                select: { id: true, name: true, email: true },
-            })
+            ? await ctx.withDB((db) =>
+                db.user.findMany({
+                    where: { id: { in: logUserIds } },
+                    select: { id: true, name: true, email: true },
+                }),
+            )
             : [];
         const userMap = new Map(users.map(u => [u.id, u]));
 

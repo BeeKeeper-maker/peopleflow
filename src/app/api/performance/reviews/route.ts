@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -44,39 +43,43 @@ export async function GET(req: Request) {
                 where.employeeId = ctx.employeeId;
             } else if (ctx.role === "manager" && ctx.employeeId) {
                 // Manager sees reviews for direct reportees
-                const reportees = await prisma.employee.findMany({
-                    where: { reportingManagerId: ctx.employeeId, organizationId: ctx.organizationId },
-                    select: { id: true },
-                });
+                const reportees = await ctx.withDB((db) =>
+                    db.employee.findMany({
+                        where: { reportingManagerId: ctx.employeeId, organizationId: ctx.organizationId },
+                        select: { id: true },
+                    }),
+                );
                 where.employeeId = { in: [ctx.employeeId, ...reportees.map((r) => r.id)] };
             }
         }
 
         if (employeeId) where.employeeId = employeeId;
 
-        const reviews = await prisma.performanceReview.findMany({
-            where,
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        employeeCode: true,
-                        photoUrl: true,
-                        designation: { select: { name: true } },
-                        department: { select: { name: true } },
+        const reviews = await ctx.withDB((db) =>
+            db.performanceReview.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            employeeCode: true,
+                            photoUrl: true,
+                            designation: { select: { name: true } },
+                            department: { select: { name: true } },
+                        },
+                    },
+                    reviewer: {
+                        select: { id: true, firstName: true, lastName: true },
+                    },
+                    reviewCycle: {
+                        select: { id: true, name: true, type: true, status: true },
                     },
                 },
-                reviewer: {
-                    select: { id: true, firstName: true, lastName: true },
-                },
-                reviewCycle: {
-                    select: { id: true, name: true, type: true, status: true },
-                },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+                orderBy: { createdAt: "desc" },
+            }),
+        );
 
         return NextResponse.json({ data: reviews, total: reviews.length });
     } catch (error) {
@@ -124,14 +127,16 @@ export async function POST(req: Request) {
         const { employeeId, reviewCycleId, reviewerId } = validation.data;
 
         // Verify employee + cycle belong to org
-        const [employee, cycle] = await Promise.all([
-            prisma.employee.findFirst({
-                where: { id: employeeId, organizationId: ctx.organizationId },
-            }),
-            prisma.reviewCycle.findFirst({
-                where: { id: reviewCycleId, organizationId: ctx.organizationId },
-            }),
-        ]);
+        const [employee, cycle] = await ctx.withDB((db) =>
+            Promise.all([
+                db.employee.findFirst({
+                    where: { id: employeeId, organizationId: ctx.organizationId },
+                }),
+                db.reviewCycle.findFirst({
+                    where: { id: reviewCycleId, organizationId: ctx.organizationId },
+                }),
+            ]),
+        );
 
         if (!employee) {
             return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -147,11 +152,13 @@ export async function POST(req: Request) {
         }
 
         // Check for duplicate review
-        const existing = await prisma.performanceReview.findUnique({
-            where: {
-                employeeId_reviewCycleId: { employeeId, reviewCycleId },
-            },
-        });
+        const existing = await ctx.withDB((db) =>
+            db.performanceReview.findUnique({
+                where: {
+                    employeeId_reviewCycleId: { employeeId, reviewCycleId },
+                },
+            }),
+        );
         if (existing) {
             return NextResponse.json(
                 { error: "A review already exists for this employee in this cycle", code: "DUPLICATE" },
@@ -162,21 +169,23 @@ export async function POST(req: Request) {
         // Default reviewer = employee's reporting manager
         const finalReviewerId = reviewerId || employee.reportingManagerId;
 
-        const review = await prisma.performanceReview.create({
-            data: {
-                employeeId,
-                reviewCycleId,
-                reviewerId: finalReviewerId || null,
-                status: "pending",
-                organizationId: ctx.organizationId,
-            },
-            include: {
-                employee: {
-                    select: { id: true, firstName: true, lastName: true, employeeCode: true },
+        const review = await ctx.withDB((db) =>
+            db.performanceReview.create({
+                data: {
+                    employeeId,
+                    reviewCycleId,
+                    reviewerId: finalReviewerId || null,
+                    status: "pending",
+                    organizationId: ctx.organizationId,
                 },
-                reviewCycle: { select: { id: true, name: true } },
-            },
-        });
+                include: {
+                    employee: {
+                        select: { id: true, firstName: true, lastName: true, employeeCode: true },
+                    },
+                    reviewCycle: { select: { id: true, name: true } },
+                },
+            }),
+        );
 
         return NextResponse.json(review, { status: 201 });
     } catch (error) {

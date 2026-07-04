@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
 import type { Prisma } from "@/generated/prisma";
 
@@ -28,27 +26,19 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
 
-        const leaveType = await prisma.leaveType.findUnique({
-            where: {
-                id,
-                organizationId: user.organizationId,
-            },
-        });
+        const leaveType = await auth.withDB((db) =>
+            db.leaveType.findUnique({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+            }),
+        );
 
         if (!leaveType) {
             return new NextResponse("Leave type not found", { status: 404 });
@@ -78,29 +68,33 @@ export async function PUT(
 
         // Check unique code if changed
         if (code) {
-            const existingCode = await prisma.leaveType.findFirst({
-                where: {
-                    organizationId: authContext.organizationId,
-                    code,
-                    NOT: { id },
-                },
-            });
+            const existingCode = await authContext.withDB((db) =>
+                db.leaveType.findFirst({
+                    where: {
+                        organizationId: authContext.organizationId,
+                        code,
+                        NOT: { id },
+                    },
+                }),
+            );
 
             if (existingCode) {
                 return new NextResponse("Leave type code already exists", { status: 409 });
             }
         }
 
-        const leaveType = await prisma.leaveType.update({
-            where: {
-                id,
-                organizationId: authContext.organizationId,
-            },
-            data: {
-                code,
-                ...rest,
-            } as Prisma.LeaveTypeUncheckedUpdateInput,
-        });
+        const leaveType = await authContext.withDB((db) =>
+            db.leaveType.update({
+                where: {
+                    id,
+                    organizationId: authContext.organizationId,
+                },
+                data: {
+                    code,
+                    ...rest,
+                } as Prisma.LeaveTypeUncheckedUpdateInput,
+            }),
+        );
 
         return NextResponse.json(leaveType);
     } catch (error) {
@@ -119,30 +113,34 @@ export async function DELETE(
 
         const { id } = await params;
 
-        const leaveType = await prisma.leaveType.findFirst({
-            where: { id, organizationId: authContext.organizationId },
-            select: { id: true },
-        });
+        const leaveType = await authContext.withDB((db) =>
+            db.leaveType.findFirst({
+                where: { id, organizationId: authContext.organizationId },
+                select: { id: true },
+            }),
+        );
 
         if (!leaveType) {
             return new NextResponse("Leave type not found", { status: 404 });
         }
 
         // Check if leave type is being used in applications or allocations
-        const [applicationCount, allocationCount] = await Promise.all([
-            prisma.leaveApplication.count({
-                where: {
-                    leaveTypeId: id,
-                    employee: { organizationId: authContext.organizationId },
-                },
-            }),
-            prisma.leaveAllocation.count({
-                where: {
-                    leaveTypeId: id,
-                    employee: { organizationId: authContext.organizationId },
-                },
-            }),
-        ]);
+        const [applicationCount, allocationCount] = await authContext.withDB((db) =>
+            Promise.all([
+                db.leaveApplication.count({
+                    where: {
+                        leaveTypeId: id,
+                        employee: { organizationId: authContext.organizationId },
+                    },
+                }),
+                db.leaveAllocation.count({
+                    where: {
+                        leaveTypeId: id,
+                        employee: { organizationId: authContext.organizationId },
+                    },
+                }),
+            ]),
+        );
 
         if (applicationCount > 0 || allocationCount > 0) {
             return new NextResponse(
@@ -153,11 +151,13 @@ export async function DELETE(
             );
         }
 
-        await prisma.leaveType.delete({
-            where: {
-                id: leaveType.id,
-            },
-        });
+        await authContext.withDB((db) =>
+            db.leaveType.delete({
+                where: {
+                    id: leaveType.id,
+                },
+            }),
+        );
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
