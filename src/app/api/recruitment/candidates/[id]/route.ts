@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const candidate = await prisma.candidate.findFirst({
+        const candidate = await auth.withDB((db) => db.candidate.findFirst({
             where: { id, organizationId: ctx.organizationId },
             include: {
                 applications: {
@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: RouteParams) {
                     orderBy: { appliedAt: "desc" },
                 },
             },
-        });
+        }));
 
         if (!candidate) {
             return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
@@ -55,18 +55,18 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const { id } = await params;
         const body = await req.json();
 
-        const candidate = await prisma.candidate.findFirst({
+        const candidate = await auth.withDB((db) => db.candidate.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!candidate) {
             return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
         }
 
         // Email uniqueness check if email is changing
         if (body.email && body.email !== candidate.email) {
-            const existing = await prisma.candidate.findFirst({
+            const existing = await auth.withDB((db) => db.candidate.findFirst({
                 where: { email: body.email, organizationId: ctx.organizationId, id: { not: id } },
-            });
+            }));
             if (existing) {
                 return NextResponse.json(
                     { error: "Another candidate with this email already exists" },
@@ -75,7 +75,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             }
         }
 
-        const updated = await prisma.candidate.update({
+        const updated = await auth.withDB((db) => db.candidate.update({
             where: { id },
             data: {
                 ...(body.firstName !== undefined && { firstName: body.firstName }),
@@ -95,7 +95,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 ...(body.source !== undefined && { source: body.source }),
                 ...(body.notes !== undefined && { notes: body.notes }),
             },
-        });
+        }));
 
         return NextResponse.json(updated);
     } catch (error) {
@@ -112,14 +112,14 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const candidate = await prisma.candidate.findFirst({
+        const candidate = await auth.withDB((db) => db.candidate.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!candidate) {
             return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
         }
 
-        await prisma.candidate.delete({ where: { id } });
+        await auth.withDB((db) => db.candidate.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {

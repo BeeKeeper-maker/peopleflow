@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -25,7 +25,7 @@ export async function GET() {
   }
 
   try {
-    const users = await prisma.user.findMany({
+    const users = await auth.withDB((db) => db.user.findMany({
       where: { organizationId: auth.organizationId },
       orderBy: [{ role: "asc" }, { name: "asc" }, { email: "asc" }],
       select: {
@@ -55,7 +55,7 @@ export async function GET() {
           },
         },
       },
-    });
+    }));
 
     const summary = {
       total: users.length,
@@ -88,19 +88,19 @@ export async function PATCH(req: Request) {
   try {
     const body = updateSchema.parse(await req.json());
 
-    const target = await prisma.user.findFirst({
+    const target = await auth.withDB((db) => db.user.findFirst({
       where: { id: body.userId, organizationId: auth.organizationId },
       select: { id: true, role: true, isActive: true, employee: { select: { id: true } } },
-    });
+    }));
 
     if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
     if (target.id === auth.userId && body.isActive === false) {
       return NextResponse.json({ error: "You cannot deactivate your own login" }, { status: 400 });
     }
 
-    const adminCount = await prisma.user.count({
+    const adminCount = await auth.withDB((db) => db.user.count({
       where: { organizationId: auth.organizationId, role: { in: ["admin", "super_admin"] }, isActive: true },
-    });
+    }));
 
     const wouldRemoveAdmin = ["admin", "super_admin"].includes(target.role) &&
       target.isActive &&
@@ -114,7 +114,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Manager role requires a linked employee profile" }, { status: 400 });
     }
 
-    const updated = await prisma.user.update({
+    const updated = await auth.withDB((db) => db.user.update({
       where: { id: target.id },
       data: {
         ...(body.role !== undefined && { role: body.role }),
@@ -122,7 +122,7 @@ export async function PATCH(req: Request) {
         ...(body.isActive === false && { sessionVersion: { increment: 1 } }),
       },
       select: { id: true, role: true, isActive: true },
-    });
+    }));
 
     return NextResponse.json(updated);
   } catch (error) {

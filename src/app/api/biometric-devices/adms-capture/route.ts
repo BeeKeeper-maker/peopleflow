@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { biometricLogger } from "@/lib/logger";
 
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         const serialNumber = url.searchParams.get("serialNumber")?.trim();
         const includeUnknown = url.searchParams.get("includeUnknown") !== "false";
 
-        const events = await prisma.biometricCloudEvent.findMany({
+        const events = await auth.withDB((db) => db.biometricCloudEvent.findMany({
             where: {
                 ...(serialNumber ? { serialNumber } : {}),
                 OR: [
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
             },
             orderBy: { createdAt: "desc" },
             take: 50,
-        });
+        }));
 
         return NextResponse.json({ success: true, events });
     } catch (error) {

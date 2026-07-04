@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { biometricLogger } from "@/lib/logger";
 import { generateCloudSecret, hashCloudSecret } from "@/lib/biometric/direct-cloud-auth";
@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         const action = body?.action === "revoke" ? "revoke" : "generate";
 
         // Verify device belongs to org
-        const device = await prisma.biometricDevice.findFirst({
+        const device = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
             select: {
                 id: true,
@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 serialNumber: true,
                 cloudSecretHash: true,
             },
-        });
+        }));
 
         if (!device) {
             return NextResponse.json(
@@ -80,10 +80,10 @@ export async function POST(req: Request, { params }: RouteParams) {
         }
 
         if (action === "revoke") {
-            await prisma.biometricDevice.update({
+            await auth.withDB((db) => db.biometricDevice.update({
                 where: { id },
                 data: { cloudSecretHash: null, cloudStatus: "pending" },
-            });
+            }));
 
             await createAuditLog({
                 organizationId: auth.organizationId,
@@ -109,10 +109,10 @@ export async function POST(req: Request, { params }: RouteParams) {
         const rawSecret = generateCloudSecret();
         const secretHash = hashCloudSecret(rawSecret);
 
-        await prisma.biometricDevice.update({
+        await auth.withDB((db) => db.biometricDevice.update({
             where: { id },
             data: { cloudSecretHash: secretHash, cloudStatus: "pending" },
-        });
+        }));
 
         await createAuditLog({
             organizationId: auth.organizationId,

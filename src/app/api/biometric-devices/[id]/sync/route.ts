@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { enqueueSyncDevice } from "@/workers/biometric-sync";
 import { syncDevice } from "@/lib/biometric/sync-engine";
@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         const { id } = await params;
 
         // Verify device belongs to org
-        const device = await prisma.biometricDevice.findFirst({
+        const device = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
             select: {
                 id: true,
@@ -57,7 +57,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
         if (!device) {
             return new NextResponse("Device not found", { status: 404 });

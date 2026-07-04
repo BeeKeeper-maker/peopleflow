@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -16,15 +16,15 @@ export async function GET() {
     const ctx = auth as AuthContext;
 
     try {
-        let prefs = await prisma.notificationPreference.findUnique({
+        let prefs = await auth.withDB((db) => db.notificationPreference.findUnique({
             where: { userId: ctx.userId },
-        });
+        }));
 
         // Lazy-init with defaults
         if (!prefs) {
-            prefs = await prisma.notificationPreference.create({
+            prefs = await auth.withDB((db) => db.notificationPreference.create({
                 data: { userId: ctx.userId },
-            });
+            }));
         }
 
         return NextResponse.json(prefs);
@@ -72,7 +72,7 @@ export async function PATCH(req: Request) {
         const data = validation.data;
 
         // Upsert (create if doesn't exist)
-        const prefs = await prisma.notificationPreference.upsert({
+        const prefs = await auth.withDB((db) => db.notificationPreference.upsert({
             where: { userId: ctx.userId },
             create: {
                 userId: ctx.userId,
@@ -97,7 +97,7 @@ export async function PATCH(req: Request) {
                     categoryOverrides: data.categoryOverrides as object,
                 }),
             },
-        });
+        }));
 
         return NextResponse.json({
             success: true,

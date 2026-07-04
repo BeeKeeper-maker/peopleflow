@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { Prisma } from "@/generated/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
@@ -17,13 +17,13 @@ export async function POST() {
     const ctx = auth as AuthContext;
 
     try {
-        await prisma.notificationPreference.updateMany({
+        await auth.withDB((db) => db.notificationPreference.updateMany({
             where: { userId: ctx.userId },
             data: {
                 pushEnabled: false,
                 pushSubscription: Prisma.JsonNull,
             },
-        });
+        }));
 
         apiLogger.info({ userId: ctx.userId }, "Push subscription removed");
 

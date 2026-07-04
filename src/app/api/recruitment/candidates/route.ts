@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
             ];
         }
 
-        const candidates = await prisma.candidate.findMany({
+        const candidates = await auth.withDB((db) => db.candidate.findMany({
             where,
             include: {
                 applications: {
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
             },
             orderBy: { createdAt: "desc" },
             take: limit,
-        });
+        }));
 
         return NextResponse.json({ data: candidates, total: candidates.length });
     } catch (error) {
@@ -110,9 +110,9 @@ export async function POST(req: Request) {
         const data = validation.data;
 
         // Check email uniqueness within org
-        const existing = await prisma.candidate.findFirst({
+        const existing = await auth.withDB((db) => db.candidate.findFirst({
             where: { email: data.email, organizationId: ctx.organizationId },
-        });
+        }));
         if (existing) {
             return NextResponse.json(
                 { error: "A candidate with this email already exists", code: "EMAIL_EXISTS" },
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const candidate = await prisma.candidate.create({
+        const candidate = await auth.withDB((db) => db.candidate.create({
             data: {
                 ...data,
                 resumeUrl: data.resumeUrl || null,
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
                 linkedinUrl: data.linkedinUrl || null,
                 organizationId: ctx.organizationId,
             },
-        });
+        }));
 
         return NextResponse.json(candidate, { status: 201 });
     } catch (error) {

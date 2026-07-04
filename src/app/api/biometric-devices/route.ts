@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { biometricLogger } from "@/lib/logger";
@@ -12,14 +12,14 @@ export async function GET() {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const devices = await prisma.biometricDevice.findMany({
+        const devices = await auth.withDB((db) => db.biometricDevice.findMany({
             where: { organizationId: auth.organizationId },
             include: {
                 branch: { select: { id: true, name: true, code: true } },
                 _count: { select: { syncLogs: true } },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
         return NextResponse.json(devices);
     } catch (error) {
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
         }
 
         // Check for duplicate connection identity in same org
-        const existing = await prisma.biometricDevice.findFirst({
+        const existing = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: mode === "direct_cloud"
                 ? { organizationId: auth.organizationId, serialNumber: cleanSerial }
                 : {
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
                     ip: normalizedIp,
                     port: port || 4370,
                 },
-        });
+        }));
 
         if (existing) {
             return NextResponse.json(
@@ -106,15 +106,15 @@ export async function POST(req: Request) {
 
         // Validate branchId if provided
         if (branchId) {
-            const branch = await prisma.branch.findFirst({
+            const branch = await auth.withDB((db) => db.branch.findFirst({
                 where: { id: branchId, organizationId: auth.organizationId },
-            });
+            }));
             if (!branch) {
                 return NextResponse.json({ error: "Branch not found" }, { status: 400 });
             }
         }
 
-        const device = await prisma.biometricDevice.create({
+        const device = await auth.withDB((db) => db.biometricDevice.create({
             data: {
                 name,
                 ip: normalizedIp,
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
             include: {
                 branch: { select: { id: true, name: true, code: true } },
             },
-        });
+        }));
 
         await onResourceCreated(auth.organizationId, "device");
 

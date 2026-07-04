@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { getAdapter } from "@/lib/biometric/device-adapter";
 import "@/lib/biometric/zkteco-adapter";
@@ -23,9 +23,9 @@ export async function POST(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const device = await prisma.biometricDevice.findFirst({
+        const device = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!device) {
             return new NextResponse("Device not found", { status: 404 });

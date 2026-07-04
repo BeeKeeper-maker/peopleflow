@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         };
 
         // Upsert preferences with the push subscription + enable push
-        await prisma.notificationPreference.upsert({
+        await auth.withDB((db) => db.notificationPreference.upsert({
             where: { userId: ctx.userId },
             create: {
                 userId: ctx.userId,
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
                 pushEnabled: true,
                 pushSubscription: subscription as object,
             },
-        });
+        }));
 
         apiLogger.info(
             { userId: ctx.userId, endpoint: subscription.endpoint.substring(0, 50) + "..." },

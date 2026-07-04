@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requirePermission, invalidatePermissionCache } from "@/lib/rbac-v2";
 import { createAuditLog } from "@/lib/audit-log";
 import { apiLogger } from "@/lib/logger";
@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const user = await prisma.user.findFirst({
+        const user = await auth.withDB((db) => db.user.findFirst({
             where: { id, organizationId: auth.organizationId },
             select: {
                 id: true,
@@ -35,7 +35,7 @@ export async function GET(req: Request, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -95,21 +95,21 @@ export async function POST(req: Request, { params }: RouteParams) {
 
         const { roleId, expiresAt } = validation.data;
 
-        const user = await prisma.user.findFirst({
+        const user = await auth.withDB((db) => db.user.findFirst({
             where: { id, organizationId: auth.organizationId },
             select: { id: true, email: true, role: true },
-        });
+        }));
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        const role = await prisma.role.findFirst({
+        const role = await auth.withDB((db) => db.role.findFirst({
             where: {
                 id: roleId,
                 OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
             },
-        });
+        }));
 
         if (!role) {
             return NextResponse.json({ error: "Role not found" }, { status: 404 });
@@ -117,13 +117,13 @@ export async function POST(req: Request, { params }: RouteParams) {
 
         // Prevent demoting the last admin
         if ((user.role === "admin" || user.role === "super_admin") && role.slug !== "admin" && role.slug !== "super_admin") {
-            const adminCount = await prisma.user.count({
+            const adminCount = await auth.withDB((db) => db.user.count({
                 where: {
                     organizationId: auth.organizationId,
                     role: { in: ["admin", "super_admin"] },
                     isActive: true,
                 },
-            });
+            }));
             if (adminCount <= 1) {
                 return NextResponse.json(
                     { error: "Cannot demote the last admin. Promote another user first." },
@@ -140,7 +140,7 @@ export async function POST(req: Request, { params }: RouteParams) {
             );
         }
 
-        const assignment = await prisma.userRoleAssignment.upsert({
+        const assignment = await auth.withDB((db) => db.userRoleAssignment.upsert({
             where: { userId_roleId: { userId: id, roleId } },
             create: {
                 userId: id,
@@ -153,13 +153,13 @@ export async function POST(req: Request, { params }: RouteParams) {
                 assignedBy: auth.userId,
                 expiresAt: expiresAt ? new Date(expiresAt) : null,
             },
-        });
+        }));
 
         // Update User.role (legacy string) to match
-        await prisma.user.update({
+        await auth.withDB((db) => db.user.update({
             where: { id },
             data: { role: role.slug },
-        });
+        }));
 
         invalidatePermissionCache(id);
 
@@ -207,23 +207,23 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "roleId query parameter is required" }, { status: 400 });
         }
 
-        const user = await prisma.user.findFirst({
+        const user = await auth.withDB((db) => db.user.findFirst({
             where: { id, organizationId: auth.organizationId },
             select: { id: true, email: true, role: true },
-        });
+        }));
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
         if (user.role === "admin" || user.role === "super_admin") {
-            const adminCount = await prisma.user.count({
+            const adminCount = await auth.withDB((db) => db.user.count({
                 where: {
                     organizationId: auth.organizationId,
                     role: { in: ["admin", "super_admin"] },
                     isActive: true,
                 },
-            });
+            }));
             if (adminCount <= 1) {
                 return NextResponse.json(
                     { error: "Cannot remove the last admin's role." },
@@ -232,14 +232,14 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             }
         }
 
-        await prisma.userRoleAssignment.deleteMany({
+        await auth.withDB((db) => db.userRoleAssignment.deleteMany({
             where: { userId: id, roleId },
-        });
+        }));
 
-        await prisma.user.update({
+        await auth.withDB((db) => db.user.update({
             where: { id },
             data: { role: "employee" },
-        });
+        }));
 
         invalidatePermissionCache(id);
 
