@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -27,10 +26,12 @@ export async function GET(
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
     try {
-        const employee = await prisma.employee.findFirst({
-            where: { id, organizationId: auth.organizationId, deletedAt: null },
-            select: { id: true },
-        });
+        const employee = await auth.withDB((db) =>
+            db.employee.findFirst({
+                where: { id, organizationId: auth.organizationId, deletedAt: null },
+                select: { id: true },
+            }),
+        );
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
@@ -41,42 +42,44 @@ export async function GET(
             leaveAllocations,
             leaveApplications,
             salarySlips,
-        ] = await prisma.$transaction([
-            // Last 90 days of attendance
-            prisma.attendance.findMany({
-                where: {
-                    employeeId: id,
-                    date: { gte: ninetyDaysAgo },
-                },
-                orderBy: { date: "desc" },
-            }),
-            // Current year leave allocations with type
-            prisma.leaveAllocation.findMany({
-                where: {
-                    employeeId: id,
-                    year: currentYear,
-                },
-                include: { leaveType: true },
-            }),
-            // Leave applications (last 12 months)
-            prisma.leaveApplication.findMany({
-                where: {
-                    employeeId: id,
-                    fromDate: {
-                        gte: new Date(currentYear - 1, currentMonth - 1, 1),
+        ] = await auth.withDB((db) =>
+            Promise.all([
+                // Last 90 days of attendance
+                db.attendance.findMany({
+                    where: {
+                        employeeId: id,
+                        date: { gte: ninetyDaysAgo },
                     },
-                },
-                include: { leaveType: true },
-                orderBy: { fromDate: "desc" },
-                take: 20,
-            }),
-            // Salary slips (last 12)
-            prisma.salarySlip.findMany({
-                where: { employeeId: id },
-                orderBy: [{ year: "desc" }, { month: "desc" }],
-                take: 12,
-            }),
-        ]);
+                    orderBy: { date: "desc" },
+                }),
+                // Current year leave allocations with type
+                db.leaveAllocation.findMany({
+                    where: {
+                        employeeId: id,
+                        year: currentYear,
+                    },
+                    include: { leaveType: true },
+                }),
+                // Leave applications (last 12 months)
+                db.leaveApplication.findMany({
+                    where: {
+                        employeeId: id,
+                        fromDate: {
+                            gte: new Date(currentYear - 1, currentMonth - 1, 1),
+                        },
+                    },
+                    include: { leaveType: true },
+                    orderBy: { fromDate: "desc" },
+                    take: 20,
+                }),
+                // Salary slips (last 12)
+                db.salarySlip.findMany({
+                    where: { employeeId: id },
+                    orderBy: [{ year: "desc" }, { month: "desc" }],
+                    take: 12,
+                }),
+            ]),
+        );
 
         // ── Attendance Summary (30-day) ────────────────────────────────
         const attendance30d = attendance90d.filter(

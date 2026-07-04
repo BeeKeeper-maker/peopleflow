@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -16,20 +15,24 @@ export async function GET(req: Request, { params }: RouteParams) {
         const { id } = await params;
 
         // Verify loan belongs to org
-        const loan = await prisma.loan.findFirst({
-            where: {
-                id,
-                employee: { organizationId: auth.organizationId },
-            },
-        });
+        const loan = await auth.withDB((db) =>
+            db.loan.findFirst({
+                where: {
+                    id,
+                    employee: { organizationId: auth.organizationId },
+                },
+            }),
+        );
         if (!loan) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
         }
 
-        const repayments = await prisma.loanRepayment.findMany({
-            where: { loanId: id },
-            orderBy: { installmentNo: "asc" },
-        });
+        const repayments = await auth.withDB((db) =>
+            db.loanRepayment.findMany({
+                where: { loanId: id },
+                orderBy: { installmentNo: "asc" },
+            }),
+        );
 
         return NextResponse.json(repayments);
     } catch (error) {
@@ -56,13 +59,15 @@ export async function POST(req: Request, { params }: RouteParams) {
         }
 
         // Verify loan exists + belongs to org + is disbursed
-        const loan = await prisma.loan.findFirst({
-            where: {
-                id,
-                employee: { organizationId: auth.organizationId },
-            },
-            include: { repayments: true },
-        });
+        const loan = await auth.withDB((db) =>
+            db.loan.findFirst({
+                where: {
+                    id,
+                    employee: { organizationId: auth.organizationId },
+                },
+                include: { repayments: true },
+            }),
+        );
 
         if (!loan) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
@@ -107,9 +112,9 @@ export async function POST(req: Request, { params }: RouteParams) {
         const validMethods = ["payroll", "bank_transfer", "cash"];
         const repaymentMethod = validMethods.includes(method) ? method : "payroll";
 
-        // Create repayment and update loan balances in a transaction
-        const [repayment] = await prisma.$transaction([
-            prisma.loanRepayment.create({
+        // Create repayment and update loan balances (withDB wraps in transaction)
+        const repayment = await auth.withDB(async (db) => {
+            const created = await db.loanRepayment.create({
                 data: {
                     installmentNo,
                     amount,
@@ -121,8 +126,8 @@ export async function POST(req: Request, { params }: RouteParams) {
                     note: note || null,
                     loanId: id,
                 },
-            }),
-            prisma.loan.update({
+            });
+            await db.loan.update({
                 where: { id },
                 data: {
                     paidAmount: { increment: amount },
@@ -132,8 +137,9 @@ export async function POST(req: Request, { params }: RouteParams) {
                         ? { status: "closed" }
                         : {}),
                 },
-            }),
-        ]);
+            });
+            return created;
+        });
 
         return NextResponse.json(repayment);
     } catch (error) {
