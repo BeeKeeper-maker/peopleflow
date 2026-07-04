@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/policies/late-deduction — Get active late deduction policy with tiers
@@ -9,13 +8,15 @@ export async function GET(req: NextRequest) {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const policies = await prisma.lateDeductionPolicy.findMany({
-            where: { organizationId: auth.organizationId },
-            include: {
-                tiers: { orderBy: { tierOrder: "asc" } },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const policies = await auth.withDB((db) =>
+            db.lateDeductionPolicy.findMany({
+                where: { organizationId: auth.organizationId },
+                include: {
+                    tiers: { orderBy: { tierOrder: "asc" } },
+                },
+                orderBy: { createdAt: "desc" },
+            }),
+        );
 
         return NextResponse.json({ data: policies });
     } catch (error) {
@@ -32,15 +33,15 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        const policy = await prisma.$transaction(async (tx) => {
+        const policy = await auth.withDB(async (db) => {
             // Deactivate any existing active policy
-            await tx.lateDeductionPolicy.updateMany({
+            await db.lateDeductionPolicy.updateMany({
                 where: { organizationId: auth.organizationId, isActive: true },
                 data: { isActive: false },
             });
 
             // Create new policy
-            const newPolicy = await tx.lateDeductionPolicy.create({
+            const newPolicy = await db.lateDeductionPolicy.create({
                 data: {
                     organizationId: auth.organizationId,
                     name: body.name,
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
 
             // Create tiers
             if (body.tiers && body.tiers.length > 0) {
-                await tx.lateDeductionTier.createMany({
+                await db.lateDeductionTier.createMany({
                     data: body.tiers.map((tier: any, index: number) => ({
                         policyId: newPolicy.id,
                         tierOrder: index + 1,
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
                 });
             }
 
-            return tx.lateDeductionPolicy.findUnique({
+            return db.lateDeductionPolicy.findUnique({
                 where: { id: newPolicy.id },
                 include: { tiers: { orderBy: { tierOrder: "asc" } } },
             });

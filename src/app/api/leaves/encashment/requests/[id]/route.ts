@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
@@ -56,15 +55,17 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         }
 
         // Load the request, verifying org scope
-        const request = await prisma.leaveEncashmentRequest.findFirst({
-            where: { id, organizationId: ctx.organizationId },
-            include: {
-                employee: {
-                    select: { id: true, firstName: true, lastName: true },
+        const request = await ctx.withDB((db) =>
+            db.leaveEncashmentRequest.findFirst({
+                where: { id, organizationId: ctx.organizationId },
+                include: {
+                    employee: {
+                        select: { id: true, firstName: true, lastName: true },
+                    },
+                    leaveType: { select: { id: true, name: true } },
                 },
-                leaveType: { select: { id: true, name: true } },
-            },
-        });
+            }),
+        );
 
         if (!request) {
             return NextResponse.json(
@@ -86,11 +87,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const now = new Date();
 
         if (action === "approve") {
-            // Use a transaction to ensure atomicity:
-            //   1. Update request status
-            //   2. Increment allocation.usedDays
-            await prisma.$transaction(async (tx) => {
-                await tx.leaveEncashmentRequest.update({
+            // Operations inside withDB already run in a single transaction
+            // (withTenant opens $transaction), so sequential calls are atomic.
+            await ctx.withDB(async (db) => {
+                await db.leaveEncashmentRequest.update({
                     where: { id },
                     data: {
                         status: "approved",
@@ -100,7 +100,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 });
 
                 if (request.allocationId) {
-                    await tx.leaveAllocation.update({
+                    await db.leaveAllocation.update({
                         where: { id: request.allocationId },
                         data: {
                             usedDays: { increment: request.encashableDays },
@@ -134,14 +134,16 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             });
         } else {
             // Reject
-            await prisma.leaveEncashmentRequest.update({
-                where: { id },
-                data: {
-                    status: "rejected",
-                    rejectionReason,
-                    approvedById: ctx.employeeId || null,
-                },
-            });
+            await ctx.withDB((db) =>
+                db.leaveEncashmentRequest.update({
+                    where: { id },
+                    data: {
+                        status: "rejected",
+                        rejectionReason,
+                        approvedById: ctx.employeeId || null,
+                    },
+                }),
+            );
 
             await createAuditLog({
                 organizationId: ctx.organizationId,

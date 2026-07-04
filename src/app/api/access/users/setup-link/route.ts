@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
@@ -28,27 +27,29 @@ export async function POST(req: Request) {
   try {
     const body = setupLinkSchema.parse(await req.json());
 
-    const target = await prisma.user.findFirst({
-      where: {
-        id: body.userId,
-        organizationId: auth.organizationId,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
-        emailVerified: true,
-        employee: {
-          select: {
-            firstName: true,
-            lastName: true,
-            employmentStatus: true,
-            deletedAt: true,
+    const target = await auth.withDB((db) =>
+      db.user.findFirst({
+        where: {
+          id: body.userId,
+          organizationId: auth.organizationId,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          emailVerified: true,
+          employee: {
+            select: {
+              firstName: true,
+              lastName: true,
+              employmentStatus: true,
+              deletedAt: true,
+            },
           },
         },
-      },
-    });
+      }),
+    );
 
     if (!target) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -73,23 +74,23 @@ export async function POST(req: Request) {
     }
 
     const token = randomBytes(32).toString("hex");
-    await prisma.$transaction([
-      prisma.passwordResetToken.deleteMany({
+    await auth.withDB(async (db) => {
+      await db.passwordResetToken.deleteMany({
         where: {
           email: target.email,
           used: false,
           purpose: { in: ["employee_invitation", "employee_reactivation"] },
         },
-      }),
-      prisma.passwordResetToken.create({
+      });
+      await db.passwordResetToken.create({
         data: {
           email: target.email,
           token,
           purpose: "employee_invitation",
           expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
         },
-      }),
-    ]);
+      });
+    });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     const setupUrl = `${appUrl}/set-password/${token}`;
