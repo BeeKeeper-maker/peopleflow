@@ -7,16 +7,15 @@ import Navbar from "./_components/navbar";
 import HeroCinematic from "./_components/hero";
 import CTAFinal from "./_components/cta-final";
 import FooterEnterprise from "./_components/footer";
+import StatsStrip from "./_components/stats-strip";
+import RoiCalculator from "./_components/roi-calculator";
+import ComparisonTable from "./_components/comparison-table";
 
 const LogoMarquee = dynamic(() => import("./_components/logo-marquee"), {
     ssr: false,
     loading: () => <SectionSkeleton height="h-36" />,
 });
 const PainSection = dynamic(() => import("./_components/pain-section"), {
-    ssr: false,
-    loading: () => <SectionSkeleton />,
-});
-const TrustBadgesSection = dynamic(() => import("./_components/trust-badges"), {
     ssr: false,
     loading: () => <SectionSkeleton />,
 });
@@ -56,19 +55,21 @@ export default function MarketingClient() {
     const openDemo = () => setDemoOpen(true);
 
     return (
-        <main className="min-h-screen" style={{ background: P.bg, color: "white" }}>
+        <main className="min-h-screen" style={{ background: P.bg, color: P.heading }}>
             <GlobalKeyframes />
 
             <Navbar onBookDemo={openDemo} />
             <HeroCinematic onBookDemo={openDemo} />
 
             <LogoMarquee />
+            <StatsStrip />
             <PainSection />
-            <TrustBadgesSection />
             <BentoFeatures />
             <ComplianceDeepDive />
+            <RoiCalculator />
             <Testimonials />
             <PricingTheater onBookDemo={openDemo} />
+            <ComparisonTable />
             <CTAFinal onBookDemo={openDemo} />
             <FooterEnterprise />
 

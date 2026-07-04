@@ -1,276 +1,239 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, TrendingDown, Clock, ArrowRight } from "lucide-react";
-import { P, fadeUp, staggerContainer, staggerItem, AnimatedNumber, useInView } from "./shared";
+import { X, Check, ArrowRight, FileSpreadsheet, Clock, AlertTriangle, ShieldCheck, Zap, TrendingUp } from "lucide-react";
+import { P, fadeUp, fadeLeft, fadeRight, staggerContainer, staggerItem, useInView, Eyebrow } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
-// PAIN SECTION — "Cost of Inaction" FOMO Engine
+// PROBLEM → SOLUTION — Before/After Split
+// Linear-style: bold copy, clear visual contrast
 // ═══════════════════════════════════════════════════════════════
 
-const dangers = [
-    {
-        icon: AlertTriangle,
-        title: "Compliance Evidence Risk",
-        stat: 3,
-        statPrefix: "",
-        statSuffix: " checks",
-        description: "Bangladesh leave, maternity, and wage calculations need careful review. Manual records make compliance evidence harder to prepare.",
-        detail: "Leave, wage, and attendance records need traceable review.",
-        accentFrom: "#F43F5E",
-        accentTo: "#E11D48",
-        dimBg: "rgba(244,63,94,0.06)",
-        dimBorder: "rgba(244,63,94,0.12)",
-        glowColor: "rgba(244,63,94,0.15)",
-    },
-    {
-        icon: TrendingDown,
-        title: "Payroll Leakage Exposure",
-        stat: 4,
-        statPrefix: "",
-        statSuffix: " controls",
-        description: "Ghost attendance, manual overtime mistakes, and buddy-punching can create avoidable payroll leakage without structured review.",
-        detail: "Actual impact depends on workforce size and controls.",
-        accentFrom: "#F59E0B",
-        accentTo: "#D97706",
-        dimBg: "rgba(245,158,11,0.06)",
-        dimBorder: "rgba(245,158,11,0.12)",
-        glowColor: "rgba(245,158,11,0.15)",
-    },
-    {
-        icon: Clock,
-        title: "Manual HR Review Load",
-        stat: 5,
-        statPrefix: "",
-        statSuffix: " records",
-        description: "HR teams often spend substantial time reconciling spreadsheets, PF ledgers, biometric logs, and manual approval trails.",
-        detail: "A structured beta rollout can measure the time saved.",
-        accentFrom: "#8B5CF6",
-        accentTo: "#7C3AED",
-        dimBg: "rgba(139,92,246,0.06)",
-        dimBorder: "rgba(139,92,246,0.12)",
-        glowColor: "rgba(139,92,246,0.15)",
-    },
+const beforePain = [
+    { icon: FileSpreadsheet, label: "Spreadsheets scattered across HR, finance, ops" },
+    { icon: AlertTriangle, label: "Manual payroll errors — wrong OT, missed leave encashment" },
+    { icon: Clock, label: "40+ hours/week lost to manual reconciliation" },
+    { icon: X, label: "Compliance evidence missing for BLA 2006 audits" },
+    { icon: X, label: "Buddy punching inflating attendance records" },
+    { icon: X, label: "No real-time view — month-end surprises only" },
 ];
 
-function DangerCard({
-    danger,
-    index,
-}: {
-    danger: typeof dangers[number];
-    index: number;
-}) {
-    const [hovered, setHovered] = useState(false);
-
-    return (
-        <motion.div
-            variants={staggerItem}
-            className="relative group rounded-2xl overflow-hidden"
-            style={{
-                background: P.surface,
-                border: `1px solid ${danger.dimBorder}`,
-                transition: "all 500ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-            }}
-            onMouseEnter={(e) => {
-                setHovered(true);
-                e.currentTarget.style.borderColor = danger.accentFrom + "40";
-                e.currentTarget.style.boxShadow = `0 20px 60px ${danger.glowColor}, 0 0 0 1px ${danger.dimBorder}`;
-                e.currentTarget.style.transform = "translateY(-4px)";
-            }}
-            onMouseLeave={(e) => {
-                setHovered(false);
-                e.currentTarget.style.borderColor = danger.dimBorder;
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.transform = "translateY(0)";
-            }}
-        >
-            {/* Hover glow background */}
-            <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
-                style={{
-                    background: `radial-gradient(ellipse at 50% 0%, ${danger.glowColor}, transparent 70%)`,
-                }}
-            />
-
-            <div className="relative p-8">
-                {/* Icon with pulsing ring */}
-                <div className="relative w-14 h-14 mb-6">
-                    <div
-                        className="absolute inset-0 rounded-2xl"
-                        style={{
-                            background: danger.dimBg,
-                            border: `1px solid ${danger.dimBorder}`,
-                        }}
-                    />
-                    {/* Pulse ring */}
-                    <div
-                        className="absolute -inset-1.5 rounded-2xl"
-                        style={{
-                            border: `1.5px solid ${danger.accentFrom}30`,
-                            animation: "pulse-ring 3s ease-in-out infinite",
-                            animationDelay: `${index * 0.6}s`,
-                        }}
-                    />
-                    <div className="relative w-full h-full flex items-center justify-center">
-                        <danger.icon
-                            className="w-6 h-6 transition-colors duration-300"
-                            style={{ color: danger.accentFrom }}
-                        />
-                    </div>
-                </div>
-
-                {/* Title */}
-                <h3
-                    className="text-xl font-bold mb-3 transition-colors duration-300"
-                    style={{ color: P.heading }}
-                >
-                    {danger.title}
-                </h3>
-
-                {/* Animated Stat */}
-                <div
-                    className="text-4xl font-black mb-4 transition-all duration-500"
-                    style={{
-                        background: `linear-gradient(135deg, ${danger.accentFrom}, ${danger.accentTo})`,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
-                    }}
-                >
-                    <AnimatedNumber
-                        target={danger.stat}
-                        prefix={danger.statPrefix}
-                        suffix={danger.statSuffix}
-                    />
-                </div>
-
-                {/* Description */}
-                <p
-                    className="text-sm leading-relaxed mb-4"
-                    style={{ color: P.body }}
-                >
-                    {danger.description}
-                </p>
-
-                {/* Detail tag */}
-                <div
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{
-                        background: danger.dimBg,
-                        color: danger.accentFrom,
-                        border: `1px solid ${danger.dimBorder}`,
-                    }}
-                >
-                    {danger.detail}
-                </div>
-            </div>
-        </motion.div>
-    );
-}
+const afterGains = [
+    { icon: ShieldCheck, label: "Single source of truth — every team aligned" },
+    { icon: Zap, label: "Automated payroll — bKash + bank EFT in one click" },
+    { icon: TrendingUp, label: "3-minute payslip generation, not 3 days" },
+    { icon: Check, label: "BLA 2006 compliance evidence auto-generated" },
+    { icon: Check, label: "Biometric anti-buddy-punch built in" },
+    { icon: Check, label: "Live dashboard — see everything in real-time" },
+];
 
 export default function PainSection() {
     const { ref, isInView } = useInView(0.1);
 
     return (
         <section
+            id="problem-solution"
             ref={ref}
-            id="pain"
-            className="relative py-28 overflow-hidden"
+            className="relative py-24 overflow-hidden"
             style={{ background: P.bg }}
         >
-            {/* Subtle red ambient */}
+            {/* Subtle background gradient */}
             <div
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none"
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                    background: "radial-gradient(ellipse, rgba(244,63,94,0.04) 0%, transparent 70%)",
+                    background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(99,102,241,0.04), transparent)",
                 }}
             />
 
-            <div className="relative max-w-7xl mx-auto px-6">
-                {/* Header */}
+            <div className="relative max-w-6xl mx-auto px-6">
+                {/* ── Header ── */}
                 <motion.div
                     variants={fadeUp}
                     initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-50px" }}
-                    custom={0}
-                    className="text-center mb-6"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="text-center mb-14"
                 >
-                    <div
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
-                        style={{
-                            background: P.roseDim,
-                            border: `1px solid rgba(244,63,94,0.15)`,
-                        }}
-                    >
-                        <AlertTriangle className="w-3.5 h-3.5" style={{ color: P.rose }} />
-                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.rose }}>
-                            The Cost of Waiting
-                        </span>
-                    </div>
-                </motion.div>
-
-                <motion.div
-                    variants={fadeUp}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-50px" }}
-                    custom={0.1}
-                    className="text-center mb-16"
-                >
+                    <Eyebrow>The Cost of Manual HR</Eyebrow>
                     <h2
-                        className="text-4xl sm:text-5xl font-bold tracking-tight mb-5"
+                        className="font-display text-3xl sm:text-5xl font-bold tracking-[-0.03em] mt-4 mb-4"
                         style={{ color: P.heading }}
                     >
-                        Manual HR Reviews{" "}
+                        40+ hours lost every week.
+                        <br />
                         <span
                             className="bg-clip-text text-transparent"
-                            style={{ backgroundImage: P.gradDanger }}
+                            style={{ backgroundImage: P.gradText }}
                         >
-                            Create Risk
+                            We give them back.
                         </span>
                     </h2>
-                    <p className="text-lg max-w-2xl mx-auto" style={{ color: P.body }}>
-                        Spreadsheet-heavy HR makes it harder to keep payroll, leave, attendance,
-                        and approval evidence consistent across teams.
+                    <p className="text-[15px] max-w-xl mx-auto leading-relaxed" style={{ color: P.body }}>
+                        Bangladeshi HR teams spend a third of their week on work that should be automated.
+                        See what changes when you switch to PeopleFlow.
                     </p>
                 </motion.div>
 
-                {/* Danger Cards Grid */}
+                {/* ── Before/After split ── */}
                 <motion.div
                     variants={staggerContainer}
                     initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-30px" }}
-                    className="grid md:grid-cols-3 gap-6 mb-16"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="grid md:grid-cols-2 gap-5"
                 >
-                    {dangers.map((danger, i) => (
-                        <DangerCard key={danger.title} danger={danger} index={i} />
-                    ))}
+                    {/* ── BEFORE ── */}
+                    <motion.div variants={fadeLeft}>
+                        <div
+                            className="relative rounded-2xl p-7 h-full"
+                            style={{
+                                background: "rgba(244,63,94,0.03)",
+                                border: `1px solid rgba(244,63,94,0.12)`,
+                            }}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-2.5 mb-5">
+                                <div
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center"
+                                    style={{
+                                        background: "rgba(244,63,94,0.10)",
+                                        border: "1px solid rgba(244,63,94,0.20)",
+                                    }}
+                                >
+                                    <AlertTriangle className="w-4 h-4" style={{ color: P.rose }} />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: P.rose }}>
+                                        Before PeopleFlow
+                                    </div>
+                                    <div className="text-[15px] font-semibold font-display" style={{ color: P.heading }}>
+                                        The chaos of manual HR
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* List */}
+                            <div className="space-y-3">
+                                {beforePain.map((item, i) => (
+                                    <motion.div
+                                        key={i}
+                                        variants={staggerItem}
+                                        className="flex items-start gap-3"
+                                    >
+                                        <div
+                                            className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                            style={{
+                                                background: "rgba(244,63,94,0.10)",
+                                                border: "1px solid rgba(244,63,94,0.20)",
+                                            }}
+                                        >
+                                            <X className="w-2.5 h-2.5" style={{ color: P.rose }} />
+                                        </div>
+                                        <span className="text-[13px] leading-relaxed" style={{ color: P.body }}>
+                                            {item.label}
+                                        </span>
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            {/* Cost badge */}
+                            <div
+                                className="mt-6 pt-5 flex items-center justify-between"
+                                style={{ borderTop: "1px solid rgba(244,63,94,0.12)" }}
+                            >
+                                <div className="text-[11px]" style={{ color: P.muted }}>Estimated weekly loss</div>
+                                <div className="font-mono text-[18px] font-bold" style={{ color: P.rose }}>
+                                    40+ hrs
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* ── AFTER ── */}
+                    <motion.div variants={fadeRight}>
+                        <div
+                            className="relative rounded-2xl p-7 h-full"
+                            style={{
+                                background: "rgba(16,185,129,0.04)",
+                                border: `1px solid rgba(16,185,129,0.18)`,
+                                boxShadow: `0 0 32px ${P.emeraldDim}`,
+                            }}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-2.5 mb-5">
+                                <div
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center"
+                                    style={{
+                                        background: "rgba(16,185,129,0.10)",
+                                        border: "1px solid rgba(16,185,129,0.25)",
+                                    }}
+                                >
+                                    <ShieldCheck className="w-4 h-4" style={{ color: P.emerald }} />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: P.emerald }}>
+                                        After PeopleFlow
+                                    </div>
+                                    <div className="text-[15px] font-semibold font-display" style={{ color: P.heading }}>
+                                        HR on autopilot
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* List */}
+                            <div className="space-y-3">
+                                {afterGains.map((item, i) => (
+                                    <motion.div
+                                        key={i}
+                                        variants={staggerItem}
+                                        className="flex items-start gap-3"
+                                    >
+                                        <div
+                                            className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                            style={{
+                                                background: "rgba(16,185,129,0.12)",
+                                                border: "1px solid rgba(16,185,129,0.30)",
+                                            }}
+                                        >
+                                            <Check className="w-2.5 h-2.5" style={{ color: P.emerald }} />
+                                        </div>
+                                        <span className="text-[13px] leading-relaxed" style={{ color: P.heading }}>
+                                            {item.label}
+                                        </span>
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            {/* Savings badge */}
+                            <div
+                                className="mt-6 pt-5 flex items-center justify-between"
+                                style={{ borderTop: "1px solid rgba(16,185,129,0.18)" }}
+                            >
+                                <div className="text-[11px]" style={{ color: P.muted }}>Time saved per week</div>
+                                <div className="font-mono text-[18px] font-bold" style={{ color: P.emerald }}>
+                                    36+ hrs
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
                 </motion.div>
 
-                {/* Bottom conversion nudge */}
+                {/* ── Bottom CTA ── */}
                 <motion.div
                     variants={fadeUp}
                     initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
+                    animate={isInView ? "visible" : "hidden"}
                     custom={0.3}
-                    className="flex items-center justify-center gap-3"
+                    className="text-center mt-10"
                 >
-                    <div
-                        className="h-px flex-1 max-w-24"
-                        style={{ background: `linear-gradient(to right, transparent, ${P.border})` }}
-                    />
-                    <p className="text-sm font-medium" style={{ color: P.muted }}>
-                        PeopleFlow gives beta teams a structured path to reduce this risk
-                    </p>
-                    <ArrowRight className="w-4 h-4" style={{ color: P.emerald }} />
-                    <div
-                        className="h-px flex-1 max-w-24"
-                        style={{ background: `linear-gradient(to left, transparent, ${P.border})` }}
-                    />
+                    <a
+                        href="#features"
+                        className="inline-flex items-center gap-2 text-[13px] font-semibold no-underline transition-colors"
+                        style={{ color: P.blueBright }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = P.blue; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = P.blueBright; }}
+                    >
+                        See how it works
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
                 </motion.div>
             </div>
         </section>

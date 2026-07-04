@@ -1,145 +1,109 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Zap, Shield, Clock } from "lucide-react";
-import { P, fadeUp, staggerContainer, staggerItem } from "./shared";
+import { ArrowRight, Play, Sparkles } from "lucide-react";
+import { P, fadeUp, useInView, Eyebrow } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
-// FINAL CTA — High-Urgency Conversion Close
+// CTA FINAL — Full-width gradient mesh, dual CTA
 // ═══════════════════════════════════════════════════════════════
 
 export default function CTAFinal({ onBookDemo }: { onBookDemo: () => void }) {
-    return (
-        <section className="relative py-32 overflow-hidden">
-            {/* Full aurora background */}
-            <div className="absolute inset-0" style={{ background: P.bg }} />
+    const { ref, isInView } = useInView(0.15);
 
-            {/* Orb 1 */}
+    return (
+        <section
+            ref={ref}
+            className="relative py-24 overflow-hidden"
+            style={{ background: P.bg }}
+        >
+            {/* Background mesh */}
             <div
-                className="absolute rounded-full pointer-events-none"
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                    width: 700, height: 700,
-                    top: "-30%", right: "-5%",
-                    background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 65%)",
-                    animation: "aurora-1 18s ease-in-out infinite",
-                }}
-            />
-            {/* Orb 2 */}
-            <div
-                className="absolute rounded-full pointer-events-none"
-                style={{
-                    width: 600, height: 600,
-                    bottom: "-25%", left: "-8%",
-                    background: "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 65%)",
-                    animation: "aurora-2 22s ease-in-out infinite",
-                }}
-            />
-            {/* Orb 3 */}
-            <div
-                className="absolute rounded-full pointer-events-none"
-                style={{
-                    width: 500, height: 500,
-                    top: "20%", left: "35%",
-                    background: "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 60%)",
-                    animation: "aurora-3 26s ease-in-out infinite",
+                    background: `
+                        radial-gradient(ellipse 60% 50% at 50% 50%, rgba(59,130,246,0.12), transparent 70%),
+                        radial-gradient(ellipse 40% 40% at 80% 20%, rgba(139,92,246,0.10), transparent 70%),
+                        radial-gradient(ellipse 40% 40% at 20% 80%, rgba(16,185,129,0.08), transparent 70%)
+                    `,
                 }}
             />
 
             <div className="relative max-w-4xl mx-auto px-6 text-center">
                 <motion.div
-                    variants={staggerContainer}
+                    variants={fadeUp}
                     initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-50px" }}
+                    animate={isInView ? "visible" : "hidden"}
                 >
-                    {/* Badge */}
-                    <motion.div variants={staggerItem} className="flex justify-center mb-8">
-                        <div
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-                            style={{ background: P.roseDim, border: `1px solid ${P.rose}20` }}
-                        >
-                            <Clock className="w-3.5 h-3.5" style={{ color: P.rose }} />
-                            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.rose }}>
-                                Prepare for Beta
-                            </span>
-                        </div>
-                    </motion.div>
+                    <Eyebrow>
+                        <Sparkles className="w-3 h-3" />
+                        Ready when you are
+                    </Eyebrow>
 
-                    {/* Headline */}
-                    <motion.h2
-                        variants={staggerItem}
-                        className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
+                    <h2
+                        className="font-display text-4xl sm:text-6xl font-bold tracking-[-0.03em] mt-5 mb-5"
                         style={{ color: P.heading }}
                     >
-                        Bring Structure to{" "}
+                        Transform your HR
+                        <br />
                         <span
                             className="bg-clip-text text-transparent"
-                            style={{ backgroundImage: P.gradDanger }}
+                            style={{ backgroundImage: P.gradText }}
                         >
-                            HR Operations
+                            in 10 minutes.
                         </span>
-                    </motion.h2>
+                    </h2>
 
-                    <motion.p
-                        variants={staggerItem}
-                        className="text-lg sm:text-xl max-w-2xl mx-auto mb-12 leading-relaxed"
-                        style={{ color: P.body }}
-                    >
-                        Replace spreadsheet-heavy review with tenant-aware workflows for payroll,
-                        leave, attendance, approvals, and audit-ready operational checks.
-                    </motion.p>
+                    <p className="text-[16px] max-w-xl mx-auto mb-9" style={{ color: P.body }}>
+                        Free for 14 days · No credit card · Setup in minutes
+                        <br />
+                        <span className="text-[13px]" style={{ color: P.muted }}>
+                            আজই শুরু করুন — আপনার প্রথম পেস্লিপ ৩ মিনিটে
+                        </span>
+                    </p>
 
-                    {/* CTAs */}
-                    <motion.div
-                        variants={staggerItem}
-                        className="flex flex-wrap justify-center gap-4 mb-14"
-                    >
-                        <button
-                            onClick={onBookDemo}
-                            className="group relative inline-flex items-center gap-2.5 px-10 py-4 rounded-2xl text-white font-semibold text-base cursor-pointer overflow-hidden"
+                    <div className="flex flex-wrap justify-center gap-3">
+                        <Link
+                            href="/register"
+                            className="group relative inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-white font-semibold text-[15px] cursor-pointer overflow-hidden transition-transform duration-300 hover:scale-[1.03]"
                             style={{
                                 background: P.gradBrand,
-                                boxShadow: `0 0 40px ${P.blueDim}, 0 8px 32px rgba(0,0,0,0.4)`,
-                                transition: "all 400ms ease",
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.boxShadow = `0 0 60px ${P.blueGlow}, 0 8px 40px rgba(0,0,0,0.5)`;
-                                e.currentTarget.style.transform = "scale(1.04) translateY(-2px)";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.boxShadow = `0 0 40px ${P.blueDim}, 0 8px 32px rgba(0,0,0,0.4)`;
-                                e.currentTarget.style.transform = "scale(1) translateY(0)";
+                                boxShadow: `0 0 40px ${P.blueDim}, 0 8px 24px rgba(0,0,0,0.4)`,
                             }}
                         >
-                            <div
-                                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700"
-                                style={{
-                                    background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%)",
-                                    backgroundSize: "200% 100%",
-                                    animation: "shimmer 2s infinite",
-                                }}
-                            />
-                            <span className="relative z-10">Book Your Free Demo</span>
-                            <ArrowRight className="relative z-10 w-4 h-4 group-hover:translate-x-1.5 transition-transform duration-200" />
+                            <span className="relative z-10">Start Free Trial</span>
+                            <ArrowRight className="relative z-10 w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
+                        </Link>
+                        <button
+                            onClick={onBookDemo}
+                            className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-[15px] text-white cursor-pointer transition-all duration-300"
+                            style={{
+                                background: "rgba(255,255,255,0.04)",
+                                border: `1px solid ${P.borderHover}`,
+                                backdropFilter: "blur(8px)",
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                                e.currentTarget.style.borderColor = P.borderActive;
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                                e.currentTarget.style.borderColor = P.borderHover;
+                            }}
+                        >
+                            <Play className="w-3.5 h-3.5" style={{ color: P.blueBright }} />
+                            Book a Demo
                         </button>
-                    </motion.div>
+                    </div>
 
-                    {/* Trust micro-badges */}
-                    <motion.div
-                        variants={staggerItem}
-                        className="flex flex-wrap justify-center gap-6"
-                    >
-                        {[
-                            { icon: Shield, text: "Compliance-oriented workflows" },
-                            { icon: Zap, text: "14-day Free Trial" },
-                            { icon: Clock, text: "Guided beta setup" },
-                        ].map((b) => (
-                            <div key={b.text} className="flex items-center gap-2">
-                                <b.icon className="w-4 h-4" style={{ color: P.subtle }} />
-                                <span className="text-sm" style={{ color: P.muted }}>{b.text}</span>
-                            </div>
-                        ))}
-                    </motion.div>
+                    {/* Trust line */}
+                    <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-8 text-[11px]" style={{ color: P.muted }}>
+                        <span>✓ BLA 2006 compliant</span>
+                        <span>✓ bKash + bank disbursement</span>
+                        <span>✓ Bengali UI</span>
+                        <span>✓ Dhaka-based support</span>
+                    </div>
                 </motion.div>
             </div>
         </section>

@@ -1,341 +1,402 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, Zap, ArrowRight, Building2, Crown } from "lucide-react";
-import { P, fadeUp, staggerContainer, staggerItem } from "./shared";
+import { motion } from "framer-motion";
+import { Check, X, ArrowRight, Sparkles, Building2, Zap } from "lucide-react";
+import { P, fadeUp, staggerContainer, staggerItem, useInView, Eyebrow } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
-// PRICING THEATER — Conversion Table
+// PRICING — Tiered BDT + Annual Toggle
+// Confident authority: transparent, no hidden fees
 // ═══════════════════════════════════════════════════════════════
 
-const plans = [
+type Tier = {
+    id: string;
+    name: string;
+    tagline: string;
+    monthlyPrice: number; // per employee / month
+    annualPrice: number; // per employee / month (with 20% off)
+    icon: typeof Zap;
+    color: string;
+    popular?: boolean;
+    features: string[];
+    cta: string;
+};
+
+const tiers: Tier[] = [
     {
         id: "starter",
         name: "Starter",
-        tagline: "For small teams getting started",
-        monthly: 2999,
-        annually: 2499,
+        tagline: "For teams getting started",
+        monthlyPrice: 2000,
+        annualPrice: 1600,
         icon: Zap,
-        color: P.blue,
-        cta: "Start Free Trial",
-        ctaStyle: "outline" as const,
+        color: "#60A5FA",
         features: [
             "Up to 50 employees",
-            "3 admin users",
-            "1 branch",
-            "Core HR & Attendance",
-            "Basic Payroll",
-            "Leave Management",
-            "500 MB storage",
-            "Email Support",
+            "Employee directory + ESS",
+            "Attendance (manual + biometric)",
+            "Leave management",
+            "Basic payroll engine",
+            "Email support",
         ],
+        cta: "Start Free Trial",
     },
     {
-        id: "growth",
-        name: "Growth",
-        tagline: "For growing companies that need power",
-        monthly: 7999,
-        annually: 6499,
-        icon: Crown,
-        color: P.indigo,
+        id: "pro",
+        name: "Pro",
+        tagline: "For growing BD businesses",
+        monthlyPrice: 3500,
+        annualPrice: 2800,
+        icon: Sparkles,
+        color: "#A78BFA",
         popular: true,
-        cta: "Start Free Trial",
-        ctaStyle: "filled" as const,
         features: [
-            "Up to 200 employees",
-            "10 admin users",
-            "5 branches",
-            "Everything in Starter",
-            "Advanced Payroll + PF Ledger",
-            "Approval Workflows",
-            "Festival Bonus Engine",
-            "Biometric Sync (5 devices)",
-            "2 GB storage",
-            "Priority Support",
+            "Up to 1,000 employees",
+            "Everything in Starter, plus:",
+            "bKash + bank disbursement",
+            "Performance & OKR",
+            "Recruitment pipeline + AI parser",
+            "Custom reports + audit logs",
+            "Priority support (4-hr SLA)",
         ],
+        cta: "Start Free Trial",
     },
     {
         id: "enterprise",
         name: "Enterprise",
-        tagline: "For large organizations & factories",
-        monthly: null,
-        annually: null,
+        tagline: "For groups & corporations",
+        monthlyPrice: 0, // custom
+        annualPrice: 0,
         icon: Building2,
-        color: P.violet,
-        cta: "Book a Demo",
-        ctaStyle: "outline" as const,
+        color: "#10B981",
         features: [
             "Unlimited employees",
-            "Unlimited admins",
-            "Unlimited branches",
-            "Everything in Growth",
-            "Custom BLA Compliance Rules",
-            "Deep RBAC + Row-Level Security",
-            "Unlimited devices & storage",
-            "Dedicated Account Manager",
-            "SLA & On-premise Options",
-            "API Access",
+            "Everything in Pro, plus:",
+            "Multi-tenant group structure",
+            "Custom integrations (ERP, biometric)",
+            "Dedicated success manager",
+            "On-prem deployment option",
+            "24/7 phone + WhatsApp support",
+            "Custom SLA + contract",
         ],
+        cta: "Contact Sales",
     },
 ];
 
-function PricingCard({
-    plan,
-    isAnnual,
-    onBookDemo,
-}: {
-    plan: typeof plans[number];
-    isAnnual: boolean;
-    onBookDemo: () => void;
-}) {
-    const price = isAnnual ? plan.annually : plan.monthly;
-    const isPopular = "popular" in plan && plan.popular;
+const matrix = [
+    { feature: "Employee directory", starter: true, pro: true, enterprise: true },
+    { feature: "Biometric attendance (ZKTeco/ADMS)", starter: true, pro: true, enterprise: true },
+    { feature: "BLA 2006 compliant leave", starter: true, pro: true, enterprise: true },
+    { feature: "Payroll engine", starter: "basic", pro: "full", enterprise: "full" },
+    { feature: "bKash / Nagad disbursement", starter: false, pro: true, enterprise: true },
+    { feature: "Bank EFT file generation", starter: false, pro: true, enterprise: true },
+    { feature: "Performance + OKR", starter: false, pro: true, enterprise: true },
+    { feature: "Recruitment + AI resume parser", starter: false, pro: true, enterprise: true },
+    { feature: "Custom reports + audit logs", starter: false, pro: true, enterprise: true },
+    { feature: "Multi-tenant group structure", starter: false, pro: false, enterprise: true },
+    { feature: "Custom integrations", starter: false, pro: false, enterprise: true },
+    { feature: "On-prem deployment", starter: false, pro: false, enterprise: true },
+    { feature: "Support SLA", starter: "email", pro: "4-hr", enterprise: "24/7" },
+];
+
+export default function PricingTheater({ onBookDemo }: { onBookDemo: () => void }) {
+    const { ref, isInView } = useInView(0.05);
+    const [annual, setAnnual] = useState(true);
+
+    return (
+        <section
+            id="pricing"
+            ref={ref}
+            className="relative py-24"
+            style={{ background: P.bg }}
+        >
+            <div className="max-w-6xl mx-auto px-6">
+                {/* ── Header ── */}
+                <motion.div
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="text-center mb-10"
+                >
+                    <Eyebrow>
+                        <Sparkles className="w-3 h-3" />
+                        Pricing
+                    </Eyebrow>
+                    <h2
+                        className="font-display text-3xl sm:text-5xl font-bold tracking-[-0.03em] mt-4 mb-3"
+                        style={{ color: P.heading }}
+                    >
+                        Pricing that scales
+                        <span
+                            className="bg-clip-text text-transparent ml-2"
+                            style={{ backgroundImage: P.gradText }}
+                        >
+                            with your team.
+                        </span>
+                    </h2>
+                    <p className="text-[15px] max-w-xl mx-auto" style={{ color: P.body }}>
+                        Transparent BDT pricing · No hidden fees · 14-day free trial
+                    </p>
+                </motion.div>
+
+                {/* ── Billing toggle ── */}
+                <motion.div
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    custom={0.1}
+                    className="flex justify-center items-center gap-3 mb-10"
+                >
+                    <span
+                        className="text-[13px] font-semibold transition-colors"
+                        style={{ color: !annual ? P.heading : P.muted }}
+                    >
+                        Monthly
+                    </span>
+                    <button
+                        onClick={() => setAnnual(!annual)}
+                        className="relative w-12 h-6 rounded-full cursor-pointer transition-colors"
+                        style={{
+                            background: annual ? P.gradBrand : P.border,
+                        }}
+                    >
+                        <motion.div
+                            className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                            animate={{ left: annual ? 26 : 2 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                        />
+                    </button>
+                    <span
+                        className="text-[13px] font-semibold transition-colors"
+                        style={{ color: annual ? P.heading : P.muted }}
+                    >
+                        Annual
+                    </span>
+                    <span
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                        style={{
+                            background: P.emeraldDim,
+                            color: P.emerald,
+                            border: `1px solid ${P.emeraldDim}`,
+                        }}
+                    >
+                        Save 20%
+                    </span>
+                </motion.div>
+
+                {/* ── Tier cards ── */}
+                <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="grid md:grid-cols-3 gap-4 mb-16"
+                >
+                    {tiers.map((tier) => (
+                        <TierCard key={tier.id} tier={tier} annual={annual} onBookDemo={onBookDemo} />
+                    ))}
+                </motion.div>
+
+                {/* ── Feature matrix ── */}
+                <motion.div
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    custom={0.3}
+                >
+                    <h3
+                        className="font-display text-xl font-bold text-center mb-6 tracking-tight"
+                        style={{ color: P.heading }}
+                    >
+                        Compare every feature
+                    </h3>
+                    <div
+                        className="rounded-2xl overflow-hidden"
+                        style={{
+                            background: P.surface,
+                            border: `1px solid ${P.border}`,
+                        }}
+                    >
+                        {/* Header row */}
+                        <div
+                            className="grid grid-cols-4 px-5 py-4"
+                            style={{ borderBottom: `1px solid ${P.border}` }}
+                        >
+                            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: P.muted }}>
+                                Feature
+                            </div>
+                            {tiers.map((tier) => (
+                                <div key={tier.id} className="text-center">
+                                    <div
+                                        className="text-[13px] font-bold font-display"
+                                        style={{ color: tier.popular ? tier.color : P.heading }}
+                                    >
+                                        {tier.name}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Body rows */}
+                        {matrix.map((row, i) => (
+                            <div
+                                key={row.feature}
+                                className="grid grid-cols-4 px-5 py-3 items-center"
+                                style={{
+                                    borderBottom: i === matrix.length - 1 ? "none" : `1px solid ${P.border}`,
+                                    background: i % 2 === 0 ? "rgba(255,255,255,0.01)" : "transparent",
+                                }}
+                            >
+                                <div className="text-[12px]" style={{ color: P.body }}>
+                                    {row.feature}
+                                </div>
+                                <MatrixCell value={row.starter} color="#60A5FA" />
+                                <MatrixCell value={row.pro} color="#A78BFA" highlight />
+                                <MatrixCell value={row.enterprise} color="#10B981" />
+                            </div>
+                        ))}
+                    </div>
+                </motion.div>
+            </div>
+        </section>
+    );
+}
+
+function TierCard({ tier, annual, onBookDemo }: { tier: Tier; annual: boolean; onBookDemo: () => void }) {
+    const price = annual ? tier.annualPrice : tier.monthlyPrice;
 
     return (
         <motion.div
             variants={staggerItem}
-            className="relative rounded-2xl overflow-hidden group flex flex-col"
+            className="relative rounded-2xl p-6 h-full flex flex-col"
             style={{
-                background: P.surface,
-                border: `1px solid ${isPopular ? `${plan.color}30` : P.border}`,
-                transition: "all 400ms ease",
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-4px)";
-                e.currentTarget.style.boxShadow = `0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px ${plan.color}20`;
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
+                background: tier.popular ? "linear-gradient(180deg, rgba(99,102,241,0.05), transparent)" : P.surface,
+                border: `1px solid ${tier.popular ? `${tier.color}40` : P.border}`,
+                boxShadow: tier.popular ? `0 0 32px ${tier.color}15` : "none",
             }}
         >
-            {/* Popular badge */}
-            {isPopular && (
+            {tier.popular && (
                 <div
-                    className="absolute top-0 left-0 right-0 h-1"
-                    style={{ background: `linear-gradient(90deg, ${P.indigo}, ${P.violet})` }}
-                />
+                    className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-white"
+                    style={{ background: P.gradBrand }}
+                >
+                    Most Popular
+                </div>
             )}
 
-            {/* Shimmer border for popular */}
-            {isPopular && (
+            {/* Header */}
+            <div className="flex items-center gap-2.5 mb-3">
                 <div
-                    className="absolute inset-0 rounded-2xl pointer-events-none"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center"
                     style={{
-                        padding: "1px",
-                        background: `linear-gradient(135deg, ${P.indigo}40, transparent 40%, transparent 60%, ${P.violet}40)`,
-                        backgroundSize: "300% 300%",
-                        animation: "shimmer 4s ease-in-out infinite",
-                        mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                        maskComposite: "exclude",
-                        WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-                        WebkitMaskComposite: "xor",
-                    }}
-                />
-            )}
-
-            <div className="relative p-7 flex flex-col flex-1">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-1">
-                    <h3 className="text-xl font-bold text-white">{plan.name}</h3>
-                    {isPopular && (
-                        <span
-                            className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
-                            style={{ color: P.indigo, background: P.indigoDim, border: `1px solid ${P.indigo}20` }}
-                        >
-                            Most Popular
-                        </span>
-                    )}
-                </div>
-                <p className="text-xs mb-6" style={{ color: P.subtle }}>{plan.tagline}</p>
-
-                {/* Price */}
-                <div className="mb-7">
-                    {price ? (
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-sm font-medium" style={{ color: P.subtle }}>৳</span>
-                            <AnimatePresence mode="wait">
-                                <motion.span
-                                    key={price}
-                                    className="text-4xl font-black text-white"
-                                    initial={{ opacity: 0, y: -10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 10 }}
-                                    transition={{ duration: 0.25 }}
-                                >
-                                    {price.toLocaleString()}
-                                </motion.span>
-                            </AnimatePresence>
-                            <span className="text-sm" style={{ color: P.subtle }}>/mo</span>
-                        </div>
-                    ) : (
-                        <span className="text-4xl font-black text-white">Custom</span>
-                    )}
-                    {isAnnual && price && (
-                        <motion.p
-                            className="text-xs mt-1"
-                            style={{ color: P.emerald }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                        >
-                            Save ৳{((plan.monthly! - plan.annually!) * 12).toLocaleString()}/year
-                        </motion.p>
-                    )}
-                </div>
-
-                {/* CTA */}
-                <button
-                    onClick={plan.id === "enterprise" ? onBookDemo : undefined}
-                    className="w-full py-3 rounded-xl font-semibold text-sm mb-7 cursor-pointer relative overflow-hidden group/btn"
-                    style={{
-                        background: plan.ctaStyle === "filled" ? P.gradBrand : "transparent",
-                        border: plan.ctaStyle === "filled" ? "none" : `1px solid ${P.border}`,
-                        color: "white",
-                        boxShadow: plan.ctaStyle === "filled" ? `0 0 32px ${P.blueDim}` : "none",
-                        transition: "all 300ms ease",
-                    }}
-                    onMouseEnter={(e) => {
-                        if (plan.ctaStyle === "outline") {
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-                            e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-                        } else {
-                            e.currentTarget.style.boxShadow = `0 0 48px ${P.blueGlow}`;
-                        }
-                    }}
-                    onMouseLeave={(e) => {
-                        if (plan.ctaStyle === "outline") {
-                            e.currentTarget.style.borderColor = P.border;
-                            e.currentTarget.style.background = "transparent";
-                        } else {
-                            e.currentTarget.style.boxShadow = `0 0 32px ${P.blueDim}`;
-                        }
+                        background: `${tier.color}15`,
+                        border: `1px solid ${tier.color}30`,
                     }}
                 >
-                    {plan.ctaStyle === "filled" && (
-                        <div
-                            className="absolute inset-0 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-700"
-                            style={{
-                                background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 50%, transparent 60%)",
-                                backgroundSize: "200% 100%",
-                                animation: "shimmer 2s infinite",
-                            }}
-                        />
-                    )}
-                    <span className="relative z-10">{plan.cta}</span>
-                </button>
-
-                {/* Features */}
-                <div className="space-y-3 flex-1">
-                    {plan.features.map((f) => (
-                        <div key={f} className="flex items-start gap-2.5">
-                            <Check
-                                className="w-4 h-4 shrink-0 mt-0.5"
-                                style={{ color: isPopular ? plan.color : P.emerald }}
-                                strokeWidth={2.5}
-                            />
-                            <span className="text-sm" style={{ color: P.body }}>{f}</span>
-                        </div>
-                    ))}
+                    <tier.icon className="w-4 h-4" style={{ color: tier.color }} />
+                </div>
+                <div>
+                    <div className="font-display text-[18px] font-bold" style={{ color: P.heading }}>
+                        {tier.name}
+                    </div>
+                    <div className="text-[10px]" style={{ color: P.muted }}>
+                        {tier.tagline}
+                    </div>
                 </div>
             </div>
+
+            {/* Price */}
+            <div className="mb-5">
+                {price === 0 ? (
+                    <div className="font-display text-3xl font-bold" style={{ color: P.heading }}>
+                        Custom
+                    </div>
+                ) : (
+                    <div className="flex items-baseline gap-1">
+                        <span className="font-display text-3xl font-bold" style={{ color: P.heading }}>
+                            ৳{price.toLocaleString()}
+                        </span>
+                        <span className="text-[12px]" style={{ color: P.muted }}>
+                            /emp/mo
+                        </span>
+                    </div>
+                )}
+                {annual && price > 0 && (
+                    <div className="text-[10px] mt-1" style={{ color: P.emerald }}>
+                        Billed annually · Save 20%
+                    </div>
+                )}
+            </div>
+
+            {/* CTA */}
+            <button
+                onClick={tier.id === "enterprise" ? onBookDemo : undefined}
+                className="w-full py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer transition-all duration-300 mb-5"
+                style={{
+                    background: tier.popular ? P.gradBrand : "rgba(255,255,255,0.04)",
+                    color: tier.popular ? "white" : P.heading,
+                    border: `1px solid ${tier.popular ? "transparent" : P.borderHover}`,
+                    boxShadow: tier.popular ? `0 0 20px ${tier.color}30` : "none",
+                }}
+                onMouseEnter={(e) => {
+                    if (!tier.popular) {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+                        e.currentTarget.style.borderColor = P.borderActive;
+                    }
+                }}
+                onMouseLeave={(e) => {
+                    if (!tier.popular) {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                        e.currentTarget.style.borderColor = P.borderHover;
+                    }
+                }}
+            >
+                {tier.cta}
+                <ArrowRight className="inline-block w-3 h-3 ml-1.5" />
+            </button>
+
+            {/* Features */}
+            <ul className="space-y-2.5 flex-1">
+                {tier.features.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                        <Check
+                            className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                            style={{ color: tier.color }}
+                        />
+                        <span className="text-[12px] leading-relaxed" style={{ color: P.body }}>
+                            {feature}
+                        </span>
+                    </li>
+                ))}
+            </ul>
         </motion.div>
     );
 }
 
-export default function PricingTheater({ onBookDemo }: { onBookDemo: () => void }) {
-    const [isAnnual, setIsAnnual] = useState(false);
-
-    return (
-        <section id="pricing" className="relative py-28 overflow-hidden" style={{ background: P.bg }}>
-            <div className="relative max-w-7xl mx-auto px-6">
-                {/* Header */}
-                <motion.div
-                    variants={staggerContainer}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-50px" }}
-                    className="text-center mb-12"
-                >
-                    <motion.div variants={staggerItem}>
-                        <div
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
-                            style={{ background: P.emeraldDim, border: `1px solid ${P.emerald}20` }}
-                        >
-                            <Zap className="w-3.5 h-3.5" style={{ color: P.emerald }} />
-                            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.emerald }}>
-                                Simple Pricing
-                            </span>
-                        </div>
-                    </motion.div>
-                    <motion.h2
-                        variants={staggerItem}
-                        className="text-4xl sm:text-5xl font-bold tracking-tight mb-5"
-                        style={{ color: P.heading }}
-                    >
-                        Invest in Your{" "}
-                        <span className="bg-clip-text text-transparent" style={{ backgroundImage: P.gradBrand }}>
-                            Workforce
-                        </span>
-                    </motion.h2>
-                    <motion.p variants={staggerItem} className="text-lg max-w-xl mx-auto mb-10" style={{ color: P.body }}>
-                        Every plan includes a 14-day free trial. No credit card required.
-                    </motion.p>
-
-                    {/* Monthly / Annual Toggle */}
-                    <motion.div variants={staggerItem} className="flex items-center justify-center gap-3">
-                        <span className="text-sm font-medium" style={{ color: isAnnual ? P.subtle : "white" }}>Monthly</span>
-                        <button
-                            onClick={() => setIsAnnual(!isAnnual)}
-                            className="relative w-14 h-7 rounded-full cursor-pointer transition-colors duration-300"
-                            style={{
-                                background: isAnnual ? P.indigo : "rgba(255,255,255,0.08)",
-                                border: `1px solid ${isAnnual ? `${P.indigo}60` : P.border}`,
-                            }}
-                        >
-                            <motion.div
-                                className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white"
-                                animate={{ x: isAnnual ? 26 : 0 }}
-                                transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
-                            />
-                        </button>
-                        <span className="text-sm font-medium" style={{ color: isAnnual ? "white" : P.subtle }}>
-                            Annual
-                        </span>
-                        {isAnnual && (
-                            <motion.span
-                                className="text-xs font-bold px-2 py-0.5 rounded-full"
-                                style={{ color: P.emerald, background: P.emeraldDim }}
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ type: "spring", stiffness: 400 }}
-                            >
-                                Save ~17%
-                            </motion.span>
-                        )}
-                    </motion.div>
-                </motion.div>
-
-                {/* Cards */}
-                <motion.div
-                    variants={staggerContainer}
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true, margin: "-30px" }}
-                    className="grid md:grid-cols-3 gap-6 items-stretch"
-                >
-                    {plans.map((plan) => (
-                        <PricingCard key={plan.id} plan={plan} isAnnual={isAnnual} onBookDemo={onBookDemo} />
-                    ))}
-                </motion.div>
+function MatrixCell({ value, color, highlight }: { value: boolean | string; color: string; highlight?: boolean }) {
+    if (typeof value === "boolean") {
+        return (
+            <div className="flex justify-center">
+                {value ? (
+                    <Check className="w-4 h-4" style={{ color }} />
+                ) : (
+                    <X className="w-4 h-4" style={{ color: P.subtle }} />
+                )}
             </div>
-
-            <div
-                className="max-w-5xl mx-auto mt-24 h-px"
-                style={{ background: `linear-gradient(to right, transparent, ${P.border}, transparent)` }}
-            />
-        </section>
+        );
+    }
+    return (
+        <div className="text-center">
+            <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded"
+                style={{
+                    background: `${color}15`,
+                    color,
+                    border: `1px solid ${color}30`,
+                }}
+            >
+                {value}
+            </span>
+        </div>
     );
 }
