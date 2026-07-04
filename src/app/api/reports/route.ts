@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -94,70 +93,72 @@ async function runComplianceEngine(ctx: AuthContext) {
         salaryAssignments,
         shifts,
         recentAttendance,
-    ] = await Promise.all([
-        prisma.employee.findMany({
-            where: { organizationId: orgId, employmentStatus: "active" },
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeCode: true,
-                joiningDate: true,
-                confirmationDate: true,
-                employmentType: true,
-                gender: true,
-                shiftId: true,
-                pfEnabled: true,
-            },
-        }),
-        prisma.leaveType.findMany({
-            where: { organizationId: orgId, isActive: true },
-            select: { id: true, code: true, name: true, annualAllocation: true },
-        }),
-        prisma.leaveAllocation.findMany({
-            where: {
-                employee: { organizationId: orgId, employmentStatus: "active" },
-                year: currentYear,
-            },
-            select: { employeeId: true, allocatedDays: true, leaveTypeId: true },
-        }),
-        prisma.salaryStructureAssignment.findMany({
-            where: {
-                employee: { organizationId: orgId, employmentStatus: "active" },
-                isActive: true,
-            },
-            select: {
-                employeeId: true,
-                grossSalary: true,
-                salaryStructure: {
-                    select: { pfEmployeePercent: true, pfEmployerPercent: true },
+    ] = await ctx.withDB((db) =>
+        Promise.all([
+            db.employee.findMany({
+                where: { organizationId: orgId, employmentStatus: "active" },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    employeeCode: true,
+                    joiningDate: true,
+                    confirmationDate: true,
+                    employmentType: true,
+                    gender: true,
+                    shiftId: true,
+                    pfEnabled: true,
                 },
-            },
-        }),
-        prisma.shift.findMany({
-            where: { organizationId: orgId, isActive: true },
-            select: { id: true, fullDayHours: true, startTime: true, endTime: true },
-        }),
-        // Last 30 days of attendance for working hours checks (capped)
-        prisma.attendance.findMany({
-            where: {
-                employee: { organizationId: orgId },
-                date: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
-                status: "present",
-                checkIn: { not: null },
-                checkOut: { not: null },
-            },
-            select: {
-                employeeId: true,
-                checkIn: true,
-                checkOut: true,
-                overtimeMinutes: true,
-                lateMinutes: true,
-            },
-            orderBy: { date: "desc" },
-            take: COMPLIANCE_ATTENDANCE_CAP,
-        }),
-    ]);
+            }),
+            db.leaveType.findMany({
+                where: { organizationId: orgId, isActive: true },
+                select: { id: true, code: true, name: true, annualAllocation: true },
+            }),
+            db.leaveAllocation.findMany({
+                where: {
+                    employee: { organizationId: orgId, employmentStatus: "active" },
+                    year: currentYear,
+                },
+                select: { employeeId: true, allocatedDays: true, leaveTypeId: true },
+            }),
+            db.salaryStructureAssignment.findMany({
+                where: {
+                    employee: { organizationId: orgId, employmentStatus: "active" },
+                    isActive: true,
+                },
+                select: {
+                    employeeId: true,
+                    grossSalary: true,
+                    salaryStructure: {
+                        select: { pfEmployeePercent: true, pfEmployerPercent: true },
+                    },
+                },
+            }),
+            db.shift.findMany({
+                where: { organizationId: orgId, isActive: true },
+                select: { id: true, fullDayHours: true, startTime: true, endTime: true },
+            }),
+            // Last 30 days of attendance for working hours checks (capped)
+            db.attendance.findMany({
+                where: {
+                    employee: { organizationId: orgId },
+                    date: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+                    status: "present",
+                    checkIn: { not: null },
+                    checkOut: { not: null },
+                },
+                select: {
+                    employeeId: true,
+                    checkIn: true,
+                    checkOut: true,
+                    overtimeMinutes: true,
+                    lateMinutes: true,
+                },
+                orderBy: { date: "desc" },
+                take: COMPLIANCE_ATTENDANCE_CAP,
+            }),
+        ]),
+    );
 
     const totalEmployees = activeEmployees.length;
 
@@ -471,34 +472,36 @@ async function runAttendanceReport(
     if (status) where.status = status;
 
     // Parallel: fetch paginated data + total count
-    const [records, totalCount] = await Promise.all([
-        prisma.attendance.findMany({
-            where,
-            select: {
-                id: true,
-                date: true,
-                status: true,
-                checkIn: true,
-                checkOut: true,
-                overtimeMinutes: true,
-                lateMinutes: true,
-                earlyLeaveMinutes: true,
-                employee: {
-                    select: {
-                        id: true,
-                        employeeCode: true,
-                        firstName: true,
-                        lastName: true,
-                        department: { select: { name: true } },
+    const [records, totalCount] = await ctx.withDB((db) =>
+        Promise.all([
+            db.attendance.findMany({
+                where,
+                select: {
+                    id: true,
+                    date: true,
+                    status: true,
+                    checkIn: true,
+                    checkOut: true,
+                    overtimeMinutes: true,
+                    lateMinutes: true,
+                    earlyLeaveMinutes: true,
+                    employee: {
+                        select: {
+                            id: true,
+                            employeeCode: true,
+                            firstName: true,
+                            lastName: true,
+                            department: { select: { name: true } },
+                        },
                     },
                 },
-            },
-            orderBy: [{ date: "desc" }, { employee: { firstName: "asc" } }],
-            skip: pagination.skip,
-            take: pagination.limit,
-        }),
-        prisma.attendance.count({ where }),
-    ]);
+                orderBy: [{ date: "desc" }, { employee: { firstName: "asc" } }],
+                skip: pagination.skip,
+                take: pagination.limit,
+            }),
+            db.attendance.count({ where }),
+        ]),
+    );
 
     return NextResponse.json({
         data: records,
@@ -534,42 +537,44 @@ async function runPayrollReport(
     };
     if (payrollStatus) where.status = payrollStatus;
 
-    const [slips, totalCount, aggregates] = await Promise.all([
-        prisma.salarySlip.findMany({
-            where,
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        employeeCode: true,
-                        firstName: true,
-                        lastName: true,
-                        department: { select: { name: true } },
-                        designation: { select: { name: true } },
+    const [slips, totalCount, aggregates] = await ctx.withDB((db) =>
+        Promise.all([
+            db.salarySlip.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            id: true,
+                            employeeCode: true,
+                            firstName: true,
+                            lastName: true,
+                            department: { select: { name: true } },
+                            designation: { select: { name: true } },
+                        },
                     },
                 },
-            },
-            orderBy: { employee: { firstName: "asc" } },
-            skip: pagination.skip,
-            take: pagination.limit,
-        }),
-        prisma.salarySlip.count({ where }),
-        // Aggregate totals for the summary header
-        prisma.salarySlip.aggregate({
-            where,
-            _sum: {
-                grossSalary: true,
-                totalDeductions: true,
-                netSalary: true,
-                pfEmployee: true,
-                pfEmployer: true,
-                incomeTax: true,
-                loanDeduction: true,
-                festivalBonus: true,
-            },
-            _count: true,
-        }),
-    ]);
+                orderBy: { employee: { firstName: "asc" } },
+                skip: pagination.skip,
+                take: pagination.limit,
+            }),
+            db.salarySlip.count({ where }),
+            // Aggregate totals for the summary header
+            db.salarySlip.aggregate({
+                where,
+                _sum: {
+                    grossSalary: true,
+                    totalDeductions: true,
+                    netSalary: true,
+                    pfEmployee: true,
+                    pfEmployer: true,
+                    incomeTax: true,
+                    loanDeduction: true,
+                    festivalBonus: true,
+                },
+                _count: true,
+            }),
+        ]),
+    );
 
     return NextResponse.json({
         data: slips,

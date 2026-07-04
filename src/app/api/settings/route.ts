@@ -1,39 +1,36 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@/generated/prisma"
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
 import { toPlainSettings } from "@/lib/settings-json";
 
 export async function GET() {
     try {
-        const session = await auth()
-        if (!session?.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-        }
+        const auth = await requireAuth()
+        if (!isAuthenticated(auth)) return auth
 
-        const user = session.user
-        const organizationId = user.organizationId
+        const organizationId = auth.organizationId
 
         if (!organizationId) {
             return NextResponse.json({ error: "No organization found" }, { status: 404 })
         }
 
-        const organization = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: {
-                id: true,
-                name: true,
-                logoUrl: true,
-                industry: true,
-                employeeCountRange: true,
-                fiscalYearStart: true,
-                currencyCode: true,
-                timezone: true,
-                settings: true,
-            }
-        })
+        const organization = await auth.withDB((db) =>
+            db.organization.findUnique({
+                where: { id: organizationId },
+                select: {
+                    id: true,
+                    name: true,
+                    logoUrl: true,
+                    industry: true,
+                    employeeCountRange: true,
+                    fiscalYearStart: true,
+                    currencyCode: true,
+                    timezone: true,
+                    settings: true,
+                }
+            }),
+        )
 
         if (!organization) {
             return NextResponse.json({ error: "Organization not found" }, { status: 404 })
@@ -75,10 +72,12 @@ export async function PATCH(req: NextRequest) {
 
         const body = await req.json()
 
-        const existingOrg = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: { settings: true },
-        })
+        const existingOrg = await auth.withDB((db) =>
+            db.organization.findUnique({
+                where: { id: organizationId },
+                select: { settings: true },
+            }),
+        )
         const currentSettings = toPlainSettings(existingOrg?.settings)
         const nextSettings = { ...currentSettings }
 
@@ -107,18 +106,20 @@ export async function PATCH(req: NextRequest) {
             }
         }
 
-        const updatedOrg = await prisma.organization.update({
-            where: { id: organizationId },
-            data: {
-                name: body.name,
-                logoUrl: body.logoUrl,
-                industry: body.industry,
-                fiscalYearStart: body.fiscalYearStart,
-                timezone: body.timezone,
-                currencyCode: body.currency,
-                settings: nextSettings as Prisma.InputJsonValue,
-            }
-        })
+        const updatedOrg = await auth.withDB((db) =>
+            db.organization.update({
+                where: { id: organizationId },
+                data: {
+                    name: body.name,
+                    logoUrl: body.logoUrl,
+                    industry: body.industry,
+                    fiscalYearStart: body.fiscalYearStart,
+                    timezone: body.timezone,
+                    currencyCode: body.currency,
+                    settings: nextSettings as Prisma.InputJsonValue,
+                }
+            }),
+        )
 
         return NextResponse.json({ organization: updatedOrg })
     } catch (error) {

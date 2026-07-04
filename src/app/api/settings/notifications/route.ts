@@ -1,29 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
 import { toPlainSettings } from "@/lib/settings-json";
 
 // GET /api/settings/notifications - Get notification preferences
 export async function GET() {
     try {
-        const session = await auth()
-        if (!session?.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-        }
+        const auth = await requireAuth()
+        if (!isAuthenticated(auth)) return auth
 
-        const user = session.user
-        const organizationId = user.organizationId
+        const organizationId = auth.organizationId
 
         if (!organizationId) {
             return NextResponse.json({ error: "No organization found" }, { status: 404 })
         }
 
-        const org = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: { settings: true },
-        })
+        const org = await auth.withDB((db) =>
+            db.organization.findUnique({
+                where: { id: organizationId },
+                select: { settings: true },
+            }),
+        )
 
         const settings = toPlainSettings(org?.settings)
         const savedNotifications = toPlainSettings(settings.notifications)
@@ -57,10 +54,12 @@ export async function PATCH(req: NextRequest) {
         const { emailNotifications, leaveApprovals, payrollAlerts, attendanceReminders, systemUpdates } = body
 
         // Get current settings
-        const org = await prisma.organization.findUnique({
-            where: { id: organizationId },
-            select: { settings: true },
-        })
+        const org = await authContext.withDB((db) =>
+            db.organization.findUnique({
+                where: { id: organizationId },
+                select: { settings: true },
+            }),
+        )
 
         const currentSettings = toPlainSettings(org?.settings)
         const previousNotifications = toPlainSettings(currentSettings.notifications)
@@ -78,10 +77,12 @@ export async function PATCH(req: NextRequest) {
             notifications,
         }
 
-        await prisma.organization.update({
-            where: { id: organizationId },
-            data: { settings: updatedSettings },
-        })
+        await authContext.withDB((db) =>
+            db.organization.update({
+                where: { id: organizationId },
+                data: { settings: updatedSettings },
+            }),
+        )
 
         return NextResponse.json({ success: true, notifications })
     } catch (error) {
