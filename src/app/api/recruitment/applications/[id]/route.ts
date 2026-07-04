@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -18,18 +17,20 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const application = await prisma.application.findFirst({
-            where: { id, organizationId: ctx.organizationId },
-            include: {
-                candidate: true,
-                jobPosting: {
-                    include: {
-                        department: { select: { name: true } },
-                        designation: { select: { name: true } },
+        const application = await ctx.withDB((db) =>
+            db.application.findFirst({
+                where: { id, organizationId: ctx.organizationId },
+                include: {
+                    candidate: true,
+                    jobPosting: {
+                        include: {
+                            department: { select: { name: true } },
+                            designation: { select: { name: true } },
+                        },
                     },
                 },
-            },
-        });
+            }),
+        );
 
         if (!application) {
             return NextResponse.json({ error: "Application not found" }, { status: 404 });
@@ -96,10 +97,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
         const data = validation.data;
 
-        const application = await prisma.application.findFirst({
-            where: { id, organizationId: ctx.organizationId },
-            include: { candidate: true, jobPosting: true },
-        });
+        const application = await ctx.withDB((db) =>
+            db.application.findFirst({
+                where: { id, organizationId: ctx.organizationId },
+                include: { candidate: true, jobPosting: true },
+            }),
+        );
 
         if (!application) {
             return NextResponse.json({ error: "Application not found" }, { status: 404 });
@@ -113,21 +116,23 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const offerDate = data.offerDate ? new Date(data.offerDate) : data.offerDate === "" ? null : undefined;
         const joinDate = data.joinDate ? new Date(data.joinDate) : data.joinDate === "" ? null : undefined;
 
-        const updated = await prisma.application.update({
-            where: { id },
-            data: {
-                ...(data.stage !== undefined && { stage: data.stage }),
-                ...(data.status !== undefined && { status: data.status }),
-                ...(data.rating !== undefined && { rating: data.rating }),
-                ...(data.feedback !== undefined && { feedback: data.feedback }),
-                ...(interviewDate !== undefined && { interviewDate }),
-                ...(data.interviewNotes !== undefined && { interviewNotes: data.interviewNotes }),
-                ...(data.offerSalary !== undefined && { offerSalary: data.offerSalary }),
-                ...(offerDate !== undefined && { offerDate }),
-                ...(joinDate !== undefined && { joinDate }),
-                ...(data.rejectionReason !== undefined && { rejectionReason: data.rejectionReason }),
-            },
-        });
+        const updated = await ctx.withDB((db) =>
+            db.application.update({
+                where: { id },
+                data: {
+                    ...(data.stage !== undefined && { stage: data.stage }),
+                    ...(data.status !== undefined && { status: data.status }),
+                    ...(data.rating !== undefined && { rating: data.rating }),
+                    ...(data.feedback !== undefined && { feedback: data.feedback }),
+                    ...(interviewDate !== undefined && { interviewDate }),
+                    ...(data.interviewNotes !== undefined && { interviewNotes: data.interviewNotes }),
+                    ...(data.offerSalary !== undefined && { offerSalary: data.offerSalary }),
+                    ...(offerDate !== undefined && { offerDate }),
+                    ...(joinDate !== undefined && { joinDate }),
+                    ...(data.rejectionReason !== undefined && { rejectionReason: data.rejectionReason }),
+                },
+            }),
+        );
 
         // Audit log for stage transitions
         if (data.stage && data.stage !== oldStage) {
@@ -150,9 +155,11 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             const job = application.jobPosting;
 
             // Check if employee already exists with this email
-            const existingEmp = await prisma.employee.findFirst({
-                where: { email: candidate.email, organizationId: ctx.organizationId },
-            });
+            const existingEmp = await ctx.withDB((db) =>
+                db.employee.findFirst({
+                    where: { email: candidate.email, organizationId: ctx.organizationId },
+                }),
+            );
 
             if (existingEmp) {
                 return NextResponse.json({
@@ -163,9 +170,11 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             }
 
             // Generate employee code
-            const empCount = await prisma.employee.count({
-                where: { organizationId: ctx.organizationId },
-            });
+            const empCount = await ctx.withDB((db) =>
+                db.employee.count({
+                    where: { organizationId: ctx.organizationId },
+                }),
+            );
             const employeeCode = `EMP${String(empCount + 1).padStart(4, "0")}`;
 
             // Create employee + linked user + invitation (same pattern as employees/route.ts)
@@ -176,10 +185,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             const invitationToken = crypto.randomBytes(32).toString("hex");
             const invitationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-            // Create user + employee + invitation token in a transaction
-            const newEmployee = await prisma.$transaction(async (tx) => {
+            // Create user + employee + invitation token (withDB wraps in transaction)
+            const newEmployee = await ctx.withDB(async (db) => {
                 // Create user account (inactive, no password — must set via invitation)
-                const newUser = await tx.user.create({
+                const newUser = await db.user.create({
                     data: {
                         email: candidate.email,
                         name: `${candidate.firstName} ${candidate.lastName}`,
@@ -192,7 +201,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 });
 
                 // Create employee linked to user
-                const emp = await tx.employee.create({
+                const emp = await db.employee.create({
                     data: {
                         employeeCode,
                         firstName: candidate.firstName,
@@ -210,7 +219,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 });
 
                 // Create invitation token (reuse password reset token table)
-                await tx.passwordResetToken.create({
+                await db.passwordResetToken.create({
                     data: {
                         token: invitationToken,
                         email: candidate.email,
