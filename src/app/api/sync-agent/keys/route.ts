@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { randomBytes, createHash } from "crypto";
 import { apiLogger } from "@/lib/logger";
@@ -28,21 +27,23 @@ export async function POST(req: Request) {
 
         const { raw, hash, prefix } = generateSyncKey();
 
-        const apiKey = await prisma.syncApiKey.create({
-            data: {
-                key: hash,
-                keyPrefix: prefix,
-                name,
-                organizationId: auth.organizationId,
-            },
-            select: {
-                id: true,
-                keyPrefix: true,
-                name: true,
-                isActive: true,
-                createdAt: true,
-            },
-        });
+        const apiKey = await auth.withDB((db) =>
+            db.syncApiKey.create({
+                data: {
+                    key: hash,
+                    keyPrefix: prefix,
+                    name,
+                    organizationId: auth.organizationId,
+                },
+                select: {
+                    id: true,
+                    keyPrefix: true,
+                    name: true,
+                    isActive: true,
+                    createdAt: true,
+                },
+            }),
+        );
 
         // Return the raw key ONLY on creation — it cannot be retrieved later
         return NextResponse.json({
@@ -63,26 +64,28 @@ export async function GET() {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const keys = await prisma.syncApiKey.findMany({
-            where: {
-                organizationId: auth.organizationId,
-                revokedAt: null,
-            },
-            select: {
-                id: true,
-                keyPrefix: true,
-                name: true,
-                isActive: true,
-                lastHeartbeat: true,
-                lastSyncAt: true,
-                agentVersion: true,
-                agentIp: true,
-                syncCount: true,
-                totalRecords: true,
-                createdAt: true,
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const keys = await auth.withDB((db) =>
+            db.syncApiKey.findMany({
+                where: {
+                    organizationId: auth.organizationId,
+                    revokedAt: null,
+                },
+                select: {
+                    id: true,
+                    keyPrefix: true,
+                    name: true,
+                    isActive: true,
+                    lastHeartbeat: true,
+                    lastSyncAt: true,
+                    agentVersion: true,
+                    agentIp: true,
+                    syncCount: true,
+                    totalRecords: true,
+                    createdAt: true,
+                },
+                orderBy: { createdAt: "desc" },
+            }),
+        );
 
         return NextResponse.json({ success: true, keys });
     } catch (error) {

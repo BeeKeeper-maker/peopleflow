@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -16,21 +15,25 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const key = await prisma.syncApiKey.findFirst({
-            where: { id, organizationId: auth.organizationId },
-        });
+        const key = await auth.withDB((db) =>
+            db.syncApiKey.findFirst({
+                where: { id, organizationId: auth.organizationId },
+            }),
+        );
 
         if (!key) {
             return new NextResponse("API key not found", { status: 404 });
         }
 
-        await prisma.syncApiKey.update({
-            where: { id },
-            data: {
-                isActive: false,
-                revokedAt: new Date(),
-            },
-        });
+        await auth.withDB((db) =>
+            db.syncApiKey.update({
+                where: { id },
+                data: {
+                    isActive: false,
+                    revokedAt: new Date(),
+                },
+            }),
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {
