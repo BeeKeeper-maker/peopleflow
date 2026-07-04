@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
 import { requirePermission } from "@/lib/rbac-v2";
 import { getOrgRoles } from "@/lib/rbac-v2";
@@ -91,12 +90,14 @@ export async function POST(req: Request) {
         const { name, slug, description, color, permissions } = validation.data;
 
         // Check slug uniqueness within this org (system roles also count)
-        const existing = await prisma.role.findFirst({
-            where: {
-                OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
-                slug,
-            },
-        });
+        const existing = await auth.withDB((db) =>
+            db.role.findFirst({
+                where: {
+                    OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
+                    slug,
+                },
+            }),
+        );
         if (existing) {
             return NextResponse.json(
                 { error: `A role with slug "${slug}" already exists`, code: "SLUG_EXISTS" },
@@ -105,15 +106,19 @@ export async function POST(req: Request) {
         }
 
         // Check plan limit on custom roles
-        const subscription = await prisma.subscription.findUnique({
-            where: { organizationId: auth.organizationId },
-            include: { plan: true },
-        });
+        const subscription = await auth.withDB((db) =>
+            db.subscription.findUnique({
+                where: { organizationId: auth.organizationId },
+                include: { plan: true },
+            }),
+        );
         const maxCustomRoles = subscription?.plan?.maxCustomRoles ?? 0;
         if (maxCustomRoles !== -1) {
-            const currentCount = await prisma.role.count({
-                where: { organizationId: auth.organizationId, isSystem: false },
-            });
+            const currentCount = await auth.withDB((db) =>
+                db.role.count({
+                    where: { organizationId: auth.organizationId, isSystem: false },
+                }),
+            );
             if (currentCount >= maxCustomRoles) {
                 return NextResponse.json(
                     {
@@ -130,10 +135,12 @@ export async function POST(req: Request) {
         // Validate all permissionIds exist
         if (permissions.length > 0) {
             const permIds = permissions.map((p) => p.permissionId);
-            const existingPerms = await prisma.permission.findMany({
-                where: { id: { in: permIds } },
-                select: { id: true },
-            });
+            const existingPerms = await auth.withDB((db) =>
+                db.permission.findMany({
+                    where: { id: { in: permIds } },
+                    select: { id: true },
+                }),
+            );
             const existingPermIds = new Set(existingPerms.map((p) => p.id));
             const invalid = permIds.filter((id) => !existingPermIds.has(id));
             if (invalid.length > 0) {
@@ -147,9 +154,9 @@ export async function POST(req: Request) {
             }
         }
 
-        // Create role + permissions in a transaction
-        const role = await prisma.$transaction(async (tx) => {
-            const newRole = await tx.role.create({
+        // Create role + permissions (withDB already wraps in transaction)
+        const role = await auth.withDB(async (db) => {
+            const newRole = await db.role.create({
                 data: {
                     name,
                     slug,
@@ -162,7 +169,7 @@ export async function POST(req: Request) {
             });
 
             if (permissions.length > 0) {
-                await tx.rolePermission.createMany({
+                await db.rolePermission.createMany({
                     data: permissions.map((p) => ({
                         roleId: newRole.id,
                         permissionId: p.permissionId,

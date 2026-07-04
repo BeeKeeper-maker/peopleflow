@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
 import { requirePermission } from "@/lib/rbac-v2";
 import { createAuditLog } from "@/lib/audit-log";
@@ -20,20 +19,22 @@ export async function GET(_req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const role = await prisma.role.findFirst({
-            where: {
-                id,
-                OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
-            },
-            include: {
-                rolePermissions: {
-                    include: { permission: true },
+        const role = await auth.withDB((db) =>
+            db.role.findFirst({
+                where: {
+                    id,
+                    OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
                 },
-                _count: {
-                    select: { userAssignments: true },
+                include: {
+                    rolePermissions: {
+                        include: { permission: true },
+                    },
+                    _count: {
+                        select: { userAssignments: true },
+                    },
                 },
-            },
-        });
+            }),
+        );
 
         if (!role) {
             return NextResponse.json({ error: "Role not found" }, { status: 404 });
@@ -100,15 +101,17 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const { name, description, color, permissions } = validation.data;
 
         // Load role, verifying org scope
-        const role = await prisma.role.findFirst({
-            where: {
-                id,
-                OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
-            },
-            include: {
-                rolePermissions: true,
-            },
-        });
+        const role = await auth.withDB((db) =>
+            db.role.findFirst({
+                where: {
+                    id,
+                    OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
+                },
+                include: {
+                    rolePermissions: true,
+                },
+            }),
+        );
 
         if (!role) {
             return NextResponse.json({ error: "Role not found" }, { status: 404 });
@@ -121,9 +124,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             permissionsCount: role.rolePermissions.length,
         };
 
-        // Update in a transaction
-        const updated = await prisma.$transaction(async (tx) => {
-            const updatedRole = await tx.role.update({
+        // Update (withDB already wraps in transaction)
+        const updated = await auth.withDB(async (db) => {
+            const updatedRole = await db.role.update({
                 where: { id },
                 data: {
                     ...(name !== undefined ? { name } : {}),
@@ -136,16 +139,11 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             if (permissions !== undefined) {
                 // For system roles, preserve existing system-seeded permissions
                 if (role.isSystem) {
-                    // Delete only non-system permissions (those added by admin)
-                    // We can't distinguish — so we delete all and re-insert
-                    // the union of (existing system perms) + (new perms from request)
-                    // For simplicity, we trust the admin not to remove critical perms.
-                    // A future enhancement could mark RolePermission rows as "system-seeded".
-                    await tx.rolePermission.deleteMany({
+                    await db.rolePermission.deleteMany({
                         where: { roleId: id },
                     });
                 } else {
-                    await tx.rolePermission.deleteMany({
+                    await db.rolePermission.deleteMany({
                         where: { roleId: id },
                     });
                 }
@@ -153,14 +151,14 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 if (permissions.length > 0) {
                     // Validate permissionIds
                     const permIds = permissions.map((p) => p.permissionId);
-                    const existingPerms = await tx.permission.findMany({
+                    const existingPerms = await db.permission.findMany({
                         where: { id: { in: permIds } },
                         select: { id: true },
                     });
                     const existingPermIds = new Set(existingPerms.map((p) => p.id));
                     const validPerms = permissions.filter((p) => existingPermIds.has(p.permissionId));
 
-                    await tx.rolePermission.createMany({
+                    await db.rolePermission.createMany({
                         data: validPerms.map((p) => ({
                             roleId: id,
                             permissionId: p.permissionId,
@@ -200,10 +198,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         });
 
         // Invalidate permission cache for all users with this role
-        const assignments = await prisma.userRoleAssignment.findMany({
-            where: { roleId: id },
-            select: { userId: true },
-        });
+        const assignments = await auth.withDB((db) =>
+            db.userRoleAssignment.findMany({
+                where: { roleId: id },
+                select: { userId: true },
+            }),
+        );
         const { invalidatePermissionCache } = await import("@/lib/rbac-v2");
         for (const a of assignments) {
             invalidatePermissionCache(a.userId);
@@ -235,15 +235,17 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const role = await prisma.role.findFirst({
-            where: {
-                id,
-                OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
-            },
-            include: {
-                _count: { select: { userAssignments: true } },
-            },
-        });
+        const role = await auth.withDB((db) =>
+            db.role.findFirst({
+                where: {
+                    id,
+                    OR: [{ organizationId: auth.organizationId }, { organizationId: null }],
+                },
+                include: {
+                    _count: { select: { userAssignments: true } },
+                },
+            }),
+        );
 
         if (!role) {
             return NextResponse.json({ error: "Role not found" }, { status: 404 });
@@ -267,7 +269,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             );
         }
 
-        await prisma.role.delete({ where: { id } });
+        await auth.withDB((db) => db.role.delete({ where: { id } }));
 
         await createAuditLog({
             organizationId: auth.organizationId,
