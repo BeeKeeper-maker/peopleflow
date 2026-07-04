@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -32,33 +31,35 @@ export async function GET(req: Request) {
         if (stage) where.stage = stage;
         if (status) where.status = status;
 
-        const applications = await prisma.application.findMany({
-            where,
-            include: {
-                candidate: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true,
-                        phone: true,
-                        resumeUrl: true,
-                        yearsOfExp: true,
-                        currentTitle: true,
-                        currentCompany: true,
+        const applications = await ctx.withDB((db) =>
+            db.application.findMany({
+                where,
+                include: {
+                    candidate: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                            phone: true,
+                            resumeUrl: true,
+                            yearsOfExp: true,
+                            currentTitle: true,
+                            currentCompany: true,
+                        },
+                    },
+                    jobPosting: {
+                        select: {
+                            id: true,
+                            title: true,
+                            department: { select: { name: true } },
+                            designation: { select: { name: true } },
+                        },
                     },
                 },
-                jobPosting: {
-                    select: {
-                        id: true,
-                        title: true,
-                        department: { select: { name: true } },
-                        designation: { select: { name: true } },
-                    },
-                },
-            },
-            orderBy: [{ stage: "asc" }, { appliedAt: "desc" }],
-        });
+                orderBy: [{ stage: "asc" }, { appliedAt: "desc" }],
+            }),
+        );
 
         // Group by stage for Kanban view
         const byStage: Record<string, typeof applications> = {};
@@ -112,14 +113,16 @@ export async function POST(req: Request) {
         const { candidateId, jobPostingId, coverLetter } = validation.data;
 
         // Verify candidate + job belong to org
-        const [candidate, job] = await Promise.all([
-            prisma.candidate.findFirst({
-                where: { id: candidateId, organizationId: ctx.organizationId },
-            }),
-            prisma.jobPosting.findFirst({
-                where: { id: jobPostingId, organizationId: ctx.organizationId },
-            }),
-        ]);
+        const [candidate, job] = await ctx.withDB((db) =>
+            Promise.all([
+                db.candidate.findFirst({
+                    where: { id: candidateId, organizationId: ctx.organizationId },
+                }),
+                db.jobPosting.findFirst({
+                    where: { id: jobPostingId, organizationId: ctx.organizationId },
+                }),
+            ]),
+        );
 
         if (!candidate) {
             return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
@@ -129,11 +132,13 @@ export async function POST(req: Request) {
         }
 
         // Check for duplicate application
-        const existing = await prisma.application.findUnique({
-            where: {
-                candidateId_jobPostingId: { candidateId, jobPostingId },
-            },
-        });
+        const existing = await ctx.withDB((db) =>
+            db.application.findUnique({
+                where: {
+                    candidateId_jobPostingId: { candidateId, jobPostingId },
+                },
+            }),
+        );
         if (existing) {
             return NextResponse.json(
                 { error: "This candidate has already applied for this job", code: "DUPLICATE" },
@@ -148,20 +153,22 @@ export async function POST(req: Request) {
             );
         }
 
-        const application = await prisma.application.create({
-            data: {
-                candidateId,
-                jobPostingId,
-                coverLetter: coverLetter || null,
-                organizationId: ctx.organizationId,
-            },
-            include: {
-                candidate: {
-                    select: { id: true, firstName: true, lastName: true, email: true },
+        const application = await ctx.withDB((db) =>
+            db.application.create({
+                data: {
+                    candidateId,
+                    jobPostingId,
+                    coverLetter: coverLetter || null,
+                    organizationId: ctx.organizationId,
                 },
-                jobPosting: { select: { id: true, title: true } },
-            },
-        });
+                include: {
+                    candidate: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                    jobPosting: { select: { id: true, title: true } },
+                },
+            }),
+        );
 
         return NextResponse.json(application, { status: 201 });
     } catch (error) {

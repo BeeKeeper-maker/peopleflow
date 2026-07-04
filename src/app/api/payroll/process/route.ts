@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { calculateSalary } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
@@ -51,27 +50,29 @@ export async function GET(req: Request) {
         if (employeeId) where.employeeId = employeeId;
         if (status) where.status = status;
 
-        const [slips, totalCount] = await Promise.all([
-            prisma.salarySlip.findMany({
-                where,
-                include: {
-                    employee: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            employeeCode: true,
-                            designation: { select: { name: true } },
-                            department: { select: { name: true } },
+        const [slips, totalCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.salarySlip.findMany({
+                    where,
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                employeeCode: true,
+                                designation: { select: { name: true } },
+                                department: { select: { name: true } },
+                            },
                         },
                     },
-                },
-                orderBy: [{ year: "desc" }, { month: "desc" }],
-                skip,
-                take: limit,
-            }),
-            prisma.salarySlip.count({ where }),
-        ]);
+                    orderBy: [{ year: "desc" }, { month: "desc" }],
+                    skip,
+                    take: limit,
+                }),
+                db.salarySlip.count({ where }),
+            ]),
+        );
 
         return NextResponse.json({
             data: slips,
@@ -136,39 +137,43 @@ export async function POST(req: Request) {
                 }),
         };
 
-        const employees = await prisma.employee.findMany({
-            where: whereClause,
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                user: { select: { id: true, email: true } },
-            },
-        });
+        const employees = await auth.withDB((db) =>
+            db.employee.findMany({
+                where: whereClause,
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    user: { select: { id: true, email: true } },
+                },
+            }),
+        );
 
         const allEmployeeIds = employees.map((e) => e.id);
 
         // ─── GATHER PHASE: Batch-fetch all data in 2 queries (not N) ───────
-        const [existingSlips, allActiveLoans] = await Promise.all([
-            // 1. Existing slips for this month/year — prevents per-employee findUnique
-            //    Include isLocked so we can skip locked slips (paid + locked = no re-process)
-            prisma.salarySlip.findMany({
-                where: {
-                    employeeId: { in: allEmployeeIds },
-                    month,
-                    year,
-                },
-                select: { employeeId: true, isLocked: true, isReversed: true, status: true },
-            }),
-            // 2. All active loans for all employees — prevents N+1 in the loop
-            prisma.loan.findMany({
-                where: {
-                    employeeId: { in: allEmployeeIds },
-                    status: "disbursed",
-                    remainingAmount: { gt: 0 },
-                },
-            }),
-        ]);
+        const [existingSlips, allActiveLoans] = await auth.withDB((db) =>
+            Promise.all([
+                // 1. Existing slips for this month/year — prevents per-employee findUnique
+                //    Include isLocked so we can skip locked slips (paid + locked = no re-process)
+                db.salarySlip.findMany({
+                    where: {
+                        employeeId: { in: allEmployeeIds },
+                        month,
+                        year,
+                    },
+                    select: { employeeId: true, isLocked: true, isReversed: true, status: true },
+                }),
+                // 2. All active loans for all employees — prevents N+1 in the loop
+                db.loan.findMany({
+                    where: {
+                        employeeId: { in: allEmployeeIds },
+                        status: "disbursed",
+                        remainingAmount: { gt: 0 },
+                    },
+                }),
+            ]),
+        );
 
         // ─── BUILD INDEXES: O(1) lookup per employee ───────────────────────
         // A slip is "blocking" if it exists AND is not reversed AND (is locked OR not locked)
@@ -246,10 +251,10 @@ export async function POST(req: Request) {
                 // Get active loans from pre-built Map (O(1) instead of DB query)
                 const activeLoans = loansByEmployee.get(employee.id) || [];
 
-                // Atomic: create slip + update loan balances
-                await prisma.$transaction(async (tx) => {
+                // Atomic: create slip + update loan balances (withDB wraps in transaction)
+                await auth.withDB(async (db) => {
                     // Create salary slip with full v2 breakdown
-                    await tx.salarySlip.create({
+                    await db.salarySlip.create({
                         data: {
                             employeeId: employee.id,
                             month,
@@ -288,7 +293,7 @@ export async function POST(req: Request) {
                         const newPaid = loan.paidAmount + deductionAmount;
                         const newRemaining = loan.remainingAmount - deductionAmount;
 
-                        await tx.loan.update({
+                        await db.loan.update({
                             where: { id: loan.id },
                             data: {
                                 paidAmount: newPaid,
