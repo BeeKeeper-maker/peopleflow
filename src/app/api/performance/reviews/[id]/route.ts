@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const review = await prisma.performanceReview.findFirst({
+        const review = await auth.withDB((db) => db.performanceReview.findFirst({
             where: { id, organizationId: ctx.organizationId },
             include: {
                 employee: {
@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: RouteParams) {
                 },
                 reviewCycle: true,
             },
-        });
+        }));
 
         if (!review) {
             return NextResponse.json({ error: "Review not found" }, { status: 404 });
@@ -50,9 +50,9 @@ export async function GET(req: Request, { params }: RouteParams) {
                 return NextResponse.json({ error: "Forbidden" }, { status: 403 });
             }
             if (ctx.role === "manager") {
-                const emp = await prisma.employee.findFirst({
+                const emp = await auth.withDB((db) => db.employee.findFirst({
                     where: { id: review.employeeId, reportingManagerId: ctx.employeeId },
-                });
+                }));
                 if (!emp && review.employeeId !== ctx.employeeId) {
                     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
                 }
@@ -88,13 +88,13 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const action = url.searchParams.get("action") || "self";
         const body = await req.json();
 
-        const review = await prisma.performanceReview.findFirst({
+        const review = await auth.withDB((db) => db.performanceReview.findFirst({
             where: { id, organizationId: ctx.organizationId },
             include: {
                 employee: { select: { id: true, firstName: true, lastName: true, reportingManagerId: true } },
                 reviewCycle: { select: { id: true, name: true, status: true } },
             },
-        });
+        }));
 
         if (!review) {
             return NextResponse.json({ error: "Review not found" }, { status: 404 });
@@ -130,7 +130,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 );
             }
 
-            const updated = await prisma.performanceReview.update({
+            const updated = await auth.withDB((db) => db.performanceReview.update({
                 where: { id },
                 data: {
                     selfRating: validation.data.selfRating,
@@ -138,7 +138,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                     selfSubmittedAt: new Date(),
                     status: "self_review",
                 },
-            });
+            }));
 
             await createAuditLog({
                 organizationId: ctx.organizationId,
@@ -190,7 +190,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 );
             }
 
-            const updated = await prisma.performanceReview.update({
+            const updated = await auth.withDB((db) => db.performanceReview.update({
                 where: { id },
                 data: {
                     managerRating: validation.data.managerRating,
@@ -203,7 +203,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                     improvements: validation.data.improvements || null,
                     status: "completed",
                 },
-            });
+            }));
 
             await createAuditLog({
                 organizationId: ctx.organizationId,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { manualAttendanceSchema } from "@/lib/validations/attendance";
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
         const { employeeId, date, checkIn, checkOut, status, notes } = validation.data;
 
         // Verify employee belongs to org
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: employeeId, organizationId: ctx.organizationId },
             include: {
                 shift: {
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(
@@ -132,11 +132,11 @@ export async function POST(req: Request) {
         }
 
         // Check for existing record (merge logic)
-        const existing = await prisma.attendance.findUnique({
+        const existing = await auth.withDB((db) => db.attendance.findUnique({
             where: {
                 employeeId_date: { employeeId, date: attendanceDate },
             },
-        });
+        }));
 
         let finalCheckIn = checkInDate;
         let finalCheckOut = checkOutDate;
@@ -154,7 +154,7 @@ export async function POST(req: Request) {
 
         const auditNote = `[MANUAL] by HR on ${new Date().toISOString().split("T")[0]}.${notes ? ` ${notes}` : ""}`;
 
-        const record = await prisma.attendance.upsert({
+        const record = await auth.withDB((db) => db.attendance.upsert({
             where: {
                 employeeId_date: { employeeId, date: attendanceDate },
             },
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
                     ? `${existing.notes} | ${auditNote}`
                     : auditNote,
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,

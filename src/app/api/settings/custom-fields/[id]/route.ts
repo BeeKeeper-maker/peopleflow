@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -18,14 +18,14 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const { id } = await params;
         const body = await req.json();
 
-        const field = await prisma.customField.findFirst({
+        const field = await auth.withDB((db) => db.customField.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!field) {
             return NextResponse.json({ error: "Custom field not found" }, { status: 404 });
         }
 
-        const updated = await prisma.customField.update({
+        const updated = await auth.withDB((db) => db.customField.update({
             where: { id },
             data: {
                 ...(body.label !== undefined && { label: body.label }),
@@ -38,7 +38,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
                 ...(body.isActive !== undefined && { isActive: body.isActive }),
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,
@@ -63,19 +63,19 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const field = await prisma.customField.findFirst({
+        const field = await auth.withDB((db) => db.customField.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!field) {
             return NextResponse.json({ error: "Custom field not found" }, { status: 404 });
         }
 
         // Soft delete (deactivate) instead of hard delete to preserve
         // existing customFields JSONB values in entities.
-        await prisma.customField.update({
+        await auth.withDB((db) => db.customField.update({
             where: { id },
             data: { isActive: false },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,

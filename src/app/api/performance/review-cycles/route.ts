@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
         const where: Record<string, unknown> = { organizationId: ctx.organizationId };
         if (status) where.status = status;
 
-        const cycles = await prisma.reviewCycle.findMany({
+        const cycles = await auth.withDB((db) => db.reviewCycle.findMany({
             where,
             include: {
                 _count: {
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { startDate: "desc" },
-        });
+        }));
 
         return NextResponse.json({ data: cycles, total: cycles.length });
     } catch (error) {
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const cycle = await prisma.reviewCycle.create({
+        const cycle = await auth.withDB((db) => db.reviewCycle.create({
             data: {
                 name,
                 description,
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
                 status: "draft",
                 organizationId: ctx.organizationId,
             },
-        });
+        }));
 
         return NextResponse.json(cycle, { status: 201 });
     } catch (error) {

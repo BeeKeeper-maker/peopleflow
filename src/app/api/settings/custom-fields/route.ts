@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -28,10 +28,10 @@ export async function GET(req: Request) {
         if (active === "true") where.isActive = true;
         if (active === "false") where.isActive = false;
 
-        const fields = await prisma.customField.findMany({
+        const fields = await auth.withDB((db) => db.customField.findMany({
             where,
             orderBy: [{ entityType: "asc" }, { sortOrder: "asc" }],
-        });
+        }));
 
         return NextResponse.json({ data: fields, total: fields.length });
     } catch (error) {
@@ -97,13 +97,13 @@ export async function POST(req: Request) {
         }
 
         // Check key uniqueness within (org, entityType)
-        const existing = await prisma.customField.findFirst({
+        const existing = await auth.withDB((db) => db.customField.findFirst({
             where: {
                 organizationId: ctx.organizationId,
                 entityType: data.entityType,
                 key: data.key,
             },
-        });
+        }));
         if (existing) {
             return NextResponse.json(
                 { error: `A field with key "${data.key}" already exists for ${data.entityType}` },
@@ -111,12 +111,12 @@ export async function POST(req: Request) {
             );
         }
 
-        const field = await prisma.customField.create({
+        const field = await auth.withDB((db) => db.customField.create({
             data: {
                 ...data,
                 organizationId: ctx.organizationId,
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,

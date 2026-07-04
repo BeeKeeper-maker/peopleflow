@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -17,10 +17,10 @@ export async function GET() {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const rates = await prisma.exchangeRate.findMany({
+        const rates = await auth.withDB((db) => db.exchangeRate.findMany({
             where: { baseCurrency: "BDT" },
             orderBy: { quoteCurrency: "asc" },
-        });
+        }));
 
         // Build a map of available rates
         const rateMap = new Map(rates.map((r) => [r.quoteCurrency, r]));
@@ -89,7 +89,7 @@ export async function PATCH(req: Request) {
         }
 
         // Upsert the rate
-        const updated = await prisma.exchangeRate.upsert({
+        const updated = await auth.withDB((db) => db.exchangeRate.upsert({
             where: {
                 baseCurrency_quoteCurrency: {
                     baseCurrency: "BDT",
@@ -107,7 +107,7 @@ export async function PATCH(req: Request) {
                 source,
                 fetchedAt: new Date(),
             },
-        });
+        }));
 
         apiLogger.info(
             { quoteCurrency, rate, updatedBy: ctx.userId },

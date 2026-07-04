@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     try {
         const { id } = await params;
-        const cycle = await prisma.reviewCycle.findFirst({
+        const cycle = await auth.withDB((db) => db.reviewCycle.findFirst({
             where: { id, organizationId: ctx.organizationId },
             include: {
                 _count: { select: { goals: true, reviews: true } },
@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: RouteParams) {
                     take: 20,
                 },
             },
-        });
+        }));
 
         if (!cycle) {
             return NextResponse.json({ error: "Review cycle not found" }, { status: 404 });
@@ -60,9 +60,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const { id } = await params;
         const body = await req.json();
 
-        const cycle = await prisma.reviewCycle.findFirst({
+        const cycle = await auth.withDB((db) => db.reviewCycle.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!cycle) {
             return NextResponse.json({ error: "Review cycle not found" }, { status: 404 });
         }
@@ -87,14 +87,14 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             }
         }
 
-        const updated = await prisma.reviewCycle.update({
+        const updated = await auth.withDB((db) => db.reviewCycle.update({
             where: { id },
             data: {
                 ...(body.status && { status: body.status }),
                 ...(body.name !== undefined && { name: body.name }),
                 ...(body.description !== undefined && { description: body.description }),
             },
-        });
+        }));
 
         return NextResponse.json(updated);
     } catch (error) {
@@ -110,9 +110,9 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
     try {
         const { id } = await params;
-        const cycle = await prisma.reviewCycle.findFirst({
+        const cycle = await auth.withDB((db) => db.reviewCycle.findFirst({
             where: { id, organizationId: ctx.organizationId },
-        });
+        }));
         if (!cycle) {
             return NextResponse.json({ error: "Review cycle not found" }, { status: 404 });
         }
@@ -124,7 +124,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             );
         }
 
-        await prisma.reviewCycle.delete({ where: { id } });
+        await auth.withDB((db) => db.reviewCycle.delete({ where: { id } }));
         return NextResponse.json({ success: true });
     } catch (error) {
         apiLogger.error({ err: error }, "DELETE_REVIEW_CYCLE_ERROR");

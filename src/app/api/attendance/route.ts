@@ -90,24 +90,24 @@ export async function GET(req: Request) {
                 employeeWhere.reportingManagerId = auth.employeeId;
             }
 
-            const employee = await prisma.employee.findFirst({
+            const employee = await auth.withDB((db) => db.employee.findFirst({
                 where: employeeWhere,
                 select: { id: true },
-            });
+            }));
             if (!employee) {
                 return new NextResponse("Employee not found", { status: 404 });
             }
             where.employeeId = employee.id;
         } else if (auth.role === "manager") {
             if (!auth.employeeId) return NextResponse.json([]);
-            const reportees = await prisma.employee.findMany({
+            const reportees = await auth.withDB((db) => db.employee.findMany({
                 where: {
                     organizationId: auth.organizationId,
                     reportingManagerId: auth.employeeId,
                     deletedAt: null,
                 },
                 select: { id: true },
-            });
+            }));
 
             if (reportees.length === 0) return NextResponse.json([]);
             where.employeeId = { in: reportees.map((employee) => employee.id) };
@@ -116,7 +116,7 @@ export async function GET(req: Request) {
             where.employeeId = auth.employeeId;
         }
 
-        const attendances = await prisma.attendance.findMany({
+        const attendances = await auth.withDB((db) => db.attendance.findMany({
             where,
             include: {
                 employee: {
@@ -134,7 +134,7 @@ export async function GET(req: Request) {
                 date: "desc",
             },
             take: limit,
-        });
+        }));
 
         return NextResponse.json(attendances.map(toAttendanceDto));
 
