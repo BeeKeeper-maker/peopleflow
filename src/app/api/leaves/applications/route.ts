@@ -43,10 +43,10 @@ export async function GET(req: Request) {
         const skip = (page - 1) * limit;
 
         // Get user details for role check
-        const user = await prisma.user.findUnique({
+        const user = await auth.withDB((db) => db.user.findUnique({
             where: { id: auth.userId },
             include: { employee: true },
-        });
+        }));
 
         const where: Record<string, unknown> = {
             employee: {
@@ -57,14 +57,14 @@ export async function GET(req: Request) {
         // If filtering by employee
         if (employeeId) {
             if (user?.role === "manager") {
-                const reportee = await prisma.employee.findFirst({
+                const reportee = await auth.withDB((db) => db.employee.findFirst({
                     where: {
                         id: employeeId,
                         organizationId: auth.organizationId,
                         reportingManagerId: user.employee?.id,
                     },
                     select: { id: true },
-                });
+                }));
                 if (!reportee) return leaveError("Employee not found", 404);
             }
             where.employeeId = employeeId;
@@ -100,40 +100,42 @@ export async function GET(req: Request) {
             }
         }
 
-        const [applications, total] = await Promise.all([
-            prisma.leaveApplication.findMany({
-                where,
-                include: {
-                    leaveType: true,
-                    employee: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            photoUrl: true,
-                            reportingManagerId: true,
-                            reportingManager: {
-                                select: {
-                                    id: true,
-                                    firstName: true,
-                                    lastName: true,
-                                    employeeCode: true,
+        const [applications, total] = await auth.withDB((db) =>
+            Promise.all([
+                db.leaveApplication.findMany({
+                    where,
+                    include: {
+                        leaveType: true,
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                photoUrl: true,
+                                reportingManagerId: true,
+                                reportingManager: {
+                                    select: {
+                                        id: true,
+                                        firstName: true,
+                                        lastName: true,
+                                        employeeCode: true,
+                                    }
+                                },
+                                designation: {
+                                    select: { name: true }
                                 }
-                            },
-                            designation: {
-                                select: { name: true }
                             }
-                        }
+                        },
                     },
-                },
-                orderBy: { createdAt: "desc" },
-                skip,
-                take: limit,
-            }),
-            prisma.leaveApplication.count({ where }),
-        ]);
+                    orderBy: { createdAt: "desc" },
+                    skip,
+                    take: limit,
+                }),
+                db.leaveApplication.count({ where }),
+            ]),
+        );
 
-        const approvalRequests = await prisma.approvalRequest.findMany({
+        const approvalRequests = await auth.withDB((db) => db.approvalRequest.findMany({
             where: {
                 organizationId: auth.organizationId,
                 entityType: "leave",
@@ -142,7 +144,7 @@ export async function GET(req: Request) {
             include: {
                 steps: { orderBy: { stepNumber: "asc" } },
             },
-        });
+        }));
 
         const approvalEmployeeIds = new Set<string>();
         approvalRequests.forEach((request) => {
@@ -154,7 +156,7 @@ export async function GET(req: Request) {
         });
 
         const approvalEmployees = approvalEmployeeIds.size
-            ? await prisma.employee.findMany({
+            ? await auth.withDB((db) => db.employee.findMany({
                 where: {
                     organizationId: auth.organizationId,
                     id: { in: Array.from(approvalEmployeeIds) },
@@ -166,7 +168,7 @@ export async function GET(req: Request) {
                     employeeCode: true,
                     user: { select: { role: true, isActive: true } },
                 },
-            })
+            }))
             : [];
 
         const employeeById = new Map(approvalEmployees.map((employee) => [employee.id, employee]));
@@ -255,7 +257,7 @@ export async function POST(req: Request) {
 
     try {
         // Get employee profile with organization settings
-        const user = await prisma.user.findUnique({
+        const user = await auth.withDB((db) => db.user.findUnique({
             where: { id: auth.userId },
             include: {
                 employee: {
@@ -266,11 +268,11 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         let employee = user?.employee;
         if (!employee && user?.email) {
-            employee = await prisma.employee.findFirst({
+            employee = await auth.withDB((db) => db.employee.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     email: user.email,
@@ -281,7 +283,7 @@ export async function POST(req: Request) {
                         select: { settings: true },
                     },
                 },
-            });
+            }));
         }
 
         if (!employee) {
@@ -320,12 +322,12 @@ export async function POST(req: Request) {
         }
 
         // ── Validation 2: Fetch Leave Type ──
-        const leaveType = await prisma.leaveType.findFirst({
+        const leaveType = await auth.withDB((db) => db.leaveType.findFirst({
             where: {
                 id: leaveTypeId,
                 organizationId: auth.organizationId,
             },
-        });
+        }));
 
         if (!leaveType) {
             return leaveError("Leave type not found", 404);
@@ -430,7 +432,7 @@ export async function POST(req: Request) {
 
         // ── Check or Create Allocation ──
         const currentYear = new Date().getFullYear();
-        let allocation = await prisma.leaveAllocation.findUnique({
+        let allocation = await auth.withDB((db) => db.leaveAllocation.findUnique({
             where: {
                 employeeId_leaveTypeId_year: {
                     employeeId: employee.id,
@@ -438,11 +440,11 @@ export async function POST(req: Request) {
                     year: currentYear,
                 },
             },
-        });
+        }));
 
         if (!allocation) {
             // Lazy initialization of allocation
-            allocation = await prisma.leaveAllocation.create({
+            allocation = await auth.withDB((db) => db.leaveAllocation.create({
                 data: {
                     employeeId: employee.id,
                     leaveTypeId: leaveTypeId,
@@ -451,7 +453,7 @@ export async function POST(req: Request) {
                     usedDays: 0,
                     carriedForward: 0,
                 },
-            });
+            }));
         }
 
         // ── Check Balance ──
@@ -461,7 +463,7 @@ export async function POST(req: Request) {
         }
 
         // ── Create Application (with maternity data if applicable) ──
-        const application = await prisma.leaveApplication.create({
+        const application = await auth.withDB((db) => db.leaveApplication.create({
             data: {
                 employeeId: employee.id,
                 leaveTypeId,
@@ -481,7 +483,7 @@ export async function POST(req: Request) {
                     select: { firstName: true, lastName: true },
                 },
             },
-        });
+        }));
 
         // ── ✅ NEW: Create Stateful Approval Request ──
         try {
