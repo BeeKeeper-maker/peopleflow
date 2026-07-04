@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -22,7 +22,7 @@ export async function GET() {
 
     try {
         // ── 1. Biometric device sync status (from DeviceSyncLog) ──
-        const recentSyncLogs = await prisma.deviceSyncLog.findMany({
+        const recentSyncLogs = await auth.withDB((db) => db.deviceSyncLog.findMany({
             take: 20,
             orderBy: { syncedAt: "desc" },
             include: {
@@ -30,7 +30,7 @@ export async function GET() {
                     select: { id: true, name: true, ip: true, organizationId: true },
                 },
             },
-        });
+        }));
 
         // Filter to org scope (deviceSyncLog doesn't have orgId directly,
         // but device does)
@@ -47,7 +47,7 @@ export async function GET() {
         };
 
         // ── 2. Device health status ──
-        const devices = await prisma.biometricDevice.findMany({
+        const devices = await auth.withDB((db) => db.biometricDevice.findMany({
             where: { organizationId: auth.organizationId },
             select: {
                 id: true,
@@ -68,7 +68,7 @@ export async function GET() {
                 },
             },
             orderBy: { name: "asc" },
-        });
+        }));
 
         const deviceStats = {
             total: devices.length,
@@ -79,7 +79,7 @@ export async function GET() {
         };
 
         // ── 3. Biometric cloud events (for direct_cloud devices) ──
-        const recentCloudEvents = await prisma.biometricCloudEvent.findMany({
+        const recentCloudEvents = await auth.withDB((db) => db.biometricCloudEvent.findMany({
             where: { organizationId: auth.organizationId },
             take: 10,
             orderBy: { createdAt: "desc" },
@@ -94,10 +94,10 @@ export async function GET() {
                 createdAt: true,
                 device: { select: { name: true } },
             },
-        });
+        }));
 
         // ── 4. Document expiry alerts (from last cron run) ──
-        const expiringDocs = await prisma.employeeDocument.count({
+        const expiringDocs = await auth.withDB((db) => db.employeeDocument.count({
             where: {
                 deletedAt: null,
                 expiryDate: {
@@ -105,32 +105,32 @@ export async function GET() {
                     lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 },
             },
-        });
+        }));
 
         // ── 5. Approval request queue (pending items) ──
-        const pendingApprovals = await prisma.approvalRequest.count({
+        const pendingApprovals = await auth.withDB((db) => db.approvalRequest.count({
             where: {
                 organizationId: auth.organizationId,
                 status: { in: ["pending", "in_progress"] },
             },
-        });
+        }));
 
-        const escalatedApprovals = await prisma.approvalRequest.count({
+        const escalatedApprovals = await auth.withDB((db) => db.approvalRequest.count({
             where: {
                 organizationId: auth.organizationId,
                 status: "escalated",
             },
-        });
+        }));
 
         // ── 6. Active subscriptions status ──
-        const subscription = await prisma.subscription.findUnique({
+        const subscription = await auth.withDB((db) => db.subscription.findUnique({
             where: { organizationId: auth.organizationId },
             select: {
                 status: true,
                 trialEnd: true,
                 currentPeriodEnd: true,
             },
-        });
+        }));
 
         return NextResponse.json({
             timestamp: new Date().toISOString(),

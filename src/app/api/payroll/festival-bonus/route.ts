@@ -5,7 +5,7 @@ import {
     listFestivalBonusConfigs,
     getFestivalBonusSummary,
 } from "@/lib/festival-bonus-engine";
-import { prisma } from "@/lib/prisma";
+
 import { payrollLogger } from "@/lib/logger";
 
 // GET /api/payroll/festival-bonus — List all bonus configs for the org
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Otherwise, create a new config
-        const config = await prisma.festivalBonusConfig.create({
+        const config = await auth.withDB((db) => db.festivalBonusConfig.create({
             data: {
                 organizationId: auth.organizationId,
                 name: body.name,
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
                 includeContractual: body.includeContractual ?? false,
                 status: "draft",
             },
-        });
+        }));
 
         return NextResponse.json({ data: config }, { status: 201 });
     } catch (error) {

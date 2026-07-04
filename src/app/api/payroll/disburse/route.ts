@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { disburseSalary, batchDisburseSalary, type DisbursementChannel } from "@/lib/disbursement-engine";
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
             where.salarySlip = { month: Number(month), year: Number(year) };
         }
 
-        const disbursements = await prisma.salaryDisbursement.findMany({
+        const disbursements = await auth.withDB((db) => db.salaryDisbursement.findMany({
             where,
             include: {
                 employee: {
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { initiatedAt: "desc" },
-        });
+        }));
 
         return NextResponse.json({ data: disbursements, total: disbursements.length });
     } catch (error) {

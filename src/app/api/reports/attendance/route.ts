@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { subDays, format } from "date-fns";
 import { apiLogger } from "@/lib/logger";
@@ -16,7 +16,7 @@ export async function GET() {
         const thirtyDaysAgo = subDays(todayStart, 30);
 
         // 1. Daily Stats (Today)
-        const dailyStats = await prisma.attendance.groupBy({
+        const dailyStats = await auth.withDB((db) => db.attendance.groupBy({
             by: ['status'],
             where: {
                 employee: { organizationId: orgId },
@@ -28,10 +28,10 @@ export async function GET() {
             _count: {
                 status: true
             }
-        });
+        }));
 
         // 2. Monthly Trends (Last 30 Days)
-        const monthlyData = await prisma.attendance.findMany({
+        const monthlyData = await auth.withDB((db) => db.attendance.findMany({
             where: {
                 employee: { organizationId: orgId },
                 date: {
@@ -44,7 +44,7 @@ export async function GET() {
                 status: true
             },
             orderBy: { date: 'asc' }
-        });
+        }));
 
         // Process monthly data for chart chart: { date: '2023-10-01', present: 5, late: 2, absent: 1 }
         const trendMap = new Map<string, Record<string, number | string>>();
@@ -68,7 +68,7 @@ export async function GET() {
         // 3. Late/Early Offenders (Top 5 this month)
         // Grouping by employee is tricky with Prisma findMany vs groupBy limited relations.
         // We'll fetch all 'late' or 'early' records for the last 30 days and aggregate in JS.
-        const lateEarlyRecords = await prisma.attendance.findMany({
+        const lateEarlyRecords = await auth.withDB((db) => db.attendance.findMany({
             where: {
                 employee: { organizationId: orgId },
                 date: {
@@ -91,7 +91,7 @@ export async function GET() {
                     }
                 }
             }
-        });
+        }));
 
         const offenderMap = new Map<string, {
             employee: (typeof lateEarlyRecords)[number]["employee"];

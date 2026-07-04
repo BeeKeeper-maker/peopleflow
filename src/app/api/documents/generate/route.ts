@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { generateDocumentHTML, getDocumentTypes, getRequiredFields } from "@/lib/document-templates";
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         }
 
         // ✅ Org-scoping: verify employee belongs to same organization
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 id: employeeId,
                 organizationId: ctx.organizationId,
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
                     take: 1,
                 },
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(

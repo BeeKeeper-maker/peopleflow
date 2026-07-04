@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         const { id } = await params;
 
         // Load the slip and verify it belongs to the authed org
-        const slip = await prisma.salarySlip.findUnique({
+        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
             where: { id },
             include: {
                 employee: {
@@ -53,7 +53,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
         if (!slip || slip.employee.organizationId !== auth.organizationId) {
             return NextResponse.json(
@@ -86,12 +86,12 @@ export async function POST(req: Request, { params }: RouteParams) {
         const body = await req.json().catch(() => ({}));
         const note = typeof body?.note === "string" ? body.note.trim().slice(0, 500) : null;
 
-        const updated = await prisma.salarySlip.update({
+        const updated = await auth.withDB((db) => db.salarySlip.update({
             where: { id },
             data: {
                 status: "approved",
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: auth.organizationId,

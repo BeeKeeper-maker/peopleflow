@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { generateBankFileCSV } from "@/lib/payroll-engine";
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: "Valid year (2020-2099) is required" }, { status: 400 });
         }
 
-        return await generateBankFile(ctx.organizationId, month, year);
+        return await generateBankFile(ctx, month, year);
     } catch (error) {
         payrollLogger.error({ err: error }, "Bank file GET error:");
         return NextResponse.json({ error: "Failed to generate bank file" }, { status: 500 });
@@ -55,27 +55,27 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Valid year (2020-2099) is required" }, { status: 400 });
         }
 
-        return await generateBankFile(ctx.organizationId, month, year);
+        return await generateBankFile(ctx, month, year);
     } catch (error) {
         payrollLogger.error({ err: error }, "Bank file POST error:");
         return NextResponse.json({ error: "Failed to generate bank file" }, { status: 500 });
     }
 }
 
-async function generateBankFile(organizationId: string, month: number, year: number) {
-    const salarySlips = await prisma.salarySlip.findMany({
+async function generateBankFile(ctx: AuthContext, month: number, year: number) {
+    const salarySlips = await ctx.withDB((db) => db.salarySlip.findMany({
         where: {
             month,
             year,
             status: { in: ["approved", "paid"] },
-            employee: { organizationId },
+            employee: { organizationId: ctx.organizationId },
         },
         include: {
             employee: {
                 include: { user: { select: { name: true } } },
             },
         },
-    });
+    }));
 
     if (salarySlips.length === 0) {
         return NextResponse.json(

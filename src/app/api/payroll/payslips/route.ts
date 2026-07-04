@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
 
@@ -12,13 +12,13 @@ export async function GET(req: Request) {
 
     try {
         // Find the employee linked to the current user
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 organizationId: auth.organizationId,
                 userId: auth.userId,
             },
             select: { id: true },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json({
@@ -32,14 +32,14 @@ export async function GET(req: Request) {
         // IMPORTANT: Only show approved/paid slips to employees.
         // Draft slips are HR-internal (may contain errors, not yet reviewed).
         // Reversed slips are excluded (they're corrections, not final).
-        const salarySlips = await prisma.salarySlip.findMany({
+        const salarySlips = await auth.withDB((db) => db.salarySlip.findMany({
             where: {
                 employeeId: employee.id,
                 status: { in: ["approved", "paid"] },
                 isReversed: false,
             },
             orderBy: [{ year: "desc" }, { month: "desc" }],
-        });
+        }));
 
         return NextResponse.json({
             data: salarySlips,

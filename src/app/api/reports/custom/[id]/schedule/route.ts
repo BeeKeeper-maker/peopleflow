@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -44,27 +44,27 @@ export async function POST(req: Request, { params }: RouteParams) {
         const { frequency, recipients, format, isActive } = validation.data;
 
         // Verify report exists + belongs to org
-        const report = await prisma.savedReport.findFirst({
+        const report = await auth.withDB((db) => db.savedReport.findFirst({
             where: {
                 id,
                 organizationId: ctx.organizationId,
                 OR: [{ createdBy: ctx.userId }, { isShared: true }],
             },
-        });
+        }));
 
         if (!report) {
             return NextResponse.json({ error: "Report not found" }, { status: 404 });
         }
 
         // Verify recipients belong to org
-        const validRecipients = await prisma.user.findMany({
+        const validRecipients = await auth.withDB((db) => db.user.findMany({
             where: {
                 id: { in: recipients },
                 organizationId: ctx.organizationId,
                 isActive: true,
             },
             select: { id: true },
-        });
+        }));
 
         if (validRecipients.length !== recipients.length) {
             return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         const now = new Date();
         const nextRunAt = calculateNextRun(frequency, now);
 
-        const schedule = await prisma.scheduledReport.create({
+        const schedule = await auth.withDB((db) => db.scheduledReport.create({
             data: {
                 savedReportId: id,
                 frequency,
@@ -87,7 +87,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 isActive,
                 organizationId: ctx.organizationId,
             },
-        });
+        }));
 
         apiLogger.info(
             { scheduleId: schedule.id, reportId: id, frequency, nextRunAt: nextRunAt.toISOString() },
@@ -112,13 +112,13 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const schedules = await prisma.scheduledReport.findMany({
+        const schedules = await auth.withDB((db) => db.scheduledReport.findMany({
             where: {
                 savedReportId: id,
                 organizationId: ctx.organizationId,
             },
             orderBy: { nextRunAt: "asc" },
-        });
+        }));
 
         return NextResponse.json({ data: schedules, total: schedules.length });
     } catch (error) {

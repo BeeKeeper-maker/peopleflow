@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const report = await prisma.savedReport.findFirst({
+        const report = await auth.withDB((db) => db.savedReport.findFirst({
             where: {
                 id,
                 organizationId: ctx.organizationId,
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: RouteParams) {
             include: {
                 schedules: true,
             },
-        });
+        }));
 
         if (!report) {
             return NextResponse.json({ error: "Report not found" }, { status: 404 });
@@ -49,19 +49,19 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         const { id } = await params;
         const body = await req.json();
 
-        const report = await prisma.savedReport.findFirst({
+        const report = await auth.withDB((db) => db.savedReport.findFirst({
             where: {
                 id,
                 organizationId: ctx.organizationId,
                 OR: [{ createdBy: ctx.userId }, { isShared: true }],
             },
-        });
+        }));
 
         if (!report) {
             return NextResponse.json({ error: "Report not found" }, { status: 404 });
         }
 
-        const updated = await prisma.savedReport.update({
+        const updated = await auth.withDB((db) => db.savedReport.update({
             where: { id },
             data: {
                 ...(body.name !== undefined && { name: body.name }),
@@ -72,7 +72,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
                 ...(body.chartType !== undefined && { chartType: body.chartType }),
                 ...(body.isShared !== undefined && { isShared: body.isShared }),
             },
-        });
+        }));
 
         return NextResponse.json(updated);
     } catch (error) {
@@ -89,9 +89,9 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const report = await prisma.savedReport.findFirst({
+        const report = await auth.withDB((db) => db.savedReport.findFirst({
             where: { id, organizationId: ctx.organizationId, createdBy: ctx.userId },
-        });
+        }));
 
         if (!report) {
             return NextResponse.json(
@@ -100,7 +100,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             );
         }
 
-        await prisma.savedReport.delete({ where: { id } });
+        await auth.withDB((db) => db.savedReport.delete({ where: { id } }));
         return NextResponse.json({ success: true });
     } catch (error) {
         apiLogger.error({ err: error }, "DELETE_SAVED_REPORT_ERROR");
@@ -139,13 +139,13 @@ export async function POST(req: Request, { params }: RouteParams) {
             );
         }
 
-        const report = await prisma.savedReport.findFirst({
+        const report = await auth.withDB((db) => db.savedReport.findFirst({
             where: {
                 id,
                 organizationId: ctx.organizationId,
                 OR: [{ createdBy: ctx.userId }, { isShared: true }],
             },
-        });
+        }));
 
         if (!report) {
             return NextResponse.json({ error: "Report not found" }, { status: 404 });

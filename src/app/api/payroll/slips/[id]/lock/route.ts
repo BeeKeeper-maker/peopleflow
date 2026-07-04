@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
@@ -44,14 +44,14 @@ export async function POST(req: Request, { params }: RouteParams) {
             );
         }
 
-        const slip = await prisma.salarySlip.findUnique({
+        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
             where: { id },
             include: {
                 employee: {
                     select: { id: true, firstName: true, lastName: true, organizationId: true },
                 },
             },
-        });
+        }));
 
         if (!slip || slip.employee.organizationId !== ctx.organizationId) {
             return NextResponse.json(
@@ -70,7 +70,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 );
             }
 
-            const updated = await prisma.salarySlip.update({
+            const updated = await auth.withDB((db) => db.salarySlip.update({
                 where: { id },
                 data: {
                     isLocked: true,
@@ -78,7 +78,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     lockedById: ctx.userId,
                     lockedReason: reason,
                 },
-            });
+            }));
 
             await createAuditLog({
                 organizationId: ctx.organizationId,
@@ -108,7 +108,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 );
             }
 
-            const updated = await prisma.salarySlip.update({
+            const updated = await auth.withDB((db) => db.salarySlip.update({
                 where: { id },
                 data: {
                     isLocked: false,
@@ -116,7 +116,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     lockedById: null,
                     lockedReason: null,
                 },
-            });
+            }));
 
             await createAuditLog({
                 organizationId: ctx.organizationId,

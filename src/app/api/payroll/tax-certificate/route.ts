@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { calculateAnnualTax } from "@/lib/payroll-engine";
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         }
 
         // ✅ Org-scoping: verify employee belongs to same organization
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 id: employeeId,
                 organizationId: ctx.organizationId,
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
                 user: { select: { name: true, email: true } },
                 department: { select: { name: true } },
             },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json(
@@ -53,14 +53,14 @@ export async function POST(req: Request) {
         }
 
         // Get all salary slips for the year
-        const salarySlips = await prisma.salarySlip.findMany({
+        const salarySlips = await auth.withDB((db) => db.salarySlip.findMany({
             where: {
                 employeeId,
                 year,
                 status: { in: ["approved", "paid"] },
             },
             orderBy: { month: "asc" },
-        });
+        }));
 
         if (salarySlips.length === 0) {
             return NextResponse.json(

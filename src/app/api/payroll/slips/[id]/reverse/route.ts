@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
@@ -46,14 +46,14 @@ export async function POST(req: Request, { params }: RouteParams) {
             );
         }
 
-        const slip = await prisma.salarySlip.findUnique({
+        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
             where: { id },
             include: {
                 employee: {
                     select: { id: true, firstName: true, lastName: true, organizationId: true },
                 },
             },
-        });
+        }));
 
         if (!slip || slip.employee.organizationId !== ctx.organizationId) {
             return NextResponse.json(
@@ -81,7 +81,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         }
 
         const now = new Date();
-        const updated = await prisma.salarySlip.update({
+        const updated = await auth.withDB((db) => db.salarySlip.update({
             where: { id },
             data: {
                 isReversed: true,
@@ -90,7 +90,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 reversedReason: reason,
                 status: "reversed",
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: ctx.organizationId,

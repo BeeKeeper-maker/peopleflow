@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
             where.isActive = true;
         }
 
-        const assignments = await prisma.salaryStructureAssignment.findMany({
+        const assignments = await auth.withDB((db) => db.salaryStructureAssignment.findMany({
             where,
             include: {
                 employee: {
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { effectiveFrom: "desc" },
-        });
+        }));
 
         // Calculate salary breakdown for each assignment
         const assignmentsWithBreakdown = assignments.map((a) => {
@@ -116,25 +116,25 @@ export async function POST(req: Request) {
         const { employeeId, salaryStructureId, grossSalary, effectiveFrom, effectiveTo } = validation.data;
 
         // Verify employee belongs to organization
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: employeeId, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
         }
 
         // Verify salary structure belongs to organization
-        const structure = await prisma.salaryStructure.findFirst({
+        const structure = await auth.withDB((db) => db.salaryStructure.findFirst({
             where: { id: salaryStructureId, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!structure) {
             return new NextResponse("Salary structure not found", { status: 404 });
         }
 
         // Deactivate previous active assignments for this employee
-        await prisma.salaryStructureAssignment.updateMany({
+        await auth.withDB((db) => db.salaryStructureAssignment.updateMany({
             where: {
                 employeeId,
                 isActive: true,
@@ -143,10 +143,10 @@ export async function POST(req: Request) {
                 isActive: false,
                 effectiveTo: new Date(effectiveFrom.getTime() - 86400000), // Previous day
             },
-        });
+        }));
 
         // Create new assignment
-        const assignment = await prisma.salaryStructureAssignment.create({
+        const assignment = await auth.withDB((db) => db.salaryStructureAssignment.create({
             data: {
                 employeeId,
                 salaryStructureId,
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         return NextResponse.json(assignment);
     } catch (error) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const slip = await prisma.salarySlip.findUnique({
+        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
             where: { id },
             include: {
                 employee: {
@@ -56,7 +56,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
         if (!slip || slip.employee.organizationId !== auth.organizationId) {
             return NextResponse.json(
@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 : new Date();
 
         const oldStatus = slip.status;
-        const updated = await prisma.salarySlip.update({
+        const updated = await auth.withDB((db) => db.salarySlip.update({
             where: { id },
             data: {
                 status: "paid",
@@ -104,7 +104,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                 paymentMode,
                 transactionRef,
             },
-        });
+        }));
 
         await createAuditLog({
             organizationId: auth.organizationId,

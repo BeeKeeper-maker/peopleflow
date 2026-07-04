@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
@@ -32,13 +32,13 @@ export async function GET(req: Request) {
         };
         if (dataSource) where.dataSource = dataSource;
 
-        const reports = await prisma.savedReport.findMany({
+        const reports = await auth.withDB((db) => db.savedReport.findMany({
             where,
             orderBy: { updatedAt: "desc" },
             include: {
                 _count: { select: { schedules: true } },
             },
-        });
+        }));
 
         const response: Record<string, unknown> = {
             data: reports,
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const report = await prisma.savedReport.create({
+        const report = await auth.withDB((db) => db.savedReport.create({
             data: {
                 name,
                 description,
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
                 createdBy: ctx.userId,
                 organizationId: ctx.organizationId,
             },
-        });
+        }));
 
         return NextResponse.json(report, { status: 201 });
     } catch (error) {

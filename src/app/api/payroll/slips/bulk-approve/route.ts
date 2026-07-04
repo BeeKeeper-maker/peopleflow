@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         }
 
         // Fetch matching slips (for audit + count)
-        const slipsToApprove = await prisma.salarySlip.findMany({
+        const slipsToApprove = await auth.withDB((db) => db.salarySlip.findMany({
             where,
             select: {
                 id: true,
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
                 status: true,
                 netSalary: true,
             },
-        });
+        }));
 
         if (slipsToApprove.length === 0) {
             return NextResponse.json({
@@ -92,10 +92,10 @@ export async function POST(req: Request) {
         }
 
         // Bulk update all matching slips to "approved"
-        const result = await prisma.salarySlip.updateMany({
+        const result = await auth.withDB((db) => db.salarySlip.updateMany({
             where: { id: { in: slipsToApprove.map((s) => s.id) } },
             data: { status: "approved" },
-        });
+        }));
 
         // Audit log (one entry summarizing the bulk action)
         await createAuditLog({
