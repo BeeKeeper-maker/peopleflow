@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -41,10 +40,12 @@ export async function GET(req: Request) {
         const isHRLevel = ["super_admin", "admin", "hr_admin"].includes(auth.role);
         if (!isHRLevel) {
             // Look up the caller's employee record to get their departmentId
-            const callerEmployee = await prisma.employee.findFirst({
-                where: { userId: auth.userId, organizationId: auth.organizationId },
-                select: { departmentId: true },
-            });
+            const callerEmployee = await auth.withDB((db) =>
+                db.employee.findFirst({
+                    where: { userId: auth.userId, organizationId: auth.organizationId },
+                    select: { departmentId: true },
+                }),
+            );
             const deptId = callerEmployee?.departmentId || null;
 
             // Visible if: org-wide (targetDepartments IS NULL) OR
@@ -56,24 +57,26 @@ export async function GET(req: Request) {
             ];
         }
 
-        const announcements = await prisma.announcement.findMany({
-            where,
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        photoUrl: true,
+        const announcements = await auth.withDB((db) =>
+            db.announcement.findMany({
+                where,
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            photoUrl: true,
+                        },
                     },
                 },
-            },
-            orderBy: [
-                { isPinned: "desc" },
-                { priority: "desc" },
-                { publishDate: "desc" },
-            ],
-        });
+                orderBy: [
+                    { isPinned: "desc" },
+                    { priority: "desc" },
+                    { publishDate: "desc" },
+                ],
+            }),
+        );
 
         return NextResponse.json(announcements);
     } catch (error) {
@@ -104,34 +107,38 @@ export async function POST(req: Request) {
         }
 
         // Find the employee record for the logged-in user to set as author
-        const employee = await prisma.employee.findFirst({
-            where: { userId: auth.userId, organizationId: auth.organizationId },
-        });
+        const employee = await auth.withDB((db) =>
+            db.employee.findFirst({
+                where: { userId: auth.userId, organizationId: auth.organizationId },
+            }),
+        );
 
-        const announcement = await prisma.announcement.create({
-            data: {
-                title,
-                content,
-                type: type || "general",
-                priority: priority || "medium",
-                isPinned: isPinned || false,
-                publishDate: publishDate ? new Date(publishDate) : new Date(),
-                expiryDate: expiryDate ? new Date(expiryDate) : null,
-                targetDepartments: targetDepartments || null,
-                isActive: isActive ?? true,
-                authorId: employee?.id || null,
-                organizationId: auth.organizationId,
-            },
-            include: {
-                author: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
+        const announcement = await auth.withDB((db) =>
+            db.announcement.create({
+                data: {
+                    title,
+                    content,
+                    type: type || "general",
+                    priority: priority || "medium",
+                    isPinned: isPinned || false,
+                    publishDate: publishDate ? new Date(publishDate) : new Date(),
+                    expiryDate: expiryDate ? new Date(expiryDate) : null,
+                    targetDepartments: targetDepartments || null,
+                    isActive: isActive ?? true,
+                    authorId: employee?.id || null,
+                    organizationId: auth.organizationId,
+                },
+                include: {
+                    author: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                        },
                     },
                 },
-            },
-        });
+            }),
+        );
 
         return NextResponse.json(announcement);
     } catch (error) {

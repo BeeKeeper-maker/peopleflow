@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -20,15 +19,17 @@ export async function GET(req: Request) {
             where.year = parseInt(year, 10);
         }
 
-        const holidayLists = await prisma.holidayList.findMany({
-            where,
-            include: {
-                holidays: {
-                    orderBy: { date: "asc" },
+        const holidayLists = await auth.withDB((db) =>
+            db.holidayList.findMany({
+                where,
+                include: {
+                    holidays: {
+                        orderBy: { date: "asc" },
+                    },
                 },
-            },
-            orderBy: { year: "desc" },
-        });
+                orderBy: { year: "desc" },
+            }),
+        );
 
         return NextResponse.json(holidayLists);
     } catch (error) {
@@ -59,14 +60,16 @@ export async function POST(req: Request) {
         }
 
         // Check for duplicate year
-        const existing = await prisma.holidayList.findUnique({
-            where: {
-                organizationId_year: {
-                    organizationId: auth.organizationId,
-                    year: parseInt(year, 10),
+        const existing = await auth.withDB((db) =>
+            db.holidayList.findUnique({
+                where: {
+                    organizationId_year: {
+                        organizationId: auth.organizationId,
+                        year: parseInt(year, 10),
+                    },
                 },
-            },
-        });
+            }),
+        );
 
         if (existing) {
             return NextResponse.json(
@@ -75,16 +78,18 @@ export async function POST(req: Request) {
             );
         }
 
-        const holidayList = await prisma.holidayList.create({
-            data: {
-                name,
-                year: parseInt(year, 10),
-                organizationId: auth.organizationId,
-            },
-            include: {
-                holidays: true,
-            },
-        });
+        const holidayList = await auth.withDB((db) =>
+            db.holidayList.create({
+                data: {
+                    name,
+                    year: parseInt(year, 10),
+                    organizationId: auth.organizationId,
+                },
+                include: {
+                    holidays: true,
+                },
+            }),
+        );
 
         return NextResponse.json(holidayList);
     } catch (error) {

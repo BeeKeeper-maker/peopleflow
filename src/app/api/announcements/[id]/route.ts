@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -20,27 +19,31 @@ export async function PUT(
         const { id } = await params;
         const json = await req.json();
 
-        const existing = await prisma.announcement.findFirst({
-            where: { id, organizationId: auth.organizationId },
-        });
+        const existing = await auth.withDB((db) =>
+            db.announcement.findFirst({
+                where: { id, organizationId: auth.organizationId },
+            }),
+        );
 
         if (!existing) {
             return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
         }
 
-        const announcement = await prisma.announcement.update({
-            where: { id },
-            data: {
-                title: json.title ?? existing.title,
-                content: json.content ?? existing.content,
-                type: json.type ?? existing.type,
-                isPinned: json.isPinned ?? existing.isPinned,
-                publishDate: json.publishDate ? new Date(json.publishDate) : existing.publishDate,
-                expiryDate: json.expiryDate ? new Date(json.expiryDate) : json.expiryDate === null ? null : existing.expiryDate,
-                targetDepartments: json.targetDepartments !== undefined ? json.targetDepartments : existing.targetDepartments,
-                isActive: json.isActive ?? existing.isActive,
-            },
-        });
+        const announcement = await auth.withDB((db) =>
+            db.announcement.update({
+                where: { id },
+                data: {
+                    title: json.title ?? existing.title,
+                    content: json.content ?? existing.content,
+                    type: json.type ?? existing.type,
+                    isPinned: json.isPinned ?? existing.isPinned,
+                    publishDate: json.publishDate ? new Date(json.publishDate) : existing.publishDate,
+                    expiryDate: json.expiryDate ? new Date(json.expiryDate) : json.expiryDate === null ? null : existing.expiryDate,
+                    targetDepartments: json.targetDepartments !== undefined ? json.targetDepartments : existing.targetDepartments,
+                    isActive: json.isActive ?? existing.isActive,
+                },
+            }),
+        );
 
         return NextResponse.json(announcement);
     } catch (error) {
@@ -65,15 +68,17 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const existing = await prisma.announcement.findFirst({
-            where: { id, organizationId: auth.organizationId },
-        });
+        const existing = await auth.withDB((db) =>
+            db.announcement.findFirst({
+                where: { id, organizationId: auth.organizationId },
+            }),
+        );
 
         if (!existing) {
             return NextResponse.json({ error: "Announcement not found" }, { status: 404 });
         }
 
-        await prisma.announcement.delete({ where: { id } });
+        await auth.withDB((db) => db.announcement.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
