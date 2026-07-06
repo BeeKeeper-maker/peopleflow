@@ -180,7 +180,7 @@ export async function POST(request: Request) {
           name: "Earned Leave",
           code: "EL",
           color: "#10B981",
-          annualAllocation: 10,
+          annualAllocation: 14,
           carryForwardLimit: 20,
         },
         {
@@ -194,14 +194,14 @@ export async function POST(request: Request) {
           name: "Paternity Leave",
           code: "PL",
           color: "#8B5CF6",
-          annualAllocation: 10,
+          annualAllocation: 7,
           applicableGender: "male",
         },
         {
           name: "Festival Leave",
           code: "FL",
           color: "#F59E0B",
-          annualAllocation: 2,
+          annualAllocation: 11,
         },
         {
           name: "Compensatory Off",
