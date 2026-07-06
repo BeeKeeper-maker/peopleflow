@@ -30,6 +30,7 @@
 import { prisma } from "@/lib/prisma";
 import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
+import { decrypt, isEncrypted } from "@/lib/crypto";
 
 export type DisbursementChannel = "bank_transfer" | "bkash" | "nagad";
 export type DisbursementStatus = "pending" | "processing" | "success" | "failed" | "refunded";
@@ -69,6 +70,8 @@ interface BkashConfig {
 /**
  * Extract bKash config from organization settings.
  * Credentials are stored encrypted in Organization.settings.bkashConfig.
+ * Each sensitive field (username, password, appKey, appSecret) is
+ * individually encrypted with AES-256-GCM.
  */
 function getBkashConfig(orgSettings: unknown): BkashConfig | null {
     const settings = (orgSettings && typeof orgSettings === "object" ? orgSettings : {}) as Record<string, unknown>;
@@ -76,12 +79,30 @@ function getBkashConfig(orgSettings: unknown): BkashConfig | null {
     if (!bkash?.username || !bkash?.password || !bkash?.appKey || !bkash?.appSecret) {
         return null;
     }
+
+    // Decrypt sensitive fields (backward compat: if not encrypted, use as-is)
+    const decryptField = (value: unknown): string => {
+        const str = value as string;
+        if (!str) return "";
+        try {
+            // If the value looks encrypted, decrypt it
+            if (isEncrypted(str)) {
+                return decrypt(str);
+            }
+            // Backward compat: plaintext (will be encrypted on next save)
+            return str;
+        } catch (err) {
+            payrollLogger.error({ err }, "Failed to decrypt bKash credential field");
+            return str; // Fallback to plaintext (shouldn't happen in production)
+        }
+    };
+
     return {
         baseUrl: (bkash.baseUrl as string) || "https://tokenized.pay.bka.sh/v1.2.0-beta",
-        username: bkash.username as string,
-        password: bkash.password as string,
-        appKey: bkash.appKey as string,
-        appSecret: bkash.appSecret as string,
+        username: decryptField(bkash.username),
+        password: decryptField(bkash.password),
+        appKey: decryptField(bkash.appKey),
+        appSecret: decryptField(bkash.appSecret),
     };
 }
 
