@@ -14,6 +14,7 @@ import {
     CheckCircle2,
     XCircle,
     AlertCircle,
+    RefreshCw,
     Loader2,
     LogOut,
 } from "lucide-react";
@@ -66,6 +67,7 @@ export default function ESSDashboardPage() {
     const { addToast } = useToast();
     const { canInstall, promptInstall } = useInstallPrompt();
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
     const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
     const [activities, setActivities] = useState<RecentActivity[]>([]);
@@ -176,6 +178,7 @@ export default function ESSDashboardPage() {
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
+                setFetchError(true);
                 addToast({ title: tDash("failedLoadData"), type: "error" });
             } finally {
                 setIsLoading(false);
@@ -184,6 +187,13 @@ export default function ESSDashboardPage() {
 
         fetchData();
     }, []);
+
+    const retryFetch = () => {
+        setFetchError(false);
+        setIsLoading(true);
+        // Trigger re-fetch by reloading the page (simple, reliable approach)
+        window.location.reload();
+    };
 
     const handleInstallApp = async () => {
         const outcome = await promptInstall();
@@ -280,6 +290,26 @@ export default function ESSDashboardPage() {
                     <Skeleton className="h-40" />
                     <Skeleton className="h-40" />
                 </div>
+            </div>
+        );
+    }
+
+    if (fetchError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 px-4">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
+                    <AlertCircle className="h-8 w-8 text-red-400" />
+                </div>
+                <h2 className="text-lg font-display font-semibold text-foreground mb-2">
+                    {tDash("failedLoadData")}
+                </h2>
+                <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+                    We couldn&apos;t load your dashboard data. Please check your connection and try again.
+                </p>
+                <Button onClick={retryFetch} variant="default" size="default">
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                </Button>
             </div>
         );
     }

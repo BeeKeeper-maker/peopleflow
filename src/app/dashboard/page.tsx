@@ -122,7 +122,7 @@ function PulseCard({ title, value, change, changeType, Icon, gradient, glow, spa
                 <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">{title}</p>
-                        <p className="text-2xl font-bold text-foreground tabular-nums leading-none">{value}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums leading-none">{value}</p>
                         <div className="flex items-center gap-1.5 mt-2">
                             {changeType === "positive" && <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />}
                             {changeType === "negative" && <TrendingDown className="h-3 w-3 text-red-400 shrink-0" />}
@@ -408,7 +408,7 @@ export default function DashboardPage() {
                             <Activity className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-foreground tracking-tight">
+                            <h1 className="text-xl font-display font-bold text-foreground tracking-tight">
                                 {greeting || t('goodMorning')}, {userName}
                             </h1>
                             <p className="text-xs text-muted-foreground mt-0.5">{t('subtitle')}</p>
