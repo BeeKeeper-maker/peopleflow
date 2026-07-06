@@ -1,5 +1,8 @@
 # PeopleFlow HRMS - Docker Compose
-# Enterprise B2B SaaS — Production-ready with Redis
+# Enterprise B2B SaaS — Production-ready with Redis + RLS
+#
+# Security: App and worker connect as peopleflow_app (NOSUPERUSER) for RLS.
+# Migrations connect as peopleflow (superuser) for DDL operations.
 
 services:
   app:
@@ -9,7 +12,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      # App connects as peopleflow_app (NOSUPERUSER) for RLS enforcement
+      - DATABASE_URL=postgresql://peopleflow_app:${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}@db:5432/peopleflow
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
@@ -36,7 +40,8 @@ services:
       dockerfile: Dockerfile
       target: worker
     environment:
-      - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      # Worker also connects as peopleflow_app for RLS
+      - DATABASE_URL=postgresql://peopleflow_app:${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}@db:5432/peopleflow
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - PLATFORM_JWT_SECRET=${PLATFORM_JWT_SECRET}
@@ -57,6 +62,7 @@ services:
       replicas: 1  # Scale up: docker-compose up --scale worker=3
 
   # ── Explicit migration/seed job (run manually before schema-changing releases) ──
+  # Migrations connect as peopleflow (SUPERUSER) for DDL + RLS role setup
   migrate:
     build:
       context: .
@@ -64,6 +70,8 @@ services:
       target: migrate
     environment:
       - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      - PF_APP_DB_PASSWORD=${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
       - PLATFORM_ADMIN_PASSWORD=${PLATFORM_ADMIN_PASSWORD}
     depends_on:
