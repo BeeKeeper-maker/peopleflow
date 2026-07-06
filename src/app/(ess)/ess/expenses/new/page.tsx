@@ -220,7 +220,7 @@ export default function NewExpensePage() {
                         <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                             <CheckCircle2 className="h-8 w-8 text-green-400" />
                         </div>
-                        <h2 className="text-xl font-bold text-foreground mb-2">
+                        <h2 className="text-xl font-display font-bold text-foreground mb-2">
                             {t("submitSuccess")}
                         </h2>
                         <p className="text-muted-foreground mb-6">
@@ -254,7 +254,7 @@ export default function NewExpensePage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("newClaimTitle")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("newClaimTitle")}</h1>
                     <p className="text-muted-foreground mt-1">{t("newClaimSubtitle")}</p>
                 </div>
             </div>

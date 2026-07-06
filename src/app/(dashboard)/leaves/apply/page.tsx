@@ -62,7 +62,7 @@ export default function ApplyLeavePage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("apply")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("apply")}</h1>
                     <p className="text-muted-foreground">{t("applySubtitle")}</p>
                 </div>
             </div>

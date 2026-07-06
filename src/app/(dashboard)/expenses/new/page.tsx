@@ -136,7 +136,7 @@ export default function NewExpenseClaimPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -263,7 +263,7 @@ export default function NewExpenseClaimPage() {
                                 </div>
                                 <div>
                                     <p className="text-sm text-muted-foreground">{t("totalAmount")}</p>
-                                    <p className="text-2xl font-bold text-foreground">৳{total.toLocaleString()}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground">৳{total.toLocaleString()}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 w-full sm:w-auto">

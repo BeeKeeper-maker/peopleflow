@@ -176,7 +176,7 @@ export default function AccessSettingsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3"><ShieldCheck className="h-7 w-7 text-blue-400" /> Access Control</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-3"><ShieldCheck className="h-7 w-7 text-blue-400" /> Access Control</h1>
           <p className="text-muted-foreground mt-1 max-w-3xl">Control who can log in, what role they have, and whether each office user is ready for leave/attendance approval flows.</p>
         </div>
         <Button variant="outline" onClick={fetchUsers} disabled={loading} className="gap-2 self-start md:self-auto"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>
@@ -202,7 +202,7 @@ export default function AccessSettingsPage() {
           ["Total", summary.total, Users], ["Active", summary.active, CheckCircle2], ["Inactive", summary.inactive, XCircle], ["Admins", summary.admins, Shield], ["HR", summary.hrAdmins, UserCheck], ["Managers", summary.managers, Building2], ["Setup Pending", summary.setupPending, Mail], ["Setup Issues", summary.managersWithoutReportees, AlertTriangle],
         ].map(([label, value, Icon]) => {
           const I = Icon as typeof Users;
-          return <Card key={String(label)} className="bg-card border-card-border"><CardContent className="p-4"><I className="h-4 w-4 text-blue-400 mb-2" /><p className="text-2xl font-bold text-foreground">{String(value)}</p><p className="text-xs text-muted-foreground">{String(label)}</p></CardContent></Card>;
+          return <Card key={String(label)} className="bg-card border-card-border"><CardContent className="p-4"><I className="h-4 w-4 text-blue-400 mb-2" /><p className="text-2xl font-display font-bold text-foreground">{String(value)}</p><p className="text-xs text-muted-foreground">{String(label)}</p></CardContent></Card>;
         })}
       </div>
 

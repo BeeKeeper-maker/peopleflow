@@ -180,7 +180,7 @@ export default function ExpensesPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Link href="/expenses/new">
@@ -213,7 +213,7 @@ export default function ExpensesPage() {
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <p className="text-sm text-muted-foreground">{s.label}</p>
-                                            <p className="text-3xl font-bold text-foreground mt-2">{s.value}</p>
+                                            <p className="text-3xl font-display font-bold text-foreground mt-2">{s.value}</p>
                                             {s.sub && <p className="text-xs text-amber-400 mt-1">{s.sub}</p>}
                                         </div>
                                         <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br ${s.color} shadow-lg ${s.glow}`}>

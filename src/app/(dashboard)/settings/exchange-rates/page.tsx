@@ -80,7 +80,7 @@ export default function ExchangeRatesPage() {
         <div className="space-y-6 p-6 max-w-4xl">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl font-display font-bold flex items-center gap-2">
                         <DollarSign className="h-6 w-6" />
                         Exchange Rates
                     </h1>

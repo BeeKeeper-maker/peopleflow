@@ -121,7 +121,7 @@ export default function DeviceEventsPage() {
                                     <Icon className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-foreground">{item.value}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground">{item.value}</p>
                                     <p className="text-sm text-muted-foreground">{item.label}</p>
                                 </div>
                             </CardContent>

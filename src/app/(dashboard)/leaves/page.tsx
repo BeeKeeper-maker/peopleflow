@@ -55,7 +55,7 @@ export default function LeaveApplicationsPage() {
                             <Calendar className="h-5 w-5 text-emerald-400" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                            <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
                             <p className="text-sm text-muted-foreground">
                                 {t('subtitle')}
                             </p>

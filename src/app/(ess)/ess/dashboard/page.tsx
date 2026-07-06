@@ -478,7 +478,7 @@ export default function ESSDashboardPage() {
                                     >
                                         <p className="text-sm text-muted-foreground">{leave.leaveType.name}</p>
                                         <div className="mt-2 flex items-end gap-2">
-                                            <span className="text-3xl font-bold text-foreground">
+                                            <span className="text-3xl font-display font-bold text-foreground">
                                                 {leave.remainingDays}
                                             </span>
                                             <span className="text-sm text-tertiary-foreground mb-1">

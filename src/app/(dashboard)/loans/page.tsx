@@ -238,7 +238,7 @@ export default function LoansPage() {
                         <HandCoins className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">
                             {t('subtitle')}
                             {!isLoading && (
@@ -310,7 +310,7 @@ export default function LoansPage() {
                                 <div className="flex items-start justify-between">
                                     <div className="space-y-1">
                                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</p>
-                                        <p className="text-2xl font-bold text-foreground tabular-nums">
+                                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">
                                             <AnimatedCounter target={card.value} prefix={card.prefix || ""} />
                                         </p>
                                         {card.badge && (
@@ -423,7 +423,7 @@ export default function LoansPage() {
                                             <span className="text-lg">{typeObj?.icon || "💰"}</span>
                                             <span className="text-xs font-medium text-muted-foreground">{typeObj?.label || loan.type}</span>
                                         </div>
-                                        <p className="text-xl font-bold text-foreground tabular-nums">{formatCurrency(loan.amount)}</p>
+                                        <p className="text-xl font-display font-bold text-foreground tabular-nums">{formatCurrency(loan.amount)}</p>
                                     </div>
 
                                     {/* Progress Bar (for disbursed loans) */}

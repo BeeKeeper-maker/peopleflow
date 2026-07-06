@@ -465,7 +465,7 @@ export default function DevicesPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+                    <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
                         <Fingerprint className="h-8 w-8 text-primary" />
                         {t("title")}
                     </h1>
@@ -618,7 +618,7 @@ export default function DevicesPage() {
                             <Server className="h-6 w-6 text-primary" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-foreground">{devices.length}</p>
+                            <p className="text-2xl font-display font-bold text-foreground">{devices.length}</p>
                             <p className="text-sm text-muted-foreground">{t("totalDevices")}</p>
                         </div>
                     </CardContent>
@@ -629,7 +629,7 @@ export default function DevicesPage() {
                             <Wifi className="h-6 w-6 text-emerald-400" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-foreground">
+                            <p className="text-2xl font-display font-bold text-foreground">
                                 {devices.filter((d) => isDeviceOnline(d)).length}
                             </p>
                             <p className="text-sm text-muted-foreground">{t("onlineDevices")}</p>
@@ -642,7 +642,7 @@ export default function DevicesPage() {
                             <ShieldCheck className="h-6 w-6 text-blue-400" />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-foreground">{directCloudCount}</p>
+                            <p className="text-2xl font-display font-bold text-foreground">{directCloudCount}</p>
                             <p className="text-sm text-muted-foreground">{t("cloudDevices")}</p>
                         </div>
                     </CardContent>
@@ -653,7 +653,7 @@ export default function DevicesPage() {
                             {attentionCount > 0 ? <AlertTriangle className="h-6 w-6 text-amber-400" /> : <CheckCircle2 className="h-6 w-6 text-emerald-400" />}
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-foreground">{attentionCount}</p>
+                            <p className="text-2xl font-display font-bold text-foreground">{attentionCount}</p>
                             <p className="text-sm text-muted-foreground">{t("needsAttention")}</p>
                         </div>
                     </CardContent>

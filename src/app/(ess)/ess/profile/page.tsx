@@ -175,7 +175,7 @@ export default function ESSProfilePage() {
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">
+                        <h1 className="text-2xl font-display font-bold text-foreground">
                             {profile.firstName} {profile.lastName}
                         </h1>
                         <p className="text-muted-foreground">{profile.designation?.name || t("notProvided")}</p>

@@ -67,7 +67,7 @@ export default function EditDepartmentPage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Edit Department</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">Edit Department</h1>
                     <p className="text-muted-foreground">Update department details</p>
                 </div>
             </div>

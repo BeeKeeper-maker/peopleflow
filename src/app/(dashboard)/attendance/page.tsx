@@ -180,7 +180,7 @@ export default function AttendancePage() {
     return (
         <div className="flex-1 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-3xl font-bold tracking-tight text-foreground">{t('title')}</h2>
+                <h2 className="text-3xl font-display font-bold tracking-tight text-foreground">{t('title')}</h2>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -299,7 +299,7 @@ export default function AttendancePage() {
                                             <s.icon className={`h-5 w-5 ${s.textColor}`} />
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+                                            <p className="text-2xl font-display font-bold text-foreground">{s.value}</p>
                                             <p className="text-xs text-muted-foreground">{s.label}</p>
                                         </div>
                                     </div>

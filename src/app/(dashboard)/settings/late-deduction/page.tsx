@@ -324,7 +324,7 @@ export default function LateDeductionPolicyPage() {
                         <Timer className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -355,7 +355,7 @@ export default function LateDeductionPolicyPage() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-rose-400 via-red-400 to-orange-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-rose-400 via-red-400 to-orange-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -380,7 +380,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalPolicies')}</p>
-                        <p className="text-2xl font-bold mt-1">{policies.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1">{policies.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalPoliciesDesc')}</p>
                     </CardContent>
                 </Card>
@@ -400,7 +400,7 @@ export default function LateDeductionPolicyPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeTiers')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">
                             {activePolicy?.tiers.length || 0}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeTiersDesc')}</p>
@@ -417,7 +417,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('lateThreshold')}</p>
-                        <p className="text-2xl font-bold mt-1">
+                        <p className="text-2xl font-display font-bold mt-1">
                             {activePolicy?.lateThresholdMinutes || "—"}
                             <span className="text-sm font-normal text-muted-foreground ml-1">{t('min')}</span>
                         </p>

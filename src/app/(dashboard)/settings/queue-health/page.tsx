@@ -113,7 +113,7 @@ export default function QueueHealthPage() {
         <div className="space-y-6 p-6 max-w-6xl">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl font-display font-bold flex items-center gap-2">
                         <Activity className="h-6 w-6" />
                         System Health
                     </h1>
@@ -245,7 +245,7 @@ export default function QueueHealthPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{health.documents.expiringIn30Days}</div>
+                        <div className="text-2xl font-display font-bold">{health.documents.expiringIn30Days}</div>
                         <p className="text-sm text-muted-foreground">expiring in 30 days</p>
                     </CardContent>
                 </Card>
@@ -260,11 +260,11 @@ export default function QueueHealthPage() {
                     <CardContent>
                         <div className="flex gap-4">
                             <div>
-                                <div className="text-2xl font-bold">{health.approvals.pending}</div>
+                                <div className="text-2xl font-display font-bold">{health.approvals.pending}</div>
                                 <p className="text-sm text-muted-foreground">pending</p>
                             </div>
                             <div>
-                                <div className="text-2xl font-bold text-red-400">{health.approvals.escalated}</div>
+                                <div className="text-2xl font-display font-bold text-red-400">{health.approvals.escalated}</div>
                                 <p className="text-sm text-muted-foreground">escalated</p>
                             </div>
                         </div>

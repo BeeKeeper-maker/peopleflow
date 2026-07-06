@@ -66,7 +66,7 @@ export default function ESSPerformanceReviewsPage() {
     if (selectedReview) {
         return (
             <div className="space-y-6 p-6 max-w-3xl">
-                <h1 className="text-2xl font-bold">Self-Assessment</h1>
+                <h1 className="text-2xl font-display font-bold">Self-Assessment</h1>
                 <p className="text-muted-foreground">{selectedReview.reviewCycle.name}</p>
                 <Card>
                     <CardHeader><CardTitle>Rate Your Performance</CardTitle></CardHeader>
@@ -104,7 +104,7 @@ export default function ESSPerformanceReviewsPage() {
 
     return (
         <div className="space-y-6 p-6 max-w-4xl">
-            <h1 className="text-2xl font-bold flex items-center gap-2"><Target className="h-6 w-6" /> My Reviews</h1>
+            <h1 className="text-2xl font-display font-bold flex items-center gap-2"><Target className="h-6 w-6" /> My Reviews</h1>
             {reviews.length === 0 ? (
                 <Card><CardContent className="flex flex-col items-center py-16">
                     <Target className="h-12 w-12 text-muted-foreground mb-4" />

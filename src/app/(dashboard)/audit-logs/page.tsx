@@ -438,7 +438,7 @@ export default function AuditLogsPage() {
                         <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-slate-200 via-zinc-300 to-slate-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-slate-200 via-zinc-300 to-slate-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -472,7 +472,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalLogs')}</p>
-                        <p className="text-2xl font-bold mt-1">{stats.total.toLocaleString()}</p>
+                        <p className="text-2xl font-display font-bold mt-1">{stats.total.toLocaleString()}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalLogsDesc')}</p>
                     </CardContent>
                 </Card>
@@ -492,7 +492,7 @@ export default function AuditLogsPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('today')}</p>
-                        <p className="text-2xl font-bold text-blue-400 mt-1">{stats.todayCount}</p>
+                        <p className="text-2xl font-display font-bold text-blue-400 mt-1">{stats.todayCount}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('todayDesc')}</p>
                     </CardContent>
                 </Card>
@@ -507,7 +507,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('critical')}</p>
-                        <p className="text-2xl font-bold text-amber-400 mt-1">{stats.criticalCount}</p>
+                        <p className="text-2xl font-display font-bold text-amber-400 mt-1">{stats.criticalCount}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('criticalDesc')}</p>
                     </CardContent>
                 </Card>
@@ -522,7 +522,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeUsers')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">{stats.activeUsers}</p>
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">{stats.activeUsers}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeUsersDesc')}</p>
                     </CardContent>
                 </Card>

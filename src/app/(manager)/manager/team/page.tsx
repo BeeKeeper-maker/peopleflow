@@ -89,7 +89,7 @@ export default function ManagerTeamPage() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("teamMembersCount", { count: teamMembers.length })}</p>
                 </div>
                 <Input
@@ -101,10 +101,10 @@ export default function ManagerTeamPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-foreground">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-green-400">{presentCount}</p><p className="text-sm text-muted-foreground">{t("presentToday")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-blue-400">{onLeaveCount}</p><p className="text-sm text-muted-foreground">{t("onLeave")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-yellow-400">{lateCount}</p><p className="text-sm text-muted-foreground">{t("lateToday")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-foreground">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-green-400">{presentCount}</p><p className="text-sm text-muted-foreground">{t("presentToday")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-blue-400">{onLeaveCount}</p><p className="text-sm text-muted-foreground">{t("onLeave")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-yellow-400">{lateCount}</p><p className="text-sm text-muted-foreground">{t("lateToday")}</p></CardContent></Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

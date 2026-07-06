@@ -222,7 +222,7 @@ export default function ManagerLeavesPage() {
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1 max-w-3xl">{t("subtitle")}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -257,7 +257,7 @@ export default function ManagerLeavesPage() {
                             <CardContent className="p-4">
                                 <div className="flex items-center gap-3">
                                     <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", item.tone)}><Icon className="h-5 w-5" /></div>
-                                    <div><p className="text-2xl font-bold text-foreground">{item.value}</p><p className="text-xs text-muted-foreground">{item.label}</p></div>
+                                    <div><p className="text-2xl font-display font-bold text-foreground">{item.value}</p><p className="text-xs text-muted-foreground">{item.label}</p></div>
                                 </div>
                             </CardContent>
                         </Card>

@@ -331,7 +331,7 @@ export default function PayrollPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
@@ -367,7 +367,7 @@ export default function PayrollPage() {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-muted-foreground">{stat.title}</p>
-                                    <h3 className="text-2xl font-bold text-foreground mt-1">{stat.value}</h3>
+                                    <h3 className="text-2xl font-display font-bold text-foreground mt-1">{stat.value}</h3>
                                     <p className="text-xs text-tertiary-foreground mt-1">{stat.description}</p>
                                 </div>
                                 <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color}`}>
@@ -459,19 +459,19 @@ export default function PayrollPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                                             <p className="text-emerald-400 text-sm">{t('totalGross')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground">
                                                 ৳{slips.reduce((s, sl) => s + sl.grossSalary, 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
                                             <p className="text-red-400 text-sm">{t('totalDeductions')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground">
                                                 ৳{totalDeductions.toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
                                             <p className="text-blue-400 text-sm">{t('netPayable')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground">
                                                 ৳{totalPayroll.toLocaleString()}
                                             </p>
                                         </div>
@@ -780,17 +780,17 @@ export default function PayrollPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                                         <p className="text-sm text-indigo-400">{t("totalTaxableIncome")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("basedOnAnnualSalary")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                         <p className="text-sm text-amber-400">{t("taxDeductedTDS")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("monthlyDeductionsSum")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <p className="text-sm text-emerald-400">{t("investmentRebate")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("underSection78")}</p>
                                     </div>
                                 </div>
@@ -872,7 +872,7 @@ export default function PayrollPage() {
                                     ].map((item, i) => (
                                         <div key={i} className={`p-4 rounded-xl border ${item.bgColor}`}>
                                             <p className={`text-sm ${item.textColor}`}>{item.label}</p>
-                                            <p className="text-xl font-bold text-foreground mt-1">{item.value}</p>
+                                            <p className="text-xl font-display font-bold text-foreground mt-1">{item.value}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -943,15 +943,15 @@ export default function PayrollPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                         <p className="text-sm text-amber-400">{t("pendingRequests")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <p className="text-sm text-emerald-400">{t("processedThisYear")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
                                         <p className="text-sm text-purple-400">{t("totalPayout")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1">৳0</p>
                                     </div>
                                 </div>
 

@@ -207,7 +207,7 @@ export default function ESSLeavesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">
                         {t("subtitle")}
                     </p>
@@ -283,7 +283,7 @@ export default function ESSLeavesPage() {
                                 >
                                     <CardContent className="p-6">
                                         <div className="flex items-center justify-between mb-4">
-                                            <span className="text-2xl font-bold text-muted-text">
+                                            <span className="text-2xl font-display font-bold text-muted-text">
                                                 {balance.leaveType.code}
                                             </span>
                                             <Calendar className="h-5 w-5 text-tertiary-foreground" />

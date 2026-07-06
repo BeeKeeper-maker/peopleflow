@@ -128,7 +128,7 @@ export function UpgradeBillingClient() {
                             <Crown className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-foreground">Upgrade PeopleFlow Plan</h1>
+                            <h1 className="text-2xl font-display font-bold text-foreground">Upgrade PeopleFlow Plan</h1>
                             <p className="text-muted-foreground mt-1">Choose the plan that matches your organization’s growth.</p>
                         </div>
                     </div>
@@ -183,7 +183,7 @@ export function UpgradeBillingClient() {
                                     <CardDescription>{marketing.tagline || plan.description || "Complete HRMS subscription tier"}</CardDescription>
                                     {marketing.audience && <p className="text-xs text-muted-foreground">Ideal for {marketing.audience}</p>}
                                     <div className="pt-4">
-                                        <span className="text-3xl font-bold text-foreground">{formatMoney(price, plan.currency)}</span>
+                                        <span className="text-3xl font-display font-bold text-foreground">{formatMoney(price, plan.currency)}</span>
                                         <span className="text-sm text-muted-foreground"> / {billingCycle === "yearly" ? "year" : "month"}</span>
                                     </div>
                                 </CardHeader>

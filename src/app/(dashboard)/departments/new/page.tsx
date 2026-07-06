@@ -18,7 +18,7 @@ export default function NewDepartmentPage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("createTitle")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("createTitle")}</h1>
                     <p className="text-muted-foreground">{t("createSubtitle")}</p>
                 </div>
             </div>

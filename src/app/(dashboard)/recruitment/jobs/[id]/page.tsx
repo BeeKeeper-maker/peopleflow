@@ -129,7 +129,7 @@ export default function RecruitmentJobDetailPage() {
                             <Badge variant="outline">{employmentTypeLabel(job.employmentType)}</Badge>
                             {job.isRemote && <Badge variant="outline">Remote</Badge>}
                         </div>
-                        <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
+                        <h1 className="text-3xl font-display font-bold text-foreground">{job.title}</h1>
                         <p className="mt-2 text-muted-foreground">{job.department?.name || "No department"}{job.designation ? ` • ${job.designation.name}` : ""}</p>
                     </div>
                 </div>
@@ -140,8 +140,8 @@ export default function RecruitmentJobDetailPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
-                <Card><CardContent className="p-5"><UserPlus className="mb-3 h-5 w-5 text-blue-400" /><p className="text-sm text-muted-foreground">Openings</p><p className="text-2xl font-bold">{job.openings}</p></CardContent></Card>
-                <Card><CardContent className="p-5"><Users className="mb-3 h-5 w-5 text-purple-400" /><p className="text-sm text-muted-foreground">Applications</p><p className="text-2xl font-bold">{job.applications.length}</p></CardContent></Card>
+                <Card><CardContent className="p-5"><UserPlus className="mb-3 h-5 w-5 text-blue-400" /><p className="text-sm text-muted-foreground">Openings</p><p className="text-2xl font-display font-bold">{job.openings}</p></CardContent></Card>
+                <Card><CardContent className="p-5"><Users className="mb-3 h-5 w-5 text-purple-400" /><p className="text-sm text-muted-foreground">Applications</p><p className="text-2xl font-display font-bold">{job.applications.length}</p></CardContent></Card>
                 <Card><CardContent className="p-5"><Calendar className="mb-3 h-5 w-5 text-amber-400" /><p className="text-sm text-muted-foreground">Deadline</p><p className="text-lg font-semibold">{formatDate(job.closesAt)}</p></CardContent></Card>
                 <Card><CardContent className="p-5"><MapPin className="mb-3 h-5 w-5 text-emerald-400" /><p className="text-sm text-muted-foreground">Location</p><p className="text-lg font-semibold">{job.isRemote ? "Remote" : job.location || "—"}</p></CardContent></Card>
             </div>

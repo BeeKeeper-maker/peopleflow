@@ -147,7 +147,7 @@ export default function NotificationSettingsPage() {
     return (
         <div className="space-y-6 p-6 max-w-4xl">
             <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
+                <h1 className="text-2xl font-display font-bold flex items-center gap-2">
                     <Bell className="h-6 w-6" />
                     Notification Preferences
                 </h1>

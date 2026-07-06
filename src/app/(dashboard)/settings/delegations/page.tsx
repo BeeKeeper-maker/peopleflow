@@ -384,7 +384,7 @@ export default function DelegationsPage() {
                         <Fingerprint className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -415,7 +415,7 @@ export default function DelegationsPage() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -440,7 +440,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('delegated')}</p>
-                        <p className="text-2xl font-bold mt-1">{delegated.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1">{delegated.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('delegatedDesc')}</p>
                     </CardContent>
                 </Card>
@@ -460,7 +460,7 @@ export default function DelegationsPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeNow')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">{activeDelegations.length}</p>
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">{activeDelegations.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeNowDesc')}</p>
                     </CardContent>
                 </Card>
@@ -475,7 +475,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('received')}</p>
-                        <p className="text-2xl font-bold mt-1">{received.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1">{received.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('receivedDesc')}</p>
                     </CardContent>
                 </Card>
@@ -490,7 +490,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('permissions')}</p>
-                        <p className="text-2xl font-bold mt-1">{activeReceived.length + activeDelegations.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1">{activeReceived.length + activeDelegations.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('permissionsDesc')}</p>
                     </CardContent>
                 </Card>
