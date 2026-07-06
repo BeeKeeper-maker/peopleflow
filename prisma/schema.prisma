@@ -922,6 +922,7 @@ model LeaveApplication {
   approvedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt      DateTime?
 
   // ── Maternity Leave Compliance (BLA 2006, Section 46-47) ──
   // Tracks pre-delivery (8 weeks) and post-delivery (8 weeks) split
@@ -969,6 +970,7 @@ model Attendance {
   notes             String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  deletedAt      DateTime?
 
   employeeId     String
   employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1094,6 +1096,7 @@ model SalarySlip {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt      DateTime?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1180,6 +1183,7 @@ model Loan {
   disbursedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt      DateTime?
 
   employeeId String
   organizationId String?    // Denormalized for RLS
@@ -1583,6 +1587,7 @@ model Notification {
   link      String?
   isRead    Boolean   @default(false)
   readAt    DateTime?
+  deletedAt DateTime?
   createdAt DateTime  @default(now())
 
   userId String
@@ -1592,6 +1597,7 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([deletedAt])
 }
 
 /**
