@@ -41,7 +41,6 @@ import {
     Zap,
     History,
     Link2,
-    MonitorCheck,
     Router,
     ShieldCheck,
     AlertTriangle,
@@ -854,7 +853,7 @@ export default function DevicesPage() {
                 })}
             </div>
 
-            {/* ── Collapsible Setup Guide (bottom, out of the way) ── */}
+            {/* ── Collapsible Setup Guide — 2-path "Choose your setup" ── */}
             {devices.length > 0 && (
                 <Card className="border-card-border bg-card">
                     <button
@@ -866,8 +865,8 @@ export default function DevicesPage() {
                                 <HelpCircle className="h-4 w-4" />
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-foreground">{t("setupGuide")}</p>
-                                <p className="text-xs text-muted-foreground">{t("setupGuideDesc")}</p>
+                                <p className="text-sm font-semibold text-foreground">{t("chooseSetupTitle")}</p>
+                                <p className="text-xs text-muted-foreground">{t("chooseSetupDesc")}</p>
                             </div>
                         </div>
                         {showSetupGuide ? (
@@ -878,36 +877,99 @@ export default function DevicesPage() {
                     </button>
                     {showSetupGuide && (
                         <CardContent className="pt-0">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-                                {[
-                                    { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },
-                                    { icon: Zap, title: t("guideStep2Title"), desc: t("guideStep2Desc") },
-                                    { icon: MonitorCheck, title: t("guideStep3Title"), desc: t("guideStep3Desc") },
-                                    { icon: Link2, title: t("guideStep4Title"), desc: t("guideStep4Desc") },
-                                ].map((step, i) => {
-                                    const Icon = step.icon;
-                                    return (
-                                        <div key={i} className="rounded-xl border border-card-border bg-hover p-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                                    <Icon className="h-3.5 w-3.5" />
-                                                </div>
-                                                <span className="text-xs font-mono text-muted-foreground">Step {i + 1}</span>
-                                            </div>
-                                            <p className="font-semibold text-sm text-foreground">{step.title}</p>
-                                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.desc}</p>
+                            {/* 2-path cards */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+                                {/* Direct Cloud Path */}
+                                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-5">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-300">
+                                            <ShieldCheck className="h-5 w-5" />
                                         </div>
-                                    );
-                                })}
+                                        <div className="min-w-0">
+                                            <h3 className="text-sm font-semibold text-foreground">{t("pathDirectCloudTitle")}</h3>
+                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("pathDirectCloudDesc")}</p>
+                                        </div>
+                                    </div>
+                                    <ol className="space-y-2 mb-4">
+                                        {[
+                                            t("pathDirectCloudStep1"),
+                                            t("pathDirectCloudStep2"),
+                                            t("pathDirectCloudStep3"),
+                                        ].map((step, i) => (
+                                            <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-300 text-[10px] font-mono font-bold mt-0.5">
+                                                    {i + 1}
+                                                </span>
+                                                <span className="leading-relaxed pt-0.5">{step}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                    <Button
+                                        onClick={() => handleOpenAdd("direct_cloud")}
+                                        className="w-full gap-2 bg-linear-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700"
+                                        size="sm"
+                                    >
+                                        <ShieldCheck className="h-4 w-4" />
+                                        {t("pathDirectCloudCta")}
+                                    </Button>
+                                </div>
+
+                                {/* Sync Agent Path */}
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+                                    <div className="flex items-start gap-3 mb-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
+                                            <Router className="h-5 w-5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h3 className="text-sm font-semibold text-foreground">{t("pathSyncAgentTitle")}</h3>
+                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("pathSyncAgentDesc")}</p>
+                                        </div>
+                                    </div>
+                                    <ol className="space-y-2 mb-4">
+                                        {[
+                                            t("pathSyncAgentStep1"),
+                                            t("pathSyncAgentStep2"),
+                                            t("pathSyncAgentStep3"),
+                                        ].map((step, i) => (
+                                            <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-mono font-bold mt-0.5">
+                                                    {i + 1}
+                                                </span>
+                                                <span className="leading-relaxed pt-0.5">{step}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                    <Button
+                                        onClick={() => setSyncAgentOpen(true)}
+                                        className="w-full gap-2 bg-linear-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700"
+                                        size="sm"
+                                    >
+                                        <Zap className="h-4 w-4" />
+                                        {t("pathSyncAgentCta")}
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                                <Button onClick={() => handleOpenAdd("direct_cloud")} variant="outline" className="gap-2 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10">
-                                    <ShieldCheck className="h-4 w-4" />
-                                    {t("addDirectCloudDevice")}
-                                </Button>
-                                <Button onClick={() => setSyncAgentOpen(true)} variant="outline" className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10">
-                                    <Zap className="h-4 w-4" />
-                                    {t("startGuidedSetup")}
+
+                            {/* After-connect note */}
+                            <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-xs text-amber-200 leading-relaxed">{t("setupAfterConnect")}</p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1.5 border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0"
+                                    onClick={() => {
+                                        setShowSetupGuide(false);
+                                        if (devices.length > 0) {
+                                            setMappingDevice(devices[0]);
+                                        }
+                                    }}
+                                    disabled={devices.length === 0}
+                                >
+                                    <Link2 className="h-3.5 w-3.5" />
+                                    {t("setupMapEmployees")}
                                 </Button>
                             </div>
                         </CardContent>
