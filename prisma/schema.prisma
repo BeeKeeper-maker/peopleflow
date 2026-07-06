@@ -278,6 +278,14 @@ model Organization {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // BD Compliance Fields
+  binNumber         String?  // Business Identification Number (NBR)
+  tinNumber         String?  // Tax Identification Number
+  vatNumber         String?  // VAT Registration Number
+  tradeLicenseNumber String? // Trade License (from City Corporation)
+  tradeLicenseExpiry DateTime? // Trade license expiry date
+  binExpiry          DateTime? // BIN registration expiry
+
   // SaaS Fields
   status          String    @default("active") // active, suspended, deactivated
   suspendedAt     DateTime?
@@ -603,6 +611,8 @@ model Employee {
   firstName      String
   lastName       String
   bengaliName    String?
+  firstNameBn    String?  // Bengali first name (separate from bengaliName)
+  lastNameBn     String?  // Bengali last name
   email          String?
   phone          String?
   dateOfBirth    DateTime?
@@ -610,9 +620,18 @@ model Employee {
   bloodGroup     String?
   maritalStatus  String? // single, married, divorced, widowed
   nationality    String    @default("Bangladeshi")
+  religion       String?  // islam, hinduism, buddhism, christianity, other (festival bonus eligibility)
   nidNumber      String?
   passportNumber String?
   photoUrl       String?
+
+  // BD Family Info (needed for compliance + tax exemption)
+  fatherName     String?  // Father's name (BD HR standard)
+  fatherNameBn   String?  // Bengali
+  motherName     String?  // Mother's name
+  motherNameBn   String?  // Bengali
+  spouseName     String?  // Spouse name (for tax exemption)
+  childrenCount  Int?     // Number of children (maternity cap, tax)
 
   // Employment
   joiningDate      DateTime
@@ -630,10 +649,19 @@ model Employee {
   pfEnabled     Boolean @default(true)
   pfNumber      String?
 
+  // BD Mobile Banking (bKash/Nagad for digital payroll disbursement)
+  bkashNumber   String?  // bKash mobile number
+  nagadNumber   String?  // Nagad mobile number
+
   // Addresses (JSON strings)
   presentAddress   String?
   permanentAddress String?
   emergencyContact String?
+
+  // Tax exemption flags (BD Finance Act)
+  isSeniorCitizen     Boolean @default(false) // Age 65+ → higher tax threshold
+  isDisabled          Boolean @default(false) // Disability certificate → higher threshold
+  isFreedomFighter    Boolean @default(false) // Gazette-recognized → highest threshold
 
   // Biometric
   biometricUserId String?  // User ID on biometric device (maps device punch → employee)
