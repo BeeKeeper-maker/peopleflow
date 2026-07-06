@@ -776,11 +776,14 @@ export interface NotificationRecord {
     link?: string;
 }
 
-export function useNotifications(limit?: number) {
+export function useNotifications(limit?: number, unreadOnly = false) {
     return useQuery<NotificationRecord[], ApiError>({
-        queryKey: [...queryKeys.notifications.all, { limit }],
+        queryKey: [...queryKeys.notifications.all, { limit, unread: unreadOnly }],
         queryFn: async () => {
-            const url = `/api/notifications${limit ? `?limit=${limit}` : ""}`;
+            const params = new URLSearchParams();
+            if (limit) params.set("limit", String(limit));
+            if (unreadOnly) params.set("unread", "true");
+            const url = `/api/notifications${params.toString() ? `?${params.toString()}` : ""}`;
             const res = await fetch(url, { credentials: "include" });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
