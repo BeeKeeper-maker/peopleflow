@@ -159,7 +159,7 @@ export function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
                             aria-haspopup="true"
                         >
                             <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-foreground text-xs font-semibold">
+                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-indigo-600 text-white text-xs font-semibold">
                                     {initials}
                                 </AvatarFallback>
                             </Avatar>

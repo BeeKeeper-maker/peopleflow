@@ -123,11 +123,11 @@ const navSections: NavSection[] = [
 // ─── Role Badge Colors ──────────────────────────────────────────────────────────
 
 const roleBadgeStyles: Record<string, string> = {
-    super_admin: "from-red-500 to-orange-500 text-foreground",
-    admin: "from-purple-500 to-indigo-500 text-foreground",
-    hr_admin: "from-blue-500 to-cyan-500 text-foreground",
-    manager: "from-emerald-500 to-teal-500 text-foreground",
-    employee: "from-slate-500 to-slate-600 text-foreground",
+    super_admin: "from-red-500 to-orange-500 text-white",
+    admin: "from-purple-500 to-indigo-500 text-white",
+    hr_admin: "from-blue-500 to-cyan-500 text-white",
+    manager: "from-emerald-500 to-teal-500 text-white",
+    employee: "from-slate-500 to-slate-600 text-white",
 };
 
 const roleLabels: Record<string, string> = {
@@ -216,7 +216,7 @@ export function Sidebar() {
                 <Link href="/dashboard" className="flex items-center gap-2.5 group">
                     <div className="relative">
                         <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow duration-300">
-                            <Layers className="h-4 w-4 text-foreground" />
+                            <Layers className="h-4 w-4 text-white" />
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />
                     </div>
@@ -425,7 +425,7 @@ function UserProfileCard({ userName, userRole }: { userName: string; userRole: s
         <div className="rounded-lg border border-card-border bg-card-bg p-2.5 transition-colors hover:bg-hover">
             <div className="flex items-center gap-2.5">
                 <Avatar className="h-8 w-8 ring-2 ring-border">
-                    <AvatarFallback className={cn("bg-linear-to-br text-foreground text-[10px] font-semibold", badgeStyle)}>
+                    <AvatarFallback className={cn("bg-linear-to-br text-white text-[10px] font-semibold", badgeStyle)}>
                         {initials}
                     </AvatarFallback>
                 </Avatar>
