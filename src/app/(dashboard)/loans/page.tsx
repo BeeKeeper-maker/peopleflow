@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,32 +32,19 @@ import {
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
+import { useLoans, useEmployees, type LoanRecord } from "@/hooks/use-data"
 
 // ════════════════════════════════════════════════════════════════════════
 // Types
 // ════════════════════════════════════════════════════════════════════════
 
-interface Employee {
+type Loan = LoanRecord;
+
+type Employee = {
     id: string
     firstName: string
     lastName: string
     employeeCode: string
-}
-
-interface Loan {
-    id: string
-    type: string
-    amount: number
-    interestRate: number
-    tenure: number
-    emiAmount: number
-    disbursedAmount: number
-    paidAmount: number
-    remainingAmount: number
-    status: string
-    reason?: string | null
-    createdAt: string
-    employee: Employee
 }
 
 const LOAN_TYPES = [
@@ -105,9 +93,15 @@ export default function LoansPage() {
     const t = useTranslations('Loans')
     const { addToast } = useToast()
     const { confirm, dialog: confirmDialog } = useConfirmDialog()
-    const [loans, setLoans] = useState<Loan[]>([])
-    const [employees, setEmployees] = useState<Employee[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const queryClient = useQueryClient()
+
+    // ── TanStack Query: loans + employees ──
+    const { data: loansData = [], isLoading: loansLoading } = useLoans()
+    const { data: employeesData = [] } = useEmployees()
+    const loans = loansData as Loan[]
+    const employees = employeesData as unknown as Employee[]
+    const isLoading = loansLoading
+
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -117,25 +111,9 @@ export default function LoansPage() {
         employeeId: "", type: "salary_advance", amount: "", interestRate: "0", tenure: "12", reason: ""
     })
 
-    const fetchData = useCallback(async () => {
-        try {
-            const [loansRes, empRes] = await Promise.all([
-                fetch("/api/loans"),
-                fetch("/api/employees?fields=id,firstName,lastName,employeeId"),
-            ])
-            if (loansRes.ok) setLoans(await loansRes.json())
-            if (empRes.ok) {
-                const empData = await empRes.json()
-                setEmployees(Array.isArray(empData) ? empData : empData.data || empData.employees || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { fetchData() }, [fetchData])
+    const invalidateLoans = () => {
+        queryClient.invalidateQueries({ queryKey: ["loans"] })
+    }
 
     // ── Actions ────────────────────────────────────────────────────
     const handleCreate = async () => {
@@ -158,7 +136,7 @@ export default function LoansPage() {
                 addToast({ title: t('created'), type: "success" })
                 setShowForm(false)
                 setForm({ employeeId: "", type: "salary_advance", amount: "", interestRate: "0", tenure: "12", reason: "" })
-                fetchData()
+                invalidateLoans()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || t('createFailed'), type: "error" })
@@ -176,7 +154,7 @@ export default function LoansPage() {
             })
             if (res.ok) {
                 addToast({ title: t('statusUpdated'), type: "success" })
-                fetchData()
+                invalidateLoans()
             }
         } catch { addToast({ title: t('updateFailed'), type: "error" }) }
     }
@@ -191,7 +169,7 @@ export default function LoansPage() {
         if (!ok) return
         try {
             const res = await fetch(`/api/loans/${id}`, { method: "DELETE" })
-            if (res.ok) fetchData()
+            if (res.ok) invalidateLoans()
         } catch { /* silent */ }
     }
 

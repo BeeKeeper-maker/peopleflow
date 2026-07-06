@@ -714,3 +714,85 @@ export function useRegularizationRequests(statusFilter: "all" | "pending" | "app
         staleTime: 60 * 1000, // 1 minute — requests change frequently
     });
 }
+
+/**
+ * Loans list
+ *
+ * Returns the array directly from /api/loans (no envelope).
+ */
+export interface LoanRecord {
+    id: string;
+    type: string;
+    amount: number;
+    interestRate: number;
+    tenure: number;
+    emiAmount: number;
+    disbursedAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    status: string;
+    reason?: string | null;
+    createdAt: string;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+    };
+}
+
+export function useLoans() {
+    return useQuery<LoanRecord[], ApiError>({
+        queryKey: ["loans", "list"],
+        queryFn: async () => {
+            const res = await fetch("/api/loans", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "LOANS_FETCH_ERROR"),
+                    String(err.error || "Failed to load loans"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.loans || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — loan status changes frequently
+    });
+}
+
+/**
+ * Notifications list
+ *
+ * Returns the notifications array from { notifications: [...] } envelope.
+ */
+export interface NotificationRecord {
+    id: string;
+    type: string;
+    title: string;
+    message?: string;
+    isRead: boolean;
+    createdAt: string;
+    link?: string;
+}
+
+export function useNotifications(limit?: number) {
+    return useQuery<NotificationRecord[], ApiError>({
+        queryKey: [...queryKeys.notifications.all, { limit }],
+        queryFn: async () => {
+            const url = `/api/notifications${limit ? `?limit=${limit}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "NOTIFICATIONS_FETCH_ERROR"),
+                    String(err.error || "Failed to load notifications"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return json.notifications || json.data || (Array.isArray(json) ? json : []);
+        },
+        staleTime: 30 * 1000, // 30 seconds — notifications should feel real-time
+    });
+}
