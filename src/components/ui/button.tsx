@@ -10,9 +10,9 @@ const buttonVariants = cva(
         variants: {
             variant: {
                 default:
-                    "bg-linear-to-r from-blue-600 to-blue-700 text-foreground shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-500 hover:to-blue-600",
+                    "bg-linear-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-500 hover:to-blue-600",
                 destructive:
-                    "bg-linear-to-r from-red-600 to-red-700 text-foreground shadow-lg shadow-red-500/25 hover:shadow-red-500/40 hover:from-red-500 hover:to-red-600",
+                    "bg-linear-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40 hover:from-red-500 hover:to-red-600",
                 outline:
                     "border border-card-border bg-transparent text-foreground hover:bg-hover hover:border-border",
                 secondary:
@@ -22,7 +22,7 @@ const buttonVariants = cva(
                 link:
                     "text-blue-400 underline-offset-4 hover:underline",
                 success:
-                    "bg-linear-to-r from-emerald-600 to-emerald-700 text-foreground shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:from-emerald-500 hover:to-emerald-600",
+                    "bg-linear-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:from-emerald-500 hover:to-emerald-600",
             },
             size: {
                 default: "h-11 px-6 py-2 text-sm",
@@ -41,7 +41,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps
     extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+        VariantProps<typeof buttonVariants> {
     isLoading?: boolean;
 }
 
