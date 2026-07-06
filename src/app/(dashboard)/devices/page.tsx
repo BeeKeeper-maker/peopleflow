@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,13 +44,14 @@ import {
     MonitorCheck,
     Router,
     ShieldCheck,
-    ArrowRight,
     AlertTriangle,
-    ClipboardCheck,
     Filter,
+    ArrowRight,
+    HelpCircle,
 } from "lucide-react";
 import { BiometricMappingHub } from "@/components/biometric/mapping-hub";
 import { SyncAgentSetup } from "@/components/biometric/sync-agent-setup";
+import { useBiometricDevices, type BiometricDeviceRecord } from "@/hooks/use-data";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -80,34 +83,10 @@ interface CloudEventLog {
     createdAt: string;
 }
 
-interface BiometricDevice {
-    id: string;
-    name: string;
-    serialNumber: string | null;
-    model: string;
-    ip: string;
-    port: number;
-    connectionType: string;
-    connectionMode: string;
-    cloudProtocol: string | null;
-    cloudStatus: string;
-    lastSeenAt: string | null;
-    firmwareVersion: string | null;
-    timezone: string;
-    setupNotes: string | null;
-    location: string | null;
-    isActive: boolean;
-    isOnline: boolean;
-    lastSyncAt: string | null;
-    lastSyncStatus: string | null;
-    syncInterval: number;
-    branchId: string | null;
-    branch: Branch | null;
-    _count?: { syncLogs: number };
+type BiometricDevice = BiometricDeviceRecord & {
     syncLogs?: SyncLog[];
     cloudEvents?: CloudEventLog[];
-    createdAt: string;
-}
+};
 
 interface DeviceFormData {
     name: string;
@@ -132,11 +111,14 @@ export default function DevicesPage() {
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const { addToast } = useToast();
-    const { confirm, dialog: confirmDialog } = useConfirmDialog();
+    const { confirm } = useConfirmDialog();
+    const queryClient = useQueryClient();
 
-    const [devices, setDevices] = useState<BiometricDevice[]>([]);
+    // ── TanStack Query: devices ──
+    const { data: devicesData = [], isLoading: loading } = useBiometricDevices();
+    const devices = devicesData as BiometricDevice[];
+
     const [branches, setBranches] = useState<Branch[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [editDevice, setEditDevice] = useState<BiometricDevice | null>(null);
     const [saving, setSaving] = useState(false);
@@ -149,6 +131,7 @@ export default function DevicesPage() {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [mappingDevice, setMappingDevice] = useState<BiometricDevice | null>(null);
     const [syncAgentOpen, setSyncAgentOpen] = useState(false);
+    const [showSetupGuide, setShowSetupGuide] = useState(false);
 
     const [form, setForm] = useState<DeviceFormData>({
         name: "",
@@ -166,40 +149,21 @@ export default function DevicesPage() {
         syncInterval: 15,
     });
 
-    // ── Fetch Devices ─────────────────────────────────────────────
+    // ── Fetch Branches (one-time) ────────────────────────────────────
+    // Branches don't change often; fetch once on mount. Not worth a
+    // TanStack Query hook for a one-time fetch.
+    useState(() => {
+        fetch("/api/branches")
+            .then((r) => r.json())
+            .then((data) => setBranches(Array.isArray(data) ? data : data.branches || []))
+            .catch(() => { /* silent — branches are optional */ });
+    });
 
-    const fetchDevices = useCallback(async () => {
-        try {
-            const res = await fetch("/api/biometric-devices");
-            if (res.ok) {
-                const data = await res.json();
-                setDevices(data);
-            }
-        } catch (error) {
-            console.error("Failed to fetch devices:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const invalidateDevices = () => {
+        queryClient.invalidateQueries({ queryKey: ["biometric-devices"] });
+    };
 
-    const fetchBranches = useCallback(async () => {
-        try {
-            const res = await fetch("/api/branches");
-            if (res.ok) {
-                const data = await res.json();
-                setBranches(Array.isArray(data) ? data : data.branches || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch branches:", error);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchDevices();
-        fetchBranches();
-    }, [fetchDevices, fetchBranches]);
-
-    // ── Add/Edit Device ───────────────────────────────────────────
+    // ── Add/Edit Device ───────────────────────────────────────────────
 
     const handleOpenAdd = (mode: "sync_agent" | "direct_cloud" = "sync_agent") => {
         setForm({
@@ -263,7 +227,7 @@ export default function DevicesPage() {
             if (res.ok) {
                 addToast({ title: editDevice ? t("deviceUpdated") : t("deviceAdded"), type: "success" });
                 setShowAddDialog(false);
-                fetchDevices();
+                invalidateDevices();
             } else {
                 const err = await res.json().catch(() => ({}));
                 addToast({ title: err.error || t("saveFailed"), type: "error" });
@@ -275,7 +239,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Delete Device ─────────────────────────────────────────────
+    // ── Delete Device ─────────────────────────────────────────────────
 
     const handleDelete = async (id: string) => {
         const _ok = await confirm({ title: t("confirmDelete"), description: "This device will be removed.", confirmLabel: "Delete", variant: "destructive" }); if (!_ok) return;
@@ -286,7 +250,7 @@ export default function DevicesPage() {
             });
             if (res.ok) {
                 addToast({ title: t("deviceDeleted"), type: "success" });
-                fetchDevices();
+                invalidateDevices();
             } else {
                 addToast({ title: t("deleteFailed"), type: "error" });
             }
@@ -295,7 +259,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Test Connection ───────────────────────────────────────────
+    // ── Test Connection ───────────────────────────────────────────────
 
     const handleTest = async (id: string) => {
         setTestingId(id);
@@ -305,9 +269,9 @@ export default function DevicesPage() {
             });
             const result = await res.json();
             if (result.success) {
-                addToast({ title: `✅ ${t("connectionSuccess")}${result.deviceInfo?.serialNumber ? ` — SN: ${result.deviceInfo.serialNumber}` : ""}`, type: "success" });
+                addToast({ title: `${t("connectionSuccess")}${result.deviceInfo?.serialNumber ? ` — SN: ${result.deviceInfo.serialNumber}` : ""}`, type: "success" });
             } else {
-                addToast({ title: `❌ ${t("connectionFailed")}: ${result.message}`, type: "error" });
+                addToast({ title: `${t("connectionFailed")}: ${result.message}`, type: "error" });
             }
         } catch {
             addToast({ title: t("connectionFailed"), type: "error" });
@@ -316,7 +280,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Sync Device ───────────────────────────────────────────────
+    // ── Sync Device ───────────────────────────────────────────────────
 
     const handleSync = async (id: string) => {
         setSyncingId(id);
@@ -326,10 +290,10 @@ export default function DevicesPage() {
             });
             const result = await res.json();
             if (result.success) {
-                addToast({ title: `✅ ${t("syncComplete")}: ${result.recordsSynced} ${t("recordsSynced")}`, type: "success" });
-                fetchDevices();
+                addToast({ title: `${t("syncComplete")}: ${result.recordsSynced} ${t("recordsSynced")}`, type: "success" });
+                invalidateDevices();
             } else {
-                addToast({ title: `❌ ${t("syncFailed")}: ${result.error || "Unknown error"}`, type: "error" });
+                addToast({ title: `${t("syncFailed")}: ${result.error || "Unknown error"}`, type: "error" });
             }
         } catch {
             addToast({ title: t("syncFailed"), type: "error" });
@@ -338,7 +302,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Toggle Sync Logs ──────────────────────────────────────────
+    // ── Toggle Sync Logs ──────────────────────────────────────────────
 
     const toggleSyncLogs = async (id: string) => {
         if (expandedId === id) {
@@ -363,7 +327,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Helpers ───────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────
 
     const formatDateTime = (dateStr: string | null) => {
         if (!dateStr) return t("never");
@@ -374,7 +338,6 @@ export default function DevicesPage() {
             minute: "2-digit",
         }).format(new Date(dateStr));
     };
-
 
     const isPrivateLanIp = (ip: string) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|127\.)/.test(ip);
 
@@ -410,12 +373,13 @@ export default function DevicesPage() {
     const directCloudCount = devices.filter((d) => d.connectionMode === "direct_cloud").length;
     const syncAgentCount = devices.filter((d) => d.connectionMode !== "direct_cloud").length;
     const attentionCount = devices.filter(hasAttention).length;
-    const filteredDevices = (() => {
+    const filteredDevices = useMemo(() => {
         if (deviceFilter === "attention") return devices.filter(hasAttention);
         if (deviceFilter === "direct_cloud") return devices.filter((d) => d.connectionMode === "direct_cloud");
         if (deviceFilter === "sync_agent") return devices.filter((d) => d.connectionMode !== "direct_cloud");
         return devices;
-    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [devices, deviceFilter]);
 
     const getSyncStatusBadge = (status: string | null) => {
         switch (status) {
@@ -450,7 +414,7 @@ export default function DevicesPage() {
         }
     };
 
-    // ── Render ─────────────────────────────────────────────────────
+    // ── Render ─────────────────────────────────────────────────────────
 
     if (loading) {
         return (
@@ -462,206 +426,102 @@ export default function DevicesPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
-                        <Fingerprint className="h-8 w-8 text-primary" />
-                        {t("title")}
-                    </h1>
-                    <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
+            {/* ── Clean Header ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+                        <Fingerprint className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t("subtitle")}</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => window.location.href = "/devices/events"}
-                        className="gap-2"
-                    >
-                        <History className="h-4 w-4" />
-                        {t("eventCenterBtn")}
-                    </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Link href="/devices/events">
+                        <Button variant="outline" className="gap-2 border-card-border">
+                            <History className="h-4 w-4" />
+                            <span className="hidden sm:inline">{t("eventsLink")}</span>
+                        </Button>
+                    </Link>
                     <Button
                         variant="outline"
                         onClick={() => setSyncAgentOpen(true)}
                         className="gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                     >
                         <Zap className="h-4 w-4" />
-                        {t("syncAgentBtn")}
+                        <span className="hidden sm:inline">{t("syncAgentBtn")}</span>
                     </Button>
-                    <Button onClick={() => handleOpenAdd("sync_agent")} className="gap-2">
+                    <Button onClick={() => handleOpenAdd("sync_agent")} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
                         <Plus className="h-4 w-4" />
                         {t("addDevice")}
                     </Button>
                 </div>
             </div>
 
-            <Card className="border-emerald-500/20 bg-linear-to-r from-emerald-500/10 via-cyan-500/5 to-transparent overflow-hidden">
-                <CardContent className="p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/20 gap-1">
-                                <ShieldCheck className="h-3 w-3" /> {t("recommendedProductionSetup")}
-                            </Badge>
-                            <Badge className="bg-cyan-500/10 text-cyan-300 border-cyan-500/20">{t("noPublicIpRequired")}</Badge>
-                        </div>
-                        <p className="text-base font-semibold text-foreground">{t("officeDeviceFlow")}</p>
-                        <p className="text-sm text-muted-foreground mt-1 max-w-4xl leading-relaxed">
-                            {t.rich("officeDeviceFlowDesc", { ip: (chunks) => <span className="font-mono text-foreground">{chunks}</span> })}
-                        </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                        <Button
-                            onClick={() => handleOpenAdd("direct_cloud")}
-                            className="gap-2 bg-linear-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 shadow-lg shadow-cyan-500/10"
-                        >
-                            <ShieldCheck className="h-4 w-4" />
-                            {t("addDirectCloudDevice")}
-                        </Button>
-                        <Button
-                            onClick={() => setSyncAgentOpen(true)}
-                            variant="outline"
-                            className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                        >
-                            <Zap className="h-4 w-4" />
-                            {t("startGuidedSetup")}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-cyan-500/20 bg-cyan-500/5">
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-start gap-4">
-                            <div className="h-11 w-11 rounded-2xl bg-cyan-500/15 flex items-center justify-center shrink-0">
-                                <ShieldCheck className="h-5 w-5 text-cyan-300" />
+            {/* ── Summary Stats (compact, 4 cards) ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <Card className="border-card-border bg-card overflow-hidden">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t("totalDevices")}</p>
+                                <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">{devices.length}</p>
                             </div>
-                            <div>
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
-                                    <h2 className="text-base font-semibold text-foreground">{t("certifiedCloudDeviceTitle")}</h2>
-                                    <Badge className="bg-cyan-500/15 text-cyan-200 border-cyan-500/20">{t("bestForNewClients")}</Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">{t("certifiedCloudDeviceDesc")}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                                <Server className="h-5 w-5" />
                             </div>
                         </div>
-                        <ul className="space-y-2 text-xs text-muted-foreground">
-                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckAdms")}</li>
-                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckRecommendedModel")}</li>
-                            <li className="flex gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-cyan-300 shrink-0 mt-0.5" />{t("buyingCheckVendorProof")}</li>
-                        </ul>
                     </CardContent>
                 </Card>
-                <Card className="border-emerald-500/20 bg-emerald-500/5">
-                    <CardContent className="p-5 space-y-4">
-                        <div className="flex items-start gap-4">
-                            <div className="h-11 w-11 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-                                <Router className="h-5 w-5 text-emerald-300" />
+                <Card className="border border-emerald-500/20 bg-card overflow-hidden">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t("onlineDevices")}</p>
+                                <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">
+                                    {devices.filter((d) => isDeviceOnline(d)).length}
+                                </p>
                             </div>
-                            <div>
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
-                                    <h2 className="text-base font-semibold text-foreground">{t("existingLanDeviceTitle")}</h2>
-                                    <Badge className="bg-emerald-500/15 text-emerald-200 border-emerald-500/20">{t("bestForExistingDevices")}</Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground leading-relaxed">{t("existingLanDeviceDesc")}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
+                                <Wifi className="h-5 w-5" />
                             </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                onClick={() => handleOpenAdd("direct_cloud")}
-                                variant="outline"
-                                className="gap-2 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
-                            >
-                                <ShieldCheck className="h-4 w-4" />
-                                {t("setupDirectCloud")}
-                            </Button>
+                    </CardContent>
+                </Card>
+                <Card className="border border-blue-500/20 bg-card overflow-hidden">
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t("cloudDevices")}</p>
+                                <p className="text-2xl font-display font-bold text-blue-400 mt-1 tabular-nums">{directCloudCount}</p>
+                            </div>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
+                                <ShieldCheck className="h-5 w-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cn("border bg-card overflow-hidden", attentionCount > 0 ? "border-amber-500/20" : "border-card-border")}>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t("needsAttention")}</p>
+                                <p className={cn("text-2xl font-display font-bold mt-1 tabular-nums", attentionCount > 0 ? "text-amber-400" : "text-foreground")}>
+                                    {attentionCount}
+                                </p>
+                            </div>
+                            <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", attentionCount > 0 ? "bg-amber-500/15 text-amber-400" : "bg-muted/15 text-muted-foreground")}>
+                                {attentionCount > 0 ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            <Card className="border-card-border bg-card">
-                <CardContent className="p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                <ClipboardCheck className="h-4 w-4 text-primary" />
-                                {t("handoverReadinessTitle")}
-                            </div>
-                            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("handoverReadinessDesc")}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 lg:min-w-[520px]">
-                            {[
-                                { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },
-                                { icon: Zap, title: t("guideStep2Title"), desc: t("guideStep2Desc") },
-                                { icon: MonitorCheck, title: t("guideStep3Title"), desc: t("guideStep3Desc") },
-                                { icon: Link2, title: t("guideStep4Title"), desc: t("guideStep4Desc") },
-                            ].map((step) => {
-                                const Icon = step.icon;
-                                return (
-                                    <div key={step.title} className="rounded-xl border border-card-border bg-hover p-3">
-                                        <Icon className="mb-2 h-4 w-4 text-primary" />
-                                        <p className="font-semibold text-foreground">{step.title}</p>
-                                        <p className="mt-1 leading-relaxed text-muted-foreground">{step.desc}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-card border-card-border">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <Server className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">{devices.length}</p>
-                            <p className="text-sm text-muted-foreground">{t("totalDevices")}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-card border-card-border">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                            <Wifi className="h-6 w-6 text-emerald-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">
-                                {devices.filter((d) => isDeviceOnline(d)).length}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{t("onlineDevices")}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-card border-card-border">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                            <ShieldCheck className="h-6 w-6 text-blue-400" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">{directCloudCount}</p>
-                            <p className="text-sm text-muted-foreground">{t("cloudDevices")}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="bg-card border-card-border">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center", attentionCount > 0 ? "bg-amber-500/10" : "bg-emerald-500/10")}>
-                            {attentionCount > 0 ? <AlertTriangle className="h-6 w-6 text-amber-400" /> : <CheckCircle2 className="h-6 w-6 text-emerald-400" />}
-                        </div>
-                        <div>
-                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">{attentionCount}</p>
-                            <p className="text-sm text-muted-foreground">{t("needsAttention")}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
+            {/* ── Filter Bar ── */}
             {devices.length > 0 && (
-                <div className="flex flex-col gap-3 rounded-2xl border border-card-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 rounded-xl border border-card-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <Filter className="h-4 w-4 text-muted-foreground" />
                         {t("deviceViewFilter")}
@@ -688,19 +548,22 @@ export default function DevicesPage() {
                 </div>
             )}
 
-            {/* Empty State */}
+            {/* ── Empty State (clean, 2-path choice) ── */}
             {devices.length === 0 && (
                 <Card className="bg-card border-card-border border-dashed">
                     <CardContent className="p-12 text-center">
-                        <Fingerprint className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mx-auto mb-4">
+                            <Fingerprint className="h-8 w-8 text-primary" />
+                        </div>
                         <h3 className="text-lg font-semibold text-foreground mb-2">{t("noDevices")}</h3>
                         <p className="text-muted-foreground mb-6 max-w-xl mx-auto">{t("emptyGuidedDesc")}</p>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                            <Button onClick={() => handleOpenAdd("sync_agent")} className="gap-2">
-                                <Plus className="h-4 w-4" />
-                                {t("addFirstDevice")}
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <Button onClick={() => handleOpenAdd("direct_cloud")} className="gap-2 bg-linear-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700">
+                                <ShieldCheck className="h-4 w-4" />
+                                {t("addDirectCloudDevice")}
                             </Button>
                             <Button variant="outline" onClick={() => setSyncAgentOpen(true)} className="gap-2">
+                                <Zap className="h-4 w-4" />
                                 {t("guidedSetup")}
                                 <ArrowRight className="h-4 w-4" />
                             </Button>
@@ -709,7 +572,7 @@ export default function DevicesPage() {
                 </Card>
             )}
 
-            {/* Device List */}
+            {/* ── Device List ── */}
             <div className="grid grid-cols-1 gap-4">
                 {filteredDevices.map((device) => {
                     const isDirectCloudDevice = device.connectionMode === "direct_cloud";
@@ -753,7 +616,7 @@ export default function DevicesPage() {
                                         )}
                                     </div>
                                     <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             <h3 className="font-semibold text-foreground">
                                                 {device.name}
                                             </h3>
@@ -809,7 +672,7 @@ export default function DevicesPage() {
                                     </div>
 
                                     {/* Action Buttons */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -823,7 +686,7 @@ export default function DevicesPage() {
                                             ) : (
                                                 <Zap className="h-3.5 w-3.5" />
                                             )}
-                                            {t("test")}
+                                            <span className="hidden lg:inline">{t("test")}</span>
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -838,7 +701,7 @@ export default function DevicesPage() {
                                             ) : (
                                                 <RefreshCw className="h-3.5 w-3.5" />
                                             )}
-                                            {t("sync")}
+                                            <span className="hidden lg:inline">{t("sync")}</span>
                                         </Button>
                                         <Button
                                             variant="outline"
@@ -849,12 +712,13 @@ export default function DevicesPage() {
                                             className="gap-1"
                                         >
                                             <Link2 className="h-3.5 w-3.5" />
-                                            {t("viewDeviceUsers")}
+                                            <span className="hidden lg:inline">{t("viewDeviceUsers")}</span>
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="sm"
                                             onClick={() => handleOpenEdit(device)}
+                                            title={t("editDevice")}
                                         >
                                             <Settings2 className="h-4 w-4" />
                                         </Button>
@@ -862,6 +726,7 @@ export default function DevicesPage() {
                                             variant="ghost"
                                             size="sm"
                                             onClick={() => toggleSyncLogs(device.id)}
+                                            title={t("syncHistory")}
                                         >
                                             {expandedId === device.id ? (
                                                 <ChevronUp className="h-4 w-4" />
@@ -874,6 +739,7 @@ export default function DevicesPage() {
                                             size="sm"
                                             className="text-red-400 hover:text-red-300"
                                             onClick={() => handleDelete(device.id)}
+                                            title={t("confirmDelete")}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -881,6 +747,7 @@ export default function DevicesPage() {
                                 </div>
                             </div>
 
+                            {/* Health Status Banner */}
                             <div className={cn(
                                 "mt-4 rounded-xl border p-3 text-sm",
                                 needsAttention ? "border-amber-500/20 bg-amber-500/5" : "border-emerald-500/20 bg-emerald-500/5"
@@ -897,11 +764,6 @@ export default function DevicesPage() {
                                             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{healthCopy}</p>
                                         </div>
                                     </div>
-                                    {isDirectCloudDevice && (
-                                        <div className="rounded-lg bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-                                            {t("cloudSetupMini")}: <span className="font-mono text-foreground">peopleflowbd.online : 80</span>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
@@ -992,7 +854,68 @@ export default function DevicesPage() {
                 })}
             </div>
 
-            {/* Add/Edit Dialog */}
+            {/* ── Collapsible Setup Guide (bottom, out of the way) ── */}
+            {devices.length > 0 && (
+                <Card className="border-card-border bg-card">
+                    <button
+                        onClick={() => setShowSetupGuide(!showSetupGuide)}
+                        className="w-full flex items-center justify-between p-4 text-left hover:bg-hover/50 transition-colors rounded-xl"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
+                                <HelpCircle className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold text-foreground">{t("setupGuide")}</p>
+                                <p className="text-xs text-muted-foreground">{t("setupGuideDesc")}</p>
+                            </div>
+                        </div>
+                        {showSetupGuide ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                    </button>
+                    {showSetupGuide && (
+                        <CardContent className="pt-0">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                                {[
+                                    { icon: Router, title: t("guideStep1Title"), desc: t("guideStep1Desc") },
+                                    { icon: Zap, title: t("guideStep2Title"), desc: t("guideStep2Desc") },
+                                    { icon: MonitorCheck, title: t("guideStep3Title"), desc: t("guideStep3Desc") },
+                                    { icon: Link2, title: t("guideStep4Title"), desc: t("guideStep4Desc") },
+                                ].map((step, i) => {
+                                    const Icon = step.icon;
+                                    return (
+                                        <div key={i} className="rounded-xl border border-card-border bg-hover p-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                    <Icon className="h-3.5 w-3.5" />
+                                                </div>
+                                                <span className="text-xs font-mono text-muted-foreground">Step {i + 1}</span>
+                                            </div>
+                                            <p className="font-semibold text-sm text-foreground">{step.title}</p>
+                                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.desc}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                                <Button onClick={() => handleOpenAdd("direct_cloud")} variant="outline" className="gap-2 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10">
+                                    <ShieldCheck className="h-4 w-4" />
+                                    {t("addDirectCloudDevice")}
+                                </Button>
+                                <Button onClick={() => setSyncAgentOpen(true)} variant="outline" className="gap-2 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10">
+                                    <Zap className="h-4 w-4" />
+                                    {t("startGuidedSetup")}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    )}
+                </Card>
+            )}
+
+            {/* ── Add/Edit Dialog (unchanged) ── */}
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden bg-card p-0 sm:max-w-lg border-card-border">
                     <DialogHeader className="shrink-0 border-b border-card-border px-6 py-4">

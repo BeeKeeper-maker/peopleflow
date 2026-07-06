@@ -799,3 +799,55 @@ export function useNotifications(limit?: number, unreadOnly = false) {
         staleTime: 30 * 1000, // 30 seconds — notifications should feel real-time
     });
 }
+
+/**
+ * Biometric devices list
+ *
+ * Returns the array from /api/biometric-devices (no envelope).
+ */
+export interface BiometricDeviceRecord {
+    id: string;
+    name: string;
+    serialNumber: string | null;
+    model: string;
+    ip: string;
+    port: number;
+    connectionType: string;
+    connectionMode: string;
+    cloudProtocol: string | null;
+    cloudStatus: string;
+    lastSeenAt: string | null;
+    firmwareVersion: string | null;
+    timezone: string;
+    setupNotes: string | null;
+    location: string | null;
+    isActive: boolean;
+    isOnline: boolean;
+    lastSyncAt: string | null;
+    lastSyncStatus: string | null;
+    syncInterval: number;
+    branchId: string | null;
+    branch: { id: string; name: string; code: string } | null;
+    _count?: { syncLogs: number };
+    createdAt: string;
+}
+
+export function useBiometricDevices() {
+    return useQuery<BiometricDeviceRecord[], ApiError>({
+        queryKey: ["biometric-devices", "list"],
+        queryFn: async () => {
+            const res = await fetch("/api/biometric-devices", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "DEVICES_FETCH_ERROR"),
+                    String(err.error || "Failed to load biometric devices"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.devices || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — device status changes periodically
+    });
+}

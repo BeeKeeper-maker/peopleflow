@@ -2897,7 +2897,13 @@
     "directCloudHealthyHint": "Device সাম্প্রতিক সময়ে PeopleFlow-তে contact করেছে। পরের proof: mapped employee punch দিয়ে Attendance verify।",
     "syncAgentHealthyHint": "Sync Agent device reachable দেখাচ্ছে। office punch missing হলে sync চালান।",
     "cloudSetupMini": "ডিভাইস কমিউনিকেশন সেটিং",
-    "eventCenterBtn": "ইভেন্ট সেন্টার"
+    "eventCenterBtn": "ইভেন্ট সেন্টার",
+    "setupGuideDesc": "প্রথমবার সেটআপ করছেন? আপনার বায়োমেট্রিক ডিভাইস কানেক্ট করতে এই ধাপগুলো অনুসরণ করুন।",
+    "setupGuideCollapsed": "সেটআপ গাইড দেখুন",
+    "setupGuideExpanded": "সেটআপ গাইড লুকান",
+    "addDeviceQuick": "দ্রুত যোগ করুন",
+    "eventsLink": "ইভেন্ট",
+    "eventsLinkDesc": "ডিভাইস ইভেন্ট টাইমলাইন দেখুন"
   },
   "FestivalBonus": {
     "title": "উৎসব বোনাস ইঞ্জিন",

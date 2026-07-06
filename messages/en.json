@@ -2897,7 +2897,13 @@
     "directCloudHealthyHint": "Device has contacted PeopleFlow recently. Next proof: punch a mapped employee and verify Attendance.",
     "syncAgentHealthyHint": "Sync Agent device looks reachable. Run a sync after office punches if records are missing.",
     "cloudSetupMini": "Device COMM setting",
-    "eventCenterBtn": "Event Center"
+    "eventCenterBtn": "Event Center",
+    "setupGuideDesc": "First time setting up? Follow these steps to connect your biometric device.",
+    "setupGuideCollapsed": "Show setup guide",
+    "setupGuideExpanded": "Hide setup guide",
+    "addDeviceQuick": "Quick Add",
+    "eventsLink": "Events",
+    "eventsLinkDesc": "View device event timeline"
   },
   "FestivalBonus": {
     "title": "Festival Bonus Engine",
