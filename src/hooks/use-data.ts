@@ -635,3 +635,53 @@ export function useSalarySlips(month: number, year: number) {
         staleTime: 60 * 1000, // 1 minute — slips change during payroll processing
     });
 }
+
+/**
+ * Attendance regularization requests
+ *
+ * Returns the requests array from { requests: [...] } envelope.
+ * Used by the Attendance page's Regularization tab.
+ */
+export interface RegularizationRequestRecord {
+    id: string;
+    date: string;
+    reason: string;
+    requestedCheckIn?: string;
+    requestedCheckOut?: string;
+    status: "pending" | "approved" | "rejected";
+    createdAt: string;
+    employee: {
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+        department?: { name: string };
+    };
+    approvedBy?: {
+        firstName: string;
+        lastName: string;
+    };
+}
+
+export function useRegularizationRequests(statusFilter: "all" | "pending" | "approved" | "rejected" = "all", enabled = true) {
+    return useQuery<RegularizationRequestRecord[], ApiError>({
+        queryKey: [...queryKeys.attendance.all, "regularization", { status: statusFilter }],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (statusFilter !== "all") params.set("status", statusFilter);
+            const url = `/api/attendance/regularization${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "REGULARIZATION_FETCH_ERROR"),
+                    String(err.error || "Failed to load regularization requests"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return json.requests || [];
+        },
+        enabled,
+        staleTime: 60 * 1000, // 1 minute — requests change frequently
+    });
+}
