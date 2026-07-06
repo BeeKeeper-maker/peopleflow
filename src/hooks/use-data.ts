@@ -430,21 +430,50 @@ export function useEmployee(id: string) {
 /**
  * Fetch departments
  */
-export function useDepartments() {
-    return useResourceList(
-        queryKeys.departments.lists(),
-        "/api/departments"
-    );
+export function useDepartments(includeInactive = false) {
+    return useQuery<unknown[], ApiError>({
+        queryKey: queryKeys.departments.list({ all: includeInactive }),
+        queryFn: async () => {
+            const url = `/api/departments${includeInactive ? "?all=true" : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "DEPARTMENTS_FETCH_ERROR"),
+                    String(err.error || "Failed to load departments"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // /api/departments returns array directly, not { data: [...] }
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — departments change rarely
+    });
 }
 
 /**
  * Fetch designations
  */
-export function useDesignations() {
-    return useResourceList(
-        queryKeys.designations.list(),
-        "/api/designations"
-    );
+export function useDesignations(includeInactive = false) {
+    return useQuery<unknown[], ApiError>({
+        queryKey: queryKeys.designations.list({ all: includeInactive }),
+        queryFn: async () => {
+            const url = `/api/designations${includeInactive ? "?all=true" : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "DESIGNATIONS_FETCH_ERROR"),
+                    String(err.error || "Failed to load designations"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — designations change rarely
+    });
 }
 
 /**
