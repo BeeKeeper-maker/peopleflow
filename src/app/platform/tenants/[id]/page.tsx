@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
     ArrowLeft,
+    ArrowRight,
     Building2,
     Users,
     CreditCard,
@@ -156,6 +158,15 @@ export default function TenantDetailPage() {
     });
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
+    const [activity, setActivity] = useState<Array<{
+        id: string;
+        action: string;
+        targetType: string;
+        createdAt: string;
+        platformAdmin?: { name: string };
+        metadata?: Record<string, unknown>;
+    }>>([]);
+    const [activityLoading, setActivityLoading] = useState(false);
 
     const loadTenant = useCallback(async () => {
         const res = await fetch(`/api/platform/tenants/${tenantId}`, { credentials: "include" });
@@ -189,6 +200,28 @@ export default function TenantDetailPage() {
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [loadTenant]);
+
+    // Fetch tenant activity timeline (audit logs filtered by targetId = tenantId)
+    const fetchActivity = useCallback(async () => {
+        setActivityLoading(true);
+        try {
+            const res = await fetch(`/api/platform/audit-logs?targetType=organization&targetId=${tenantId}&limit=20`, {
+                credentials: "include",
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setActivity(data.logs || []);
+            }
+        } catch {
+            // Silent fail — activity timeline is a secondary feature
+        } finally {
+            setActivityLoading(false);
+        }
+    }, [tenantId]);
+
+    useEffect(() => {
+        fetchActivity();
+    }, [fetchActivity]);
 
     const tenant = data?.tenant;
     const sub = data?.subscription;
@@ -446,6 +479,89 @@ export default function TenantDetailPage() {
                 >
                     Save Feature Access
                 </button>
+            </InfoCard>
+
+            {/* Activity Timeline */}
+            <InfoCard title="Activity Timeline" icon={<Activity className="w-4 h-4 text-cyan-400" />}>
+                {activityLoading ? (
+                    <div className="space-y-2">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="flex gap-3">
+                                <div className="w-2 h-2 rounded-full bg-zinc-700 mt-1.5 shrink-0" />
+                                <div className="flex-1 space-y-1.5">
+                                    <div className="h-3 w-1/2 rounded bg-white/[0.04] animate-pulse" />
+                                    <div className="h-2.5 w-1/4 rounded bg-white/[0.04] animate-pulse" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : activity.length === 0 ? (
+                    <div className="text-center py-6">
+                        <Activity className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
+                        <p className="text-sm text-zinc-500">No activity recorded for this tenant yet.</p>
+                        <p className="text-xs text-zinc-600 mt-1">Actions like subscription changes, feature overrides, and suspensions will appear here.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin pr-2">
+                        {activity.map((log) => {
+                            const iconColor = log.action.includes("suspend") || log.action.includes("deactivate")
+                                ? "bg-red-500"
+                                : log.action.includes("activate") || log.action.includes("provision")
+                                    ? "bg-emerald-500"
+                                    : log.action.includes("trial") || log.action.includes("override")
+                                        ? "bg-amber-500"
+                                        : "bg-indigo-500";
+                            return (
+                                <div key={log.id} className="flex gap-3 group">
+                                    <div className="flex flex-col items-center shrink-0">
+                                        <div className={`w-2 h-2 rounded-full ${iconColor} mt-1.5`} />
+                                        <div className="w-px flex-1 bg-white/[0.06] mt-1" />
+                                    </div>
+                                    <div className="flex-1 pb-4">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs font-mono font-medium text-indigo-300">
+                                                {log.action}
+                                            </span>
+                                            <span className="text-xs text-zinc-600">
+                                                {new Date(log.createdAt).toLocaleString("en-US", {
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                    year: "numeric",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })}
+                                            </span>
+                                        </div>
+                                        {log.platformAdmin?.name && (
+                                            <p className="text-xs text-zinc-500 mt-0.5">
+                                                by <span className="text-zinc-300 font-medium">{log.platformAdmin.name}</span>
+                                            </p>
+                                        )}
+                                        {log.metadata && Object.keys(log.metadata).length > 0 && (
+                                            <details className="mt-1.5">
+                                                <summary className="text-[10px] text-zinc-600 cursor-pointer hover:text-zinc-400 select-none">
+                                                    View details
+                                                </summary>
+                                                <pre className="text-[10px] text-zinc-500 mt-1 p-2 rounded bg-white/[0.02] overflow-x-auto">
+{JSON.stringify(log.metadata, null, 2)}
+                                                </pre>
+                                            </details>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+                {activity.length > 0 && (
+                    <Link
+                        href={`/platform/audit-logs?targetType=organization&targetId=${tenantId}`}
+                        className="inline-flex items-center gap-1 mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                        View all {activity.length}+ entries in Audit Logs
+                        <ArrowRight className="w-3 h-3" />
+                    </Link>
+                )}
             </InfoCard>
 
             {showKillSwitch && (

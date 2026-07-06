@@ -25,8 +25,9 @@ const NAV_ITEMS = [
     { href: "/platform/employees", label: "Employees", icon: Users },
     { href: "/platform/leads", label: "Leads", icon: Target },
     { href: "/platform/tenants", label: "Tenants", icon: Building2 },
+    { href: "/platform/billing", label: "Billing", icon: CreditCard },
     { href: "/platform/support", label: "Support", icon: LifeBuoy },
-    { href: "/platform/plans", label: "Plans", icon: CreditCard },
+    { href: "/platform/plans", label: "Plans", icon: Zap },
     { href: "/platform/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 
