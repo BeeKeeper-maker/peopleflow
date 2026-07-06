@@ -44,7 +44,10 @@ export const employeeSchema = z.object({
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     bengaliName: z.preprocess(sanitize, z.string().optional()),
     email: z.preprocess(sanitize, z.string().email("Invalid email address").optional()),
-    phone: z.preprocess(sanitize, z.string().optional()),
+    phone: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^(\+?880|0)?1[3-9]\d{8}$/.test(val.replace(/[\s-]/g, "")),
+        "Phone must be a valid Bangladesh number (e.g., 01712345678 or +8801712345678)"
+    )),
     dateOfBirth: z.preprocess(toDateOrUndefined, z.date().optional()),
     gender: z.preprocess(sanitize, z.enum(GENDER_OPTIONS).optional()),
     bloodGroup: z.preprocess(sanitize, z.enum(BLOOD_GROUP_OPTIONS).optional()),
