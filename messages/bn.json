@@ -106,7 +106,14 @@
     "billing": "বিলিং",
     "apiKeys": "এপিআই কী",
     "accessControl": "অ্যাক্সেস কন্ট্রোল",
-    "setupReadiness": "সেটআপ প্রস্তুতি"
+    "setupReadiness": "সেটআপ প্রস্তুতি",
+    "notificationPrefs": "নোটিফিকেশন প্রিফারেন্স",
+    "customFields": "কাস্টম ফিল্ড",
+    "exchangeRates": "এক্সচেঞ্জ রেট",
+    "geoFence": "জিও-ফেন্স",
+    "queueHealth": "কিউ হেলথ",
+    "readiness": "সেটআপ রেডিনেস",
+    "lateDeduction": "লেট ডিডাকশন পলিসি"
   },
   "Header": {
     "search": "অনুসন্ধান...",
@@ -1851,7 +1858,14 @@
     "approval-workflows": "অনুমোদন ওয়ার্কফ্লো",
     "readiness": "প্রস্তুতি",
     "access": "অ্যাক্সেস",
-    "events": "ইভেন্ট"
+    "events": "ইভেন্ট",
+    "custom-fields": "কাস্টম ফিল্ড",
+    "exchange-rates": "এক্সচেঞ্জ রেট",
+    "queue-health": "কিউ হেলথ",
+    "builder": "রিপোর্ট বিল্ডার",
+    "upgrade": "আপগ্রেড",
+    "roles": "রোল",
+    "pipeline": "পাইপলাইন"
   },
   "Auth": {
     "login": {

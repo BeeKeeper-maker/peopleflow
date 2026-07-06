@@ -106,7 +106,14 @@
     "billing": "Billing",
     "apiKeys": "API Keys",
     "accessControl": "Access Control",
-    "setupReadiness": "Setup Readiness"
+    "setupReadiness": "Setup Readiness",
+    "notificationPrefs": "Notification Preferences",
+    "customFields": "Custom Fields",
+    "exchangeRates": "Exchange Rates",
+    "geoFence": "Geo-Fence",
+    "queueHealth": "Queue Health",
+    "readiness": "Setup Readiness",
+    "lateDeduction": "Late Deduction Policy"
   },
   "Header": {
     "search": "Search...",
@@ -1711,7 +1718,14 @@
     "approval-workflows": "Approval Workflows",
     "readiness": "Readiness",
     "access": "Access",
-    "events": "Events"
+    "events": "Events",
+    "custom-fields": "Custom Fields",
+    "exchange-rates": "Exchange Rates",
+    "queue-health": "Queue Health",
+    "builder": "Report Builder",
+    "upgrade": "Upgrade",
+    "roles": "Roles",
+    "pipeline": "Pipeline"
   },
   "Settings": {
     "title": "Settings",
