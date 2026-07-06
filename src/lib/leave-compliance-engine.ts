@@ -135,6 +135,28 @@ export async function validateMaternityLeave(
         return result;
     }
 
+    // 3.5. Check 2-child cap (BLA 2006 Section 46 — maternity benefit for first 2 children only)
+    const previousMaternityCount = await prisma.leaveApplication.count({
+        where: {
+            employeeId,
+            isMaternityLeave: true,
+            status: { in: ["approved", "pending"] },
+            // Count distinct pregnancies (different expected delivery dates,
+            // more than 180 days apart from current one)
+            expectedDeliveryDate: {
+                lt: new Date(expectedDeliveryDate.getTime() - 180 * 24 * 60 * 60 * 1000),
+            },
+        },
+    });
+
+    if (previousMaternityCount >= MATERNITY_CONFIG.MAX_CHILDREN) {
+        result.isValid = false;
+        result.errors.push(
+            `Maternity benefit limit reached: ${previousMaternityCount} previous maternity leave(s) used. BLA 2006 Section 46 covers first ${MATERNITY_CONFIG.MAX_CHILDREN} children only.`
+        );
+        return result;
+    }
+
     // 4. Calculate requested days
     const requestedDays = differenceInCalendarDays(toDate, fromDate) + 1;
 
