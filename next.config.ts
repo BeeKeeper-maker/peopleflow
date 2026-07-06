@@ -117,29 +117,30 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
           },
           // ── Content Security Policy ──
-          // Next.js requires 'unsafe-inline' for styles and 'unsafe-eval'
-          // for certain dev features. In production, this is tightened.
+          // Production: removes 'unsafe-eval' (only needed for Next.js dev mode)
+          // 'unsafe-inline' remains for scripts due to Next.js hydration requirements
+          // (nonce-based CSP would require middleware — future enhancement)
           {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Scripts: self + inline (Next.js hydration) + eval (Next.js dev)
-              // In production, consider nonce-based CSP via middleware
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // Scripts: self + inline (Next.js hydration needs unsafe-inline)
+              // 'unsafe-eval' only in development (removed in production for security)
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
               // Styles: self + inline (Tailwind/CSS-in-JS)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Images: self + data URIs + HTTPS (avatars, uploads)
               "img-src 'self' data: https: blob:",
               // Fonts: self + Google Fonts CDN
               "font-src 'self' data: https://fonts.gstatic.com",
-              // API connections: self + Stripe + Sentry
-              "connect-src 'self' https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io",
+              // API connections: self + Stripe + Sentry + bKash
+              "connect-src 'self' https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://tokenized.pay.bka.sh https://*.pay.bka.sh",
               // Block all iframing
               "frame-ancestors 'none'",
               // Restrict base URI
               "base-uri 'self'",
               // Restrict form submissions
-              "form-action 'self'",
+              "form-action 'self' https://checkout.stripe.com",
               // Workers: self (for Service Worker / PWA)
               "worker-src 'self' blob:",
               // Object/embed: none
