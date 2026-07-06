@@ -171,9 +171,9 @@ async function runComplianceEngine(ctx: AuthContext) {
     }
 
     // ═══ CHECK 1: Minimum Wage Compliance (BLA Section 141-149) ═══
-    // Bangladesh gazette minimum wage: BDT 8,000/month for garments, varies by sector
-    // We use a reasonable baseline of BDT 8,000
-    const MIN_WAGE_BDT = 8000;
+    // Bangladesh gazette minimum wage (2023 revision): BDT 12,500/month for RMG
+    // General minimum: BDT 10,000/month (compliance.ts MINIMUM_WAGES.general)
+    const MIN_WAGE_BDT = 10000; // General minimum (use rmg: 12500 for RMG sector)
     const empSalaryMap = new Map<string, number>();
     salaryAssignments.forEach((sa) => empSalaryMap.set(sa.employeeId, sa.grossSalary));
 
