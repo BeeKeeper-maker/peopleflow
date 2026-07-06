@@ -18,15 +18,18 @@ datasource db {
 // ============================================
 
 model PlatformAdmin {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String    // bcrypt hash
-  name      String
-  role      String    @default("platform_admin") // platform_admin, platform_super
-  isActive  Boolean   @default(true)
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String    // bcrypt hash
+  name            String
+  role            String    @default("platform_admin") // platform_admin, platform_super
+  isActive        Boolean   @default(true)
+  lastLogin       DateTime?
+  // 2FA fields (Phase 0.3 — Platform Admin 2FA)
+  twoFactorEnabled    Boolean  @default(false)
+  twoFactorSecret     String?  // TOTP secret (encrypted at rest in production)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   impersonationSessions ImpersonationSession[]

@@ -1,16 +1,18 @@
 /**
  * Platform API: Platform Admin Auth
  *
- * POST /api/platform/auth/login — Login
- * GET /api/platform/auth/me — Get current admin profile
+ * POST /api/platform/auth — Login (with optional 2FA)
+ * GET /api/platform/auth — Get current admin profile
  *
  * This is a standalone auth system, completely separate from tenant auth.
+ * Phase 0.3: Added 2FA (TOTP) support.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
 import { sign, verify } from "jsonwebtoken";
+import { verify as verifyTOTP } from "otplib";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { getPlatformJwtSecret } from "@/lib/platform-token";
@@ -18,7 +20,7 @@ import { getPlatformJwtSecret } from "@/lib/platform-token";
 const TOKEN_EXPIRY = "8h";
 
 /**
- * POST: Platform admin login
+ * POST: Platform admin login (with 2FA support)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (!rl.allowed) return rl.response!;
 
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, totpCode } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -61,6 +63,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ── 2FA Verification (Phase 0.3) ──
+    if (admin.twoFactorEnabled && admin.twoFactorSecret) {
+      if (!totpCode) {
+        // Tell the client that 2FA is required
+        return NextResponse.json(
+          {
+            error: "2FA code required",
+            code: "TWO_FACTOR_REQUIRED",
+            twoFactorRequired: true,
+          },
+          { status: 401 },
+        );
+      }
+
+      try {
+        const valid = verifyTOTP({
+          token: totpCode,
+          secret: admin.twoFactorSecret,
+        });
+        if (!valid) {
+          return NextResponse.json(
+            { error: "Invalid 2FA code", code: "INVALID_2FA" },
+            { status: 401 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid 2FA code", code: "INVALID_2FA" },
+          { status: 401 },
+        );
+      }
+    }
+
     // Generate JWT
     const token = sign(
       {
@@ -69,6 +104,7 @@ export async function POST(request: NextRequest) {
         name: admin.name,
         role: admin.role,
         isPlatform: true,
+        twoFactorEnabled: admin.twoFactorEnabled,
       },
       getPlatformJwtSecret(),
       { expiresIn: TOKEN_EXPIRY },
@@ -88,6 +124,7 @@ export async function POST(request: NextRequest) {
         email: admin.email,
         name: admin.name,
         role: admin.role,
+        twoFactorEnabled: admin.twoFactorEnabled,
       },
       token, // Also return in body for API clients
     });
@@ -142,6 +179,7 @@ export async function GET(request: NextRequest) {
         isActive: true,
         lastLogin: true,
         createdAt: true,
+        twoFactorEnabled: true,
       },
     });
 
