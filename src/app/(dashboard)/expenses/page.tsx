@@ -180,7 +180,7 @@ export default function ExpensesPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Link href="/expenses/new">
@@ -320,7 +320,7 @@ export default function ExpensesPage() {
                                             {/* Amount + Status */}
                                             <div className="flex items-center gap-4 shrink-0">
                                                 <div className="text-right">
-                                                    <p className="text-sm font-bold text-foreground">{formatCurrency(claim.amountInBDT || claim.amount)}</p>
+                                                    <p className="text-sm font-bold tabular-nums text-foreground">{formatCurrency(claim.amountInBDT || claim.amount)}</p>
                                                     {claim.currency && claim.currency !== "BDT" && (
                                                         <p className="text-[10px] text-muted-foreground">{claim.currency} {claim.amount} → ৳{claim.amountInBDT}</p>
                                                     )}

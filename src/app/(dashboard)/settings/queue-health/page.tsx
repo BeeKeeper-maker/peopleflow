@@ -110,7 +110,7 @@ export default function QueueHealthPage() {
     const uptimeMins = Math.floor((health.uptime % 3600) / 60);
 
     return (
-        <div className="space-y-6 p-6 max-w-6xl">
+        <div className="space-y-6 max-w-6xl">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-display font-bold flex items-center gap-2">
@@ -245,7 +245,7 @@ export default function QueueHealthPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-display font-bold">{health.documents.expiringIn30Days}</div>
+                        <div className="text-2xl font-display font-bold tabular-nums">{health.documents.expiringIn30Days}</div>
                         <p className="text-sm text-muted-foreground">expiring in 30 days</p>
                     </CardContent>
                 </Card>
@@ -260,7 +260,7 @@ export default function QueueHealthPage() {
                     <CardContent>
                         <div className="flex gap-4">
                             <div>
-                                <div className="text-2xl font-display font-bold">{health.approvals.pending}</div>
+                                <div className="text-2xl font-display font-bold tabular-nums">{health.approvals.pending}</div>
                                 <p className="text-sm text-muted-foreground">pending</p>
                             </div>
                             <div>
@@ -293,7 +293,7 @@ function StatCard({
                     {icon}
                     <span>{label}</span>
                 </div>
-                <div className={`text-xl font-bold mt-1 ${warning ? "text-yellow-400" : ""}`}>
+                <div className={`text-xl font-bold tabular-nums mt-1 ${warning ? "text-yellow-400" : ""}`}>
                     {value}
                 </div>
             </CardContent>

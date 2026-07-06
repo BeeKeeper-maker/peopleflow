@@ -380,7 +380,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalPolicies')}</p>
-                        <p className="text-2xl font-display font-bold mt-1">{policies.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{policies.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalPoliciesDesc')}</p>
                     </CardContent>
                 </Card>
@@ -400,7 +400,7 @@ export default function LateDeductionPolicyPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeTiers')}</p>
-                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">
                             {activePolicy?.tiers.length || 0}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeTiersDesc')}</p>
@@ -417,7 +417,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('lateThreshold')}</p>
-                        <p className="text-2xl font-display font-bold mt-1">
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">
                             {activePolicy?.lateThresholdMinutes || "—"}
                             <span className="text-sm font-normal text-muted-foreground ml-1">{t('min')}</span>
                         </p>
@@ -520,14 +520,14 @@ export default function LateDeductionPolicyPage() {
                                 <div className="flex items-center justify-center gap-3">
                                     <div className="text-center">
                                         <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-1">
-                                            <span className="text-lg font-bold text-amber-400">3</span>
+                                            <span className="text-lg font-display font-bold tabular-nums text-amber-400">3</span>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground">{t('legacyLates')}</span>
                                     </div>
                                     <ArrowRight className="w-5 h-5 text-muted-foreground" />
                                     <div className="text-center">
                                         <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-1">
-                                            <span className="text-lg font-bold text-red-400">1</span>
+                                            <span className="text-lg font-display font-bold tabular-nums text-red-400">1</span>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground">{t('legacyDayCut')}</span>
                                     </div>

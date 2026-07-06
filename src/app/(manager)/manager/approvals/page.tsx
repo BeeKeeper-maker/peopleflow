@@ -220,7 +220,7 @@ export default function ManagerApprovalsPage() {
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">
                         {totalPending === 1 ? t("requestsSingular", { count: totalPending }) : t("requestsPlural", { count: totalPending })}
                     </p>
@@ -305,7 +305,7 @@ export default function ManagerApprovalsPage() {
                                                 <div className="flex-1 space-y-2">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <Badge className="bg-green-500/20 text-green-400 border-green-500/30">{category}</Badge>
-                                                        <span className="text-2xl font-display font-bold text-foreground">{formatCurrency(approval.amount || 0)}</span>
+                                                        <span className="text-2xl font-display font-bold tabular-nums text-foreground">{formatCurrency(approval.amount || 0)}</span>
                                                         <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30"><Clock className="h-3 w-3 mr-1" />{t("pending")}</Badge>
                                                     </div>
                                                     {approval.title && <p className="text-foreground font-medium">{approval.title}</p>}
@@ -349,7 +349,7 @@ function EmployeeBlock({ name, photoUrl, designation, tone }: { name: string; ph
         <div className="flex items-center gap-4 min-w-[220px]">
             <Avatar className="h-12 w-12">
                 <AvatarImage src={photoUrl || undefined} />
-                <AvatarFallback className={`bg-linear-to-br ${gradient} text-foreground`}>{name.trim()[0] || "?"}</AvatarFallback>
+                <AvatarFallback className={`bg-linear-to-br ${gradient} text-white`}>{name.trim()[0] || "?"}</AvatarFallback>
             </Avatar>
             <div>
                 <h3 className="font-medium text-foreground">{name}</h3>

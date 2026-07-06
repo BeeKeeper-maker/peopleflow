@@ -666,7 +666,7 @@ export function SettingsClient() {
                                     {orgSettings.logoUrl ? (
                                         <AvatarImage src={orgSettings.logoUrl} />
                                     ) : (
-                                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 rounded-xl text-2xl text-foreground">
+                                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 rounded-xl text-2xl text-white">
                                             {orgSettings.name?.charAt(0) || "O"}
                                         </AvatarFallback>
                                     )}

@@ -265,11 +265,11 @@ export default function ReportBuilderPage({ params }: { params: Promise<{ id: st
     }
 
     return (
-        <div className="space-y-6 p-6 max-w-7xl">
+        <div className="space-y-6 max-w-7xl">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-display font-bold">
+                    <h1 className="text-2xl font-display font-bold tabular-nums">
                         {reportId ? "Edit Report" : "New Custom Report"}
                     </h1>
                     <p className="text-muted-foreground mt-1">

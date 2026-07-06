@@ -153,7 +153,7 @@ export default function ESSExpensesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
                 </div>
                 <Link href="/ess/expenses/new">
@@ -173,7 +173,7 @@ export default function ESSExpensesPage() {
                                 <Clock className="h-5 w-5 text-yellow-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-foreground">{stats.pending}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.pending}</p>
                                 <p className="text-xs text-muted-foreground">{t("pendingStat")}</p>
                             </div>
                         </div>
@@ -186,7 +186,7 @@ export default function ESSExpensesPage() {
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-foreground">{stats.approved}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.approved}</p>
                                 <p className="text-xs text-muted-foreground">{t("approvedStat")}</p>
                             </div>
                         </div>
@@ -199,7 +199,7 @@ export default function ESSExpensesPage() {
                                 <DollarSign className="h-5 w-5 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-foreground">{stats.reimbursed}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.reimbursed}</p>
                                 <p className="text-xs text-muted-foreground">{t("reimbursedStat")}</p>
                             </div>
                         </div>
@@ -212,7 +212,7 @@ export default function ESSExpensesPage() {
                                 <Receipt className="h-5 w-5 text-purple-400" />
                             </div>
                             <div>
-                                <p className="text-lg font-bold text-foreground">{formatCurrency(stats.totalReimbursed)}</p>
+                                <p className="text-lg font-display font-bold tabular-nums text-foreground">{formatCurrency(stats.totalReimbursed)}</p>
                                 <p className="text-xs text-muted-foreground">{t("totalReimbursed")}</p>
                             </div>
                         </div>

@@ -106,7 +106,7 @@ export default function ESSPayslipsPage() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                 <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
             </div>
 
@@ -318,8 +318,8 @@ export default function ESSPayslipsPage() {
 
                             {/* Net Salary */}
                             <div className="bg-blue-500/10 rounded-xl p-4 flex justify-between items-center">
-                                <span className="text-lg font-bold text-foreground">{t("netSalary")}</span>
-                                <span className="text-2xl font-display font-bold text-blue-400">
+                                <span className="text-lg font-display font-bold text-foreground">{t("netSalary")}</span>
+                                <span className="text-2xl font-display font-bold tabular-nums text-blue-400">
                                     {formatCurrency(selectedPayslip.netSalary)}
                                 </span>
                             </div>

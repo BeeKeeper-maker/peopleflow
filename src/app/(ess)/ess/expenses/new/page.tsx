@@ -254,7 +254,7 @@ export default function NewExpensePage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("newClaimTitle")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("newClaimTitle")}</h1>
                     <p className="text-muted-foreground mt-1">{t("newClaimSubtitle")}</p>
                 </div>
             </div>

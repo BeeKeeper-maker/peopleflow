@@ -508,7 +508,7 @@ export default function PFLedgerPage() {
                                     </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('employeeContribution')}</p>
-                                <p className="text-2xl font-display font-bold mt-1">
+                                <p className="text-2xl font-display font-bold mt-1 tabular-nums">
                                     <AnimatedCounter value={summary.employeeBalance} />
                                 </p>
                                 <div className="mt-2">
@@ -535,7 +535,7 @@ export default function PFLedgerPage() {
                                     </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('employerContribution')}</p>
-                                <p className="text-2xl font-display font-bold mt-1">
+                                <p className="text-2xl font-display font-bold mt-1 tabular-nums">
                                     <AnimatedCounter value={summary.employerBalance} />
                                 </p>
                                 <div className="mt-2">
@@ -565,7 +565,7 @@ export default function PFLedgerPage() {
                                     </Badge>
                                 </div>
                                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('interestAccrued')}</p>
-                                <p className="text-2xl font-display font-bold mt-1">
+                                <p className="text-2xl font-display font-bold mt-1 tabular-nums">
                                     <AnimatedCounter value={summary.interestBalance} />
                                 </p>
                                 <div className="mt-2">

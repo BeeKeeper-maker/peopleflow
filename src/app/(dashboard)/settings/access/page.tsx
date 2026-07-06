@@ -202,7 +202,7 @@ export default function AccessSettingsPage() {
           ["Total", summary.total, Users], ["Active", summary.active, CheckCircle2], ["Inactive", summary.inactive, XCircle], ["Admins", summary.admins, Shield], ["HR", summary.hrAdmins, UserCheck], ["Managers", summary.managers, Building2], ["Setup Pending", summary.setupPending, Mail], ["Setup Issues", summary.managersWithoutReportees, AlertTriangle],
         ].map(([label, value, Icon]) => {
           const I = Icon as typeof Users;
-          return <Card key={String(label)} className="bg-card border-card-border"><CardContent className="p-4"><I className="h-4 w-4 text-blue-400 mb-2" /><p className="text-2xl font-display font-bold text-foreground">{String(value)}</p><p className="text-xs text-muted-foreground">{String(label)}</p></CardContent></Card>;
+          return <Card key={String(label)} className="bg-card border-card-border"><CardContent className="p-4"><I className="h-4 w-4 text-blue-400 mb-2" /><p className="text-2xl font-display font-bold text-foreground tabular-nums">{String(value)}</p><p className="text-xs text-muted-foreground">{String(label)}</p></CardContent></Card>;
         })}
       </div>
 

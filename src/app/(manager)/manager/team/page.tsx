@@ -89,7 +89,7 @@ export default function ManagerTeamPage() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("teamMembersCount", { count: teamMembers.length })}</p>
                 </div>
                 <Input
@@ -101,7 +101,7 @@ export default function ManagerTeamPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-foreground">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-foreground tabular-nums">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
                 <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-green-400">{presentCount}</p><p className="text-sm text-muted-foreground">{t("presentToday")}</p></CardContent></Card>
                 <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-blue-400">{onLeaveCount}</p><p className="text-sm text-muted-foreground">{t("onLeave")}</p></CardContent></Card>
                 <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-yellow-400">{lateCount}</p><p className="text-sm text-muted-foreground">{t("lateToday")}</p></CardContent></Card>
@@ -113,7 +113,7 @@ export default function ManagerTeamPage() {
                         <CardContent className="p-6">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-4">
-                                    <Avatar className="h-12 w-12"><AvatarImage src={member.photoUrl} /><AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground">{member.firstName[0]}</AvatarFallback></Avatar>
+                                    <Avatar className="h-12 w-12"><AvatarImage src={member.photoUrl} /><AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white">{member.firstName[0]}</AvatarFallback></Avatar>
                                     <div>
                                         <h3 className="font-medium text-foreground">{member.firstName} {member.lastName}</h3>
                                         <p className="text-sm text-muted-foreground">{member.designation?.name || t("noDesignation")}</p>

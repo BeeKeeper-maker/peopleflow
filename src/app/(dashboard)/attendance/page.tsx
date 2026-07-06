@@ -299,7 +299,7 @@ export default function AttendancePage() {
                                             <s.icon className={`h-5 w-5 ${s.textColor}`} />
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-display font-bold text-foreground">{s.value}</p>
+                                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">{s.value}</p>
                                             <p className="text-xs text-muted-foreground">{s.label}</p>
                                         </div>
                                     </div>

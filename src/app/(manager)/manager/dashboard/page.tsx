@@ -247,7 +247,7 @@ export default function ManagerDashboardPage() {
             {/* Welcome Section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">
                         {getGreeting()}, {firstName}! 👋
                     </h1>
                     <p className="text-muted-foreground mt-1">
@@ -273,7 +273,7 @@ export default function ManagerDashboardPage() {
                                 <Users className="h-5 w-5 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-foreground">{teamStats.total}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-foreground">{teamStats.total}</p>
                                 <p className="text-xs text-muted-foreground">{t('totalTeam')}</p>
                             </div>
                         </div>
@@ -286,7 +286,7 @@ export default function ManagerDashboardPage() {
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-green-400">{teamStats.present}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-green-400">{teamStats.present}</p>
                                 <p className="text-xs text-muted-foreground">{t('present')}</p>
                             </div>
                         </div>
@@ -299,7 +299,7 @@ export default function ManagerDashboardPage() {
                                 <XCircle className="h-5 w-5 text-red-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-red-400">{teamStats.absent}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-red-400">{teamStats.absent}</p>
                                 <p className="text-xs text-muted-foreground">{t('absent')}</p>
                             </div>
                         </div>
@@ -312,7 +312,7 @@ export default function ManagerDashboardPage() {
                                 <Calendar className="h-5 w-5 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-display font-bold text-blue-400">{teamStats.onLeave}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-blue-400">{teamStats.onLeave}</p>
                                 <p className="text-xs text-muted-foreground">{t('onLeave')}</p>
                             </div>
                         </div>
@@ -351,7 +351,7 @@ export default function ManagerDashboardPage() {
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-10 w-10">
                                                 <AvatarImage src={member.photoUrl} />
-                                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground">
+                                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white">
                                                     {member.firstName[0]}
                                                 </AvatarFallback>
                                             </Avatar>

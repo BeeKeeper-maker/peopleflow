@@ -1051,39 +1051,39 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                                     <TrendingUp className="h-3 w-3 text-emerald-400" />
                                                     <span className="text-xs text-muted-foreground uppercase tracking-wider">{t("basic")}</span>
                                                 </div>
-                                                <p className="text-lg font-semibold text-emerald-400">৳{salaryBreakdown.basic.toLocaleString()}</p>
+                                                <p className="text-lg font-semibold tabular-nums text-emerald-400">৳{salaryBreakdown.basic.toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <TrendingUp className="h-3 w-3 text-emerald-400" />
                                                     <span className="text-xs text-muted-foreground uppercase tracking-wider">{t("houseRent")}</span>
                                                 </div>
-                                                <p className="text-lg font-semibold text-emerald-400">৳{salaryBreakdown.hra.toLocaleString()}</p>
+                                                <p className="text-lg font-semibold tabular-nums text-emerald-400">৳{salaryBreakdown.hra.toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <TrendingUp className="h-3 w-3 text-emerald-400" />
                                                     <span className="text-xs text-muted-foreground uppercase tracking-wider">{t("medical")}</span>
                                                 </div>
-                                                <p className="text-lg font-semibold text-emerald-400">৳{salaryBreakdown.medical.toLocaleString()}</p>
+                                                <p className="text-lg font-semibold tabular-nums text-emerald-400">৳{salaryBreakdown.medical.toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <TrendingUp className="h-3 w-3 text-emerald-400" />
                                                     <span className="text-xs text-muted-foreground uppercase tracking-wider">{t("conveyance")}</span>
                                                 </div>
-                                                <p className="text-lg font-semibold text-emerald-400">৳{salaryBreakdown.conveyance.toLocaleString()}</p>
+                                                <p className="text-lg font-semibold tabular-nums text-emerald-400">৳{salaryBreakdown.conveyance.toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <TrendingDown className="h-3 w-3 text-red-400" />
                                                     <span className="text-xs text-muted-foreground uppercase tracking-wider">{t("pfDeduction")}</span>
                                                 </div>
-                                                <p className="text-lg font-semibold text-red-400">-৳{salaryBreakdown.pf.toLocaleString()}</p>
+                                                <p className="text-lg font-semibold tabular-nums text-red-400">-৳{salaryBreakdown.pf.toLocaleString()}</p>
                                             </div>
                                             <div className="space-y-1 p-3 -m-1 rounded-xl bg-linear-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20">
                                                 <span className="text-xs text-blue-300 uppercase tracking-wider font-medium">{t("netSalary")}</span>
-                                                <p className="text-xl font-bold text-blue-400">৳{salaryBreakdown.net.toLocaleString()}</p>
+                                                <p className="text-xl font-display font-bold tabular-nums text-blue-400">৳{salaryBreakdown.net.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     </div>

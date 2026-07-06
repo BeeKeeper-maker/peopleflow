@@ -128,7 +128,7 @@ export function UpgradeBillingClient() {
                             <Crown className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-display font-bold text-foreground">Upgrade PeopleFlow Plan</h1>
+                            <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">Upgrade PeopleFlow Plan</h1>
                             <p className="text-muted-foreground mt-1">Choose the plan that matches your organization’s growth.</p>
                         </div>
                     </div>

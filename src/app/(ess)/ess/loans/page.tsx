@@ -125,7 +125,7 @@ export default function ESSLoansPage() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                 <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
             </div>
 
@@ -139,7 +139,7 @@ export default function ESSLoansPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-muted-foreground">{t("totalRepaid")}</p>
-                                <p className="text-lg font-bold text-foreground">৳{totalRepaid.toLocaleString()}</p>
+                                <p className="text-lg font-display font-bold tabular-nums text-foreground">৳{totalRepaid.toLocaleString()}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -152,7 +152,7 @@ export default function ESSLoansPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-muted-foreground">{t("outstanding")}</p>
-                                <p className="text-lg font-bold text-foreground">৳{totalOutstanding.toLocaleString()}</p>
+                                <p className="text-lg font-display font-bold tabular-nums text-foreground">৳{totalOutstanding.toLocaleString()}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -165,7 +165,7 @@ export default function ESSLoansPage() {
                             </div>
                             <div>
                                 <p className="text-xs text-muted-foreground">{t("activeLoans")}</p>
-                                <p className="text-lg font-bold text-foreground">{activeLoans}</p>
+                                <p className="text-lg font-display font-bold tabular-nums text-foreground">{activeLoans}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -237,7 +237,7 @@ export default function ESSLoansPage() {
                                             {loan.emiAmount > 0 && (
                                                 <div className="text-right mr-2 hidden sm:block">
                                                     <p className="text-xs text-muted-foreground">{t("monthlyInstallment")}</p>
-                                                    <p className="text-sm font-semibold text-foreground">৳{loan.emiAmount.toLocaleString()}</p>
+                                                    <p className="text-sm font-semibold tabular-nums text-foreground">৳{loan.emiAmount.toLocaleString()}</p>
                                                 </div>
                                             )}
                                             <span className={cn(

@@ -98,7 +98,7 @@ export default function CustomFieldsPage() {
     }
 
     return (
-        <div className="space-y-6 p-6 max-w-5xl">
+        <div className="space-y-6 max-w-5xl">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-display font-bold flex items-center gap-2">

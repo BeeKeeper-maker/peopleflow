@@ -314,7 +314,7 @@ export default function ManagerAttendancePage() {
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1 max-w-3xl">{t("subtitle")}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -365,7 +365,7 @@ export default function ManagerAttendancePage() {
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-display font-bold text-foreground">{item.value}</p>
+                                        <p className="text-2xl font-display font-bold tabular-nums text-foreground">{item.value}</p>
                                         <p className="text-xs text-muted-foreground">{item.label}</p>
                                     </div>
                                 </div>
@@ -431,7 +431,7 @@ export default function ManagerAttendancePage() {
                                                 <div className="flex items-center gap-3">
                                                     <Avatar className="h-8 w-8">
                                                         <AvatarImage src={member.avatar || undefined} />
-                                                        <AvatarFallback className="bg-linear-to-br from-orange-500 to-red-600 text-foreground text-xs">
+                                                        <AvatarFallback className="bg-linear-to-br from-orange-500 to-red-600 text-white text-xs">
                                                             {member.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
                                                         </AvatarFallback>
                                                     </Avatar>

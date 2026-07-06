@@ -207,7 +207,7 @@ export default function ESSLeavesPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">
                         {t("subtitle")}
                     </p>
@@ -293,7 +293,7 @@ export default function ESSLeavesPage() {
                                             <p className="text-xs text-tertiary-foreground">{balance.leaveType.nameBn}</p>
                                         )}
                                         <div className="mt-4 flex items-end gap-2">
-                                            <span className="text-4xl font-bold text-foreground">
+                                            <span className="text-4xl font-bold tabular-nums text-foreground">
                                                 {balance.remainingDays}
                                             </span>
                                             <span className="text-sm text-tertiary-foreground mb-1">

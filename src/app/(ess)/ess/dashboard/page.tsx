@@ -339,7 +339,7 @@ export default function ESSDashboardPage() {
                 <div className="flex items-center gap-3 sm:gap-4">
                     <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-card-border">
                         <AvatarImage src={user?.image || undefined} />
-                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-xl">
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white text-xl">
                             {firstName[0]}
                         </AvatarFallback>
                     </Avatar>
@@ -478,7 +478,7 @@ export default function ESSDashboardPage() {
                                     >
                                         <p className="text-sm text-muted-foreground">{leave.leaveType.name}</p>
                                         <div className="mt-2 flex items-end gap-2">
-                                            <span className="text-3xl font-display font-bold text-foreground">
+                                            <span className="text-3xl font-display font-bold tabular-nums text-foreground">
                                                 {leave.remainingDays}
                                             </span>
                                             <span className="text-sm text-tertiary-foreground mb-1">
@@ -514,7 +514,7 @@ export default function ESSDashboardPage() {
                                             <CheckCircle2 className="h-5 w-5 text-green-400" />
                                             <span className="text-foreground">{t('present')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-green-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-green-400">
                                             {attendance.present}
                                         </span>
                                     </div>
@@ -523,7 +523,7 @@ export default function ESSDashboardPage() {
                                             <XCircle className="h-5 w-5 text-red-400" />
                                             <span className="text-foreground">{t('absent')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-red-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-red-400">
                                             {attendance.absent}
                                         </span>
                                     </div>
@@ -532,7 +532,7 @@ export default function ESSDashboardPage() {
                                             <AlertCircle className="h-5 w-5 text-yellow-400" />
                                             <span className="text-foreground">{t('late')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-yellow-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-yellow-400">
                                             {attendance.late}
                                         </span>
                                     </div>
@@ -541,7 +541,7 @@ export default function ESSDashboardPage() {
                                             <Calendar className="h-5 w-5 text-blue-400" />
                                             <span className="text-foreground">{t('onLeave')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-blue-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-blue-400">
                                             {attendance.onLeave}
                                         </span>
                                     </div>

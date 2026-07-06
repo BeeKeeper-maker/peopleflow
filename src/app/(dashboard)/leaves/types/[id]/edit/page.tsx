@@ -77,7 +77,7 @@ export default function EditLeaveTypePage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">Edit Leave Type</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">Edit Leave Type</h1>
                     <p className="text-muted-foreground">Update leave policy details</p>
                 </div>
             </div>

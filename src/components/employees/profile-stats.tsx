@@ -88,7 +88,7 @@ export function ProfileStats({ employee, apiBasePath }: ProfileStatsProps) {
                     </div>
                     <div className="min-w-0">
                         <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
-                        <h4 className={`text-xl font-bold ${stat.color}`}>{stat.value}</h4>
+                        <h4 className={`text-xl font-bold tabular-nums ${stat.color}`}>{stat.value}</h4>
                         <p className="text-[10px] text-muted-foreground truncate">{stat.subtext}</p>
                     </div>
                 </div>

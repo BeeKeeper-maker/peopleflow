@@ -472,7 +472,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalLogs')}</p>
-                        <p className="text-2xl font-display font-bold mt-1">{stats.total.toLocaleString()}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{stats.total.toLocaleString()}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalLogsDesc')}</p>
                     </CardContent>
                 </Card>
@@ -522,7 +522,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeUsers')}</p>
-                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">{stats.activeUsers}</p>
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">{stats.activeUsers}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeUsersDesc')}</p>
                     </CardContent>
                 </Card>

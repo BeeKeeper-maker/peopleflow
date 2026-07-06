@@ -129,7 +129,7 @@ export default function EditJobPage() {
             <div className="flex items-center gap-4">
                 <Link href={`/recruitment/jobs/${params.id}`}><Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button></Link>
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">Edit job posting</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">Edit job posting</h1>
                     <p className="text-muted-foreground mt-1">Keep recruitment data aligned with the published job.</p>
                 </div>
             </div>

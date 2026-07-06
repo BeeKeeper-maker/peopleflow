@@ -72,9 +72,9 @@ export default function ManagerReviewsPage() {
 
     if (selectedReview) {
         return (
-            <div className="space-y-6 p-6 max-w-3xl">
+            <div className="space-y-6 max-w-3xl">
                 <div>
-                    <h1 className="text-2xl font-display font-bold">Manager Review</h1>
+                    <h1 className="text-2xl font-display font-bold tabular-nums">Manager Review</h1>
                     <p className="text-muted-foreground mt-1">
                         {selectedReview.employee.firstName} {selectedReview.employee.lastName} — {selectedReview.reviewCycle.name}
                     </p>
@@ -141,7 +141,7 @@ export default function ManagerReviewsPage() {
     }
 
     return (
-        <div className="space-y-6 p-6 max-w-4xl">
+        <div className="space-y-6 max-w-4xl">
             <h1 className="text-2xl font-display font-bold flex items-center gap-2"><Users className="h-6 w-6" /> Team Performance Reviews</h1>
             {reviews.length === 0 ? (
                 <Card><CardContent className="flex flex-col items-center py-16">

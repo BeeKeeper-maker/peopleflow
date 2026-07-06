@@ -103,7 +103,7 @@ export default function ESSPerformancePage() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                 <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
             </div>
 
@@ -114,7 +114,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
                             <BarChart3 className="h-6 w-6 text-primary" />
                         </div>
-                        <p className="text-2xl font-display font-bold text-foreground">{overallProgress}%</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{overallProgress}%</p>
                         <p className="text-xs text-muted-foreground">{t("overallProgress")}</p>
                     </CardContent>
                 </Card>
@@ -123,7 +123,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-2">
                             <Target className="h-6 w-6 text-blue-400" />
                         </div>
-                        <p className="text-2xl font-display font-bold text-foreground">{totalGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{totalGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("totalGoals")}</p>
                     </CardContent>
                 </Card>
@@ -132,7 +132,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-2">
                             <CheckCircle2 className="h-6 w-6 text-green-400" />
                         </div>
-                        <p className="text-2xl font-display font-bold text-foreground">{completedGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{completedGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("completed")}</p>
                     </CardContent>
                 </Card>
@@ -141,7 +141,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-2">
                             <TrendingUp className="h-6 w-6 text-amber-400" />
                         </div>
-                        <p className="text-2xl font-display font-bold text-foreground">{inProgressGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{inProgressGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("inProgress")}</p>
                     </CardContent>
                 </Card>

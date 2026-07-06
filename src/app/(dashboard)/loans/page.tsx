@@ -431,7 +431,7 @@ export default function LoansPage() {
                                         <div className="mb-4">
                                             <div className="flex items-center justify-between mb-1.5">
                                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Repayment Progress</span>
-                                                <span className="text-xs font-bold text-foreground">{progress}%</span>
+                                                <span className="text-xs font-bold tabular-nums text-foreground">{progress}%</span>
                                             </div>
                                             <div className="h-2 rounded-full bg-hover overflow-hidden">
                                                 <div

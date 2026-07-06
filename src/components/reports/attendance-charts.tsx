@@ -123,7 +123,7 @@ export function AttendanceCharts({ dailyData, monthlyData }: AttendanceChartsPro
                                 <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.fill }} />
                                 <div className="flex flex-col">
                                     <span className="text-xs text-muted-foreground">{item.name}</span>
-                                    <span className="text-lg font-bold">{item.value}</span>
+                                    <span className="text-lg font-display font-bold">{item.value}</span>
                                 </div>
                             </div>
                         ))}

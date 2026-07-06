@@ -232,15 +232,15 @@ export default function CompliancePage() {
                             )}
                             <div className="flex gap-4 mt-4">
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-emerald-400">{passedChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-emerald-400">{passedChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Passed</p>
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-amber-400">{warningChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-amber-400">{warningChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Warnings</p>
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-red-400">{failedChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-red-400">{failedChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Failed</p>
                                 </div>
                             </div>

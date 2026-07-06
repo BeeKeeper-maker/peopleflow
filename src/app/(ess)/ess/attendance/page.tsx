@@ -294,7 +294,7 @@ export default function ESSAttendancePage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">
                         {t("subtitle")}
                     </p>
@@ -332,7 +332,7 @@ export default function ESSAttendancePage() {
                                     <CheckCircle2 className="h-5 w-5 text-green-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-display font-bold text-foreground">{stats.present}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.present}</p>
                                     <p className="text-xs text-muted-foreground">{t("presentDays")}</p>
                                 </div>
                             </div>
@@ -345,7 +345,7 @@ export default function ESSAttendancePage() {
                                     <XCircle className="h-5 w-5 text-red-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-display font-bold text-foreground">{stats.absent}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.absent}</p>
                                     <p className="text-xs text-muted-foreground">{t("absentDays")}</p>
                                 </div>
                             </div>
@@ -358,7 +358,7 @@ export default function ESSAttendancePage() {
                                     <AlertCircle className="h-5 w-5 text-yellow-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-display font-bold text-foreground">{stats.late}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.late}</p>
                                     <p className="text-xs text-muted-foreground">{t("lateArrivals")}</p>
                                 </div>
                             </div>
@@ -371,7 +371,7 @@ export default function ESSAttendancePage() {
                                     <Clock className="h-5 w-5 text-blue-400" />
                                 </div>
                                 <div>
-                                    <p className="text-lg font-bold text-foreground">{stats.totalWorkingHours}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-foreground">{stats.totalWorkingHours}</p>
                                     <p className="text-xs text-muted-foreground">{t("totalHours")}</p>
                                 </div>
                             </div>

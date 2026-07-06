@@ -350,7 +350,7 @@ export default function FestivalBonusPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalConfigs')}</p>
-                        <p className="text-2xl font-display font-bold mt-1">{configs.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{configs.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('configsDesc')}</p>
                     </CardContent>
                 </Card>
@@ -369,7 +369,7 @@ export default function FestivalBonusPage() {
                             </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalBudget')}</p>
-                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1">
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">
                             <AnimatedValue value={totalBudget} />
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('budgetDesc')}</p>
@@ -386,7 +386,7 @@ export default function FestivalBonusPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Total Payments</p>
-                        <p className="text-2xl font-display font-bold mt-1">{totalPayments}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{totalPayments}</p>
                         <div className="mt-2">
                             <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
@@ -416,7 +416,7 @@ export default function FestivalBonusPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('eligibleEmployees')}</p>
-                        <p className="text-2xl font-display font-bold mt-1">{pendingPayments}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{pendingPayments}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('eligibleDesc')}</p>
                     </CardContent>
                 </Card>
@@ -500,7 +500,7 @@ export default function FestivalBonusPage() {
 
                                             {/* Amount */}
                                             <div className="text-right shrink-0 mr-4">
-                                                <p className="text-lg font-bold tabular-nums" suppressHydrationWarning>
+                                                <p className="text-lg font-display font-bold tabular-nums" suppressHydrationWarning>
                                                     {mounted ? `৳${config.totalAmount.toLocaleString()}` : `৳${config.totalAmount}`}
                                                 </p>
                                                 {config.pendingCount > 0 && (
@@ -725,14 +725,14 @@ export default function FestivalBonusPage() {
                                     <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center mx-auto mb-2">
                                         <UserCheck className="w-4 h-4 text-emerald-400" />
                                     </div>
-                                    <p className="text-2xl font-display font-bold text-emerald-400">{generateResult.totalEligible}</p>
+                                    <p className="text-2xl font-display font-bold text-emerald-400 tabular-nums">{generateResult.totalEligible}</p>
                                     <p className="text-[11px] text-muted-foreground">{t('resultEligible')}</p>
                                 </div>
                                 <div className="rounded-xl bg-linear-to-br from-red-500/10 to-red-500/5 border border-red-500/10 p-4 text-center">
                                     <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center mx-auto mb-2">
                                         <UserX className="w-4 h-4 text-red-400" />
                                     </div>
-                                    <p className="text-2xl font-display font-bold text-red-400">{generateResult.totalIneligible}</p>
+                                    <p className="text-2xl font-display font-bold text-red-400 tabular-nums">{generateResult.totalIneligible}</p>
                                     <p className="text-[11px] text-muted-foreground">{t('resultIneligible')}</p>
                                 </div>
                                 <div className="rounded-xl bg-linear-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/10 p-4 text-center">

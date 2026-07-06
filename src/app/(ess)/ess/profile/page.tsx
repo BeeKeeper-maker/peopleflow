@@ -170,12 +170,12 @@ export default function ESSProfilePage() {
                 <div className="flex items-center gap-6">
                     <Avatar className="h-24 w-24 border-4 border-card-border">
                         <AvatarImage src={profile.photoUrl || user?.image || undefined} />
-                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-3xl">
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white text-3xl">
                             {profile.firstName?.[0]}{profile.lastName?.[0]}
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-foreground">
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">
                             {profile.firstName} {profile.lastName}
                         </h1>
                         <p className="text-muted-foreground">{profile.designation?.name || t("notProvided")}</p>

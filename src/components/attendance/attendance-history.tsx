@@ -148,7 +148,7 @@ export function AttendanceHistory() {
                                         <Icon className="h-4 w-4" />
                                     </div>
                                     <div>
-                                        <p className="text-xl font-bold text-foreground">{item.value}</p>
+                                        <p className="text-xl font-display font-bold text-foreground">{item.value}</p>
                                         <p className="text-xs text-muted-foreground">{item.label}</p>
                                     </div>
                                 </div>
