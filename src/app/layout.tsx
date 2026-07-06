@@ -96,24 +96,26 @@ export default async function RootLayout({
     <html lang={locale === 'bn' ? 'bn-BD' : 'en'} className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <style jsx global>{`
-          :root {
-            --font-sans: ${inter.style.fontFamily};
-            --font-display: ${interTight.style.fontFamily};
-            --font-mono: ${jetbrainsMono.style.fontFamily};
-          }
-          .font-display {
-            font-family: var(--font-display), system-ui, sans-serif;
-            letter-spacing: -0.02em;
-          }
-          .font-mono {
-            font-family: var(--font-mono), ui-monospace, monospace;
-          }
-          .tabular-nums {
-            font-variant-numeric: tabular-nums;
-            font-family: var(--font-mono), var(--font-sans), monospace;
-          }
-        `}</style>
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            :root {
+              --font-sans: ${inter.style.fontFamily};
+              --font-display: ${interTight.style.fontFamily};
+              --font-mono: ${jetbrainsMono.style.fontFamily};
+            }
+            .font-display {
+              font-family: var(--font-display), system-ui, sans-serif;
+              letter-spacing: -0.02em;
+            }
+            .font-mono {
+              font-family: var(--font-mono), ui-monospace, monospace;
+            }
+            .tabular-nums {
+              font-variant-numeric: tabular-nums;
+              font-family: var(--font-mono), var(--font-sans), monospace;
+            }
+          `
+        }} />
       </head>
       <body className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider>
