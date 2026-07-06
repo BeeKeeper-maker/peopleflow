@@ -1665,7 +1665,9 @@
     "teamAttendance": "Team Attendance",
     "teamLeaves": "Team Leaves",
     "switchToMyPortal": "Switch to My Portal",
-    "logout": "Logout"
+    "logout": "Logout",
+    "viewAll": "View All",
+    "notCheckedIn": "Not Checked In"
   },
   "Profile": {
     "title": "My Profile",

@@ -357,12 +357,12 @@ export default function ESSDashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                     {todayStatus.checkedIn ? (
                         <>
-                            <div className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20">
+                            <div className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                 <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                                     <div>
-                                        <p className="text-sm font-medium text-green-400">{t('checkedIn')}</p>
-                                        <p className="text-xs text-green-400/60">{todayStatus.checkInTime}</p>
+                                        <p className="text-sm font-medium text-emerald-400">{t('checkedIn')}</p>
+                                        <p className="text-xs text-emerald-400/60">{todayStatus.checkInTime}</p>
                                     </div>
                                 </div>
                             </div>
@@ -420,11 +420,11 @@ export default function ESSDashboardPage() {
                     </Card>
                 </Link>
                 <Link href="/ess/payslips">
-                    <Card className="bg-linear-to-br from-green-500/10 to-green-600/5 border-green-500/20 hover:border-green-500/40 transition-all cursor-pointer group relative">
+                    <Card className="bg-linear-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer group relative">
                         <CardContent className="p-4">
-                            <Receipt className="h-8 w-8 text-green-400 mb-3" />
+                            <Receipt className="h-8 w-8 text-emerald-400 mb-3" />
                             <p className="text-sm font-medium text-foreground">{t('viewPayslips')}</p>
-                            <ArrowUpRight className="h-4 w-4 text-green-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4" />
+                            <ArrowUpRight className="h-4 w-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4" />
                         </CardContent>
                     </Card>
                 </Link>
@@ -509,12 +509,12 @@ export default function ESSDashboardPage() {
                         <div className="space-y-4">
                             {attendance ? (
                                 <>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-                                            <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                                             <span className="text-foreground">{t('present')}</span>
                                         </div>
-                                        <span className="text-lg font-display font-bold tabular-nums text-green-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-emerald-400">
                                             {attendance.present}
                                         </span>
                                     </div>
@@ -527,12 +527,12 @@ export default function ESSDashboardPage() {
                                             {attendance.absent}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-                                            <AlertCircle className="h-5 w-5 text-yellow-400" />
+                                            <AlertCircle className="h-5 w-5 text-amber-400" />
                                             <span className="text-foreground">{t('late')}</span>
                                         </div>
-                                        <span className="text-lg font-display font-bold tabular-nums text-yellow-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-amber-400">
                                             {attendance.late}
                                         </span>
                                     </div>
@@ -578,16 +578,16 @@ export default function ESSDashboardPage() {
                                     <div className="flex items-center gap-4">
                                         <div
                                             className={`w-10 h-10 rounded-full flex items-center justify-center ${activity.type === "leave" || activity.type === "leave_approval"
-                                                ? "bg-blue-500/20"
+                                                ? "bg-blue-500/15"
                                                 : activity.type === "payroll"
-                                                    ? "bg-green-500/20"
-                                                    : "bg-purple-500/20"
+                                                    ? "bg-emerald-500/15"
+                                                    : "bg-purple-500/15"
                                                 }`}
                                         >
                                             {activity.type === "leave" || activity.type === "leave_approval" ? (
                                                 <Calendar className="h-5 w-5 text-blue-400" />
                                             ) : activity.type === "payroll" ? (
-                                                <Receipt className="h-5 w-5 text-green-400" />
+                                                <Receipt className="h-5 w-5 text-emerald-400" />
                                             ) : (
                                                 <Target className="h-5 w-5 text-purple-400" />
                                             )}
@@ -605,8 +605,8 @@ export default function ESSDashboardPage() {
                                         <Badge
                                             className={
                                                 activity.status === "approved"
-                                                    ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                                    : "bg-red-500/20 text-red-400 border-red-500/30"
+                                                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                                                    : "bg-red-500/15 text-red-400 border-red-500/20"
                                             }
                                         >
                                             {activity.status}

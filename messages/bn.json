@@ -1817,7 +1817,9 @@
     "teamAttendance": "টিম উপস্থিতি",
     "teamLeaves": "টিম ছুটি",
     "switchToMyPortal": "আমার পোর্টালে যান",
-    "logout": "লগআউট"
+    "logout": "লগআউট",
+    "viewAll": "সব দেখুন",
+    "notCheckedIn": "উপস্থিত নেই"
   },
   "Profile": {
     "title": "আমার প্রোফাইল",

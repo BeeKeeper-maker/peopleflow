@@ -15,6 +15,7 @@ import {
     AlertCircle,
     Cake,
     Gift,
+    Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -201,30 +202,30 @@ export default function ManagerDashboardPage() {
     const getStatusIcon = (status: string) => {
         switch (status) {
             case "present":
-                return <CheckCircle2 className="h-4 w-4 text-green-400" />;
+                return <CheckCircle2 className="h-4 w-4 text-emerald-400" />;
             case "absent":
                 return <XCircle className="h-4 w-4 text-red-400" />;
             case "late":
-                return <AlertCircle className="h-4 w-4 text-yellow-400" />;
+                return <AlertCircle className="h-4 w-4 text-amber-400" />;
             case "on_leave":
                 return <Calendar className="h-4 w-4 text-blue-400" />;
             default:
-                return <Clock className="h-4 w-4 text-gray-400" />;
+                return <Clock className="h-4 w-4 text-muted-foreground" />;
         }
     };
 
     const getStatusColor = (status: string) => {
         switch (status) {
             case "present":
-                return "bg-green-500/20 text-green-400 border-green-500/30";
+                return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
             case "absent":
-                return "bg-red-500/20 text-red-400 border-red-500/30";
+                return "bg-red-500/15 text-red-400 border-red-500/20";
             case "late":
-                return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+                return "bg-amber-500/15 text-amber-400 border-amber-500/20";
             case "on_leave":
-                return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+                return "bg-blue-500/15 text-blue-400 border-blue-500/20";
             default:
-                return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+                return "bg-muted/15 text-muted-foreground border-card-border";
         }
     };
 
@@ -246,17 +247,22 @@ export default function ManagerDashboardPage() {
         <div className="space-y-6">
             {/* Welcome Section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">
-                        {getGreeting()}, {firstName}! 👋
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        {t('subtitle')}
-                    </p>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/15 ring-1 ring-blue-500/20">
+                        <Sparkles className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">
+                            {getGreeting()}, {firstName}
+                        </h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            {t('subtitle')}
+                        </p>
+                    </div>
                 </div>
                 <div className="flex gap-3">
                     <Link href="/manager/approvals">
-                        <Button className="bg-blue-600 hover:bg-blue-500">
+                        <Button className="bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-600/20">
                             <CheckSquare className="h-4 w-4 mr-2" />
                             {t('approvalsBtn')} ({pendingApprovals.length})
                         </Button>
@@ -265,55 +271,55 @@ export default function ManagerDashboardPage() {
             </div>
 
             {/* Team Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-card border-card-border">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="border border-blue-500/20 bg-card overflow-hidden">
                     <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                <Users className="h-5 w-5 text-blue-400" />
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t('totalTeam')}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-foreground mt-1">{teamStats.total}</p>
                             </div>
-                            <div>
-                                <p className="text-2xl font-display font-bold tabular-nums text-foreground">{teamStats.total}</p>
-                                <p className="text-xs text-muted-foreground">{t('totalTeam')}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 text-blue-400">
+                                <Users className="h-5 w-5" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-card border-card-border">
+                <Card className="border border-emerald-500/20 bg-card overflow-hidden">
                     <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                                <CheckCircle2 className="h-5 w-5 text-green-400" />
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t('present')}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-emerald-400 mt-1">{teamStats.present}</p>
                             </div>
-                            <div>
-                                <p className="text-2xl font-display font-bold tabular-nums text-green-400">{teamStats.present}</p>
-                                <p className="text-xs text-muted-foreground">{t('present')}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
+                                <CheckCircle2 className="h-5 w-5" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-card border-card-border">
+                <Card className="border border-red-500/20 bg-card overflow-hidden">
                     <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                                <XCircle className="h-5 w-5 text-red-400" />
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t('absent')}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-red-400 mt-1">{teamStats.absent}</p>
                             </div>
-                            <div>
-                                <p className="text-2xl font-display font-bold tabular-nums text-red-400">{teamStats.absent}</p>
-                                <p className="text-xs text-muted-foreground">{t('absent')}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
+                                <XCircle className="h-5 w-5" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-card border-card-border">
+                <Card className="border border-purple-500/20 bg-card overflow-hidden">
                     <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                                <Calendar className="h-5 w-5 text-blue-400" />
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{t('onLeave')}</p>
+                                <p className="text-2xl font-display font-bold tabular-nums text-purple-400 mt-1">{teamStats.onLeave}</p>
                             </div>
-                            <div>
-                                <p className="text-2xl font-display font-bold tabular-nums text-blue-400">{teamStats.onLeave}</p>
-                                <p className="text-xs text-muted-foreground">{t('onLeave')}</p>
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/15 text-purple-400">
+                                <Calendar className="h-5 w-5" />
                             </div>
                         </div>
                     </CardContent>
@@ -326,10 +332,13 @@ export default function ManagerDashboardPage() {
                 <Card className="bg-card border-card-border lg:col-span-2">
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                            <CardTitle className="text-foreground text-lg">{t('teamStatus')}</CardTitle>
+                            <CardTitle className="text-foreground text-lg flex items-center gap-2">
+                                <Users className="h-4 w-4 text-blue-400" />
+                                {t('teamStatus')}
+                            </CardTitle>
                             <Link href="/manager/team">
                                 <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
-                                    View All
+                                    {t('viewAll')}
                                     <ChevronRight className="h-4 w-4 ml-1" />
                                 </Button>
                             </Link>
@@ -342,36 +351,39 @@ export default function ManagerDashboardPage() {
                                 <p className="text-tertiary-foreground">{t('noTeamMembers')}</p>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {teamMembers.map((member) => (
-                                    <div
-                                        key={member.id}
-                                        className="flex items-center justify-between p-3 rounded-lg bg-hover"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-10 w-10">
-                                                <AvatarImage src={member.photoUrl} />
-                                                <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white">
-                                                    {member.firstName[0]}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <p className="font-medium text-foreground">
-                                                    {member.firstName} {member.lastName}
-                                                </p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {member.designation?.name || t('noDesignation')}
-                                                </p>
+                            <div className="space-y-2">
+                                {teamMembers.map((member) => {
+                                    const status = attendanceMap[member.id] || "none";
+                                    return (
+                                        <div
+                                            key={member.id}
+                                            className="flex items-center justify-between p-3 rounded-lg bg-hover hover:bg-card hover:border-card-border border border-transparent transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-10 w-10">
+                                                    <AvatarImage src={member.photoUrl} />
+                                                    <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white">
+                                                        {member.firstName[0]}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium text-foreground">
+                                                        {member.firstName} {member.lastName}
+                                                    </p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {member.designation?.name || t('noDesignation')}
+                                                    </p>
+                                                </div>
                                             </div>
+                                            <Badge className={`${getStatusColor(status)} border`}>
+                                                {getStatusIcon(status)}
+                                                <span className="ml-1 capitalize">
+                                                    {status === "none" ? t('notCheckedIn') : status.replace("_", " ")}
+                                                </span>
+                                            </Badge>
                                         </div>
-                                        <Badge className={getStatusColor(attendanceMap[member.id] || "none")}>
-                                            {getStatusIcon(attendanceMap[member.id] || "none")}
-                                            <span className="ml-1 capitalize">
-                                                {(attendanceMap[member.id] || "Not Checked In").replace("_", " ")}
-                                            </span>
-                                        </Badge>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </CardContent>
@@ -383,10 +395,13 @@ export default function ManagerDashboardPage() {
                     <Card className="bg-card border-card-border">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-foreground text-lg">{t('pendingApprovals')}</CardTitle>
+                                <CardTitle className="text-foreground text-lg flex items-center gap-2">
+                                    <Clock className="h-4 w-4 text-amber-400" />
+                                    {t('pendingApprovals')}
+                                </CardTitle>
                                 <Link href="/manager/approvals">
                                     <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
-                                        View All
+                                        {t('viewAll')}
                                         <ChevronRight className="h-4 w-4 ml-1" />
                                     </Button>
                                 </Link>
@@ -427,7 +442,10 @@ export default function ManagerDashboardPage() {
                     {/* Upcoming Events */}
                     <Card className="bg-card border-card-border">
                         <CardHeader className="pb-3">
-                            <CardTitle className="text-foreground text-lg">{t('upcomingEvents')}</CardTitle>
+                            <CardTitle className="text-foreground text-lg flex items-center gap-2">
+                                <Gift className="h-4 w-4 text-pink-400" />
+                                {t('upcomingEvents')}
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {upcomingEvents.length === 0 ? (
