@@ -687,7 +687,9 @@
     "delete": "Delete",
     "failedDelete": "Failed to delete",
     "loading": "Loading...",
-    "edit": "Edit"
+    "edit": "Edit",
+    "statutoryRegisters": "Statutory Registers (BLA 2006)",
+    "statutoryRegistersDesc": "Form A–K labour registers — required on first labour-inspector visit"
   },
   "ESS": {
     "dashboardTitle": "My Dashboard",
@@ -3160,5 +3162,39 @@
     "failedLoadData": "Failed to load some dashboard data",
     "installApp": "Install PeopleFlow",
     "installAppDesc": "Use your browser menu and choose Add to Home Screen / Install App."
+  },
+  "Statutory": {
+    "title": "Statutory Registers — BLA 2006",
+    "subtitle": "Form A–K labour registers mandated by the Bangladesh Labour Act 2006",
+    "backToReports": "Back to Reports",
+    "view": "View",
+    "refresh": "Refresh",
+    "month": "Month",
+    "year": "Year",
+    "noData": "No records found for this period.",
+    "bannerTitle": "Labour-Inspector Compliance",
+    "bannerBody": "These eleven registers must be available for inspection on demand. Generate them on or before the first visit of a labour inspector — absence is a stop-production issue under the Bangladesh Labour Act 2006.",
+    "formA": "Register of Establishment",
+    "formADesc": "Establishment particulars: name, address, nature of work, employee strength.",
+    "formB": "Register of Workers",
+    "formBDesc": "Every worker with employee code, joining date, employment type and current status.",
+    "formC": "Register of Wages",
+    "formCDesc": "Monthly wage payments — gross earnings, deductions and net pay per SalarySlip.",
+    "formD": "Register of Fines",
+    "formDDesc": "Fines and punitive deductions levied on workers — amount, cause, date.",
+    "formE": "Register of Advances",
+    "formEDesc": "Salary advances and loans disbursed — principal, EMI, balance outstanding.",
+    "formF": "Register of Overtime",
+    "formFDesc": "Overtime hours worked and OT pay at double the basic rate.",
+    "formG": "Register of Leave",
+    "formGDesc": "Leave applications — type, from/to dates, duration, approval status.",
+    "formH": "Register of Maternity Benefit",
+    "formHDesc": "Maternity leave records — pre/post delivery split, 16-week entitlement tracking.",
+    "formI": "Muster Roll",
+    "formIDesc": "Daily attendance of every worker — present/absent/late/half-day status.",
+    "formJ": "Register of Inspection",
+    "formJDesc": "Labour inspector visits — date, inspector name, observations, follow-up actions.",
+    "formK": "Abstract of Act",
+    "formKDesc": "Display notice — summary of working hours, wages, leave and benefits applicable."
   }
 }

@@ -21,6 +21,7 @@ import {
     BarChart,
     TrendingUp,
     PieChart,
+    ScrollText,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -122,6 +123,28 @@ export default function ReportsListPage() {
                     </Button>
                 </Link>
             </div>
+
+            {/* Statutory Registers (BLA 2006) entry point */}
+            <Link href="/reports/statutory" className="block">
+                <Card hoverable className="border-blue-500/30 bg-blue-500/5">
+                    <CardContent className="p-5 flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 flex-shrink-0">
+                            <ScrollText className="h-6 w-6 text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-display font-semibold text-foreground">
+                                {t("statutoryRegisters")}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                {t("statutoryRegistersDesc")}
+                            </p>
+                        </div>
+                        <Badge variant="outline" className="text-xs text-blue-400 border-blue-400/30 hidden sm:inline-flex">
+                            BLA 2006
+                        </Badge>
+                    </CardContent>
+                </Card>
+            </Link>
 
             {reports.length === 0 ? (
                 <Card>
