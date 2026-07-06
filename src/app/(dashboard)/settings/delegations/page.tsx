@@ -74,7 +74,12 @@ interface Employee {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY_ISO = "2026-03-31" // Static for hydration safety
+// Dynamic today — computed on client side after hydration to avoid mismatch.
+// getStatus() already uses new Date() which is correct; this is only for
+// default form values where we need a date string.
+function getTodayISO(): string {
+    return new Date().toISOString().split("T")[0];
+}
 
 const permissionOptions = [
     { value: "approval:act", label: "Approval Authority", desc: "Leave, Expense, Loan", icon: FileCheck, color: "text-indigo-400" },
@@ -272,7 +277,7 @@ export default function DelegationsPage() {
         targetEmployeeId: "",
         permission: "approval:act",
         scope: "global",
-        validFrom: TODAY_ISO,
+        validFrom: getTodayISO(),
         validUntil: "",
         reason: "",
     })
@@ -326,7 +331,7 @@ export default function DelegationsPage() {
                 setShowCreateDialog(false)
                 setFormData({
                     targetEmployeeId: "", permission: "approval:act", scope: "global",
-                    validFrom: TODAY_ISO, validUntil: "", reason: "",
+                    validFrom: getTodayISO(), validUntil: "", reason: "",
                 })
                 setEmployeeSearch("")
                 fetchDelegations()
