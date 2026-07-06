@@ -102,6 +102,8 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                 firstName: initialData.firstName || "",
                 lastName: initialData.lastName || "",
                 bengaliName: initialData.bengaliName || "",
+                firstNameBn: initialData.firstNameBn || "",
+                lastNameBn: initialData.lastNameBn || "",
                 email: initialData.email || "",
                 phone: initialData.phone || "",
                 dateOfBirth: initialData.dateOfBirth ? new Date(initialData.dateOfBirth).toISOString().split("T")[0] : "",
@@ -109,9 +111,16 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                 bloodGroup: initialData.bloodGroup || "",
                 maritalStatus: initialData.maritalStatus || "",
                 nationality: initialData.nationality || "Bangladeshi",
+                religion: initialData.religion || "",
                 nidNumber: initialData.nidNumber || "",
                 passportNumber: initialData.passportNumber || "",
                 photoUrl: initialData.photoUrl || "",
+                fatherName: initialData.fatherName || "",
+                fatherNameBn: initialData.fatherNameBn || "",
+                motherName: initialData.motherName || "",
+                motherNameBn: initialData.motherNameBn || "",
+                spouseName: initialData.spouseName || "",
+                childrenCount: initialData.childrenCount ?? "",
                 employeeCode: initialData.employeeCode || "",
                 departmentId: initialData.departmentId || "",
                 designationId: initialData.designationId || "",
@@ -130,6 +139,11 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                 routingNumber: initialData.routingNumber || "",
                 tinNumber: initialData.tinNumber || "",
                 pfNumber: initialData.pfNumber || "",
+                bkashNumber: initialData.bkashNumber || "",
+                nagadNumber: initialData.nagadNumber || "",
+                isSeniorCitizen: initialData.isSeniorCitizen ?? false,
+                isDisabled: initialData.isDisabled ?? false,
+                isFreedomFighter: initialData.isFreedomFighter ?? false,
                 presentAddress: initialData.presentAddress || "",
                 permanentAddress: initialData.permanentAddress || "",
                 emergencyContactName: parsedEmergency.name || "",
@@ -532,6 +546,20 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                         <FormMessage />
                                     </FormItem>
                                 )} />
+                                <FormField control={form.control} name="firstNameBn" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-foreground text-sm font-medium">{t("firstNameBn")}</FormLabel>
+                                        <FormControl><Input {...field} disabled={isLoading} placeholder="প্রথম নাম (বাংলা)" className={inputCls} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={form.control} name="lastNameBn" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-foreground text-sm font-medium">{t("lastNameBn")}</FormLabel>
+                                        <FormControl><Input {...field} disabled={isLoading} placeholder="শেষ নাম (বাংলা)" className={inputCls} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
                                 <FormField control={form.control} name="email" render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-foreground text-sm font-medium">{t("email")}</FormLabel>
@@ -617,6 +645,81 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                         <FormMessage />
                                     </FormItem>
                                 )} />
+                                <FormField control={form.control} name="religion" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-foreground text-sm font-medium">{t("religion")}</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger className={selectTriggerCls}><SelectValue placeholder={t("selectReligion")} /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="islam">{t("religionIslam")}</SelectItem>
+                                                <SelectItem value="hinduism">{t("religionHinduism")}</SelectItem>
+                                                <SelectItem value="buddhism">{t("religionBuddhism")}</SelectItem>
+                                                <SelectItem value="christianity">{t("religionChristianity")}</SelectItem>
+                                                <SelectItem value="other">{t("religionOther")}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+
+                            {/* BD Family Information */}
+                            <div className="mt-6 pt-5 border-t border-card-border">
+                                <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">{t("familyInfoTitle")}</h3>
+                                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                                    <FormField control={form.control} name="fatherName" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("fatherName")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="Father's name" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="fatherNameBn" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("fatherNameBn")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="পিতার নাম" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="motherName" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("motherName")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="Mother's name" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="motherNameBn" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("motherNameBn")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="মাতার নাম" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="spouseName" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("spouseName")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="Spouse's name" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="childrenCount" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("childrenCount")}</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min={0}
+                                                    value={field.value ?? ""}
+                                                    onChange={(e) => field.onChange(e.target.value === "" ? "" : e.target.value)}
+                                                    disabled={isLoading}
+                                                    placeholder="0"
+                                                    className={inputCls}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1030,6 +1133,89 @@ export function EmployeeForm({ initialData }: EmployeeFormProps) {
                                         <FormItem>
                                             <FormLabel className="text-foreground text-sm font-medium">{t("pfNumber")}</FormLabel>
                                             <FormControl><Input {...field} disabled={isLoading} placeholder="PF Account No." className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                </div>
+                            </div>
+
+                            {/* BD Mobile Banking */}
+                            <div className="pt-5 mt-5 border-t border-card-border">
+                                <h3 className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wider">{t("mobileBankingTitle")}</h3>
+                                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                                    <FormField control={form.control} name="bkashNumber" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("bkashNumber")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="01XXXXXXXXX" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="nagadNumber" render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-foreground text-sm font-medium">{t("nagadNumber")}</FormLabel>
+                                            <FormControl><Input {...field} disabled={isLoading} placeholder="01XXXXXXXXX" className={inputCls} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                </div>
+                            </div>
+
+                            {/* BD Tax Exemption */}
+                            <div className="pt-5 mt-5 border-t border-card-border">
+                                <h3 className="text-sm font-medium text-muted-foreground mb-1 uppercase tracking-wider">{t("taxExemptionTitle")}</h3>
+                                <p className="text-xs text-muted-foreground mb-4">{t("taxExemptionDesc")}</p>
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <FormField control={form.control} name="isSeniorCitizen" render={({ field }) => (
+                                        <FormItem>
+                                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-300 ${field.value ? "border-blue-500/30 bg-blue-500/5" : "border-card-border bg-hover"}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!field.value}
+                                                    onChange={(e) => field.onChange(e.target.checked)}
+                                                    disabled={isLoading}
+                                                    className="mt-0.5 h-4 w-4 rounded border-card-border accent-blue-500"
+                                                />
+                                                <div>
+                                                    <span className="block text-sm font-medium text-foreground">{t("isSeniorCitizen")}</span>
+                                                    <span className="block text-[11px] text-muted-foreground">{t("isSeniorCitizenDesc")}</span>
+                                                </div>
+                                            </label>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="isDisabled" render={({ field }) => (
+                                        <FormItem>
+                                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-300 ${field.value ? "border-blue-500/30 bg-blue-500/5" : "border-card-border bg-hover"}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!field.value}
+                                                    onChange={(e) => field.onChange(e.target.checked)}
+                                                    disabled={isLoading}
+                                                    className="mt-0.5 h-4 w-4 rounded border-card-border accent-blue-500"
+                                                />
+                                                <div>
+                                                    <span className="block text-sm font-medium text-foreground">{t("isDisabled")}</span>
+                                                    <span className="block text-[11px] text-muted-foreground">{t("isDisabledDesc")}</span>
+                                                </div>
+                                            </label>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="isFreedomFighter" render={({ field }) => (
+                                        <FormItem>
+                                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-300 ${field.value ? "border-blue-500/30 bg-blue-500/5" : "border-card-border bg-hover"}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!field.value}
+                                                    onChange={(e) => field.onChange(e.target.checked)}
+                                                    disabled={isLoading}
+                                                    className="mt-0.5 h-4 w-4 rounded border-card-border accent-blue-500"
+                                                />
+                                                <div>
+                                                    <span className="block text-sm font-medium text-foreground">{t("isFreedomFighter")}</span>
+                                                    <span className="block text-[11px] text-muted-foreground">{t("isFreedomFighterDesc")}</span>
+                                                </div>
+                                            </label>
                                             <FormMessage />
                                         </FormItem>
                                     )} />
