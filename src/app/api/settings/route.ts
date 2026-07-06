@@ -28,6 +28,13 @@ export async function GET() {
                     currencyCode: true,
                     timezone: true,
                     settings: true,
+                    // BD Compliance fields (Phase 2.2)
+                    binNumber: true,
+                    tinNumber: true,
+                    vatNumber: true,
+                    tradeLicenseNumber: true,
+                    tradeLicenseExpiry: true,
+                    binExpiry: true,
                 }
             }),
         )
@@ -117,6 +124,13 @@ export async function PATCH(req: NextRequest) {
                     timezone: body.timezone,
                     currencyCode: body.currency,
                     settings: nextSettings as Prisma.InputJsonValue,
+                    // BD Compliance fields (Phase 2.2)
+                    binNumber: body.binNumber ?? null,
+                    tinNumber: body.tinNumber ?? null,
+                    vatNumber: body.vatNumber ?? null,
+                    tradeLicenseNumber: body.tradeLicenseNumber ?? null,
+                    tradeLicenseExpiry: body.tradeLicenseExpiry ? new Date(body.tradeLicenseExpiry) : null,
+                    binExpiry: body.binExpiry ? new Date(body.binExpiry) : null,
                 }
             }),
         )

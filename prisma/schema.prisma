@@ -771,7 +771,6 @@ model EmployeeDocument {
   employeeId     String
   employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   organizationId String?    // Denormalized for RLS
-  organizationId String?    // Denormalized for RLS
 
   @@index([employeeId])
   @@index([category])

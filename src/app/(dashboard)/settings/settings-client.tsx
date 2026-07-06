@@ -68,6 +68,13 @@ interface OrganizationSettings {
     currency: string
     dateFormat: string
     workWeekStart: number
+    // BD Compliance fields (Phase 2.2)
+    binNumber: string | null
+    tinNumber: string | null
+    vatNumber: string | null
+    tradeLicenseNumber: string | null
+    tradeLicenseExpiry: string | null  // stored as YYYY-MM-DD for <input type="date">
+    binExpiry: string | null             // stored as YYYY-MM-DD for <input type="date">
 }
 
 interface DocumentSettings {
@@ -156,6 +163,13 @@ export function SettingsClient() {
         currency: "BDT",
         dateFormat: "DD/MM/YYYY",
         workWeekStart: 0,
+        // BD Compliance fields (Phase 2.2)
+        binNumber: null,
+        tinNumber: null,
+        vatNumber: null,
+        tradeLicenseNumber: null,
+        tradeLicenseExpiry: null,
+        binExpiry: null,
     })
 
     const [notifications, setNotifications] = useState<NotificationSettings>({
@@ -209,7 +223,17 @@ export function SettingsClient() {
             if (res.ok) {
                 const data = await res.json()
                 if (data.organization) {
-                    setOrgSettings(prev => ({ ...prev, ...data.organization }))
+                    // Convert ISO DateTime strings to YYYY-MM-DD for <input type="date">
+                    const toDateInput = (value: unknown): string | null => {
+                        if (!value || typeof value !== "string") return null
+                        return value.slice(0, 10) || null
+                    }
+                    setOrgSettings(prev => ({
+                        ...prev,
+                        ...data.organization,
+                        tradeLicenseExpiry: toDateInput(data.organization.tradeLicenseExpiry),
+                        binExpiry: toDateInput(data.organization.binExpiry),
+                    }))
                     if (data.organization.documents) {
                         setDocumentSettings(prev => ({ ...prev, ...data.organization.documents }))
                     }
@@ -438,6 +462,13 @@ export function SettingsClient() {
                     currency: orgSettings.currency,
                     dateFormat: orgSettings.dateFormat,
                     workWeekStart: orgSettings.workWeekStart,
+                    // BD Compliance fields (Phase 2.2)
+                    binNumber: orgSettings.binNumber,
+                    tinNumber: orgSettings.tinNumber,
+                    vatNumber: orgSettings.vatNumber,
+                    tradeLicenseNumber: orgSettings.tradeLicenseNumber,
+                    tradeLicenseExpiry: orgSettings.tradeLicenseExpiry || null,
+                    binExpiry: orgSettings.binExpiry || null,
                 }),
             })
             if (res.ok) addToast({ title: t('toastSettingsSaved'), type: 'success' })
@@ -684,6 +715,74 @@ export function SettingsClient() {
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('fiscalYearStart')}</Label>
                                     <Input type="number" min={1} max={12} value={orgSettings.fiscalYearStart} onChange={(e) => setOrgSettings({ ...orgSettings, fiscalYearStart: parseInt(e.target.value) })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-blue-400" />
+                                {t('bdComplianceTitle')}
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">{t('bdComplianceDesc')}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('binNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.binNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, binNumber: e.target.value || null })}
+                                        placeholder="0000000000000"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tinNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.tinNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tinNumber: e.target.value || null })}
+                                        placeholder="XXXXXXXXXXXXXXX"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('vatNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.vatNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, vatNumber: e.target.value || null })}
+                                        placeholder="BDXXXXXXXX"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tradeLicenseNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.tradeLicenseNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tradeLicenseNumber: e.target.value || null })}
+                                        placeholder={t('tradeLicenseNumberPlaceholder')}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tradeLicenseExpiry')}</Label>
+                                    <Input
+                                        type="date"
+                                        value={orgSettings.tradeLicenseExpiry || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tradeLicenseExpiry: e.target.value || null })}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('binExpiry')}</Label>
+                                    <Input
+                                        type="date"
+                                        value={orgSettings.binExpiry || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, binExpiry: e.target.value || null })}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
                                 </div>
                             </div>
                         </CardContent>
