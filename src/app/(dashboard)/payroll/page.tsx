@@ -330,9 +330,14 @@ export default function PayrollPage() {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
-                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 ring-1 ring-emerald-500/20">
+                        <DollarSign className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                    </div>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -344,7 +349,7 @@ export default function PayrollPage() {
                         {t('assignSalary')}
                     </Button>
                     <Button
-                        className="bg-emerald-600 hover:bg-emerald-700"
+                        className="bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-600/20"
                         onClick={handleProcessPayroll}
                         disabled={processing}
                     >
@@ -370,8 +375,8 @@ export default function PayrollPage() {
                                     <h3 className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">{stat.value}</h3>
                                     <p className="text-xs text-tertiary-foreground mt-1">{stat.description}</p>
                                 </div>
-                                <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color}`}>
-                                    <stat.icon className="h-6 w-6 text-foreground" />
+                                <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color} shadow-sm`}>
+                                    <stat.icon className="h-6 w-6 text-white" />
                                 </div>
                             </div>
                         </CardContent>

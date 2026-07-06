@@ -372,7 +372,9 @@
     "status": "Status",
     "appliedOn": "Applied On",
     "pending": "Pending",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "totalApplications": "Total Applications",
+    "leaveBalancesTitle": "Leave Balances"
   },
   "Notifications": {
     "title": "Notifications",

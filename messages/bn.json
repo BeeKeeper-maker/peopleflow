@@ -372,7 +372,9 @@
     "status": "অবস্থা",
     "appliedOn": "আবেদন তারিখ",
     "pending": "অপেক্ষমাণ",
-    "cancelled": "বাতিল"
+    "cancelled": "বাতিল",
+    "totalApplications": "মোট আবেদন",
+    "leaveBalancesTitle": "ছুটির ব্যালেন্স"
   },
   "Notifications": {
     "title": "বিজ্ঞপ্তি",

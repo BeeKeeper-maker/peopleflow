@@ -179,8 +179,16 @@ export default function AttendancePage() {
 
     return (
         <div className="flex-1 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-3xl font-display font-bold tracking-tight text-foreground">{t('title')}</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/15 ring-1 ring-blue-500/20">
+                        <Clock className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                    </div>
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
