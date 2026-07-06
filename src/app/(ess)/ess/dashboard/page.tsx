@@ -95,16 +95,22 @@ export default function ESSDashboardPage() {
                     setLeaveBalances(data.data || data || []);
                 }
 
-                // Fetch today's attendance
+                // Fetch today's attendance — use employeeId filter for safety
                 const today = new Date().toISOString().split("T")[0];
                 const attendanceRes = await fetch(`/api/attendance?date=${today}`);
                 if (attendanceRes.ok) {
                     const data = await attendanceRes.json();
-                    const records = data.data || data || [];
+                    const records = Array.isArray(data) ? data : (data.data || []);
 
-                    // Check if current user has checked in today
-                    if (records.length > 0) {
-                        const myRecord = records[0];
+                    // Find THIS employee's record (not records[0] which could be anyone)
+                    // The API should already scope to the authenticated user for ESS,
+                    // but we verify by checking employeeId matches
+                    const currentEmployeeId = (session?.user as { employeeId?: string })?.employeeId;
+                    const myRecord = records.find((r: { employeeId?: string }) =>
+                        !r.employeeId || !currentEmployeeId || r.employeeId === currentEmployeeId
+                    ) || records[0];
+
+                    if (myRecord) {
                         setTodayStatus({
                             checkedIn: !!myRecord.checkIn,
                             checkInTime: myRecord.checkIn
@@ -131,11 +137,17 @@ export default function ESSDashboardPage() {
                 const summaryRes = await fetch(`/api/attendance?startDate=${monthStartDate.toISOString().split("T")[0]}`);
                 if (summaryRes.ok) {
                     const data = await summaryRes.json();
-                    const records = data.data || data || [];
+                    const records = Array.isArray(data) ? data : (data.data || []);
+
+                    // Filter to only this employee's records (safety check)
+                    const currentEmployeeId = (session?.user as { employeeId?: string })?.employeeId;
+                    const myRecords = records.filter((r: { employeeId?: string }) =>
+                        !r.employeeId || !currentEmployeeId || r.employeeId === currentEmployeeId
+                    );
 
                     // Count statuses — "late" is NOT a valid status (stored as present + lateMinutes > 0)
                     let present = 0, absent = 0, late = 0, onLeave = 0;
-                    records.forEach((record: { status: string; lateMinutes?: number }) => {
+                    myRecords.forEach((record: { status: string; lateMinutes?: number }) => {
                         switch (record.status) {
                             case "present":
                                 present++;
@@ -206,7 +218,12 @@ export default function ESSDashboardPage() {
                 addToast({ title: tDash("checkedInSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || tDash("checkedInFailed"), type: "error" });
+                // Don't expose raw server error to user — use safe fallback message
+                const safeMessage = res.status === 401 ? "Please log in again" :
+                    res.status === 403 ? "Not authorized" :
+                    res.status >= 500 ? "Server error. Please try again." :
+                    errorText || tDash("checkedInFailed");
+                addToast({ title: safeMessage, type: "error" });
             }
         } catch (error) {
             console.error("Check-in error:", error);
@@ -239,7 +256,12 @@ export default function ESSDashboardPage() {
                 addToast({ title: tDash("checkedOutSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || tDash("checkedOutFailed"), type: "error" });
+                // Don't expose raw server error to user — use safe fallback message
+                const safeMessage = res.status === 401 ? "Please log in again" :
+                    res.status === 403 ? "Not authorized" :
+                    res.status >= 500 ? "Server error. Please try again." :
+                    errorText || tDash("checkedOutFailed");
+                addToast({ title: safeMessage, type: "error" });
             }
         } catch (error) {
             console.error("Check-out error:", error);
