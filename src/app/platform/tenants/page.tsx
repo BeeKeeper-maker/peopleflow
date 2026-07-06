@@ -22,6 +22,8 @@ interface Tenant {
     slug: string;
     status: string;
     createdAt: string;
+    lastActiveAt: string | null;
+    onboardingStatus: "not_started" | "in_progress" | "active";
     _count: { employees: number; users: number };
     subscription: {
         status: string;
@@ -35,6 +37,30 @@ const STATUS_CONFIG: Record<string, { dot: string; bg: string; text: string; lab
     suspended: { dot: "bg-red-400", bg: "bg-red-500/10", text: "text-red-400", label: "Suspended" },
     deactivated: { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Deactivated" },
 };
+
+const ONBOARDING_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+    not_started: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Not Started" },
+    in_progress: { bg: "bg-amber-500/10", text: "text-amber-400", label: "In Progress" },
+    active: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
+};
+
+function formatLastActive(dateStr: string | null): { text: string; color: string } {
+    if (!dateStr) return { text: "Never", color: "text-zinc-600" };
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return { text: "Just now", color: "text-emerald-400" };
+    if (diffMins < 60) return { text: `${diffMins}m ago`, color: "text-emerald-400" };
+    if (diffHours < 24) return { text: `${diffHours}h ago`, color: "text-emerald-400" };
+    if (diffDays === 1) return { text: "Yesterday", color: "text-zinc-400" };
+    if (diffDays < 7) return { text: `${diffDays}d ago`, color: "text-zinc-400" };
+    if (diffDays < 30) return { text: `${Math.floor(diffDays / 7)}w ago`, color: "text-amber-400" };
+    return { text: `${Math.floor(diffDays / 30)}mo ago`, color: "text-red-400" };
+}
 
 export default function TenantsPage() {
     const router = useRouter();
@@ -148,7 +174,9 @@ export default function TenantsPage() {
                             <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Organization</th>
                             <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Plan</th>
                             <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Status</th>
+                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Onboarding</th>
                             <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Employees</th>
+                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Last Active</th>
                             <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Created</th>
                             <th className="w-12 px-5 py-3"></th>
                         </tr>
@@ -157,7 +185,7 @@ export default function TenantsPage() {
                         {loading
                             ? [...Array(5)].map((_, i) => (
                                 <tr key={i} className="border-b border-white/[0.03]">
-                                    {[...Array(6)].map((_, j) => (
+                                    {[...Array(8)].map((_, j) => (
                                         <td key={j} className="px-5 py-4">
                                             <div className="h-4 rounded bg-white/[0.04] animate-pulse" style={{ width: `${60 + j * 10}%` }} />
                                         </td>
@@ -166,6 +194,8 @@ export default function TenantsPage() {
                             ))
                             : tenants.map((tenant) => {
                                 const status = STATUS_CONFIG[tenant.status] || STATUS_CONFIG.active;
+                                const onboarding = ONBOARDING_CONFIG[tenant.onboardingStatus] || ONBOARDING_CONFIG.not_started;
+                                const lastActive = formatLastActive(tenant.lastActiveAt);
                                 return (
                                     <tr
                                         key={tenant.id}
@@ -197,10 +227,20 @@ export default function TenantsPage() {
                                             </span>
                                         </td>
                                         <td className="px-5 py-3.5">
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${onboarding.bg} ${onboarding.text}`}>
+                                                {onboarding.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1.5 text-sm text-zinc-400">
                                                 <Users className="w-3.5 h-3.5 text-zinc-600" />
                                                 <span className="tabular-nums">{tenant._count?.employees || 0}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-5 py-3.5">
+                                            <span className={`text-sm tabular-nums ${lastActive.color}`}>
+                                                {lastActive.text}
+                                            </span>
                                         </td>
                                         <td className="px-5 py-3.5 text-sm text-zinc-500 tabular-nums">
                                             {new Date(tenant.createdAt).toLocaleDateString()}
