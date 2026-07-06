@@ -1,6 +1,22 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
 
+// ── Environment Variable Validation ──────────────────────────────
+// Validates all env vars at build time. Crashes in production if
+// required vars are missing. See src/lib/env.ts for details.
+// Skip during CI builds where env vars may not be set.
+if (process.env.SKIP_ENV_VALIDATION !== "true") {
+  try {
+    require("./src/lib/env");
+  } catch (e) {
+    // Only fail in production; dev can proceed with defaults
+    if (process.env.NODE_ENV === "production") {
+      console.error(e);
+      throw e;
+    }
+  }
+}
+
 const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
