@@ -52,14 +52,71 @@ const TAX_SLABS_WOMEN = [
     { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
 ];
 
-const MINIMUM_TAX = 5000; // Minimum tax for Dhaka/Chittagong city corporation
+// Senior citizens (65+) get 50,000 higher threshold (same as women)
+const TAX_SLABS_SENIOR = TAX_SLABS_WOMEN;
+
+// Disabled persons get 100,000 higher threshold
+const TAX_SLABS_DISABLED = [
+    { upTo: 450000, rate: 0 },       // First 4,50,000 — Nil (100k more)
+    { upTo: 550000, rate: 0.05 },    // Next 1,00,000 — 5%
+    { upTo: 850000, rate: 0.10 },    // Next 3,00,000 — 10%
+    { upTo: 1250000, rate: 0.15 },   // Next 4,00,000 — 15%
+    { upTo: 1750000, rate: 0.20 },   // Next 5,00,000 — 20%
+    { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
+];
+
+// Gazette-recognized freedom fighters get 150,000 higher threshold
+const TAX_SLABS_FREEDOM_FIGHTER = [
+    { upTo: 500000, rate: 0 },       // First 5,00,000 — Nil (150k more)
+    { upTo: 600000, rate: 0.05 },    // Next 1,00,000 — 5%
+    { upTo: 900000, rate: 0.10 },    // Next 3,00,000 — 10%
+    { upTo: 1300000, rate: 0.15 },   // Next 4,00,000 — 15%
+    { upTo: 1800000, rate: 0.20 },   // Next 5,00,000 — 20%
+    { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
+];
+
+// Tiered minimum tax by area (BD Finance Act 2024)
+const MINIMUM_TAX_DHAKA_CHITTAGONG = 5000;  // City corporations (Dhaka, Chittagong)
+const MINIMUM_TAX_OTHER_CITY = 4000;         // Other city corporations
+const MINIMUM_TAX_MUNICIPAL = 3000;          // Municipal areas
+
+// Tax-exempt allowance limits (BD Finance Act 2024)
+const TAX_EXEMPT_ALLOWANCES = {
+    conveyance: 30000,    // ৳30,000/year
+    medical: 120000,      // ৳1,20,000/year
+    houseRent: 300000,    // ৳3,00,000/year (50% of basic or 3L, whichever is lower)
+};
 
 // ============================================
-// Tax Calculation
+// Tax Calculation (with BD exemptions)
 // ============================================
 
-export function calculateAnnualTax(annualIncome: number, isWoman: boolean = false): number {
-    const slabs = isWoman ? TAX_SLABS_WOMEN : TAX_SLABS;
+export interface TaxExemptionFlags {
+    isWoman?: boolean;
+    isSenior?: boolean;        // Age 65+
+    isDisabled?: boolean;
+    isFreedomFighter?: boolean;
+    area?: "dhaka_chittagong" | "other_city" | "municipal" | "rural";
+}
+
+export function calculateAnnualTax(
+    annualIncome: number,
+    isWoman: boolean = false,
+    exemptions?: TaxExemptionFlags
+): number {
+    // Determine which slab to use based on exemptions
+    let slabs = TAX_SLABS;
+
+    if (exemptions?.isFreedomFighter) {
+        slabs = TAX_SLABS_FREEDOM_FIGHTER;
+    } else if (exemptions?.isDisabled) {
+        slabs = TAX_SLABS_DISABLED;
+    } else if (exemptions?.isSenior) {
+        slabs = TAX_SLABS_SENIOR;
+    } else if (isWoman || exemptions?.isWoman) {
+        slabs = TAX_SLABS_WOMEN;
+    }
+
     const taxFreeThreshold = slabs[0].upTo;
 
     let remainingIncome = annualIncome;
@@ -75,15 +132,28 @@ export function calculateAnnualTax(annualIncome: number, isWoman: boolean = fals
         previousUpTo = slab.upTo;
     }
 
-    if (annualIncome > taxFreeThreshold && totalTax < MINIMUM_TAX) {
-        totalTax = MINIMUM_TAX;
+    // Apply tiered minimum tax based on area
+    if (annualIncome > taxFreeThreshold) {
+        const area = exemptions?.area || "dhaka_chittagong";
+        let minTax = MINIMUM_TAX_DHAKA_CHITTAGONG;
+        if (area === "other_city") minTax = MINIMUM_TAX_OTHER_CITY;
+        else if (area === "municipal") minTax = MINIMUM_TAX_MUNICIPAL;
+        else if (area === "rural") minTax = 0; // No minimum tax in rural areas
+
+        if (minTax > 0 && totalTax < minTax) {
+            totalTax = minTax;
+        }
     }
 
     return Math.round(totalTax);
 }
 
-export function calculateMonthlyTax(annualIncome: number, isWoman: boolean = false): number {
-    return Math.round(calculateAnnualTax(annualIncome, isWoman) / 12);
+export function calculateMonthlyTax(
+    annualIncome: number,
+    isWoman: boolean = false,
+    exemptions?: TaxExemptionFlags
+): number {
+    return Math.round(calculateAnnualTax(annualIncome, isWoman, exemptions) / 12);
 }
 
 // ============================================
