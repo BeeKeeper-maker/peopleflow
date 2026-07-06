@@ -29,6 +29,7 @@ const NAV_ITEMS = [
     { href: "/platform/support", label: "Support", icon: LifeBuoy },
     { href: "/platform/plans", label: "Plans", icon: Zap },
     { href: "/platform/audit-logs", label: "Audit Logs", icon: ScrollText },
+    { href: "/platform/settings", label: "Settings", icon: Shield },
 ];
 
 interface SystemHealth {

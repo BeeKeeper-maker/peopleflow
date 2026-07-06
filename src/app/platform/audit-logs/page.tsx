@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ScrollText, Search, Filter, Activity, Shield, UserCog, CreditCard, Power } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { ScrollText, Search, Filter, Activity, Shield, UserCog, CreditCard, Power, X } from "lucide-react";
 
 interface AuditLog {
     id: string;
@@ -26,24 +27,50 @@ function getActionMeta(action: string) {
 }
 
 export default function AuditLogsPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [actionFilter, setActionFilter] = useState("");
+    const [targetTypeFilter, setTargetTypeFilter] = useState("");
+    const [targetIdFilter, setTargetIdFilter] = useState("");
+
+    // Read URL params on mount (for deep links from tenant detail page)
+    useEffect(() => {
+        const tt = searchParams.get("targetType");
+        const ti = searchParams.get("targetId");
+        const af = searchParams.get("action");
+        if (tt) setTargetTypeFilter(tt);
+        if (ti) setTargetIdFilter(ti);
+        if (af) setActionFilter(af);
+    }, [searchParams]);
 
     const fetchLogs = useCallback(async () => {
         setLoading(true);
         const params = new URLSearchParams({ limit: "50" });
         if (actionFilter) params.set("action", actionFilter);
+        if (targetTypeFilter) params.set("targetType", targetTypeFilter);
+        if (targetIdFilter) params.set("targetId", targetIdFilter);
         try {
             const res = await fetch(`/api/platform/audit-logs?${params}`, { credentials: "include" });
             const data = await res.json();
             setLogs(data.logs || []);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
-    }, [actionFilter]);
+    }, [actionFilter, targetTypeFilter, targetIdFilter]);
 
     useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+    const clearFilters = () => {
+        setActionFilter("");
+        setTargetTypeFilter("");
+        setTargetIdFilter("");
+        // Clear URL params too
+        router.replace("/platform/audit-logs");
+    };
+
+    const hasActiveFilters = !!(actionFilter || targetTypeFilter || targetIdFilter);
 
     const filteredLogs = search
         ? logs.filter(l => l.action.includes(search) || l.platformAdmin.name.toLowerCase().includes(search.toLowerCase()))
@@ -56,8 +83,8 @@ export default function AuditLogsPage() {
                 <p className="text-sm text-zinc-500 mt-1">Complete audit trail for all platform actions</p>
             </div>
 
-            <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
+            <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px] max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
                     <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search actions..."
                         className="w-full h-10 pl-10 pr-4 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition-colors" />
@@ -69,6 +96,28 @@ export default function AuditLogsPage() {
                     <option value="subscription">Subscription</option>
                     <option value="impersonation">Impersonation</option>
                 </select>
+                <select value={targetTypeFilter} onChange={e => setTargetTypeFilter(e.target.value)}
+                    className="h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-400 focus:outline-none appearance-none">
+                    <option value="">All Target Types</option>
+                    <option value="organization">Organization</option>
+                    <option value="subscription">Subscription</option>
+                    <option value="platform_admin">Platform Admin</option>
+                </select>
+                {targetIdFilter && (
+                    <div className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300">
+                        <Filter className="w-3.5 h-3.5" />
+                        <span className="font-mono">targetId: {targetIdFilter.slice(0, 12)}...</span>
+                    </div>
+                )}
+                {hasActiveFilters && (
+                    <button
+                        onClick={clearFilters}
+                        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                        Clear
+                    </button>
+                )}
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
