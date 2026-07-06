@@ -851,3 +851,62 @@ export function useBiometricDevices() {
         staleTime: 60 * 1000, // 1 minute — device status changes periodically
     });
 }
+
+/**
+ * Device events (cloud event log)
+ *
+ * Returns the array from /api/biometric-devices/events (no envelope).
+ */
+export interface DeviceEventRecord {
+    id: string;
+    serialNumber: string | null;
+    eventType: string;
+    method: string;
+    status: string;
+    recordsReceived: number;
+    recordsSynced: number;
+    recordsSkipped: number;
+    unmappedUserIds: string[];
+    errorMessage: string | null;
+    remoteIp: string | null;
+    createdAt: string;
+    device: {
+        id: string;
+        name: string;
+        location: string | null;
+        cloudStatus: string;
+        lastSeenAt: string | null;
+        branch: { name: string; code: string } | null;
+    } | null;
+}
+
+export function useDeviceEvents(filters?: {
+    status?: string;
+    eventType?: string;
+    search?: string;
+    limit?: number;
+}) {
+    return useQuery<DeviceEventRecord[], ApiError>({
+        queryKey: ["biometric-devices", "events", filters || {}],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            params.set("limit", String(filters?.limit ?? 120));
+            if (filters?.status && filters.status !== "all") params.set("status", filters.status);
+            if (filters?.eventType && filters.eventType !== "all") params.set("eventType", filters.eventType);
+            if (filters?.search?.trim()) params.set("serial", filters.search.trim());
+            const url = `/api/biometric-devices/events?${params.toString()}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "DEVICE_EVENTS_FETCH_ERROR"),
+                    String(err.error || "Failed to load device events"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.events || []);
+        },
+        staleTime: 30 * 1000, // 30 seconds — events should feel real-time
+    });
+}
