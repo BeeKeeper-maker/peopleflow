@@ -9,6 +9,10 @@ import {
     Users,
     Activity,
     ArrowUpRight,
+    ArrowDownRight,
+    CreditCard,
+    Target,
+    UserPlus,
 } from "lucide-react";
 import {
     AreaChart,
@@ -24,6 +28,11 @@ import {
 } from "recharts";
 import { MetricCard } from "@/components/platform/metric-card";
 
+interface RevenueTrend {
+    month: string;
+    mrr: number;
+}
+
 interface Analytics {
     mrr: number;
     arr: number;
@@ -35,6 +44,21 @@ interface Analytics {
     trialConversionRate: number;
     planDistribution: { plan: string; count: number; percentage: number }[];
     topTenants: { name: string; employees: number; plan: string; mrr: number }[];
+    // New fields from enhanced API
+    revenue?: {
+        revenueTrend?: RevenueTrend[];
+        revenueGrowthPercent?: number;
+        invoicesPaid?: number;
+        recentRevenue?: number;
+    };
+    tenants?: {
+        newThisMonth?: number;
+    };
+    health?: {
+        failedPayments?: number;
+        pastDueTenants?: number;
+        trialConversionRate?: number;
+    };
 }
 
 interface RecentActivity {
@@ -47,17 +71,7 @@ interface RecentActivity {
     platformAdmin?: { name: string };
 }
 
-// Revenue trend mock (in production: real historical data)
-const REVENUE_TREND = [
-    { month: "Oct", mrr: 0 },
-    { month: "Nov", mrr: 8999 },
-    { month: "Dec", mrr: 15998 },
-    { month: "Jan", mrr: 29997 },
-    { month: "Feb", mrr: 44995 },
-    { month: "Mar", mrr: 62993 },
-];
-
-const PIE_COLORS = ["#6366F1", "#8B5CF6", "#A78BFA", "#C4B5FD"];
+const PIE_COLORS = ["#6366F1", "#8B5CF6", "#A78BFA", "#C4B5FD", "#818CF8"];
 
 export default function PlatformDashboardPage() {
     const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -90,6 +104,14 @@ export default function PlatformDashboardPage() {
         );
     }
 
+    // Use real revenue trend from API, fallback to empty array
+    const revenueTrend = analytics?.revenue?.revenueTrend || [];
+    const revenueGrowth = analytics?.revenue?.revenueGrowthPercent || 0;
+    const trialConversionRate = analytics?.health?.trialConversionRate || analytics?.trialConversionRate || 0;
+    const failedPayments = analytics?.health?.failedPayments || 0;
+    const pastDueTenants = analytics?.health?.pastDueTenants || 0;
+    const newTenantsThisMonth = analytics?.tenants?.newThisMonth || 0;
+
     return (
         <div className="space-y-6">
             {/* Page Header */}
@@ -108,7 +130,7 @@ export default function PlatformDashboardPage() {
                     title="Monthly Recurring Revenue"
                     value={analytics?.mrr || 0}
                     prefix="৳"
-                    change={12.5}
+                    change={revenueGrowth}
                     icon={DollarSign}
                     color="indigo"
                     delay={0}
@@ -117,7 +139,7 @@ export default function PlatformDashboardPage() {
                     title="Annual Run Rate"
                     value={analytics?.arr || 0}
                     prefix="৳"
-                    change={12.5}
+                    change={revenueGrowth}
                     icon={TrendingUp}
                     color="violet"
                     delay={60}
@@ -126,7 +148,7 @@ export default function PlatformDashboardPage() {
                     title="Active Tenants"
                     value={analytics?.activeTenants || 0}
                     suffix={`/ ${analytics?.totalTenants || 0}`}
-                    change={8}
+                    change={newTenantsThisMonth > 0 ? 8 : 0}
                     icon={Building2}
                     color="emerald"
                     delay={120}
@@ -143,9 +165,41 @@ export default function PlatformDashboardPage() {
                 />
             </div>
 
+            {/* Secondary Metrics Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <SecondaryMetric
+                    icon={Target}
+                    label="Trial Conversion"
+                    value={`${trialConversionRate}%`}
+                    color="text-blue-400"
+                    bgColor="bg-blue-500/10"
+                />
+                <SecondaryMetric
+                    icon={UserPlus}
+                    label="New This Month"
+                    value={newTenantsThisMonth}
+                    color="text-emerald-400"
+                    bgColor="bg-emerald-500/10"
+                />
+                <SecondaryMetric
+                    icon={CreditCard}
+                    label="Failed Payments"
+                    value={failedPayments}
+                    color="text-red-400"
+                    bgColor="bg-red-500/10"
+                />
+                <SecondaryMetric
+                    icon={AlertTriangle}
+                    label="Past Due Tenants"
+                    value={pastDueTenants}
+                    color="text-amber-400"
+                    bgColor="bg-amber-500/10"
+                />
+            </div>
+
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Revenue Chart */}
+                {/* Revenue Chart — REAL DATA */}
                 <div className="lg:col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <div className="flex items-center justify-between mb-4">
                         <div>
@@ -153,32 +207,50 @@ export default function PlatformDashboardPage() {
                                 Revenue Trend
                             </h3>
                             <p className="text-xs text-zinc-500 mt-0.5">
-                                Monthly Recurring Revenue (MRR)
+                                Monthly Revenue (last 6 months) — real data
                             </p>
                         </div>
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-xs font-medium">
-                            <ArrowUpRight className="w-3 h-3" />
-                            +39.8%
-                        </div>
+                        {revenueGrowth !== 0 && (
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${
+                                revenueGrowth > 0
+                                    ? "bg-emerald-500/10 text-emerald-400"
+                                    : "bg-red-500/10 text-red-400"
+                            }`}>
+                                {revenueGrowth > 0 ? (
+                                    <ArrowUpRight className="w-3 h-3" />
+                                ) : (
+                                    <ArrowDownRight className="w-3 h-3" />
+                                )}
+                                {revenueGrowth > 0 ? "+" : ""}{revenueGrowth}%
+                            </div>
+                        )}
                     </div>
-                    <ResponsiveContainer width="100%" height={240}>
-                        <AreaChart data={REVENUE_TREND}>
-                            <defs>
-                                <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#6366F1" stopOpacity={0.3} />
-                                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="month" tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: "#1C1C2A", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#fff", fontSize: 13 }}
-                                formatter={(v) => [`৳${Number(v).toLocaleString()}`, "MRR"]}
-                            />
-                            <Area type="monotone" dataKey="mrr" stroke="#6366F1" strokeWidth={2} fill="url(#mrrGradient)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    {revenueTrend.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={240}>
+                            <AreaChart data={revenueTrend}>
+                                <defs>
+                                    <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#6366F1" stopOpacity={0.3} />
+                                        <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                                <XAxis dataKey="month" tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: "#1C1C2A", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#fff", fontSize: 13 }}
+                                    formatter={(v) => [`৳${Number(v).toLocaleString()}`, "Revenue"]}
+                                />
+                                <Area type="monotone" dataKey="mrr" stroke="#6366F1" strokeWidth={2} fill="url(#mrrGradient)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-[240px] text-zinc-600">
+                            <DollarSign className="w-8 h-8 mb-2" />
+                            <p className="text-sm">No revenue data yet</p>
+                            <p className="text-xs mt-1">Revenue appears after first paid invoice</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Plan Distribution */}
@@ -213,7 +285,7 @@ export default function PlatformDashboardPage() {
                         {(analytics?.planDistribution || []).map((plan, i) => (
                             <div key={plan.plan} className="flex items-center justify-between text-xs">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i] }} />
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
                                     <span className="text-zinc-400">{plan.plan}</span>
                                 </div>
                                 <span className="text-white font-medium tabular-nums">{plan.count}</span>
@@ -302,6 +374,35 @@ export default function PlatformDashboardPage() {
                             </div>
                         )}
                     </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Secondary metric card component
+function SecondaryMetric({
+    icon: Icon,
+    label,
+    value,
+    color,
+    bgColor,
+}: {
+    icon: typeof Users;
+    label: string;
+    value: string | number;
+    color: string;
+    bgColor: string;
+}) {
+    return (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-lg ${bgColor} flex items-center justify-center`}>
+                    <Icon className={`w-4 h-4 ${color}`} />
+                </div>
+                <div>
+                    <p className="text-xs text-zinc-500">{label}</p>
+                    <p className="text-lg font-bold text-white tabular-nums">{value}</p>
                 </div>
             </div>
         </div>
