@@ -161,14 +161,53 @@ export function calculateMonthlyTax(
 // ============================================
 
 /**
- * Overtime rate: 2x basic salary per hour (Section 108, Bangladesh Labor Act 2006)
+ * Maximum overtime per day: 2 hours (BLA 2006 Section 108)
+ * Maximum overtime per week: not explicitly limited, but total work
+ *   hours (including OT) must not exceed 10 hours/day, 60 hours/week.
+ * Overtime rate: 2x basic salary per hour (Section 108)
+ *
+ * Formula: (basic / (26 days × 8 hours)) × 2 × OT_hours
+ *        = (basic × OT_minutes) / 6240
  */
+const MAX_OT_HOURS_PER_DAY = 2;
+const MAX_OT_HOURS_PER_WEEK = 12; // Industry practice (not explicit in BLA)
+
 export function calculateOvertime(overtimeMinutes: number, monthlyBasicSalary: number): number {
     if (overtimeMinutes <= 0 || monthlyBasicSalary <= 0) return 0;
     // IEEE 754 FIX: multiply first, divide last to maximize integer precision.
     // Formula: (OT_minutes / 60) × (basic / (26 × 8)) × 2
     // Rewritten: (basic × 2 × OT_minutes) / (26 × 8 × 60) = (basic × OT_minutes) / 6240
     return Math.round((monthlyBasicSalary * 2 * overtimeMinutes) / (26 * 8 * 60));
+}
+
+/**
+ * Validate overtime against BLA 2006 limits.
+ * Returns warnings if OT exceeds legal limits.
+ */
+export function validateOvertime(
+    dailyOvertimeMinutes: number,
+    weeklyOvertimeMinutes: number
+): { warnings: string[]; isCompliant: boolean } {
+    const warnings: string[] = [];
+    const dailyOTHours = dailyOvertimeMinutes / 60;
+    const weeklyOTHours = weeklyOvertimeMinutes / 60;
+
+    if (dailyOTHours > MAX_OT_HOURS_PER_DAY) {
+        warnings.push(
+            `Daily overtime ${dailyOTHours.toFixed(1)} hours exceeds BLA limit of ${MAX_OT_HOURS_PER_DAY} hours/day (Section 108)`
+        );
+    }
+
+    if (weeklyOTHours > MAX_OT_HOURS_PER_WEEK) {
+        warnings.push(
+            `Weekly overtime ${weeklyOTHours.toFixed(1)} hours exceeds recommended limit of ${MAX_OT_HOURS_PER_WEEK} hours/week`
+        );
+    }
+
+    return {
+        warnings,
+        isCompliant: warnings.length === 0,
+    };
 }
 
 // ============================================
