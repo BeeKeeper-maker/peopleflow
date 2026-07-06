@@ -22,6 +22,7 @@ export default function PlatformLayout({
     const [admin, setAdmin] = useState<AdminProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
     // Skip auth check on login page
     const isLoginPage = pathname === "/platform/login";
@@ -46,6 +47,11 @@ export default function PlatformLayout({
             });
     }, [isLoginPage, router]);
 
+    // Close mobile sidebar on route change
+    useEffect(() => {
+        setMobileSidebarOpen(false);
+    }, [pathname]);
+
     // Login page renders without shell
     if (isLoginPage) {
         return (
@@ -67,14 +73,40 @@ export default function PlatformLayout({
     }
 
     return (
-        <div className="platform-theme min-h-screen bg-[#08080F] text-white flex">
-            <PlatformSidebar
-                collapsed={sidebarCollapsed}
-                onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            />
-            <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"}`}>
-                <PlatformHeader admin={admin} />
-                <main className="flex-1 p-6 overflow-auto">
+        <div className="platform-theme min-h-screen bg-[#08080F] text-white">
+            {/* Desktop sidebar — fixed, always visible on lg+ */}
+            <div className="hidden lg:block">
+                <PlatformSidebar
+                    collapsed={sidebarCollapsed}
+                    onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+                />
+            </div>
+
+            {/* Mobile sidebar — overlay drawer */}
+            {mobileSidebarOpen && (
+                <>
+                    <div
+                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+                        onClick={() => setMobileSidebarOpen(false)}
+                    />
+                    <div className="fixed left-0 top-0 z-50 h-screen lg:hidden">
+                        <PlatformSidebar
+                            collapsed={false}
+                            onToggle={() => setMobileSidebarOpen(false)}
+                        />
+                    </div>
+                </>
+            )}
+
+            {/* Main content area */}
+            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+                sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
+            }`}>
+                <PlatformHeader
+                    admin={admin}
+                    onMobileMenuToggle={() => setMobileSidebarOpen(true)}
+                />
+                <main className="flex-1 p-4 sm:p-6 overflow-auto">
                     {children}
                 </main>
             </div>

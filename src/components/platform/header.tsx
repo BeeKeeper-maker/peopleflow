@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut, Bell } from "lucide-react";
+import { LogOut, Bell, Menu } from "lucide-react";
 
 interface AdminProfile {
     id: string;
@@ -10,7 +10,12 @@ interface AdminProfile {
     role: string;
 }
 
-export function PlatformHeader({ admin }: { admin: AdminProfile | null }) {
+interface PlatformHeaderProps {
+    admin: AdminProfile | null;
+    onMobileMenuToggle?: () => void;
+}
+
+export function PlatformHeader({ admin, onMobileMenuToggle }: PlatformHeaderProps) {
     const router = useRouter();
 
     const handleLogout = async () => {
@@ -19,8 +24,18 @@ export function PlatformHeader({ admin }: { admin: AdminProfile | null }) {
     };
 
     return (
-        <header className="h-16 border-b border-white/[0.06] bg-[#08080F]/80 backdrop-blur-xl flex items-center justify-between px-6 sticky top-0 z-40">
-            <div>
+        <header className="h-16 border-b border-white/[0.06] bg-[#08080F]/80 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 sticky top-0 z-40">
+            <div className="flex items-center gap-3">
+                {/* Mobile menu button */}
+                {onMobileMenuToggle && (
+                    <button
+                        onClick={onMobileMenuToggle}
+                        className="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors"
+                        aria-label="Open menu"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                )}
                 <h2 className="text-sm font-medium text-zinc-400">
                     Welcome back,{" "}
                     <span className="text-white">{admin?.name || "Admin"}</span>
