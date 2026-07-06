@@ -740,14 +740,17 @@ model EmployeeDocument {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String?    // Denormalized for RLS
+  organizationId String?    // Denormalized for RLS
 
   @@index([employeeId])
   @@index([category])
   @@index([status])
   @@index([expiryDate])
   @@index([deletedAt])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -802,6 +805,7 @@ model LeaveAllocation {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  organizationId String?    // Denormalized for RLS
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -810,6 +814,7 @@ model LeaveAllocation {
 
   encashmentRequests LeaveEncashmentRequest[]
 
+  @@index([organizationId])
   @@unique([employeeId, leaveTypeId, year])
 }
 
@@ -899,8 +904,9 @@ model LeaveApplication {
   preDeliveryDays       Int?      // Days taken before delivery (max 56 = 8 weeks)
   postDeliveryDays      Int?      // Days taken after delivery (max 56 = 8 weeks)
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String?    // Denormalized for RLS
 
   leaveTypeId String
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
@@ -913,6 +919,7 @@ model LeaveApplication {
   @@index([status])
   @@index([approverId])
   @@index([fromDate, toDate])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -935,13 +942,15 @@ model Attendance {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String?    // Denormalized for RLS (Phase 1.1.2)
 
   @@unique([employeeId, date])
   // Performance indexes
   @@index([date])
   @@index([status])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -987,6 +996,7 @@ model SalaryStructureAssignment {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String?    // Denormalized for RLS
 
   salaryStructureId String
   salaryStructure   SalaryStructure @relation(fields: [salaryStructureId], references: [id])
@@ -1059,6 +1069,7 @@ model SalarySlip {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String?    // Denormalized for RLS
 
   disbursements SalaryDisbursement[]
 
@@ -1143,6 +1154,7 @@ model Loan {
   updatedAt       DateTime  @updatedAt
 
   employeeId String
+  organizationId String?    // Denormalized for RLS
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   approverId String?
@@ -1235,6 +1247,7 @@ model FestivalBonusPayment {
   updatedAt         DateTime @updatedAt
 
   employeeId String
+  organizationId String?    // Denormalized for RLS
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   bonusConfigId String
@@ -1374,6 +1387,7 @@ model PFTransaction {
   referenceYear   Int?     // For contributions: year
   transactionDate DateTime @default(now())
   createdAt       DateTime @default(now())
+  organizationId String?    // Denormalized for RLS
 
   pfAccountId String
   pfAccount   PFAccount @relation(fields: [pfAccountId], references: [id], onDelete: Cascade)
