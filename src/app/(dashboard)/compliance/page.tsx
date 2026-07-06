@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import {
     ShieldCheck,
     AlertTriangle,
@@ -133,6 +134,7 @@ export default function CompliancePage() {
     const t = useTranslations('Compliance');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [fetchError, setFetchError] = useState(false);
     const [checks, setChecks] = useState<ComplianceCheck[]>([]);
     const [overallScore, setOverallScore] = useState(0);
 
@@ -142,6 +144,7 @@ export default function CompliancePage() {
 
     const runComplianceCheck = async () => {
         setRefreshing(true);
+        setFetchError(false);
         try {
             const res = await fetch("/api/reports?type=compliance");
             if (res.ok) {
@@ -149,12 +152,12 @@ export default function CompliancePage() {
                 setChecks(data.checks || []);
                 setOverallScore(data.score || 0);
             } else {
-                console.error("Compliance API returned:", res.status);
+                setFetchError(true);
                 setChecks([]);
                 setOverallScore(0);
             }
         } catch (error) {
-            console.error("Compliance check failed:", error);
+            setFetchError(true);
             setChecks([]);
             setOverallScore(0);
         } finally {
@@ -209,27 +212,41 @@ export default function CompliancePage() {
                         </h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
-                    <Button
-                        variant="outline"
-                        onClick={runComplianceCheck}
-                        disabled={refreshing}
-                        className="gap-2"
-                    >
-                        {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        {t('recheck')}
-                    </Button>
+                    <div className="flex gap-2">
+                        <a href="/reports/statutory">
+                            <Button variant="outline" className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                Statutory Registers
+                            </Button>
+                        </a>
+                        <Button
+                            variant="outline"
+                            onClick={runComplianceCheck}
+                            disabled={refreshing}
+                            className="gap-2"
+                        >
+                            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            {t('recheck')}
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Score + Summary */}
+                {/* Error State */}
+                {fetchError && !loading && (
+                    <ErrorState
+                        title="Failed to load compliance data"
+                        message="We couldn't run the compliance checks. Please try again."
+                        onRetry={runComplianceCheck}
+                    />
+                )}
+
+                {/* Main Content — only show when not loading and not error */}
+                {!loading && !fetchError && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Overall Score */}
                     <Card>
                         <CardContent className="p-6 flex flex-col items-center justify-center">
-                            {loading ? (
-                                <Skeleton className="h-[180px] w-[180px] rounded-full" />
-                            ) : (
                                 <ScoreRing score={overallScore} label={t('complianceLabel')} sublabel={t('scoreLabel')} />
-                            )}
                             <div className="flex gap-4 mt-4">
                                 <div className="text-center">
                                     <p className="text-lg font-display font-bold tabular-nums text-emerald-400">{passedChecks.length}</p>
@@ -297,6 +314,7 @@ export default function CompliancePage() {
                         </CardContent>
                     </Card>
                 </div>
+                )}
 
                 {/* Violations / Issues */}
                 {(failedChecks.length > 0 || warningChecks.length > 0) && (
