@@ -486,6 +486,9 @@ export async function POST(req: Request) {
         }));
 
         // ── ✅ NEW: Create Stateful Approval Request ──
+        // CRITICAL: If approval request creation fails, we MUST roll back the leave
+        // application. Otherwise the leave exists in "pending" status but can never
+        // be approved — the employee's leave balance is consumed forever.
         try {
             await createApprovalRequest({
                 entityType: "leave",
@@ -496,8 +499,20 @@ export async function POST(req: Request) {
                 priority: isMaternityLeave ? "high" : "normal",
             });
         } catch (approvalError) {
-            // Log but don't block — approval request creation failure shouldn't prevent submission
             leaveLogger.error({ err: approvalError }, "APPROVAL_REQUEST_CREATION_ERROR");
+
+            // Roll back: delete the leave application so balance is not consumed
+            try {
+                await prisma.leaveApplication.delete({ where: { id: application.id } });
+                leaveLogger.info({ leaveApplicationId: application.id }, "Rolled back leave application after approval request failure");
+            } catch (rollbackError) {
+                leaveLogger.error({ err: rollbackError, leaveApplicationId: application.id }, "FAILED_TO_ROLLBACK_LEAVE_APPLICATION");
+            }
+
+            return NextResponse.json(
+                { error: "Failed to create approval workflow. Leave application not submitted. Please try again or contact HR." },
+                { status: 500 }
+            );
         }
 
         // ── Notify admin/HR users about new leave request ──
