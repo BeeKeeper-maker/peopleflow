@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -37,51 +38,7 @@ import { useToast } from "@/components/ui/toast"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { exportToExcel, formatPayrollExport } from "@/lib/export"
 import { useTranslations } from "next-intl"
-
-interface Assignment {
-    id: string
-    grossSalary: number
-    effectiveFrom: string
-    isActive: boolean
-    employee: {
-        id: string
-        firstName: string
-        lastName: string
-        employeeCode: string
-        designation?: { name: string }
-    }
-    salaryStructure: {
-        id: string
-        name: string
-    }
-    breakdown: {
-        basic: number
-        houseRent: number
-        medical: number
-        conveyance: number
-        totalEarnings: number
-        pfEmployee: number
-        netSalary: number
-    }
-}
-
-interface SalarySlip {
-    id: string
-    month: number
-    year: number
-    grossSalary: number
-    netSalary: number
-    totalDeductions: number
-    status: string
-    isLocked?: boolean
-    isReversed?: boolean
-    employee: {
-        firstName: string
-        lastName: string
-        employeeCode: string
-        department?: { name: string }
-    }
-}
+import { usePayrollAssignments, useSalarySlips } from "@/hooks/use-data"
 
 const months = [
     "January", "February", "March", "April", "May", "June",
@@ -92,10 +49,8 @@ export default function PayrollPage() {
     const { addToast } = useToast()
     const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const t = useTranslations('Payroll')
+    const queryClient = useQueryClient()
     const [activeTab, setActiveTab] = useState("overview")
-    const [assignments, setAssignments] = useState<Assignment[]>([])
-    const [slips, setSlips] = useState<SalarySlip[]>([])
-    const [loading, setLoading] = useState(true)
     const [processing, setProcessing] = useState(false)
     const [showAssignmentForm, setShowAssignmentForm] = useState(false)
 
@@ -103,32 +58,14 @@ export default function PayrollPage() {
     const [processMonth, setProcessMonth] = useState(new Date().getMonth() + 1)
     const [processYear, setProcessYear] = useState(new Date().getFullYear())
 
-    const fetchData = async () => {
-        try {
-            setLoading(true)
-            const [assignmentsRes, slipsRes] = await Promise.all([
-                fetch("/api/payroll/assignments?active=true"),
-                fetch(`/api/payroll/process?month=${processMonth}&year=${processYear}`)
-            ])
+    // ── TanStack Query: assignments + slips ──
+    const { data: assignments = [], isLoading: assignmentsLoading } = usePayrollAssignments(true)
+    const { data: slips = [], isLoading: slipsLoading } = useSalarySlips(processMonth, processYear)
+    const loading = assignmentsLoading || slipsLoading
 
-            if (assignmentsRes.ok) {
-                const assignmentsData = await assignmentsRes.json()
-                setAssignments(Array.isArray(assignmentsData) ? assignmentsData : assignmentsData.data || [])
-            }
-            if (slipsRes.ok) {
-                const slipsData = await slipsRes.json()
-                setSlips(Array.isArray(slipsData) ? slipsData : slipsData.data || slipsData.slips || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch payroll data", error)
-        } finally {
-            setLoading(false)
-        }
+    const invalidatePayroll = () => {
+        queryClient.invalidateQueries({ queryKey: ["payroll"] })
     }
-
-    useEffect(() => {
-        fetchData()
-    }, [processMonth, processYear])
 
     const handleProcessPayroll = async () => {
         try {
@@ -147,7 +84,7 @@ export default function PayrollPage() {
                     description: `${result.processed} slips created, ${result.errors} errors`,
                     type: result.errors > 0 ? "warning" : "success",
                 })
-                fetchData()
+                invalidatePayroll()
             } else {
                 throw new Error(result.error || t("payrollFailed"))
             }
@@ -198,7 +135,7 @@ export default function PayrollPage() {
                 })
                 if (res.ok) {
                     addToast({ title: "Slip locked", type: "success" })
-                    fetchData()
+                    invalidatePayroll()
                 } else {
                     const err = await res.json().catch(() => ({}))
                     addToast({ title: err.error || "Lock failed", type: "error" })
@@ -213,7 +150,7 @@ export default function PayrollPage() {
                 })
                 if (res.ok) {
                     addToast({ title: "Slip reversed — you can re-process now", type: "success" })
-                    fetchData()
+                    invalidatePayroll()
                 } else {
                     const err = await res.json().catch(() => ({}))
                     addToast({ title: err.error || "Reverse failed", type: "error" })
@@ -229,7 +166,7 @@ export default function PayrollPage() {
                 if (res.ok) {
                     const data = await res.json()
                     addToast({ title: data.message || `Slip ${action}d`, type: "success" })
-                    fetchData()
+                    invalidatePayroll()
                 } else {
                     const err = await res.json().catch(() => ({}))
                     addToast({ title: err.error || `${action} failed`, type: "error" })
@@ -260,7 +197,7 @@ export default function PayrollPage() {
             if (res.ok) {
                 const data = await res.json()
                 addToast({ title: `${data.approved} slip(s) approved`, type: "success" })
-                fetchData()
+                invalidatePayroll()
             } else {
                 addToast({ title: "Bulk approve failed", type: "error" })
             }
@@ -430,7 +367,7 @@ export default function PayrollPage() {
                                         className="w-32 bg-hover border-card-border text-foreground"
                                     />
                                 </div>
-                                <Button onClick={fetchData} variant="outline" className="border-card-border">
+                                <Button onClick={() => invalidatePayroll()} variant="outline" className="border-card-border">
                                     {t('loadData')}
                                 </Button>
                             </div>
@@ -1055,7 +992,7 @@ export default function PayrollPage() {
             <SalaryAssignmentForm
                 open={showAssignmentForm}
                 onOpenChange={setShowAssignmentForm}
-                onSuccess={fetchData}
+                onSuccess={() => invalidatePayroll()}
             />
         </div>
     )

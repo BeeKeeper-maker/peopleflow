@@ -539,3 +539,99 @@ export function usePayrollStructures() {
         "/api/payroll/structures"
     );
 }
+
+/**
+ * Active payroll assignments (employees with salary structures)
+ *
+ * Returns a flat array — the /api/payroll/assignments endpoint returns
+ * the array directly (or wrapped in {data: [...]}, both shapes handled).
+ */
+export interface PayrollAssignmentRecord {
+    id: string;
+    grossSalary: number;
+    effectiveFrom: string;
+    isActive: boolean;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+        designation?: { name: string };
+    };
+    salaryStructure: { id: string; name: string };
+    breakdown: {
+        basic: number;
+        houseRent: number;
+        medical: number;
+        conveyance: number;
+        totalEarnings: number;
+        pfEmployee: number;
+        netSalary: number;
+    };
+}
+
+export function usePayrollAssignments(activeOnly = true) {
+    return useQuery<PayrollAssignmentRecord[], ApiError>({
+        queryKey: [...queryKeys.payroll.all, "assignments", { active: activeOnly }],
+        queryFn: async () => {
+            const url = `/api/payroll/assignments${activeOnly ? "?active=true" : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ASSIGNMENT_FETCH_ERROR"),
+                    String(err.error || "Failed to load payroll assignments"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — assignments change rarely
+    });
+}
+
+/**
+ * Salary slips for a given month/year
+ *
+ * Returns a flat array — the /api/payroll/process endpoint returns
+ * the array directly (or wrapped in {slips: [...], data: [...]}, both handled).
+ */
+export interface SalarySlipRecord {
+    id: string;
+    month: number;
+    year: number;
+    grossSalary: number;
+    netSalary: number;
+    totalDeductions: number;
+    status: string;
+    isLocked?: boolean;
+    isReversed?: boolean;
+    employee: {
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+        department?: { name: string };
+    };
+}
+
+export function useSalarySlips(month: number, year: number) {
+    return useQuery<SalarySlipRecord[], ApiError>({
+        queryKey: [...queryKeys.payroll.all, "slips", { month, year }],
+        queryFn: async () => {
+            const url = `/api/payroll/process?month=${month}&year=${year}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "SLIPS_FETCH_ERROR"),
+                    String(err.error || "Failed to load salary slips"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.slips || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — slips change during payroll processing
+    });
+}
