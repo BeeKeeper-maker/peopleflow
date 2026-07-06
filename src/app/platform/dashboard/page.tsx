@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
     DollarSign,
     TrendingUp,
@@ -14,19 +16,17 @@ import {
     Target,
     UserPlus,
 } from "lucide-react";
-import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-} from "recharts";
 import { MetricCard } from "@/components/platform/metric-card";
+
+const LazyCharts = dynamic(
+    () => import("./_components/platform-dashboard-charts").then(m => ({ default: m.PlatformDashboardCharts })),
+    {
+        loading: () => (
+            <div className="w-full h-[240px] rounded-xl bg-white/[0.03] animate-pulse" />
+        ),
+        ssr: false,
+    }
+);
 
 interface RevenueTrend {
     month: string;
@@ -226,30 +226,17 @@ export default function PlatformDashboardPage() {
                         )}
                     </div>
                     {revenueTrend.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={240}>
-                            <AreaChart data={revenueTrend}>
-                                <defs>
-                                    <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#6366F1" stopOpacity={0.3} />
-                                        <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                                <XAxis dataKey="month" tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fill: "#71717A", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `৳${(v / 1000).toFixed(0)}k`} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: "#1C1C2A", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#fff", fontSize: 13 }}
-                                    formatter={(v) => [`৳${Number(v).toLocaleString()}`, "Revenue"]}
-                                />
-                                <Area type="monotone" dataKey="mrr" stroke="#6366F1" strokeWidth={2} fill="url(#mrrGradient)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        <LazyCharts
+                            revenueTrend={revenueTrend}
+                            planDistribution={[]}
+                            render="revenue"
+                        />
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-[240px] text-zinc-600">
-                            <DollarSign className="w-8 h-8 mb-2" />
-                            <p className="text-sm">No revenue data yet</p>
-                            <p className="text-xs mt-1">Revenue appears after first paid invoice</p>
-                        </div>
+                        <LazyCharts
+                            revenueTrend={[]}
+                            planDistribution={[]}
+                            render="revenue"
+                        />
                     )}
                 </div>
 
@@ -259,28 +246,11 @@ export default function PlatformDashboardPage() {
                         Plan Distribution
                     </h3>
                     <p className="text-xs text-zinc-500 mb-4">Active subscriptions</p>
-                    <ResponsiveContainer width="100%" height={160}>
-                        <PieChart>
-                            <Pie
-                                data={analytics?.planDistribution || []}
-                                dataKey="count"
-                                nameKey="plan"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={45}
-                                outerRadius={70}
-                                paddingAngle={4}
-                                strokeWidth={0}
-                            >
-                                {(analytics?.planDistribution || []).map((_, i) => (
-                                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{ backgroundColor: "#1C1C2A", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#fff", fontSize: 13 }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <LazyCharts
+                        revenueTrend={[]}
+                        planDistribution={analytics?.planDistribution || []}
+                        render="pie"
+                    />
                     <div className="space-y-2 mt-2">
                         {(analytics?.planDistribution || []).map((plan, i) => (
                             <div key={plan.plan} className="flex items-center justify-between text-xs">
@@ -301,9 +271,9 @@ export default function PlatformDashboardPage() {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-white">Top Tenants</h3>
-                        <a href="/platform/tenants" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                        <Link href="/platform/tenants" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
                             View all →
-                        </a>
+                        </Link>
                     </div>
                     <div className="space-y-3">
                         {(analytics?.topTenants || []).slice(0, 5).map((tenant, i) => (
