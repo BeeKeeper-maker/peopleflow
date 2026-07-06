@@ -12,7 +12,9 @@ import {
     ExternalLink,
     Power,
     Eye,
+    Plus,
 } from "lucide-react";
+import { ProvisionTenantModal } from "./_components/provision-modal";
 
 interface Tenant {
     id: string;
@@ -42,6 +44,7 @@ export default function TenantsPage() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [showProvisionModal, setShowProvisionModal] = useState(false);
     const limit = 20;
 
     const fetchTenants = useCallback(async () => {
@@ -83,11 +86,27 @@ export default function TenantsPage() {
                         Manage all organizations on the platform
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                    <Building2 className="w-4 h-4" />
-                    <span className="tabular-nums">{total} total</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                        <Building2 className="w-4 h-4" />
+                        <span className="tabular-nums">{total} total</span>
+                    </div>
+                    <button
+                        onClick={() => setShowProvisionModal(true)}
+                        className="flex items-center gap-2 h-9 px-4 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-sm text-white font-medium transition shadow-lg shadow-indigo-500/20"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Provision Tenant
+                    </button>
                 </div>
             </div>
+
+            {/* Provision Modal */}
+            <ProvisionTenantModal
+                isOpen={showProvisionModal}
+                onClose={() => setShowProvisionModal(false)}
+                onSuccess={() => fetchTenants()}
+            />
 
             {/* Filters Bar */}
             <div className="flex items-center gap-3">
