@@ -50,7 +50,10 @@ export const employeeSchema = z.object({
     bloodGroup: z.preprocess(sanitize, z.enum(BLOOD_GROUP_OPTIONS).optional()),
     maritalStatus: z.preprocess(sanitize, z.enum(MARITAL_STATUS_OPTIONS).optional()),
     nationality: z.preprocess(sanitize, z.string().default("Bangladeshi")),
-    nidNumber: z.preprocess(sanitize, z.string().optional()),
+    nidNumber: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^\d{10}$|^\d{13}$|^\d{17}$/.test(val.replace(/\s/g, "")),
+        "NID must be 10, 13, or 17 digits (Bangladesh NID format)"
+    )),
     passportNumber: z.preprocess(sanitize, z.string().optional()),
     photoUrl: z.preprocess(
         sanitize,
