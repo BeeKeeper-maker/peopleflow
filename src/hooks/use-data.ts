@@ -470,6 +470,67 @@ export function useLeaveTypes() {
 }
 
 /**
+ * Leave applications (with optional filters)
+ *
+ * Returns a flat array of LeaveApplication records (not wrapped in ApiResponse)
+ * because the /api/leaves/applications endpoint returns { data, pagination }
+ * directly, not the standard ApiResponse envelope.
+ */
+export interface LeaveApplicationRecord {
+    id: string;
+    leaveType: { name: string; color: string; code: string };
+    employee: {
+        firstName: string;
+        lastName: string;
+        photoUrl: string | null;
+        designation?: { name: string };
+    };
+    fromDate: string;
+    toDate: string;
+    totalDays: number;
+    status: string;
+    reason: string | null;
+    createdAt: string;
+}
+
+export function useLeaveApplications(filters?: {
+    employeeId?: string;
+    status?: string;
+    year?: number;
+    month?: number;
+    page?: number;
+    limit?: number;
+}) {
+    return useQuery<LeaveApplicationRecord[], ApiError>({
+        queryKey: queryKeys.leaves.applications(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.employeeId) params.set("employeeId", filters.employeeId);
+            if (filters?.status) params.set("status", filters.status);
+            if (filters?.year) params.set("year", String(filters.year));
+            if (filters?.month) params.set("month", String(filters.month));
+            if (filters?.page) params.set("page", String(filters.page));
+            if (filters?.limit) params.set("limit", String(filters.limit));
+
+            const url = `/api/leaves/applications${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "LEAVE_FETCH_ERROR"),
+                    String(err.error || "Failed to load leave applications"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // API returns { data, pagination } — extract the data array
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — leaves change frequently
+    });
+}
+
+/**
  * Payroll structures
  */
 export function usePayrollStructures() {

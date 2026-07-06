@@ -333,8 +333,10 @@ describe("Platform Settings — role hierarchy", () => {
         // The role check in the API route is:
         //   if (currentAdmin?.role !== "platform_super") return 403;
         // So 'platform_super' is the privileged role.
-        const superCanCreate = "platform_super" === "platform_super";
-        const adminCanCreate = "platform_admin" === "platform_super";
+        const superRole: string = "platform_super";
+        const adminRole: string = "platform_admin";
+        const superCanCreate = superRole === "platform_super";
+        const adminCanCreate = adminRole === "platform_super";
         expect(superCanCreate).toBe(true);
         expect(adminCanCreate).toBe(false);
     });

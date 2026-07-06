@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { DataTable } from "@/components/ui/data-table"
 import { columns, LeaveApplication } from "@/components/leaves/applications/columns"
 import { LeaveBalanceCards } from "@/components/leaves/leave-balance-cards"
@@ -9,43 +9,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Plus, Calendar, RefreshCw, Clock, CheckCircle2, XCircle, FileStack, CalendarDays, Settings2, ArrowRight, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { useLocale, useTranslations } from "next-intl"
-import { useToast } from "@/components/ui/toast"
+import { useLeaveApplications } from "@/hooks/use-data"
 
 export default function LeaveApplicationsPage() {
-    const [data, setData] = useState<LeaveApplication[]>([])
-    const [isLoading, setIsLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
     const t = useTranslations('Leaves')
     const locale = useLocale()
     const isBn = locale.startsWith('bn')
-    const { addToast } = useToast()
 
-    const fetchData = async () => {
-        setIsLoading(true)
-        setError(null)
-        try {
-            const response = await fetch("/api/leaves/applications")
-            if (response.ok) {
-                const result = await response.json()
-                setData(result.data || result || [])
-            } else {
-                const errData = await response.json().catch(() => ({}))
-                const msg = errData.error || (isBn ? "ছুটির আবেদন লোড করা যায়নি" : "Failed to load leave applications")
-                setError(msg)
-                addToast({ title: isBn ? "ত্রুটি" : "Error", description: msg, type: "error" })
-            }
-        } catch {
-            const msg = isBn ? "নেটওয়ার্ক সমস্যা। সংযোগ পরীক্ষা করুন।" : "Network error. Please check your connection."
-            setError(msg)
-            addToast({ title: isBn ? "সংযোগ ত্রুটি" : "Connection Error", description: msg, type: "error" })
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        fetchData()
-    }, [])
+    // ── TanStack Query: leave applications ──
+    const { data: applications = [], isLoading, error, refetch, isFetching } = useLeaveApplications()
+    const data = applications as LeaveApplication[]
 
     // ── Derived statistics ──
     const stats = useMemo(() => {
@@ -134,8 +107,8 @@ export default function LeaveApplicationsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     {error && (
-                        <Button variant="outline" onClick={fetchData} className="gap-2 border-card-border">
-                            <RefreshCw className="h-4 w-4" />
+                        <Button variant="outline" onClick={() => refetch()} className="gap-2 border-card-border">
+                            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
                             {isBn ? "আবার চেষ্টা করুন" : "Retry"}
                         </Button>
                     )}
