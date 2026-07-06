@@ -97,6 +97,38 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── PgBouncer Connection Pooler ──
+  # Prevents "too many connections" errors at scale.
+  # App connects to PgBouncer (port 6432) instead of Postgres directly.
+  # PgBouncer maintains a pool of connections to Postgres.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_USER: peopleflow_app
+      DB_PASSWORD: ${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: peopleflow
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 3
+      SERVER_IDLE_TIMEOUT: 240
+      AUTH_TYPE: plain
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U peopleflow_app"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
