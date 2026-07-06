@@ -36,21 +36,24 @@ interface SavedReport {
     _count?: { schedules: number };
 }
 
-const DATA_SOURCE_LABELS: Record<string, string> = {
-    employees: "Employees",
-    attendance: "Attendance",
-    payroll: "Payroll",
-    leave: "Leave Applications",
-    expenses: "Expense Claims",
-    loans: "Loans",
-};
-
 export default function ReportsListPage() {
     const { addToast } = useToast();
     const t = useTranslations("Reports");
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [reports, setReports] = useState<SavedReport[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const dataSourceLabel = (key: string): string => {
+        const map: Record<string, string> = {
+            employees: t("employee"),
+            attendance: t("attendanceTab"),
+            payroll: t("payrollReport"),
+            leave: t("leaveReport"),
+            expenses: t("title"),
+            loans: t("title"),
+        };
+        return map[key] || key;
+    };
 
     const fetchReports = useCallback(async () => {
         try {
@@ -60,11 +63,11 @@ export default function ReportsListPage() {
                 setReports(data.data || []);
             }
         } catch {
-            addToast({ title: "Error", description: "Failed to load reports", type: "error" });
+            addToast({ title: t("error"), description: t("failedLoadReports"), type: "error" });
         } finally {
             setLoading(false);
         }
-    }, [addToast]);
+    }, [addToast, t]);
 
     useEffect(() => {
         fetchReports();
@@ -72,18 +75,18 @@ export default function ReportsListPage() {
 
     const handleDelete = async (id: string, name: string) => {
         const ok = await confirm({
-            title: `Delete report "${name}"?`,
-            description: "This action cannot be undone.",
-            confirmLabel: "Delete",
+            title: `${t("delete")} "${name}"?`,
+            description: t("cannotUndo"),
+            confirmLabel: t("delete"),
             variant: "destructive",
         });
         if (!ok) return;
         try {
             await fetch(`/api/reports/custom/${id}`, { method: "DELETE" });
-            addToast({ title: "Report deleted", type: "success" });
+            addToast({ title: t("reportDeleted"), type: "success" });
             fetchReports();
         } catch {
-            addToast({ title: "Error", description: "Failed to delete", type: "error" });
+            addToast({ title: t("error"), description: t("failedDelete"), type: "error" });
         }
     };
 
@@ -97,25 +100,25 @@ export default function ReportsListPage() {
     };
 
     if (loading) {
-        return <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">Loading...</div>;
+        return <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">{t("loading")}</div>;
     }
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl font-display font-bold flex items-center gap-2">
                         <BarChart3 className="h-6 w-6" />
-                        Custom Reports
+                        {t("customReports")}
                     </h1>
                     <p className="text-muted-foreground mt-1">
-                        Build, save, and schedule custom reports with field picker and filters.
+                        {t("customReportsDesc")}
                     </p>
                 </div>
                 <Link href="/reports/builder/new">
                     <Button className="bg-blue-600 hover:bg-blue-700">
                         <Plus className="h-4 w-4 mr-2" />
-                        New Report
+                        {t("newReport")}
                     </Button>
                 </Link>
             </div>
@@ -124,14 +127,14 @@ export default function ReportsListPage() {
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
-                        <p className="text-lg font-medium">No custom reports yet</p>
+                        <p className="text-lg font-medium">{t("noCustomReports")}</p>
                         <p className="text-sm text-muted-foreground mt-1 mb-4">
-                            Create your first custom report to analyze employees, attendance, payroll, and more.
+                            {t("noCustomReportsDesc")}
                         </p>
                         <Link href="/reports/builder/new">
                             <Button className="bg-blue-600 hover:bg-blue-700">
                                 <Plus className="h-4 w-4 mr-2" />
-                                Create Report
+                                {t("createReport")}
                             </Button>
                         </Link>
                     </CardContent>
@@ -149,20 +152,20 @@ export default function ReportsListPage() {
                                             {report.isShared && (
                                                 <Badge variant="outline" className="text-xs text-blue-400 border-blue-400/30">
                                                     <Share2 className="h-3 w-3 mr-1" />
-                                                    Shared
+                                                    {t("shared")}
                                                 </Badge>
                                             )}
                                             {report._count?.schedules ? (
                                                 <Badge variant="outline" className="text-xs text-green-400 border-green-400/30">
                                                     <Clock className="h-3 w-3 mr-1" />
-                                                    Scheduled
+                                                    {t("scheduled")}
                                                 </Badge>
                                             ) : null}
                                         </CardTitle>
                                         <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                            <span>{DATA_SOURCE_LABELS[report.dataSource] || report.dataSource}</span>
+                                            <span>{dataSourceLabel(report.dataSource)}</span>
                                             <span>·</span>
-                                            <span>{report.fields.length} field{report.fields.length !== 1 ? "s" : ""}</span>
+                                            <span>{report.fields.length} {t("fields")}</span>
                                             {report.description && (
                                                 <>
                                                     <span>·</span>
@@ -174,14 +177,14 @@ export default function ReportsListPage() {
                                 </div>
                                 <div className="flex gap-1">
                                     <Link href={`/reports/builder/${report.id}`}>
-                                        <Button variant="ghost" size="icon" title="Edit">
+                                        <Button variant="ghost" size="icon" title={t("edit")}>
                                             <Save className="h-4 w-4" />
                                         </Button>
                                     </Link>
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        title="Delete"
+                                        title={t("delete")}
                                         onClick={() => handleDelete(report.id, report.name)}
                                         className="text-red-400 hover:text-red-300"
                                     >

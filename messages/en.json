@@ -680,7 +680,14 @@
     "shared": "Shared",
     "scheduled": "Scheduled",
     "reportDeleted": "Report Deleted",
-    "fields": "Fields"
+    "fields": "Fields",
+    "error": "Error",
+    "failedLoadReports": "Failed to load reports",
+    "cannotUndo": "This action cannot be undone.",
+    "delete": "Delete",
+    "failedDelete": "Failed to delete",
+    "loading": "Loading...",
+    "edit": "Edit"
   },
   "ESS": {
     "dashboardTitle": "My Dashboard",

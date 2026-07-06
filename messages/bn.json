@@ -680,7 +680,14 @@
     "shared": "শেয়ার্ড",
     "scheduled": "শিডিউলড",
     "reportDeleted": "রিপোর্ট মুছে ফেলা হয়েছে",
-    "fields": "ক্ষেত্র"
+    "fields": "ক্ষেত্র",
+    "error": "ত্রুটি",
+    "failedLoadReports": "রিপোর্ট লোড করতে ব্যর্থ",
+    "cannotUndo": "এই কাজটি ফেরানো যাবে না।",
+    "delete": "মুছুন",
+    "failedDelete": "মুছতে ব্যর্থ",
+    "loading": "লোড হচ্ছে...",
+    "edit": "সম্পাদনা"
   },
   "Settings": {
     "title": "সেটিংস",
