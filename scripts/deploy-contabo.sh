@@ -264,6 +264,22 @@ mkdir -p /backups
 # Docker container auto-restart check (every 5 min)
 (crontab -l 2>/dev/null; echo "*/5 * * * * cd $DEPLOY_DIR && docker compose ps | grep -q 'Exit' && docker compose up -d >> /var/log/peopleflow-docker.log 2>&1") | crontab -
 
+# ── App Cron Endpoints (authenticated via CRON_SECRET) ──
+# These call the app's internal cron API endpoints with the Bearer token.
+# Each endpoint is idempotent and safe to call multiple times.
+
+# Auto-absent: mark employees as absent if they haven't checked in by 11:59 PM
+(crontab -l 2>/dev/null; echo "59 23 * * * curl -sf -H \"Authorization: Bearer $CRON_SECRET\" https://$DOMAIN/api/cron/auto-absent >> /var/log/peopleflow-cron.log 2>&1") | crontab -
+
+# Escalation: escalate pending approvals past their SLA (every hour)
+(crontab -l 2>/dev/null; echo "0 * * * * curl -sf -H \"Authorization: Bearer $CRON_SECRET\" https://$DOMAIN/api/cron/escalation >> /var/log/peopleflow-cron.log 2>&1") | crontab -
+
+# Leave allocation: annual leave balance allocation (1st of every month at 12:05 AM)
+(crontab -l 2>/dev/null; echo "5 0 1 * * curl -sf -H \"Authorization: Bearer $CRON_SECRET\" https://$DOMAIN/api/cron/leave-allocation >> /var/log/peopleflow-cron.log 2>&1") | crontab -
+
+# Health ping: keep worker alive + log heartbeat (every 15 min)
+(crontab -l 2>/dev/null; echo "*/15 * * * * curl -sf -H \"Authorization: Bearer $CRON_SECRET\" https://$DOMAIN/api/cron/health-ping >> /var/log/peopleflow-cron.log 2>&1") | crontab -
+
 # Log rotation
 cat > /etc/logrotate.d/peopleflow << EOF
 /var/log/peopleflow-*.log {

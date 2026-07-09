@@ -344,12 +344,17 @@ export async function ingestBiometricPunches(params: {
     // 1. Build employee map (cached lookup by biometricUserId)
     const employeeMap = await buildEmployeeBiometricMap(organizationId);
 
-    // 2. Group punches by (employeeId, shiftDate)
-    //    Within each group, collect all punches so we can pick the earliest
-    //    as check-in and the latest as check-out.
+    // 2. Parse + validate punches, group by (employeeId, shiftDate)
+    //    We'll write ALL punches to the BiometricPunch ledger first,
+    //    then derive Attendance from the ledger. This ensures no punch
+    //    is ever lost — even if punches arrive in separate sync batches.
     const punchGroups = new Map<
         string,
-        { employee: EmployeeWithShift; punches: Date[] }
+        {
+            employee: EmployeeWithShift;
+            shiftDate: Date;
+            punches: { timestamp: Date; punchType: number | null | undefined; deviceUserId: string }[];
+        }
     >();
 
     let skipped = 0;
@@ -379,35 +384,119 @@ export async function ingestBiometricPunches(params: {
         const attendanceDateForPunch = getShiftDate(ts, employee.shift);
         const groupKey = `${employee.id}::${attendanceDateForPunch.toISOString()}`;
         const existing = punchGroups.get(groupKey);
+        const punchEntry = {
+            timestamp: ts,
+            punchType: record.type ?? null,
+            deviceUserId: userId,
+        };
         if (existing) {
-            existing.punches.push(ts);
+            existing.punches.push(punchEntry);
         } else {
-            punchGroups.set(groupKey, { employee, punches: [ts] });
+            punchGroups.set(groupKey, {
+                employee,
+                shiftDate: attendanceDateForPunch,
+                punches: [punchEntry],
+            });
         }
     }
 
-    // 3. Upsert each group into Attendance, MERGING with any existing record
+    // 3. Write ALL punches to the BiometricPunch ledger (idempotent via unique constraint)
+    //    Then derive Attendance from the FULL ledger (not just this batch).
+    //    This fixes the "lost punch" bug where intermediate punches
+    //    (lunch out + lunch in) were discarded when arriving in separate batches.
     let synced = 0;
     const errors: string[] = [];
 
-    for (const [groupKey, group] of punchGroups.entries()) {
-        const [employeeId, dateStr] = groupKey.split("::");
-        const attendanceDate = new Date(dateStr);
-
-        // Sort punches chronologically
-        group.punches.sort((a, b) => a.getTime() - b.getTime());
-
-        const newCheckIn = group.punches[0];
-        const newCheckOut =
-            group.punches.length > 1
-                ? group.punches[group.punches.length - 1]
-                : null;
+    for (const [_groupKey, group] of punchGroups.entries()) {
+        const { employee, shiftDate, punches } = group;
+        const employeeId = employee.id;
 
         try {
-            // Fetch existing record to determine merge behavior
+            // 3a. Write all punches from this batch to the ledger.
+            //     Uses createMany with skipDuplicates for idempotent re-sync.
+            //     If a punch already exists (same employeeId + punchTime),
+            //     it's silently skipped — no error, no data loss.
+            const ledgerRows = punches.map((p) => ({
+                employeeId,
+                organizationId,
+                punchTime: p.timestamp,
+                shiftDate,
+                deviceUserId: p.deviceUserId,
+                punchType: p.punchType ?? null,
+                deviceId: params.deviceId || null,
+                deviceSerial: params.deviceName || null,
+                source,
+            }));
+
+            await prisma.biometricPunch.createMany({
+                data: ledgerRows,
+                skipDuplicates: true,
+            });
+
+            // 3b. Fetch ALL punches for this (employee, shiftDate) from the ledger.
+            //     This includes punches from PREVIOUS sync batches too —
+            //     so even if this batch only had 1 punch, we get the full picture.
+            const allPunches = await prisma.biometricPunch.findMany({
+                where: {
+                    employeeId,
+                    shiftDate,
+                },
+                orderBy: { punchTime: "asc" },
+                select: { punchTime: true, punchType: true },
+            });
+
+            if (allPunches.length === 0) {
+                // Shouldn't happen since we just wrote some, but guard anyway
+                skipped++;
+                continue;
+            }
+
+            // 3c. Derive checkIn/checkOut from the FULL ledger:
+            //     checkIn  = earliest punch
+            //     checkOut = latest punch (if > 1 punch)
+            const newCheckIn = allPunches[0].punchTime;
+            const newCheckOut =
+                allPunches.length > 1
+                    ? allPunches[allPunches.length - 1].punchTime
+                    : null;
+
+            // 3d. Calculate break time from intermediate punches.
+            //     For [09:00, 13:00, 14:00, 18:00]:
+            //       pairs = [(09:00→13:00), (13:00→14:00), (14:00→18:00)]
+            //       breaks = even-indexed gaps (0→1, 2→3, ...) = lunch break
+            //       work segments = odd-indexed gaps (1→2, 3→4, ...) = work time
+            //     This is the standard "in/out alternation" model.
+            //     With 4 punches: break = punch[2] - punch[1] = 14:00 - 13:00 = 60 min
+            //     With 2 punches: break = 0 (no intermediate)
+            //     With 3 punches: break = punch[2] - punch[1] (assumes out-in-out)
+            let breakMinutes = 0;
+            if (allPunches.length >= 4) {
+                // Even number: in, out, in, out → breaks are gaps between
+                // punch[1]→punch[2], punch[3]→punch[4], etc.
+                for (let i = 1; i < allPunches.length - 1; i += 2) {
+                    const gapMs =
+                        allPunches[i + 1].punchTime.getTime() -
+                        allPunches[i].punchTime.getTime();
+                    if (gapMs > 0) {
+                        breakMinutes += Math.round(gapMs / 60_000);
+                    }
+                }
+            } else if (allPunches.length === 3) {
+                // Odd: in, out, in (forgot to punch out) or out, in, out
+                // Assume the middle gap is a break
+                const gapMs =
+                    allPunches[2].punchTime.getTime() -
+                    allPunches[1].punchTime.getTime();
+                if (gapMs > 0) {
+                    breakMinutes = Math.round(gapMs / 60_000);
+                }
+            }
+            // With 1 or 2 punches: breakMinutes = 0 (no break data)
+
+            // 3e. Fetch existing Attendance record to check merge behavior
             const existingRecord = await prisma.attendance.findUnique({
                 where: {
-                    employeeId_date: { employeeId, date: attendanceDate },
+                    employeeId_date: { employeeId, date: shiftDate },
                 },
                 select: {
                     checkIn: true,
@@ -423,7 +512,7 @@ export async function ingestBiometricPunches(params: {
                 continue;
             }
 
-            // Merge: take the earliest check-in and latest check-out
+            // 3f. Merge with existing record (take earliest checkIn, latest checkOut)
             let bestCheckIn = newCheckIn;
             let bestCheckOut = newCheckOut;
 
@@ -438,22 +527,29 @@ export async function ingestBiometricPunches(params: {
                 }
             }
 
-            // Recalculate metrics from the merged check-in/out
+            // 3g. Recalculate shift metrics from merged check-in/out
             const { lateMinutes, earlyLeaveMinutes, overtimeMinutes } =
                 calculateShiftMetrics(
                     bestCheckIn,
                     bestCheckOut,
-                    attendanceDate,
-                    group.employee.shift,
+                    shiftDate,
+                    employee.shift,
                 );
+
+            // 3h. Upsert Attendance with derived data + break minutes
+            //     Store break minutes in notes as JSON (schema doesn't have a
+            //     dedicated breakMinutes column yet — can add in future migration)
+            const notesWithBreak = auditNote
+                ? `${auditNote} | punches: ${allPunches.length} | break: ${breakMinutes}min`
+                : `punches: ${allPunches.length} | break: ${breakMinutes}min`;
 
             await prisma.attendance.upsert({
                 where: {
-                    employeeId_date: { employeeId, date: attendanceDate },
+                    employeeId_date: { employeeId, date: shiftDate },
                 },
                 create: {
                     employeeId,
-                    date: attendanceDate,
+                    date: shiftDate,
                     checkIn: bestCheckIn,
                     checkOut: bestCheckOut,
                     status: "present",
@@ -461,7 +557,8 @@ export async function ingestBiometricPunches(params: {
                     lateMinutes,
                     earlyLeaveMinutes,
                     overtimeMinutes,
-                    ...(auditNote ? { notes: auditNote } : {}),
+                    notes: notesWithBreak,
+                    organizationId,
                 },
                 update: {
                     checkIn: bestCheckIn,
@@ -472,16 +569,16 @@ export async function ingestBiometricPunches(params: {
                     lateMinutes,
                     earlyLeaveMinutes,
                     overtimeMinutes,
-                    ...(auditNote ? { notes: auditNote } : {}),
+                    notes: notesWithBreak,
                 },
             });
             synced++;
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            errors.push(`${groupKey}: ${msg}`);
+            errors.push(`${employeeId}::${shiftDate.toISOString()}: ${msg}`);
             skipped++;
             biometricLogger.error(
-                { err, employeeId, date: attendanceDate.toISOString() },
+                { err, employeeId, date: shiftDate.toISOString() },
                 "Punch upsert failed",
             );
         }

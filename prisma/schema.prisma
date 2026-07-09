@@ -351,6 +351,9 @@ model Organization {
   // Custom Fields
   customFields          CustomField[]
 
+  // Biometric Punch Ledger (raw punch storage)
+  biometricPunches      BiometricPunch[]
+
   @@index([status])
 }
 
@@ -732,6 +735,9 @@ model Employee {
   documentRequests      DocumentRequest[] @relation("DocumentRequests")
   // email uniqueness handled at application level (optional field)
 
+  // Biometric Punch Ledger (raw punch storage)
+  biometricPunches      BiometricPunch[]
+
   @@unique([organizationId, employeeCode])
   // Performance indexes
   @@index([organizationId, employmentStatus])
@@ -980,6 +986,48 @@ model Attendance {
   @@index([date])
   @@index([status])
   @@index([organizationId])
+}
+
+// ============================================
+// Biometric Punch Ledger — Raw Punch Storage
+// ============================================
+// Industry-standard approach: store EVERY raw punch as a separate row.
+// This ensures no punch is ever lost, even when:
+//   - Punches arrive in separate sync batches (real-time sync)
+//   - The same punch is re-synced (idempotent via unique constraint)
+//   - Network interruptions cause partial batches
+//
+// Attendance.checkIn/checkOut are DERIVED from this ledger:
+//   checkIn  = MIN(BiometricPunch.punchTime) for (employee, shiftDate)
+//   checkOut = MAX(BiometricPunch.punchTime) for (employee, shiftDate)
+//
+// Break time is calculated from intermediate punches:
+//   For 4 punches [09:00, 13:00, 14:00, 18:00]:
+//     break = (14:00 - 13:00) = 60 min lunch break
+//     netWork = (18:00 - 09:00) - 60min = 8 hours
+
+model BiometricPunch {
+  id              String   @id @default(cuid())
+  employeeId      String
+  organizationId  String   // Denormalized for RLS
+  punchTime       DateTime // The actual punch timestamp (UTC)
+  shiftDate       DateTime // The business-local calendar date (start of day, UTC)
+  deviceUserId    String   // The biometric device's user ID
+  punchType       Int?     // 0=checkIn, 1=checkOut (ZKTeco convention), null=unknown
+  deviceId        String?  // Optional: which device recorded this punch
+  deviceSerial    String?  // Optional: device serial number for audit
+  source          String   @default("biometric") // biometric, manual, web
+  createdAt       DateTime @default(now())
+
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Prevent duplicate punch ingestion (idempotent re-sync)
+  @@unique([employeeId, punchTime])
+  @@index([employeeId, shiftDate])
+  @@index([shiftDate])
+  @@index([organizationId])
+  @@index([deviceId])
 }
 
 // ============================================
