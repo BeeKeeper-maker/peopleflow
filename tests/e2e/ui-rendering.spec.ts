@@ -27,10 +27,12 @@ test.describe("UI Rendering", () => {
 
     test("register page has required fields", async ({ page }) => {
         await page.goto("/register");
-        // Check for form fields
-        const inputs = page.locator("input");
-        const count = await inputs.count();
-        expect(count).toBeGreaterThan(3);
+        // The register page is a 3-step wizard; step 1 renders the
+        // organization-name input + an industry <select>. Count any
+        // form control so the test is resilient to step changes.
+        const fields = page.locator("input, select, textarea");
+        const count = await fields.count();
+        expect(count).toBeGreaterThan(1);
     });
 
     test("theme toggle works on login page", async ({ page }) => {

@@ -8,47 +8,61 @@ import { test, expect } from "@playwright/test";
  * or inside the route handler itself (cron, platform, v1) BEFORE any
  * database access, so these tests do not require a DB or Redis.
  *
- * Accepted statuses for the cron endpoint are intentionally broader
- * because that endpoint behaves differently in dev vs. production when
- * CRON_SECRET is unset (see `src/lib/cron-auth.ts`).
+ * Accepted statuses are intentionally broad:
+ *   - 401 Unauthorized — the standard "no session" rejection returned by
+ *     the proxy for endpoints whose module is enabled by default.
+ *   - 403 Forbidden — returned by the proxy's module-entitlement guard
+ *     when the endpoint's module is not in the default entitlements
+ *     (e.g. `loans`, `payroll`). The request is still rejected; the
+ *     4xx just carries a different reason.
+ *
+ * The cron endpoint behaves differently in dev vs. production when
+ * CRON_SECRET is unset (see `src/lib/cron-auth.ts`), so its accepted
+ * status set is broader still.
  */
+
+// Unauthenticated requests should be rejected. The proxy returns 401 for
+// no-session hits on modules enabled by default, and 403 for hits on
+// modules whose entitlement is off by default — both indicate the
+// request did NOT reach the protected handler.
+const REJECTED = [401, 403] as const;
 
 test.describe("API Protection", () => {
     test("employees API requires auth", async ({ request }) => {
         const response = await request.get("/api/employees");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("attendance API requires auth", async ({ request }) => {
         const response = await request.get("/api/attendance");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("leaves API requires auth", async ({ request }) => {
         const response = await request.get("/api/leaves/applications");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("payroll API requires auth", async ({ request }) => {
         const response = await request.get(
             "/api/payroll/process?month=1&year=2026",
         );
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("loans API requires auth", async ({ request }) => {
         const response = await request.get("/api/loans");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("notifications API requires auth", async ({ request }) => {
         const response = await request.get("/api/notifications");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("settings API requires auth", async ({ request }) => {
         const response = await request.get("/api/settings");
-        expect(response.status()).toBe(401);
+        expect(REJECTED).toContain(response.status());
     });
 
     test("cron endpoint requires secret", async ({ request }) => {
