@@ -16,7 +16,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 interface SearchResult {
@@ -216,7 +216,7 @@ export async function GET(req: NextRequest) {
             suggestions,
         };
 
-        return successResponse(response);
+        return applyRateLimitHeaders(successResponse(response), rl.headers);
 
     } catch (error) {
         apiLogger.error({ err: error }, "SEARCH_ERROR:");

@@ -11,7 +11,7 @@ import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
 import { randomBytes } from "crypto";
 import { encryptPII, decryptEmployeePhoneNumbers } from "@/lib/pii";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employees — Create Employee
@@ -426,15 +426,18 @@ export async function GET(req: Request) {
       ]),
     );
 
-    return NextResponse.json({
-      data: employees.map(decryptEmployeePhoneNumbers),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return applyRateLimitHeaders(
+      NextResponse.json({
+        data: employees.map(decryptEmployeePhoneNumbers),
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      }),
+      rl.headers,
+    );
   } catch (error) {
     const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     apiLogger.error({ err: error, errorId }, "GET_EMPLOYEES_ERROR");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { calculateSalary, toNumber } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
 
@@ -461,12 +461,15 @@ export async function POST(req: Request) {
             }).catch((err) => payrollLogger.error({ err: err }, "[EVENT_FAIL] payroll.processed:"));
         }
 
-        return NextResponse.json({
-            processed: created.length,
-            errorCount: skipped.length,
-            results: created,
-            errors: skipped,
-        });
+        return applyRateLimitHeaders(
+            NextResponse.json({
+                processed: created.length,
+                errorCount: skipped.length,
+                results: created,
+                errors: skipped,
+            }),
+            rl.headers,
+        );
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         payrollLogger.error({ err: error, errorId }, "PROCESS_PAYROLL_ERROR");

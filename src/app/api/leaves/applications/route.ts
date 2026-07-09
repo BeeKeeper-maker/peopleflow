@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { format } from "date-fns";
 import {
     calculateWorkingDays,
@@ -238,15 +238,18 @@ export async function GET(req: Request) {
             };
         });
 
-        return NextResponse.json({
-            data,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-            },
-        });
+        return applyRateLimitHeaders(
+            NextResponse.json({
+                data,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                },
+            }),
+            rl.headers,
+        );
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         leaveLogger.error({ err: error, errorId }, "GET_LEAVE_APPLICATIONS_ERROR");

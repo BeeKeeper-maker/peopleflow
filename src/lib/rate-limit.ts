@@ -5,8 +5,21 @@
  * multiple containers/instances using Redis INCR + EXPIRE.
  *
  * In production, Redis failures deny limited routes so brute-force controls do not fail open.
+ *
+ * Response Headers (P9-RATELIMIT-HEADERS):
+ * Every rate-limited route is expected to forward the returned
+ * `headers` map onto its success responses so that API clients can
+ * read `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset`
+ * and back off BEFORE hitting the 429 wall. Routes can do this with:
+ *
+ *   const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+ *   if (!rl.allowed) return rl.response!;
+ *   const res = NextResponse.json(data);
+ *   for (const [k, v] of Object.entries(rl.headers)) res.headers.set(k, v);
+ *   return res;
  */
 
+import { NextResponse } from "next/server";
 import { checkRedisRateLimit } from "@/lib/redis";
 
 // ============================================
@@ -145,34 +158,84 @@ export async function rateLimit(
     const key = createRateLimitKey(ip, route);
     const result = await checkRateLimit(key, config);
 
+    // IETF RateLimit header draft: `X-RateLimit-Reset` is the UTC epoch
+    // second at which the current window resets, not a relative duration.
+    // `result.resetIn` is seconds-from-now until reset (windowSeconds when
+    // allowed, retryAfter TTL when blocked).
+    const resetEpochSeconds = Math.ceil(
+        (Date.now() + result.resetIn * 1000) / 1000
+    );
+
     const headers: Record<string, string> = {
         "X-RateLimit-Limit": config.maxRequests.toString(),
         "X-RateLimit-Remaining": result.remaining.toString(),
-        "X-RateLimit-Reset": result.resetIn.toString(),
+        "X-RateLimit-Reset": resetEpochSeconds.toString(),
     };
 
     if (!result.allowed) {
         return {
             allowed: false,
             headers,
-            response: new Response(
-                JSON.stringify({
-                    error: "Too many requests",
-                    message:
-                        "Rate limit exceeded. Please try again later.",
-                    retryAfter: result.resetIn,
-                }),
-                {
-                    status: 429,
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Retry-After": result.resetIn.toString(),
-                        ...headers,
-                    },
-                }
-            ),
+            response: rateLimitExceededResponse(result.resetIn, headers),
         };
     }
 
     return { allowed: true, headers };
+}
+
+// ============================================
+// Standard 429 Response Builder
+// ============================================
+
+/**
+ * Build a standard 429 "Too Many Requests" response with rate-limit
+ * headers attached. Callers pass the `retryAfter` (seconds until the
+ * window resets) and the rate-limit `headers` map returned by `rateLimit`.
+ *
+ * Used by `rateLimit` internally, and exported so custom rate-limit
+ * code paths (e.g. middleware-level limits) can reuse the same body
+ * shape and header set.
+ */
+export function rateLimitExceededResponse(
+    retryAfter: number,
+    headers: Record<string, string>
+): NextResponse {
+    return NextResponse.json(
+        {
+            error: "Rate limit exceeded",
+            message: `Too many requests. Please retry after ${retryAfter} seconds.`,
+            retryAfter,
+        },
+        {
+            status: 429,
+            headers: {
+                "Retry-After": String(retryAfter),
+                ...headers,
+            },
+        }
+    );
+}
+
+// ============================================
+// Header-Forwarding Helper
+// ============================================
+
+/**
+ * Apply rate-limit headers (X-RateLimit-Limit / -Remaining / -Reset)
+ * onto an existing NextResponse. Returns the same response instance
+ * so callers can write a one-liner:
+ *
+ *   return applyRateLimitHeaders(NextResponse.json(data), rl.headers);
+ *
+ * For 429 responses use `rateLimitExceededResponse` instead — it
+ * sets `Retry-After` as well.
+ */
+export function applyRateLimitHeaders(
+    response: NextResponse,
+    headers: Record<string, string>
+): NextResponse {
+    for (const [key, value] of Object.entries(headers)) {
+        response.headers.set(key, value);
+    }
+    return response;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { attendanceLogger } from "@/lib/logger";
 
 function buildDateFilter(searchParams: URLSearchParams) {
@@ -141,7 +141,10 @@ export async function GET(req: Request) {
             take: limit,
         }));
 
-        return NextResponse.json(attendances.map(toAttendanceDto));
+        return applyRateLimitHeaders(
+            NextResponse.json(attendances.map(toAttendanceDto)),
+            rl.headers,
+        );
 
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
