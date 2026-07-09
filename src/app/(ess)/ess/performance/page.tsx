@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/ui/page-header";
 import {
     Target,
     TrendingUp,
@@ -16,29 +15,7 @@ import {
     Flag,
     AlertTriangle,
 } from "lucide-react";
-
-interface KeyResult {
-    id: string;
-    title: string;
-    targetValue: number;
-    currentValue: number;
-    unit?: string;
-    status: string;
-}
-
-interface Goal {
-    id: string;
-    title: string;
-    description?: string;
-    type: string;
-    priority: string;
-    status: string;
-    progress: number;
-    startDate?: string;
-    dueDate?: string;
-    completedAt?: string;
-    keyResults: KeyResult[];
-}
+import { useEssPerformanceGoals, type EssKeyResult } from "@/hooks/use-data";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
     not_started: { label: "notStarted", color: "bg-gray-500/15 text-gray-400 border-gray-500/20", icon: Clock },
@@ -57,32 +34,9 @@ const priorityConfig: Record<string, { color: string }> = {
 };
 
 export default function ESSPerformancePage() {
-    const { addToast } = useToast();
     const t = useTranslations("ESSPerformance");
-    const [goals, setGoals] = useState<Goal[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchGoals = async () => {
-            try {
-                // FIX #1: Correct API endpoint with my=true to scope to current employee
-                const res = await fetch("/api/performance/goals?my=true");
-                if (res.ok) {
-                    const data = await res.json();
-                    // FIX #9: Handle successResponse() wrapper format { success, data }
-                    const goalsData = data?.data || (Array.isArray(data) ? data : (data.goals || []));
-                    setGoals(goalsData);
-                }
-            } catch (err) {
-                console.error("Failed to fetch goals:", err);
-                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchGoals();
-    }, []);
+    // ── TanStack Query: my performance goals ──
+    const { data: goals = [], isLoading: loading } = useEssPerformanceGoals();
 
     if (loading) {
         return (
@@ -102,10 +56,12 @@ export default function ESSPerformancePage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Target}
+                iconColor="blue"
+            />
 
             {/* Summary cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -240,7 +196,7 @@ export default function ESSPerformancePage() {
                                         <div className="mt-4 pt-4 border-t border-card-border">
                                             <p className="text-xs font-medium text-muted-foreground mb-2">{t("keyResults")}</p>
                                             <div className="space-y-2">
-                                                {goal.keyResults.map(kr => {
+                                                {(goal.keyResults as EssKeyResult[]).map(kr => {
                                                     const krProgress = kr.targetValue > 0
                                                         ? Math.min(100, Math.round((kr.currentValue / kr.targetValue) * 100))
                                                         : 0;

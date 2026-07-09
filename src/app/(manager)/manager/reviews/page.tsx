@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,39 +9,24 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Star, Users, Loader2, CheckCircle2, Eye } from "lucide-react";
 
-interface Review {
-    id: string;
-    status: string;
-    selfRating: number | null;
-    selfComments: string | null;
-    managerRating: number | null;
-    managerComments: string | null;
-    overallRating: number | null;
-    strengths: string | null;
-    improvements: string | null;
-    employee: { id: string; firstName: string; lastName: string; employeeCode: string; designation?: { name: string }; department?: { name: string } };
-    reviewCycle: { id: string; name: string; type: string };
-}
+import { useManagerReviews, queryKeys, type ManagerReviewRecord } from "@/hooks/use-data";
 
 export default function ManagerReviewsPage() {
     const { addToast } = useToast();
-    const [reviews, setReviews] = useState<Review[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+    const queryClient = useQueryClient();
+
+    // ── TanStack Query: team performance reviews ──
+    const { data: reviews = [], isLoading: loading } = useManagerReviews();
+
+    const [selectedReview, setSelectedReview] = useState<ManagerReviewRecord | null>(null);
     const [managerRating, setManagerRating] = useState(0);
     const [managerComments, setManagerComments] = useState("");
     const [strengths, setStrengths] = useState("");
     const [improvements, setImprovements] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => { fetchReviews(); }, []);
-
-    const fetchReviews = async () => {
-        try {
-            const res = await fetch("/api/performance/reviews");
-            if (res.ok) { const data = await res.json(); setReviews(data.data || []); }
-        } catch { addToast({ title: "Error", description: "Failed to load", type: "error" }); }
-        finally { setLoading(false); }
+    const invalidateReviews = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.manager.reviews() });
     };
 
     const handleSubmit = async () => {
@@ -62,7 +48,7 @@ export default function ManagerReviewsPage() {
                 const data = await res.json();
                 addToast({ title: data.message || "Manager review submitted", type: "success" });
                 setSelectedReview(null); setManagerRating(0); setManagerComments(""); setStrengths(""); setImprovements("");
-                fetchReviews();
+                invalidateReviews();
             } else { const err = await res.json().catch(() => ({})); addToast({ title: err.error || "Failed", type: "error" }); }
         } catch { addToast({ title: "Network error", type: "error" }); }
         finally { setSubmitting(false); }

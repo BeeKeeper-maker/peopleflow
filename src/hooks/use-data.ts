@@ -66,6 +66,30 @@ export const queryKeys = {
         all: ["notifications"] as const,
         unread: () => [...queryKeys.notifications.all, "unread"] as const,
     },
+    // ESS (Employee Self-Service) — current employee's own data
+    ess: {
+        all: ["ess"] as const,
+        leaveBalances: () => [...queryKeys.ess.all, "leave-balances"] as const,
+        leaveApplications: (filters?: Record<string, unknown>) => [...queryKeys.ess.all, "leave-applications", filters] as const,
+        attendance: (filters?: Record<string, unknown>) => [...queryKeys.ess.all, "attendance", filters] as const,
+        todayAttendance: () => [...queryKeys.ess.all, "attendance-today"] as const,
+        payslips: () => [...queryKeys.ess.all, "payslips"] as const,
+        loans: () => [...queryKeys.ess.all, "loans"] as const,
+        expenses: (filters?: Record<string, unknown>) => [...queryKeys.ess.all, "expenses", filters] as const,
+        documents: () => [...queryKeys.ess.all, "documents"] as const,
+        announcements: () => [...queryKeys.ess.all, "announcements"] as const,
+        profile: () => [...queryKeys.ess.all, "profile"] as const,
+        performanceGoals: (filters?: Record<string, unknown>) => [...queryKeys.ess.all, "performance-goals", filters] as const,
+    },
+    // Manager portal — scoped to the signed-in manager's direct reportees
+    manager: {
+        all: ["manager"] as const,
+        team: () => [...queryKeys.manager.all, "team"] as const,
+        approvals: (filters?: Record<string, unknown>) => [...queryKeys.manager.all, "approvals", filters] as const,
+        leaves: (filters?: Record<string, unknown>) => [...queryKeys.manager.all, "leaves", filters] as const,
+        attendance: (filters?: Record<string, unknown>) => [...queryKeys.manager.all, "attendance", filters] as const,
+        reviews: () => [...queryKeys.manager.all, "reviews"] as const,
+    },
 };
 
 // ============================================
@@ -908,5 +932,845 @@ export function useDeviceEvents(filters?: {
             return Array.isArray(json) ? json : (json.data || json.events || []);
         },
         staleTime: 30 * 1000, // 30 seconds — events should feel real-time
+    });
+}
+
+// ============================================
+// ESS (Employee Self-Service) Hooks
+// ============================================
+//
+// These hooks fetch the *current employee's* own data — the API routes rely
+// on the authenticated session (auth.employeeId) so no explicit employeeId
+// needs to be passed. Each hook mirrors the response shape of its API route
+// (some return arrays directly, some return wrapped objects).
+
+// ── a) Leave balances ───────────────────────────────────────────────────────
+// /api/leaves/allocations returns an array directly (NextResponse.json(result)).
+export interface EssLeaveBalance {
+    leaveType: {
+        id: string;
+        name: string;
+        nameBn?: string;
+        code: string;
+        color?: string;
+    };
+    allocatedDays: number;
+    usedDays: number;
+    carriedForward: number;
+    remainingDays: number;
+}
+
+export function useEssLeaveBalances() {
+    return useQuery<EssLeaveBalance[], ApiError>({
+        queryKey: queryKeys.ess.leaveBalances(),
+        queryFn: async () => {
+            const res = await fetch("/api/leaves/allocations", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_LEAVE_BALANCE_ERROR"),
+                    String(err.error || "Failed to load leave balances"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — balances change with each application
+    });
+}
+
+// ── b) Leave applications (ESS scope: current employee only) ─────────────────
+// /api/leaves/applications returns { data, pagination }.
+export interface EssLeaveApplication {
+    id: string;
+    leaveType: {
+        id: string;
+        name: string;
+        code: string;
+        color?: string;
+    };
+    fromDate: string;
+    toDate: string;
+    totalDays: number;
+    reason: string;
+    status: "pending" | "approved" | "rejected" | "cancelled";
+    createdAt: string;
+    approvedBy?: {
+        firstName: string;
+        lastName: string;
+    };
+    rejectionReason?: string;
+}
+
+export function useEssLeaveApplications(filters?: {
+    status?: string;
+    year?: number;
+    month?: number;
+    page?: number;
+    limit?: number;
+}) {
+    return useQuery<EssLeaveApplication[], ApiError>({
+        queryKey: queryKeys.ess.leaveApplications(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.status) params.set("status", filters.status);
+            if (filters?.year) params.set("year", String(filters.year));
+            if (filters?.month) params.set("month", String(filters.month));
+            if (filters?.page) params.set("page", String(filters.page));
+            if (filters?.limit) params.set("limit", String(filters.limit));
+
+            const url = `/api/leaves/applications${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_LEAVE_APPLICATIONS_ERROR"),
+                    String(err.error || "Failed to load leave applications"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — applications change frequently
+    });
+}
+
+// ── c) Attendance records (date range or year/month) ───────────────────────
+// /api/attendance returns an array directly (NextResponse.json(attendances.map)).
+export interface EssAttendanceRecord {
+    id: string;
+    date: string;
+    status?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    totalMinutes?: number;
+    lateMinutes?: number;
+    earlyLeaveMinutes?: number;
+    overtimeMinutes?: number;
+    employee?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+    };
+}
+
+export function useEssAttendance(filters?: {
+    startDate?: string;
+    endDate?: string;
+    year?: number;
+    month?: number;
+    date?: string;
+}) {
+    return useQuery<EssAttendanceRecord[], ApiError>({
+        queryKey: queryKeys.ess.attendance(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.startDate) params.set("startDate", filters.startDate);
+            if (filters?.endDate) params.set("endDate", filters.endDate);
+            if (filters?.year) params.set("year", String(filters.year));
+            if (filters?.month) params.set("month", String(filters.month));
+            if (filters?.date) params.set("date", filters.date);
+
+            const url = `/api/attendance${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_ATTENDANCE_ERROR"),
+                    String(err.error || "Failed to load attendance records"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 30 * 1000, // 30 seconds — attendance is real-time
+    });
+}
+
+// ── d) Payslips ────────────────────────────────────────────────────────────
+// /api/payroll/payslips returns { data: [...], total }.
+export interface EssPayslip {
+    id: string;
+    month: number;
+    year: number;
+    basicSalary: number;
+    houseRent: number;
+    medicalAllowance: number;
+    conveyance: number;
+    specialAllowance?: number;
+    overtime?: number;
+    bonus?: number;
+    festivalBonus?: number;
+    arrears?: number;
+    otherEarnings: number;
+    pfEmployee: number;
+    pfEmployer?: number;
+    incomeTax: number;
+    loanDeduction?: number;
+    absentDeduction?: number;
+    lateDeduction?: number;
+    otherDeductions: number;
+    grossSalary: number;
+    totalDeductions: number;
+    netSalary: number;
+    status: "draft" | "approved" | "paid" | "reversed";
+    paymentDate?: string;
+    paymentMode?: string;
+    presentDays?: number;
+    absentDays?: number;
+    leaveDays?: number;
+    totalWorkingDays?: number;
+}
+
+export function useEssPayslips() {
+    return useQuery<EssPayslip[], ApiError>({
+        queryKey: queryKeys.ess.payslips(),
+        queryFn: async () => {
+            const res = await fetch("/api/payroll/payslips", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_PAYSLIPS_ERROR"),
+                    String(err.error || "Failed to load payslips"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — payslips change rarely
+    });
+}
+
+// ── e) Loans ────────────────────────────────────────────────────────────────
+// /api/loans returns an array directly. Includes nested repayments + approver.
+export interface EssLoanRepayment {
+    id: string;
+    installmentNo: number;
+    amount: number;
+    principalPart: number;
+    interestPart: number;
+    paidDate: string;
+    method: string;
+}
+
+export interface EssLoan {
+    id: string;
+    type: string;
+    amount: number;
+    interestRate: number;
+    tenure: number;
+    emiAmount: number;
+    disbursedAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    reason?: string | null;
+    status: string;
+    approvedAt?: string;
+    disbursedAt?: string;
+    createdAt: string;
+    approver?: { firstName: string; lastName: string } | null;
+    repayments: EssLoanRepayment[];
+}
+
+export function useEssLoans() {
+    return useQuery<EssLoan[], ApiError>({
+        queryKey: queryKeys.ess.loans(),
+        queryFn: async () => {
+            const res = await fetch("/api/loans", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_LOANS_ERROR"),
+                    String(err.error || "Failed to load loans"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.loans || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — loan status changes periodically
+    });
+}
+
+// ── f) Expense claims ───────────────────────────────────────────────────────
+// /api/expenses/claims returns an array directly.
+export interface EssExpenseClaim {
+    id: string;
+    claimNumber: string;
+    title: string;
+    description?: string;
+    amount: number;
+    currency?: string;
+    date: string;
+    expenseDate?: string;
+    status: "draft" | "submitted" | "pending" | "approved" | "rejected" | "reimbursed";
+    receiptUrl?: string;
+    receiptName?: string;
+    category?: { name?: string } | string;
+    createdAt: string;
+}
+
+export function useEssExpenses(filters?: {
+    status?: string;
+    pending?: boolean;
+}) {
+    return useQuery<EssExpenseClaim[], ApiError>({
+        queryKey: queryKeys.ess.expenses(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.status) params.set("status", filters.status);
+            if (filters?.pending) params.set("pending", "true");
+
+            const url = `/api/expenses/claims${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_EXPENSES_ERROR"),
+                    String(err.error || "Failed to load expense claims"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.claims || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — claim status changes frequently
+    });
+}
+
+// ── g) Document requests ────────────────────────────────────────────────────
+// The ESS documents page fetches from /api/ess/document-request (NOT
+// /api/employee-documents, which is admin-only). The endpoint returns an
+// array directly.
+export interface EssDocumentRequest {
+    id: string;
+    type: string;
+    status: string;
+    documentUrl?: string;
+    rejectionNote?: string;
+    createdAt: string;
+    processedAt?: string;
+}
+
+export function useEssDocuments() {
+    return useQuery<EssDocumentRequest[], ApiError>({
+        queryKey: queryKeys.ess.documents(),
+        queryFn: async () => {
+            const res = await fetch("/api/ess/document-request", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_DOCUMENTS_ERROR"),
+                    String(err.error || "Failed to load document requests"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.requests || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — document status changes infrequently
+    });
+}
+
+// ── h) Announcements (active only) ─────────────────────────────────────────
+// /api/announcements?active=true returns an array directly.
+export interface EssAnnouncementAuthor {
+    id: string;
+    firstName: string;
+    lastName: string;
+    photoUrl?: string;
+}
+
+export interface EssAnnouncement {
+    id: string;
+    title: string;
+    content: string;
+    type: string;
+    priority: string;
+    isPinned: boolean;
+    isActive: boolean;
+    publishDate: string;
+    expiryDate?: string;
+    createdAt: string;
+    author?: EssAnnouncementAuthor | null;
+}
+
+export function useEssAnnouncements() {
+    return useQuery<EssAnnouncement[], ApiError>({
+        queryKey: queryKeys.ess.announcements(),
+        queryFn: async () => {
+            const res = await fetch("/api/announcements?active=true", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_ANNOUNCEMENTS_ERROR"),
+                    String(err.error || "Failed to load announcements"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.announcements || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — announcements change infrequently
+    });
+}
+
+// ── i) Profile (current employee) ───────────────────────────────────────────
+// /api/employees/me returns { data: { id, name, email, role, employee, organization } }.
+export interface EssEmployeeProfile {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    personalEmail?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    bloodGroup?: string;
+    maritalStatus?: string;
+    nationality?: string;
+    nidNumber?: string;
+    photoUrl?: string;
+    department?: { name: string };
+    designation?: { name: string };
+    joiningDate?: string;
+    employmentType?: string;
+    reportingManager?: { firstName: string; lastName: string };
+    shift?: { name: string };
+    branch?: { name: string };
+    presentAddress?: string;
+    permanentAddress?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    emergencyContactRelation?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankRoutingNumber?: string;
+}
+
+export interface EssProfileResponse {
+    id: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    employee: EssEmployeeProfile | null;
+    organization?: { name: string; industry?: string } | null;
+}
+
+export function useEssProfile() {
+    return useQuery<EssEmployeeProfile | null, ApiError>({
+        queryKey: queryKeys.ess.profile(),
+        queryFn: async () => {
+            const res = await fetch("/api/employees/me", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_PROFILE_ERROR"),
+                    String(err.error || "Failed to load profile"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // /api/employees/me returns { data: { employee: {...}, ... } }
+            // or (when no employee record linked) { data: { ..., employee: null } }
+            const data = json?.data?.employee !== undefined
+                ? json.data.employee
+                : (json?.data?.employee ?? json?.employee ?? json?.data ?? null);
+            return data || null;
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — profile data changes rarely
+    });
+}
+
+// ── j) Today's attendance ───────────────────────────────────────────────────
+// /api/attendance/today returns { attendance, shift }.
+export interface EssTodayShift {
+    id: string;
+    name: string;
+    startTime?: string;
+    endTime?: string;
+    gracePeriodMinutes?: number;
+    lateThresholdMinutes?: number;
+    workingHours?: number;
+}
+
+export interface EssTodayAttendanceResponse {
+    attendance: {
+        id: string;
+        date: string;
+        checkIn: string | null;
+        checkOut: string | null;
+        status?: string;
+        lateMinutes?: number;
+        earlyLeaveMinutes?: number;
+        overtimeMinutes?: number;
+        totalMinutes?: number;
+    } | null;
+    shift: EssTodayShift | null;
+}
+
+export function useEssTodayAttendance() {
+    return useQuery<EssTodayAttendanceResponse, ApiError>({
+        queryKey: queryKeys.ess.todayAttendance(),
+        queryFn: async () => {
+            const res = await fetch("/api/attendance/today", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_TODAY_ATTENDANCE_ERROR"),
+                    String(err.error || "Failed to load today's attendance"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // The endpoint always returns { attendance, shift } — fall back to
+            // a safe empty payload if the shape is unexpected.
+            if (json && typeof json === "object" && "attendance" in json) {
+                return json as EssTodayAttendanceResponse;
+            }
+            return { attendance: null, shift: null };
+        },
+        staleTime: 30 * 1000, // 30 seconds — attendance should feel real-time
+    });
+}
+
+// ── k) Performance goals (ESS scope: current employee) ──────────────────────
+// /api/performance/goals?my=true returns { data: [...] } (successResponse wrapper)
+// or an array. Used by the ESS performance page.
+export interface EssKeyResult {
+    id: string;
+    title: string;
+    targetValue: number;
+    currentValue: number;
+    unit?: string;
+    status: string;
+}
+
+export interface EssPerformanceGoal {
+    id: string;
+    title: string;
+    description?: string;
+    type: string;
+    priority: string;
+    status: string;
+    progress: number;
+    startDate?: string;
+    dueDate?: string;
+    completedAt?: string;
+    keyResults: EssKeyResult[];
+}
+
+export function useEssPerformanceGoals(filters?: { status?: string; my?: boolean }) {
+    return useQuery<EssPerformanceGoal[], ApiError>({
+        queryKey: queryKeys.ess.performanceGoals(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            // ESS scope: always request only "my" goals
+            params.set("my", "true");
+            if (filters?.status) params.set("status", filters.status);
+
+            const url = `/api/performance/goals?${params.toString()}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ESS_PERFORMANCE_ERROR"),
+                    String(err.error || "Failed to load performance goals"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || json.goals || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — goals change infrequently
+    });
+}
+
+// ============================================
+// Manager Portal Hooks
+// ============================================
+//
+// The /api/manager/* and /api/leaves/applications + /api/attendance + /api/performance/reviews
+// endpoints auto-scope to the signed-in manager's direct reportees when the caller's role is
+// "manager". Admin/HR roles see the org-wide result set. These hooks wrap those endpoints with
+// the manager-namespaced query keys so manager-portal caches are isolated from ESS caches.
+
+/**
+ * Manager's team — direct reportees
+ *
+ * Returns the array from /api/manager/team { data: [...] } envelope.
+ */
+export interface ManagerTeamMember {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string | null;
+    photoUrl?: string | null;
+    joiningDate?: string | null;
+    employmentStatus?: string;
+    employeeCode?: string;
+    department?: { name: string } | null;
+    designation?: { name: string } | null;
+    reportingManager?: { id: string; firstName: string; lastName: string } | null;
+}
+
+export function useManagerTeam() {
+    return useQuery<ManagerTeamMember[], ApiError>({
+        queryKey: queryKeys.manager.team(),
+        queryFn: async () => {
+            const res = await fetch("/api/manager/team", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "MANAGER_TEAM_FETCH_ERROR"),
+                    String(err.error || "Failed to load team members"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — team membership changes occasionally
+    });
+}
+
+/**
+ * Pending approvals for the manager — combined leaves + expenses
+ *
+ * Issues two parallel requests:
+ *   - /api/leaves/applications?status=<status>&limit=100
+ *   - /api/expenses/claims?pending=true
+ *
+ * The /api/leaves/applications and /api/expenses/claims endpoints auto-scope
+ * to the manager's direct reportees when the caller's role is "manager".
+ */
+export interface ManagerLeaveApproval {
+    id: string;
+    employeeId?: string;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        photoUrl?: string | null;
+        designation?: { name: string } | null;
+    };
+    leaveType: { name: string; code?: string | null };
+    fromDate: string;
+    toDate: string;
+    totalDays: number;
+    reason: string | null;
+    status: string;
+    createdAt: string;
+    appliedAt?: string | null;
+}
+
+export interface ManagerExpenseApproval {
+    id: string;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        photoUrl?: string | null;
+        designation?: { name: string } | null;
+    };
+    title?: string | null;
+    category: string | { name?: string | null } | null;
+    amount: number;
+    description: string | null;
+    status: string;
+    createdAt: string;
+}
+
+export interface ManagerApprovalsResult {
+    leaves: ManagerLeaveApproval[];
+    expenses: ManagerExpenseApproval[];
+}
+
+export function useManagerApprovals(status: string = "pending") {
+    return useQuery<ManagerApprovalsResult, ApiError>({
+        queryKey: queryKeys.manager.approvals({ status }),
+        queryFn: async () => {
+            const [leavesRes, expensesRes] = await Promise.all([
+                fetch(`/api/leaves/applications?status=${encodeURIComponent(status)}&limit=100`, { credentials: "include" }),
+                fetch("/api/expenses/claims?pending=true", { credentials: "include" }),
+            ]);
+
+            let leaves: ManagerLeaveApproval[] = [];
+            let expenses: ManagerExpenseApproval[] = [];
+
+            if (leavesRes.ok) {
+                const data = await leavesRes.json();
+                leaves = Array.isArray(data) ? data : (data.data || []);
+            }
+
+            if (expensesRes.ok) {
+                const data = await expensesRes.json();
+                expenses = Array.isArray(data) ? data : (data.data || data.claims || []);
+            }
+
+            return { leaves, expenses };
+        },
+        staleTime: 30 * 1000, // 30 seconds — approvals are time-sensitive
+    });
+}
+
+/**
+ * Leave applications for the manager's team
+ *
+ * Wraps /api/leaves/applications (which auto-scopes to direct reportees for
+ * managers) with a manager-namespaced cache key.
+ */
+export function useManagerLeaves(filters?: {
+    status?: string;
+    year?: number;
+    month?: number;
+    limit?: number;
+}) {
+    return useQuery<ManagerLeaveApproval[], ApiError>({
+        queryKey: queryKeys.manager.leaves(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.status) params.set("status", filters.status);
+            if (filters?.year) params.set("year", String(filters.year));
+            if (filters?.month) params.set("month", String(filters.month));
+            if (filters?.limit) params.set("limit", String(filters.limit));
+            const url = `/api/leaves/applications${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "MANAGER_LEAVES_FETCH_ERROR"),
+                    String(err.error || "Failed to load team leaves"),
+                    res.status
+                );
+            }
+            const data = await res.json();
+            return Array.isArray(data) ? data : (data.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — leaves change frequently
+    });
+}
+
+/**
+ * Attendance records for the manager's team
+ *
+ * The /api/attendance endpoint auto-scopes to the manager's direct reportees
+ * when the caller is a manager. Returns the array directly (no envelope).
+ *
+ * Pass `{ date: "YYYY-MM-DD" }` for a single day, or `{ year, month }` for a
+ * calendar month, or `{ startDate, endDate }` for an arbitrary range.
+ */
+export interface ManagerAttendanceRecord {
+    id: string;
+    employeeId: string;
+    date: string;
+    checkIn: string | null;
+    checkOut: string | null;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    status: string;
+    lateMinutes: number;
+    earlyLeaveMinutes: number;
+    overtimeMinutes: number;
+    source: string | null;
+    totalMinutes: number;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode?: string;
+        department?: { name: string } | null;
+        designation?: { name: string } | null;
+    };
+}
+
+export function useManagerAttendance(filters?: {
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    year?: number;
+    month?: number;
+    limit?: number;
+}) {
+    return useQuery<ManagerAttendanceRecord[], ApiError>({
+        queryKey: queryKeys.manager.attendance(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.date) params.set("date", filters.date);
+            if (filters?.startDate) params.set("startDate", filters.startDate);
+            if (filters?.endDate) params.set("endDate", filters.endDate);
+            if (filters?.year) params.set("year", String(filters.year));
+            if (filters?.month) params.set("month", String(filters.month));
+            if (filters?.limit) params.set("limit", String(filters.limit));
+            const url = `/api/attendance${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "MANAGER_ATTENDANCE_FETCH_ERROR"),
+                    String(err.error || "Failed to load team attendance"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — attendance updates throughout the day
+    });
+}
+
+/**
+ * Performance reviews for the manager's team
+ *
+ * The /api/performance/reviews endpoint auto-scopes to the manager's direct
+ * reportees (plus their own self-reviews) when the caller is a manager.
+ */
+export interface ManagerReviewRecord {
+    id: string;
+    status: string;
+    selfRating: number | null;
+    selfComments: string | null;
+    managerRating: number | null;
+    managerComments: string | null;
+    overallRating: number | null;
+    strengths: string | null;
+    improvements: string | null;
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+        photoUrl?: string | null;
+        designation?: { name: string } | null;
+        department?: { name: string } | null;
+    };
+    reviewer?: { id: string; firstName: string; lastName: string } | null;
+    reviewCycle: { id: string; name: string; type: string; status?: string };
+}
+
+export function useManagerReviews() {
+    return useQuery<ManagerReviewRecord[], ApiError>({
+        queryKey: queryKeys.manager.reviews(),
+        queryFn: async () => {
+            const res = await fetch("/api/performance/reviews", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "MANAGER_REVIEWS_FETCH_ERROR"),
+                    String(err.error || "Failed to load team reviews"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — review status changes occasionally
     });
 }

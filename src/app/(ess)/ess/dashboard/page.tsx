@@ -24,7 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toBengaliNumber } from "@/lib/i18n-utils";
 import { useInstallPrompt } from "@/components/pwa/register";
 
@@ -64,6 +64,11 @@ export default function ESSDashboardPage() {
     const { data: session } = useSession();
     const t = useTranslations('ESS');
     const tDash = useTranslations('ESSDashboard');
+    const tShared = useTranslations('SharedComponents');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatTime = (value: string) => new Intl.DateTimeFormat(dateLocale, { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
     const { canInstall, promptInstall } = useInstallPrompt();
     const [isLoading, setIsLoading] = useState(true);
@@ -116,18 +121,10 @@ export default function ESSDashboardPage() {
                         setTodayStatus({
                             checkedIn: !!myRecord.checkIn,
                             checkInTime: myRecord.checkIn
-                                ? new Date(myRecord.checkIn).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true
-                                })
+                                ? formatTime(myRecord.checkIn)
                                 : undefined,
                             checkOutTime: myRecord.checkOut
-                                ? new Date(myRecord.checkOut).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true
-                                })
+                                ? formatTime(myRecord.checkOut)
                                 : undefined,
                         });
                     }
@@ -219,19 +216,15 @@ export default function ESSDashboardPage() {
                 const data = await res.json();
                 setTodayStatus({
                     checkedIn: true,
-                    checkInTime: new Date(data.checkIn).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                    }),
+                    checkInTime: formatTime(data.checkIn),
                 });
                 addToast({ title: tDash("checkedInSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
                 // Don't expose raw server error to user — use safe fallback message
-                const safeMessage = res.status === 401 ? "Please log in again" :
-                    res.status === 403 ? "Not authorized" :
-                    res.status >= 500 ? "Server error. Please try again." :
+                const safeMessage = res.status === 401 ? tShared("loginAgain") :
+                    res.status === 403 ? tShared("notAuthorized") :
+                    res.status >= 500 ? tShared("serverError") :
                     errorText || tDash("checkedInFailed");
                 addToast({ title: safeMessage, type: "error" });
             }
@@ -257,19 +250,15 @@ export default function ESSDashboardPage() {
                 setTodayStatus({
                     checkedIn: true,
                     checkInTime: todayStatus.checkInTime,
-                    checkOutTime: new Date(data.checkOut).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                    }),
+                    checkOutTime: formatTime(data.checkOut),
                 });
                 addToast({ title: tDash("checkedOutSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
                 // Don't expose raw server error to user — use safe fallback message
-                const safeMessage = res.status === 401 ? "Please log in again" :
-                    res.status === 403 ? "Not authorized" :
-                    res.status >= 500 ? "Server error. Please try again." :
+                const safeMessage = res.status === 401 ? tShared("loginAgain") :
+                    res.status === 403 ? tShared("notAuthorized") :
+                    res.status >= 500 ? tShared("serverError") :
                     errorText || tDash("checkedOutFailed");
                 addToast({ title: safeMessage, type: "error" });
             }
@@ -597,7 +586,7 @@ export default function ESSDashboardPage() {
                                                 {activity.message}
                                             </p>
                                             <p className="text-xs text-tertiary-foreground">
-                                                {new Date(activity.createdAt).toLocaleDateString()}
+                                                {formatDate(activity.createdAt)}
                                             </p>
                                         </div>
                                     </div>

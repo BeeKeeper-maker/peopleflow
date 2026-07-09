@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/ui/page-header";
 import {
     Banknote,
     Clock,
@@ -19,36 +19,9 @@ import {
     ChevronUp,
     Receipt,
     CreditCard,
+    HandCoins,
 } from "lucide-react";
-
-interface LoanRepayment {
-    id: string;
-    installmentNo: number;
-    amount: number;
-    principalPart: number;
-    interestPart: number;
-    paidDate: string;
-    method: string;
-}
-
-interface Loan {
-    id: string;
-    type: string;
-    amount: number;
-    interestRate: number;
-    tenure: number;
-    emiAmount: number;
-    disbursedAmount: number;
-    paidAmount: number;
-    remainingAmount: number;
-    reason?: string;
-    status: string;
-    approvedAt?: string;
-    disbursedAt?: string;
-    createdAt: string;
-    approver?: { firstName: string; lastName: string } | null;
-    repayments: LoanRepayment[];
-}
+import { useEssLoans, type EssLoanRepayment } from "@/hooks/use-data";
 
 const statusConfig: Record<string, { color: string; icon: React.ElementType }> = {
     pending: { color: "bg-amber-500/15 text-amber-400 border-amber-500/20", icon: Clock },
@@ -74,31 +47,13 @@ const methodLabels: Record<string, string> = {
 };
 
 export default function ESSLoansPage() {
-    const { addToast } = useToast();
     const t = useTranslations("ESSLoans");
-    const [loans, setLoans] = useState<Loan[]>([]);
-    const [loading, setLoading] = useState(true);
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    // ── TanStack Query: my loans ──
+    const { data: loans = [], isLoading: loading } = useEssLoans();
     const [expandedLoanIds, setExpandedLoanIds] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        const fetchLoans = async () => {
-            try {
-                const res = await fetch("/api/loans");
-                if (res.ok) {
-                    const data = await res.json();
-                    const myLoans = Array.isArray(data) ? data : (data.loans || []);
-                    setLoans(myLoans);
-                }
-            } catch (err) {
-                console.error("Failed to fetch loans:", err);
-                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchLoans();
-    }, []);
 
     const toggleRepayments = (id: string) => {
         setExpandedLoanIds(prev => {
@@ -124,10 +79,12 @@ export default function ESSLoansPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={HandCoins}
+                iconColor="amber"
+            />
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -217,7 +174,7 @@ export default function ESSLoansPage() {
                                                     )}
                                                     <span className="flex items-center gap-1">
                                                         <Clock className="h-3.5 w-3.5" />
-                                                        {t("appliedOn")} {new Date(loan.createdAt).toLocaleDateString()}
+                                                        {t("appliedOn")} {formatDate(loan.createdAt)}
                                                     </span>
                                                 </div>
                                                 {loan.reason && (
@@ -295,10 +252,10 @@ export default function ESSLoansPage() {
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {loan.repayments.map(rep => (
+                                                            {(loan.repayments as EssLoanRepayment[]).map(rep => (
                                                                 <tr key={rep.id} className="border-b border-card-border/50 text-foreground">
                                                                     <td className="py-2 pr-4">{rep.installmentNo}</td>
-                                                                    <td className="py-2 pr-4">{new Date(rep.paidDate).toLocaleDateString()}</td>
+                                                                    <td className="py-2 pr-4">{formatDate(rep.paidDate)}</td>
                                                                     <td className="py-2 pr-4 text-right font-medium">৳{rep.amount.toLocaleString()}</td>
                                                                     <td className="py-2 pr-4 text-right">৳{rep.principalPart.toLocaleString()}</td>
                                                                     <td className="py-2 pr-4 text-right">৳{rep.interestPart.toLocaleString()}</td>

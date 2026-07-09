@@ -6,3 +6,4 @@ export { Badge, badgeVariants } from "./badge";
 export { Avatar } from "./avatar";
 export { useToast, ToastProvider } from "./toast";
 export { Modal, ConfirmModal } from "./modal";
+export { PageHeader } from "./page-header";

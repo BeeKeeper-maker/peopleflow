@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
     Calendar,
@@ -23,40 +24,9 @@ import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useLocale, useTranslations } from "next-intl";
 
+import { useManagerApprovals, queryKeys, type ManagerLeaveApproval, type ManagerExpenseApproval } from "@/hooks/use-data";
+
 type ApprovalType = "leave" | "expense";
-
-interface LeaveApproval {
-    id: string;
-    employee: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        photoUrl?: string | null;
-        designation?: { name: string } | null;
-    };
-    leaveType: { name: string };
-    fromDate: string;
-    toDate: string;
-    totalDays: number;
-    reason: string | null;
-    createdAt: string;
-}
-
-interface ExpenseApproval {
-    id: string;
-    employee: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        photoUrl?: string | null;
-        designation?: { name: string } | null;
-    };
-    title?: string | null;
-    category: string | { name?: string | null } | null;
-    amount: number;
-    description: string | null;
-    createdAt: string;
-}
 
 function approvalKey(type: ApprovalType, id: string) {
     return `${type}:${id}`;
@@ -67,9 +37,7 @@ export default function ManagerApprovalsPage() {
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const { addToast } = useToast();
-    const [isLoading, setIsLoading] = useState(true);
-    const [leaveApprovals, setLeaveApprovals] = useState<LeaveApproval[]>([]);
-    const [expenseApprovals, setExpenseApprovals] = useState<ExpenseApproval[]>([]);
+    const queryClient = useQueryClient();
     const [processingKey, setProcessingKey] = useState<string | null>(null);
     const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
     const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
@@ -78,34 +46,20 @@ export default function ManagerApprovalsPage() {
         new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
     ), [dateLocale]);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const [leavesRes, expensesRes] = await Promise.all([
-                fetch("/api/leaves/applications?status=pending&limit=100"),
-                fetch("/api/expenses/claims?pending=true"),
-            ]);
+    // ── TanStack Query: combined pending leaves + expenses ──
+    const { data: approvals, isLoading, isFetching, refetch } = useManagerApprovals("pending");
+    const leaveApprovals = useMemo<ManagerLeaveApproval[]>(
+        () => (approvals?.leaves || []) as ManagerLeaveApproval[],
+        [approvals],
+    );
+    const expenseApprovals = useMemo<ManagerExpenseApproval[]>(
+        () => (approvals?.expenses || []) as ManagerExpenseApproval[],
+        [approvals],
+    );
 
-            if (leavesRes.ok) {
-                const data = await leavesRes.json();
-                setLeaveApprovals(data.data || data || []);
-            }
-
-            if (expensesRes.ok) {
-                const data = await expensesRes.json();
-                setExpenseApprovals(Array.isArray(data) ? data : data.data || data.claims || []);
-            }
-        } catch (error) {
-            console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
-            addToast({ title: t("errorOccurred"), type: "error" });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [addToast, t]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const invalidateApprovals = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.manager.approvals() });
+    };
 
     const handleApprove = async (id: string, type: ApprovalType) => {
         const key = approvalKey(type, id);
@@ -119,8 +73,7 @@ export default function ManagerApprovalsPage() {
             });
 
             if (res.ok) {
-                if (type === "leave") setLeaveApprovals((prev) => prev.filter((approval) => approval.id !== id));
-                else setExpenseApprovals((prev) => prev.filter((approval) => approval.id !== id));
+                invalidateApprovals();
                 addToast({ title: t("approveSuccess"), type: "success" });
             } else {
                 const errorText = await res.text().catch(() => "");
@@ -154,8 +107,7 @@ export default function ManagerApprovalsPage() {
             });
 
             if (res.ok) {
-                if (type === "leave") setLeaveApprovals((prev) => prev.filter((approval) => approval.id !== id));
-                else setExpenseApprovals((prev) => prev.filter((approval) => approval.id !== id));
+                invalidateApprovals();
                 addToast({ title: t("rejectSuccess"), type: "success" });
             } else {
                 const errorText = await res.text().catch(() => "");
@@ -225,8 +177,8 @@ export default function ManagerApprovalsPage() {
                         {totalPending === 1 ? t("requestsSingular", { count: totalPending }) : t("requestsPlural", { count: totalPending })}
                     </p>
                 </div>
-                <Button variant="outline" onClick={fetchData} className="gap-2 self-start md:self-auto">
-                    <RefreshCw className="h-4 w-4" />
+                <Button variant="outline" onClick={() => refetch()} className="gap-2 self-start md:self-auto">
+                    <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
                     {t("refresh")}
                 </Button>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     AlertTriangle,
     Calendar,
@@ -22,32 +22,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-import { useToast } from "@/components/ui/toast";
+import { useManagerLeaves, type ManagerLeaveApproval } from "@/hooks/use-data";
+
 type LeaveStatus = "approved" | "pending" | "rejected" | "cancelled";
 type LeaveFilter = "all" | "active" | LeaveStatus;
-
-interface LeaveApplicationResponse {
-    id: string;
-    employeeId: string;
-    employee?: {
-        firstName?: string | null;
-        lastName?: string | null;
-        photoUrl?: string | null;
-        avatar?: string | null;
-        designation?: { name?: string | null } | null;
-    } | null;
-    leaveType?: { name?: string | null; code?: string | null } | null;
-    fromDate: string;
-    toDate: string;
-    totalDays?: number | null;
-    status?: string | null;
-    reason?: string | null;
-    appliedAt?: string | null;
-    createdAt?: string | null;
-}
 
 interface TeamLeave {
     id: string;
@@ -80,10 +62,7 @@ export default function ManagerLeavesPage() {
     const t = useTranslations("ManagerLeaves");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
-    const { addToast } = useToast();
-    const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [teamLeaves, setTeamLeaves] = useState<TeamLeave[]>([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<LeaveFilter>("all");
 
@@ -93,48 +72,33 @@ export default function ManagerLeavesPage() {
         new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value))
     ), [dateLocale]);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const year = currentMonth.getFullYear();
-            const month = currentMonth.getMonth() + 1;
-            const res = await fetch(`/api/leaves/applications?year=${year}&month=${month}&limit=100`);
-            if (!res.ok) throw new Error("Failed to fetch leave applications");
+    // ── TanStack Query: team leaves for the selected month ──
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const { data: applications = [], isLoading, isFetching, refetch } = useManagerLeaves({ year, month, limit: 100 });
 
-            const data = await res.json();
-            const applications: LeaveApplicationResponse[] = data.data || data || [];
-            const transformed: TeamLeave[] = applications.map((app) => {
-                const firstName = app.employee?.firstName || "";
-                const lastName = app.employee?.lastName || "";
-                const employeeName = `${firstName} ${lastName}`.trim() || t("unknownEmployee");
+    const teamLeaves: TeamLeave[] = useMemo(() => {
+        return (applications as ManagerLeaveApproval[]).map((app) => {
+            const firstName = app.employee?.firstName || "";
+            const lastName = app.employee?.lastName || "";
+            const employeeName = `${firstName} ${lastName}`.trim() || t("unknownEmployee");
 
-                return {
-                    id: app.id,
-                    employeeId: app.employeeId,
-                    employeeName,
-                    employeeDesignation: app.employee?.designation?.name || t("noDesignation"),
-                    employeeAvatar: app.employee?.photoUrl || app.employee?.avatar || null,
-                    leaveType: app.leaveType?.name || t("genericLeave"),
-                    fromDate: app.fromDate,
-                    toDate: app.toDate,
-                    days: Number(app.totalDays || 1),
-                    status: normalizeStatus(app.status),
-                    reason: app.reason || "",
-                    appliedAt: app.appliedAt || app.createdAt || app.fromDate,
-                };
-            });
-            setTeamLeaves(transformed);
-        } catch (error) {
-            console.error("Error fetching team leaves:", error);
-                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentMonth, t]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+            return {
+                id: app.id,
+                employeeId: app.employeeId || app.employee?.id || "",
+                employeeName,
+                employeeDesignation: app.employee?.designation?.name || t("noDesignation"),
+                employeeAvatar: app.employee?.photoUrl || null,
+                leaveType: app.leaveType?.name || t("genericLeave"),
+                fromDate: app.fromDate,
+                toDate: app.toDate,
+                days: Number(app.totalDays || 1),
+                status: normalizeStatus(app.status),
+                reason: app.reason || "",
+                appliedAt: app.appliedAt || app.createdAt || app.fromDate,
+            };
+        });
+    }, [applications, t]);
 
     const goToPreviousMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
     const goToNextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
@@ -220,18 +184,20 @@ export default function ManagerLeavesPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
-                    <p className="text-muted-foreground mt-1 max-w-3xl">{t("subtitle")}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={goToPreviousMonth} className="border-card-border text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></Button>
-                    <span className="px-4 py-2 bg-card rounded-lg text-foreground font-medium min-w-[170px] text-center">{monthName}</span>
-                    <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-card-border text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></Button>
-                    <Button variant="outline" onClick={fetchData} className="gap-2"><RefreshCw className="h-4 w-4" />{t("refresh")}</Button>
-                </div>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Calendar}
+                iconColor="emerald"
+                actions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={goToPreviousMonth} className="border-card-border text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /></Button>
+                        <span className="px-4 py-2 bg-card rounded-lg text-foreground font-medium min-w-[170px] text-center">{monthName}</span>
+                        <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-card-border text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></Button>
+                        <Button variant="outline" onClick={() => refetch()} className="gap-2"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />{t("refresh")}</Button>
+                    </div>
+                }
+            />
 
             <Card className="bg-linear-to-r from-blue-500/10 via-card to-card border-blue-500/20">
                 <CardContent className="p-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

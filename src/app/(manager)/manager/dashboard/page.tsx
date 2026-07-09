@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useToast } from "@/components/ui/toast";
 interface TeamMember {
@@ -53,6 +53,11 @@ export default function ManagerDashboardPage() {
     const { addToast } = useToast();
     const { data: session } = useSession();
     const t = useTranslations('Manager');
+    const tShared = useTranslations('SharedComponents');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    const formatMonthDay = (value: Date) => new Intl.DateTimeFormat(dateLocale, { month: "short", day: "numeric" }).format(value);
     const [isLoading, setIsLoading] = useState(true);
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
     const [attendanceMap, setAttendanceMap] = useState<Record<string, string>>({});
@@ -143,7 +148,7 @@ export default function ManagerDashboardPage() {
                                     id: `bday-${emp.id}`,
                                     type: "birthday",
                                     employeeName: `${emp.firstName} ${emp.lastName}`,
-                                    date: thisYearBirthday.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                                    date: formatMonthDay(thisYearBirthday),
                                 });
                             }
                         }
@@ -158,7 +163,7 @@ export default function ManagerDashboardPage() {
                                     id: `anniv-${emp.id}`,
                                     type: "anniversary",
                                     employeeName: `${emp.firstName} ${emp.lastName}`,
-                                    date: thisYearAnniversary.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                                    date: formatMonthDay(thisYearAnniversary),
                                 });
                             }
                         }
@@ -184,13 +189,13 @@ export default function ManagerDashboardPage() {
                         type: "leave" as const,
                         employeeName: `${l.employee?.firstName || ""} ${l.employee?.lastName || ""}`,
                         description: `${l.leaveType?.name || "Leave"} - ${l.totalDays} day${l.totalDays !== 1 ? 's' : ''}`,
-                        date: `${new Date(l.fromDate).toLocaleDateString()} - ${new Date(l.toDate).toLocaleDateString()}`,
+                        date: `${formatDate(l.fromDate)} - ${formatDate(l.toDate)}`,
                     }));
                     setPendingApprovals(leaveApprovals);
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
-                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
+                addToast({ title: tShared("failedLoadData"), type: "error" });
             } finally {
                 setIsLoading(false);
             }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
     Receipt,
-    Download,
     Calendar,
     Eye,
     FileText,
@@ -21,67 +20,20 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatCurrency } from "@/lib/utils";
-
-import { useToast } from "@/components/ui/toast";
-interface Payslip {
-    id: string;
-    month: number; // API returns number (1-12)
-    year: number;
-    basicSalary: number;
-    houseRent: number;
-    medicalAllowance: number; // API field name
-    conveyance: number;
-    specialAllowance?: number;
-    overtime?: number;
-    bonus?: number;
-    festivalBonus?: number;
-    arrears?: number;
-    otherEarnings: number;
-    pfEmployee: number; // API field name (not pfDeduction)
-    pfEmployer?: number;
-    incomeTax: number; // API field name (not taxDeduction)
-    loanDeduction?: number;
-    absentDeduction?: number;
-    lateDeduction?: number;
-    otherDeductions: number;
-    grossSalary: number;
-    totalDeductions: number;
-    netSalary: number;
-    status: "draft" | "approved" | "paid" | "reversed"; // actual API statuses
-    paymentDate?: string; // API field name (not paidDate)
-    paymentMode?: string;
-    presentDays?: number;
-    absentDays?: number;
-    leaveDays?: number;
-    totalWorkingDays?: number;
-}
+import { useEssPayslips, type EssPayslip as Payslip } from "@/hooks/use-data";
 
 export default function ESSPayslipsPage() {
-    const { addToast } = useToast();
     const t = useTranslations("ESSPayslips");
-    const [isLoading, setIsLoading] = useState(true);
-    const [payslips, setPayslips] = useState<Payslip[]>([]);
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    const formatMonthYear = (year: number, month: number) => new Intl.DateTimeFormat(dateLocale, { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+    const formatMonth = (year: number, month: number) => new Intl.DateTimeFormat(dateLocale, { month: "long" }).format(new Date(year, month - 1, 1));
+    // ── TanStack Query: my payslips ──
+    const { data: payslips = [], isLoading } = useEssPayslips();
     const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
-
-    useEffect(() => {
-        const fetchPayslips = async () => {
-            try {
-                const res = await fetch("/api/payroll/payslips");
-                if (res.ok) {
-                    const data = await res.json();
-                    setPayslips(data.data || data || []);
-                }
-            } catch (error) {
-                console.error("Error fetching payslips:", error);
-                addToast({ title: "Failed to load data. Please refresh the page.", type: "error" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchPayslips();
-    }, []);
 
     const latestPayslip = payslips[0];
     const previousPayslip = payslips[1];
@@ -105,10 +57,12 @@ export default function ESSPayslipsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Receipt}
+                iconColor="emerald"
+            />
 
             {/* Summary Cards */}
             {latestPayslip && (
@@ -208,7 +162,7 @@ export default function ESSPayslipsPage() {
                                             </div>
                                             <div>
                                                 <p className="font-medium text-foreground">
-                                                    {new Date(payslip.year, payslip.month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                                                    {formatMonthYear(payslip.year, payslip.month)}
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
                                                     {t("net")}: {formatCurrency(payslip.netSalary)}
@@ -227,7 +181,7 @@ export default function ESSPayslipsPage() {
                                             </Badge>
                                             {payslip.paymentDate && (
                                                 <span className="text-xs text-tertiary-foreground">
-                                                    {t("paidOn")} {new Date(payslip.paymentDate).toLocaleDateString()}
+                                                    {t("paidOn")} {formatDate(payslip.paymentDate)}
                                                 </span>
                                             )}
                                             <Button
@@ -253,7 +207,7 @@ export default function ESSPayslipsPage() {
                 <DialogContent className="max-w-lg bg-card border-card-border max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-foreground">
-                            {selectedPayslip && t("payslipTitle", { month: new Date(selectedPayslip.year, selectedPayslip.month - 1, 1).toLocaleDateString("en-US", { month: "long" }), year: selectedPayslip.year })}
+                            {selectedPayslip && t("payslipTitle", { month: formatMonth(selectedPayslip.year, selectedPayslip.month), year: selectedPayslip.year })}
                         </DialogTitle>
                     </DialogHeader>
                     {selectedPayslip && (

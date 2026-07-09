@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useToast } from "@/components/ui/toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
     Calendar,
     Plus,
@@ -19,50 +20,44 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface LeaveBalance {
-    leaveType: {
-        id: string;
-        name: string;
-        nameBn?: string;
-        code: string;
-        color?: string;
-    };
-    allocatedDays: number;
-    usedDays: number;
-    carriedForward: number;
-    remainingDays: number;
-}
-
-interface LeaveApplication {
-    id: string;
-    leaveType: {
-        name: string;
-        code: string;
-    };
-    fromDate: string;
-    toDate: string;
-    totalDays: number;
-    reason: string;
-    status: "pending" | "approved" | "rejected" | "cancelled";
-    createdAt: string;
-    approvedBy?: {
-        firstName: string;
-        lastName: string;
-    };
-    rejectionReason?: string;
-}
+import { PageHeader } from "@/components/ui/page-header";
+import {
+    useEssLeaveBalances,
+    useEssLeaveApplications,
+    type EssLeaveBalance as LeaveBalance,
+    type EssLeaveApplication as LeaveApplication,
+} from "@/hooks/use-data";
 
 export default function ESSLeavesPage() {
     const t = useTranslations("ESSLeaves");
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
+    const queryClient = useQueryClient();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
-    const [isLoading, setIsLoading] = useState(true);
-    const [balances, setBalances] = useState<LeaveBalance[]>([]);
-    const [applications, setApplications] = useState<LeaveApplication[]>([]);
+    // ── TanStack Query: leave balances + applications (current employee) ──
+    // The balances endpoint returns 400/404 when no employee profile is linked
+    // to the user — we surface that as `profileMissing` to keep the original UX
+    // (friendly banner instead of an error toast).
+    const {
+        data: balances = [],
+        isLoading: balancesLoading,
+        error: balancesError,
+    } = useEssLeaveBalances();
+    const { data: applications = [], isLoading: applicationsLoading } = useEssLeaveApplications();
+
+    const isLoading = balancesLoading || applicationsLoading;
+    const profileMissing = (balancesError?.status === 400 || balancesError?.status === 404);
+
     const [activeTab, setActiveTab] = useState("balances");
     const [cancellingId, setCancellingId] = useState<string | null>(null);
-    const [profileMissing, setProfileMissing] = useState(false);
+
+    // Invalidate both ESS leaves caches after mutations (cancel, submit, etc.).
+    const invalidateEssLeaves = () => {
+        queryClient.invalidateQueries({ queryKey: ["ess", "leave-balances"] });
+        queryClient.invalidateQueries({ queryKey: ["ess", "leave-applications"] });
+    };
 
     const handleCancelApplication = async (appId: string) => {
         const _ok = await confirm({ title: t("cancelConfirm"), description: "This leave application will be cancelled.", confirmLabel: "Cancel Leave", variant: "destructive" }); if (!_ok) return;
@@ -74,9 +69,7 @@ export default function ESSLeavesPage() {
                 body: JSON.stringify({ status: "cancelled" }),
             });
             if (res.ok) {
-                setApplications((prev) =>
-                    prev.map((a) => a.id === appId ? { ...a, status: "cancelled" } : a)
-                );
+                invalidateEssLeaves();
                 addToast({ title: t("cancelSuccess"), type: "success" });
             } else {
                 addToast({ title: t("cancelFailed"), type: "error" });
@@ -88,37 +81,6 @@ export default function ESSLeavesPage() {
             setCancellingId(null);
         }
     };
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Fetch real data from APIs
-                const [balancesRes, applicationsRes] = await Promise.all([
-                    fetch("/api/leaves/allocations"),
-                    fetch("/api/leaves/applications"),
-                ]);
-
-                if (balancesRes.ok) {
-                    const data = await balancesRes.json();
-                    setBalances(data.data || data || []);
-                    setProfileMissing(false);
-                } else if (balancesRes.status === 400 || balancesRes.status === 404) {
-                    setProfileMissing(true);
-                }
-
-                if (applicationsRes.ok) {
-                    const data = await applicationsRes.json();
-                    setApplications(data.data || data || []);
-                }
-            } catch (error) {
-                console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -205,27 +167,27 @@ export default function ESSLeavesPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
-                    <p className="text-muted-foreground mt-1">
-                        {t("subtitle")}
-                    </p>
-                </div>
-                {profileMissing ? (
-                    <Button className="bg-blue-600 hover:bg-blue-500" disabled>
-                        <Plus className="h-4 w-4 mr-2" />
-                        {t("applyForLeave")}
-                    </Button>
-                ) : (
-                    <Link href="/ess/leaves/apply">
-                        <Button className="bg-blue-600 hover:bg-blue-500">
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Calendar}
+                iconColor="emerald"
+                actions={
+                    profileMissing ? (
+                        <Button className="bg-blue-600 hover:bg-blue-500" disabled>
                             <Plus className="h-4 w-4 mr-2" />
                             {t("applyForLeave")}
                         </Button>
-                    </Link>
-                )}
-            </div>
+                    ) : (
+                        <Link href="/ess/leaves/apply">
+                            <Button className="bg-blue-600 hover:bg-blue-500">
+                                <Plus className="h-4 w-4 mr-2" />
+                                {t("applyForLeave")}
+                            </Button>
+                        </Link>
+                    )
+                }
+            />
 
             {profileMissing && (
                 <Card className="border-amber-500/20 bg-amber-500/10">
@@ -276,7 +238,7 @@ export default function ESSLeavesPage() {
                         </Card>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {balances.map((balance) => (
+                            {(balances as LeaveBalance[]).map((balance) => (
                                 <Card
                                     key={balance.leaveType.id}
                                     className={`bg-linear-to-br ${getColorClass(balance.leaveType.color)} border`}
@@ -289,8 +251,8 @@ export default function ESSLeavesPage() {
                                             <Calendar className="h-5 w-5 text-tertiary-foreground" />
                                         </div>
                                         <p className="text-sm text-muted-foreground">{balance.leaveType.name}</p>
-                                        {balance.leaveType.nameBn && (
-                                            <p className="text-xs text-tertiary-foreground">{balance.leaveType.nameBn}</p>
+                                        {(balance.leaveType as { nameBn?: string }).nameBn && (
+                                            <p className="text-xs text-tertiary-foreground">{(balance.leaveType as { nameBn?: string }).nameBn}</p>
                                         )}
                                         <div className="mt-4 flex items-end gap-2">
                                             <span className="text-4xl font-bold tabular-nums text-foreground">
@@ -348,7 +310,7 @@ export default function ESSLeavesPage() {
                                 </div>
                             ) : (
                                 <div className="divide-y divide-border">
-                                    {applications.map((app) => (
+                                    {(applications as LeaveApplication[]).map((app) => (
                                         <div
                                             key={app.id}
                                             className="p-4 hover:bg-hover transition-colors"
@@ -366,8 +328,8 @@ export default function ESSLeavesPage() {
                                                             {getStatusBadge(app.status)}
                                                         </div>
                                                         <p className="text-sm text-muted-foreground mt-1">
-                                                            {new Date(app.fromDate).toLocaleDateString()} -{" "}
-                                                            {new Date(app.toDate).toLocaleDateString()} ({app.totalDays}{" "}
+                                                            {formatDate(app.fromDate)} -{" "}
+                                                            {formatDate(app.toDate)} ({app.totalDays}{" "}
                                                             {app.totalDays === 1 ? t("day") : t("daysPlural")})
                                                         </p>
                                                         <p className="text-sm text-tertiary-foreground mt-1">
@@ -387,7 +349,7 @@ export default function ESSLeavesPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-xs text-tertiary-foreground">
-                                                        {t("applied")}: {new Date(app.createdAt).toLocaleDateString()}
+                                                        {t("applied")}: {formatDate(app.createdAt)}
                                                     </p>
                                                     {app.status === "pending" && (
                                                         <Button
