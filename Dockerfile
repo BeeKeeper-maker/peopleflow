@@ -73,7 +73,10 @@ RUN (while true; do echo "[build] Next.js build still running..."; sleep 30; don
 # Stage 3A: Background worker image
 # ───────────────────────────────────────
 FROM node:20-alpine AS worker
-RUN apk add --no-cache libc6-compat openssl
+# postgresql-client: needed so the bootstrap (entrypoint.sh) can run
+#   ALTER ROLE peopleflow_app WITH PASSWORD '...'
+#   for RLS enforcement when the worker image runs the bootstrap path.
+RUN apk add --no-cache libc6-compat openssl postgresql-client
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -169,7 +172,9 @@ CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js migrate deploy && no
 # Stage 3: Final production image (LEAN)
 # ───────────────────────────────────────
 FROM node:20-alpine AS runner
-RUN apk add --no-cache openssl curl
+# postgresql-client (psql): required by docker/entrypoint.sh to set the
+# peopleflow_app role password (RLS enforcement) at bootstrap time.
+RUN apk add --no-cache openssl curl postgresql-client
 WORKDIR /app
 
 ENV NODE_ENV=production

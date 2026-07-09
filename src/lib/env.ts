@@ -86,10 +86,14 @@ const serverSchema = z.object({
     SENTRY_AUTH_TOKEN: z.string().optional(),
 
     // ── CRON Authentication ──
-    CRON_SECRET: z
-        .string()
-        .min(16, "CRON_SECRET must be at least 16 characters")
-        .optional(),
+    // Required in production (min 16 characters). Optional in development.
+    // The refine() enforces production presence so a missing CRON_SECRET
+    // crashes the boot instead of silently leaving /api/cron/* endpoints
+    // either unprotected (503 in cron-auth.ts) or, worse, misconfigured.
+    CRON_SECRET: z.string().refine(
+        (val) => process.env.NODE_ENV !== "production" || (val && val.length >= 16),
+        "CRON_SECRET is required in production (min 16 characters)"
+    ).optional(),
 
     // ── Email (optional — graceful degradation) ──
     SMTP_HOST: z.string().optional(),

@@ -64,7 +64,7 @@ log "═════════════════════════
 # ── Step 1: System Update ──
 log "Step 1/8: Updating system packages..."
 apt-get update -qq && apt-get upgrade -y -qq
-apt-get install -y -qq curl git ufw fail2ban htop jq
+apt-get install -y -qq curl git ufw fail2ban htop jq awscli
 
 # ── Step 2: Install Docker ──
 log "Step 2/8: Installing Docker..."
@@ -134,7 +134,7 @@ else
 # Database
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 PF_APP_DB_PASSWORD=$PF_APP_DB_PASSWORD
-DATABASE_URL=postgresql://peopleflow_app:$PF_APP_DB_PASSWORD@db:5432/peopleflow
+DATABASE_URL=postgresql://peopleflow_app:$PF_APP_DB_PASSWORD@pgbouncer:6432/peopleflow?pgbouncer=true&connection_limit=1
 
 # Redis
 REDIS_PASSWORD=$REDIS_PASSWORD
@@ -183,6 +183,13 @@ fi
 # ── Step 6: Build and Start ──
 log "Step 6/8: Building and starting containers..."
 docker compose --profile release build
+
+# Run migrations FIRST (before app starts) so the app never boots against a stale schema.
+log "  Running database migrations (before app start)..."
+docker compose --profile release run --rm migrate
+
+# Start app + worker + redis + db + pgbouncer
+log "  Starting application services..."
 docker compose up -d
 
 # Wait for database to be healthy
@@ -195,10 +202,6 @@ for i in $(seq 1 30); do
     fi
     sleep 2
 done
-
-# Run migrations
-log "  Running database migrations..."
-docker compose --profile release run --rm migrate
 
 # ── Step 7: Setup Caddy Reverse Proxy ──
 log "Step 7/8: Setting up Caddy reverse proxy with SSL..."
@@ -236,7 +239,7 @@ $DOMAIN {
 }
 
 # Redirect www to non-www
-www.$domain {
+www.${DOMAIN} {
     redir https://$DOMAIN{uri} permanent
 }
 CADDYEOF
@@ -254,12 +257,30 @@ systemctl enable caddy
 systemctl restart caddy
 log "  Caddy configured with automatic SSL ✓"
 
+# ── Docker container log rotation ──
+# Prevents unbounded /var/lib/docker/containers/*/json.log growth which has
+# caused disk-full outages on long-running Contabo VPS instances.
+cat > /etc/docker/daemon.json << EOF
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+systemctl restart docker 2>/dev/null || true
+log "  Docker log rotation configured ✓"
+
 # ── Step 8: Setup Cron Jobs ──
 log "Step 8/8: Setting up automated tasks..."
 
-# Database backup (daily at 2 AM)
+# Database backup (daily at 2 AM) — uses docker exec so no DB_HOST env trickery.
+# The redirect inside the quoted string is part of the cron entry (cron logs to
+# peopleflow-backup.log). The grep -v de-duplicates on re-runs so re-deploys
+# never stack multiple backup entries in the crontab.
 mkdir -p /backups
-(crontab -l 2>/dev/null; echo "0 2 * * * cd $DEPLOY_DIR && POSTGRES_PASSWORD=\$(grep POSTGRES_PASSWORD .env | cut -d= -f2) DB_HOST=db DB_USER=peopleflow DB_NAME=peopleflow bash scripts/backup-db.sh >> /var/log/peopleflow-backup.log 2>&1") | crontab -
+(crontab -l 2>/dev/null | grep -v "backup-db.sh"; echo "0 2 * * * cd $DEPLOY_DIR && docker compose exec -T db pg_dump -U peopleflow peopleflow | gzip > /backups/peopleflow_\$(date +\%Y\%m\%d_\%H\%M\%S).sql.gz >> /var/log/peopleflow-backup.log 2>&1") | crontab -
 
 # Docker container auto-restart check (every 5 min)
 (crontab -l 2>/dev/null; echo "*/5 * * * * cd $DEPLOY_DIR && docker compose ps | grep -q 'Exit' && docker compose up -d >> /var/log/peopleflow-docker.log 2>&1") | crontab -
@@ -281,8 +302,9 @@ mkdir -p /backups
 (crontab -l 2>/dev/null; echo "*/15 * * * * curl -sf -H \"Authorization: Bearer $CRON_SECRET\" https://$DOMAIN/api/cron/health-ping >> /var/log/peopleflow-cron.log 2>&1") | crontab -
 
 # Log rotation
+# Rotates both app logs and Caddy access/error logs to avoid disk-full outages.
 cat > /etc/logrotate.d/peopleflow << EOF
-/var/log/peopleflow-*.log {
+/var/log/peopleflow-*.log /var/log/caddy/*.log {
     daily
     rotate 30
     compress

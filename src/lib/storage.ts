@@ -462,11 +462,14 @@ export function getStorageService(): FileStorageService {
         storageInstance = new FileStorageService({
             provider,
             basePath: process.env.STORAGE_LOCAL_PATH || path.join(process.cwd(), "uploads"),
-            bucket: process.env.STORAGE_S3_BUCKET,
-            region: process.env.STORAGE_S3_REGION,
-            accessKeyId: process.env.STORAGE_S3_ACCESS_KEY,
-            secretAccessKey: process.env.STORAGE_S3_SECRET_KEY,
-            endpoint: process.env.STORAGE_S3_ENDPOINT,
+            // S3_* are the canonical env var names (also wired in docker-compose.yml
+            // and .env.example). STORAGE_S3_* is the legacy alias kept for backward
+            // compatibility with existing deployments that haven't migrated yet.
+            bucket: process.env.S3_BUCKET || process.env.STORAGE_S3_BUCKET,
+            region: process.env.S3_REGION || process.env.STORAGE_S3_REGION,
+            accessKeyId: process.env.S3_ACCESS_KEY || process.env.STORAGE_S3_ACCESS_KEY,
+            secretAccessKey: process.env.S3_SECRET_KEY || process.env.STORAGE_S3_SECRET_KEY,
+            endpoint: process.env.S3_ENDPOINT || process.env.STORAGE_S3_ENDPOINT,
             publicUrl: process.env.STORAGE_PUBLIC_URL || "/api/uploads",
         });
     }
