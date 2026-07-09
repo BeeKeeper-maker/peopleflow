@@ -447,6 +447,7 @@ export async function POST(req: Request) {
             allocation = await auth.withDB((db) => db.leaveAllocation.create({
                 data: {
                     employeeId: employee.id,
+                    organizationId: auth.organizationId,
                     leaveTypeId: leaveTypeId,
                     year: currentYear,
                     allocatedDays: leaveType.annualAllocation,
@@ -466,6 +467,7 @@ export async function POST(req: Request) {
         const application = await auth.withDB((db) => db.leaveApplication.create({
             data: {
                 employeeId: employee.id,
+                organizationId: auth.organizationId,
                 leaveTypeId,
                 fromDate: start,
                 toDate: end,

@@ -212,6 +212,7 @@ export async function POST(req: Request) {
         const attendance = await prisma.attendance.create({
             data: {
                 employeeId: employee.id,
+                organizationId: auth.organizationId,
                 date: today,
                 checkIn: now,
                 checkInLocation: location ? JSON.stringify(location) : null,

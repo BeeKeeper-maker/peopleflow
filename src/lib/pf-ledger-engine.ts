@@ -186,6 +186,7 @@ export async function recordMonthlyContributions(
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: employee.organizationId,
                 transactionType: "employee_contribution",
                 amount: employeeAmount,
                 runningBalance: runningAfterEmployee,
@@ -202,6 +203,7 @@ export async function recordMonthlyContributions(
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: employee.organizationId,
                 transactionType: "employer_contribution",
                 amount: employerAmount,
                 runningBalance: runningAfterEmployer,
@@ -291,6 +293,7 @@ export async function calculateAndCreditInterest(
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: account.organizationId,
                 transactionType: "interest_credit",
                 amount: interestAmount,
                 runningBalance: newTotalBalance,
@@ -389,6 +392,7 @@ export async function settlePFAccount(
         await tx.pFTransaction.create({
             data: {
                 pfAccountId: account.id,
+                organizationId: account.organizationId,
                 transactionType: "settlement",
                 amount: -settlementAmount, // Negative = debit
                 runningBalance: 0,

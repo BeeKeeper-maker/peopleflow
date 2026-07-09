@@ -350,6 +350,7 @@ export async function PUT(
                         await db.salaryStructureAssignment.create({
                             data: {
                                 employeeId: id,
+                                organizationId: auth.organizationId,
                                 salaryStructureId: structureId,
                                 grossSalary,
                                 effectiveFrom: new Date(),
@@ -360,6 +361,7 @@ export async function PUT(
                     await db.salaryStructureAssignment.create({
                         data: {
                             employeeId: id,
+                            organizationId: auth.organizationId,
                             salaryStructureId: structureId,
                             grossSalary,
                             effectiveFrom: new Date(),

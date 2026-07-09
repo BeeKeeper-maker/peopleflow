@@ -180,6 +180,7 @@ export async function processCarryForward(
                     },
                     create: {
                         employeeId: employee.id,
+                        organizationId,
                         leaveTypeId: lt.id,
                         year: toYear,
                         allocatedDays: lt.annualAllocation,

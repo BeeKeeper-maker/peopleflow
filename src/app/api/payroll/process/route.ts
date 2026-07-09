@@ -270,6 +270,7 @@ export async function POST(req: Request) {
                         await db.salarySlip.create({
                             data: {
                                 employeeId: employee.id,
+                                organizationId: auth.organizationId,
                                 month,
                                 year,
                                 totalWorkingDays: salary.totalWorkingDays,

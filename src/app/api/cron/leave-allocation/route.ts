@@ -199,6 +199,7 @@ async function provisionAllocations(
                         },
                         create: {
                             employeeId: employee.id,
+                            organizationId,
                             leaveTypeId: lt.id,
                             year,
                             allocatedDays: lt.annualAllocation,

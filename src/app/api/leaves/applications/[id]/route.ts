@@ -243,6 +243,7 @@ export async function PUT(
                     await db.leaveAllocation.create({
                         data: {
                             employeeId: application.employeeId,
+                            organizationId: auth.organizationId,
                             leaveTypeId: application.leaveTypeId,
                             year: currentYear,
                             allocatedDays: application.leaveType.annualAllocation,
@@ -295,6 +296,7 @@ export async function PUT(
                         },
                         create: {
                             employeeId: application.employeeId,
+                            organizationId: auth.organizationId,
                             date: normalizedDate,
                             status: application.halfDay ? "half_day" : "on_leave",
                             source: "system",
@@ -434,6 +436,7 @@ async function handleApproval(auth: AuthContext, leaveApplicationId: string) {
                 await db.leaveAllocation.create({
                     data: {
                         employeeId: application.employeeId,
+                        organizationId: auth.organizationId,
                         leaveTypeId: application.leaveTypeId,
                         year: currentYear,
                         allocatedDays: application.leaveType.annualAllocation,
@@ -485,6 +488,7 @@ async function handleApproval(auth: AuthContext, leaveApplicationId: string) {
                     },
                     create: {
                         employeeId: application.employeeId,
+                        organizationId: auth.organizationId,
                         date: normalizedDate,
                         status: application.halfDay ? "half_day" : "on_leave",
                         source: "system",

@@ -130,6 +130,7 @@ export async function POST(req: Request) {
                 remainingAmount: amount,
                 reason: reason || null,
                 employeeId,
+                organizationId: auth.organizationId,
             },
             include: {
                 employee: {

@@ -160,6 +160,7 @@ export async function POST(req: Request) {
             },
             create: {
                 employeeId,
+                organizationId: ctx.organizationId,
                 date: attendanceDate,
                 checkIn: finalCheckIn,
                 checkOut: finalCheckOut,

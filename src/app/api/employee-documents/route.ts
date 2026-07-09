@@ -183,6 +183,7 @@ export async function POST(req: NextRequest) {
       return db.employeeDocument.create({
         data: {
           employeeId: employee.id,
+          organizationId: auth.organizationId,
           name: body.name,
           type: body.type,
           category,

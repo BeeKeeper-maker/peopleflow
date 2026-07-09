@@ -84,7 +84,7 @@ export async function autoMarkAbsent(
         // Process day shift employees (standard logic)
         const dayShiftIds = dayShiftEmployees.map((e) => e.id);
         if (dayShiftIds.length > 0) {
-            await processAbsentBatch(db, dayShiftIds, date, result);
+            await processAbsentBatch(db, organizationId, dayShiftIds, date, result);
         }
 
         // Process night shift employees (check YESTERDAY's shift date)
@@ -97,7 +97,7 @@ export async function autoMarkAbsent(
             // Only process if yesterday wasn't a weekend
             const yesterdayDow = yesterday.getDay();
             if (yesterdayDow !== 5 && yesterdayDow !== 6) {
-                await processAbsentBatch(db, nightShiftIds, yesterday, result);
+                await processAbsentBatch(db, organizationId, nightShiftIds, yesterday, result);
             }
         }
 
@@ -114,6 +114,7 @@ export async function autoMarkAbsent(
  */
 async function processAbsentBatch(
     db: TxClient,
+    organizationId: string,
     employeeIds: string[],
     date: Date,
     result: AutoAbsentResult
@@ -160,6 +161,7 @@ async function processAbsentBatch(
                         status: "on_leave",
                         source: "system",
                         employeeId,
+                        organizationId,
                     },
                 });
             } catch {
@@ -177,6 +179,7 @@ async function processAbsentBatch(
                     source: "system",
                     notes: "Auto-marked absent — no check-in recorded",
                     employeeId,
+                    organizationId,
                 },
             });
             result.marked++;
@@ -352,6 +355,20 @@ export async function submitRegularization(
             },
         });
 
+        // Look up the employee's organizationId so we can populate the
+        // denormalized organizationId column on the Attendance row (required
+        // NOT NULL after P0-SCHEMA migration).
+        const employeeOrg = await prisma.employee.findUnique({
+            where: { id: request.employeeId },
+            select: { organizationId: true },
+        });
+        if (!employeeOrg) {
+            return {
+                success: false,
+                message: `Employee ${request.employeeId} not found`,
+            };
+        }
+
         if (existing) {
             await prisma.attendance.update({
                 where: { id: existing.id },
@@ -367,6 +384,7 @@ export async function submitRegularization(
                 data: {
                     date: dateStart,
                     employeeId: request.employeeId,
+                    organizationId: employeeOrg.organizationId,
                     status: "absent",
                     source: "regularization",
                     notes: notesStr,

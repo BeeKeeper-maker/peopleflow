@@ -203,6 +203,7 @@ export async function POST(req: Request) {
                 data: {
                     date: dateStart,
                     employeeId: employee.id,
+                    organizationId: ctx.organizationId,
                     status: "absent",
                     source: "regularization",
                     notes: notesStr,

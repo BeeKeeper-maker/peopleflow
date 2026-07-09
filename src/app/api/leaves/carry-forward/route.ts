@@ -111,6 +111,7 @@ export async function POST(req: Request) {
                 },
                 create: {
                     employeeId: allocation.employee.id,
+                    organizationId: auth.organizationId,
                     leaveTypeId: allocation.leaveType.id,
                     year: toYear,
                     allocatedDays: allocation.leaveType.annualAllocation,

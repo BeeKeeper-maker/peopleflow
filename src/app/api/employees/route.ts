@@ -231,6 +231,7 @@ export async function POST(req: Request) {
         await tx.salaryStructureAssignment.create({
           data: {
             employeeId: employee.id,
+            organizationId: auth.organizationId,
             salaryStructureId: salaryStructure.id,
             grossSalary: body.grossSalary,
             effectiveFrom: new Date(),
@@ -280,6 +281,7 @@ export async function POST(req: Request) {
         await tx.leaveAllocation.create({
           data: {
             employeeId: employee.id,
+            organizationId: auth.organizationId,
             leaveTypeId: leaveType.id,
             year: allocationYear,
             allocatedDays,

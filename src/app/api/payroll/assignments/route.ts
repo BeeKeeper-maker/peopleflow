@@ -149,6 +149,7 @@ export async function POST(req: Request) {
         const assignment = await auth.withDB((db) => db.salaryStructureAssignment.create({
             data: {
                 employeeId,
+                organizationId: auth.organizationId,
                 salaryStructureId,
                 grossSalary,
                 effectiveFrom,

@@ -140,6 +140,7 @@ export async function generateFestivalBonus(
     const today = new Date();
     const paymentsToCreate: Array<{
         employeeId: string;
+        organizationId: string;
         bonusConfigId: string;
         amount: number;
         basisAmount: number;
@@ -233,6 +234,7 @@ export async function generateFestivalBonus(
 
         paymentsToCreate.push({
             employeeId: emp.id,
+            organizationId: config.organizationId,
             bonusConfigId: config.id,
             amount,
             basisAmount,

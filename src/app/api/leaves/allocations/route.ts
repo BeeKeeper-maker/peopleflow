@@ -135,6 +135,7 @@ export async function POST(req: Request) {
             },
             create: {
                 employeeId,
+                organizationId: auth.organizationId,
                 leaveTypeId,
                 year: parseInt(year),
                 allocatedDays: parseFloat(allocatedDays),
@@ -239,6 +240,7 @@ export async function PUT(req: Request) {
                     },
                     create: {
                         employeeId: employee.id,
+                        organizationId: auth.organizationId,
                         leaveTypeId: leaveType.id,
                         year: targetYear,
                         allocatedDays: leaveType.annualAllocation,
