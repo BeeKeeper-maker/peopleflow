@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createApprovalRequest } from "@/lib/approval-engine";
 import { calculateClaim, formatCurrency } from "@/lib/expense-engine";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 const claimSchema = z.object({
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json(claims);
+        return applyRateLimitHeaders(NextResponse.json(claims), rl.headers);
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         apiLogger.error({ err: error, errorId }, "Error fetching expense claims:");

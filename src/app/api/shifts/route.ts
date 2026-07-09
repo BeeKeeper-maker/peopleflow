@@ -3,7 +3,7 @@ import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { successResponse, errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 const shiftSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
       }),
     );
 
-    return successResponse(shifts);
+    return applyRateLimitHeaders(successResponse(shifts), rl.headers);
   } catch (error) {
     apiLogger.error({ err: error }, "GET_SHIFTS_ERROR");
     return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch shifts");

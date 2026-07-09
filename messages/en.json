@@ -112,6 +112,7 @@
     "exchangeRates": "Exchange Rates",
     "geoFence": "Geo-Fence",
     "queueHealth": "Queue Health",
+    "systemMonitor": "System Monitor",
     "readiness": "Setup Readiness",
     "lateDeduction": "Late Deduction Policy"
   },

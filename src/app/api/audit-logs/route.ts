@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { auditLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // ✅ CSV injection protection
 function escapeCsvField(value: string): string {
@@ -174,7 +174,7 @@ export async function GET(req: Request) {
             : [];
         const userMap = new Map(users.map(u => [u.id, u]));
 
-        return NextResponse.json({
+        return applyRateLimitHeaders(NextResponse.json({
             logs: logs.map(log => {
                 const user = log.userId ? userMap.get(log.userId) : null;
                 return {
@@ -206,7 +206,7 @@ export async function GET(req: Request) {
                 actions: filterActions.map(a => a.action),
                 entityTypes: filterEntities.map(e => e.entityType),
             },
-        });
+        }), rl.headers);
     } catch (error) {
         auditLogger.error({ err: error }, "Audit log error:");
         return NextResponse.json(

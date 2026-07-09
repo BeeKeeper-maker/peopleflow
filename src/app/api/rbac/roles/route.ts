@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/rbac-v2";
 import { getOrgRoles } from "@/lib/rbac-v2";
 import { createAuditLog } from "@/lib/audit-log";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
     try {
         const roles = await getOrgRoles(auth.organizationId);
-        return NextResponse.json({ data: roles, total: roles.length });
+        return applyRateLimitHeaders(NextResponse.json({ data: roles, total: roles.length }), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "GET_ROLES_ERROR");
         return NextResponse.json(

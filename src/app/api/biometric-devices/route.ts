@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { biometricLogger } from "@/lib/logger";
 
 /**
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
             orderBy: { createdAt: "desc" },
         }));
 
-        return NextResponse.json(devices);
+        return applyRateLimitHeaders(NextResponse.json(devices), rl.headers);
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         biometricLogger.error({ err: error, errorId }, "GET_BIOMETRIC_DEVICES_ERROR");

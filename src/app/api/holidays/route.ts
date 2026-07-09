@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/holidays — List holiday lists (filter by year)
 export async function GET(req: Request) {
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
             }),
         );
 
-        return NextResponse.json(holidayLists);
+        return applyRateLimitHeaders(NextResponse.json(holidayLists), rl.headers);
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         apiLogger.error({ err: error, errorId }, "GET_HOLIDAYS_ERROR");

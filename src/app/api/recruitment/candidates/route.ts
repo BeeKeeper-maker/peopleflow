@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
             take: limit,
         }));
 
-        return NextResponse.json({ data: candidates, total: candidates.length });
+        return applyRateLimitHeaders(NextResponse.json({ data: candidates, total: candidates.length }), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "GET_CANDIDATES_ERROR");
         return NextResponse.json({ error: "Failed to fetch candidates" }, { status: 500 });

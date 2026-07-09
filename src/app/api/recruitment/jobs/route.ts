@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { successResponse, errorResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET - List all job postings
 export async function GET(req: Request) {
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
             orderBy: { createdAt: "desc" },
         });
 
-        return successResponse(jobs);
+        return applyRateLimitHeaders(successResponse(jobs), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "GET_JOBS_ERROR");
         return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch jobs");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
             }),
         );
 
-        return NextResponse.json({ data: reviews, total: reviews.length });
+        return applyRateLimitHeaders(NextResponse.json({ data: reviews, total: reviews.length }), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "GET_REVIEWS_ERROR");
         return NextResponse.json({ error: "Failed to fetch reviews" }, { status: 500 });

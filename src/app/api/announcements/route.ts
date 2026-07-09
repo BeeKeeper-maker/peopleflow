@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/announcements — List announcements
 //
@@ -83,7 +83,7 @@ export async function GET(req: Request) {
             }),
         );
 
-        return NextResponse.json(announcements);
+        return applyRateLimitHeaders(NextResponse.json(announcements), rl.headers);
     } catch (error) {
         const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         apiLogger.error({ err: error, errorId }, "GET_ANNOUNCEMENTS_ERROR");

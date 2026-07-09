@@ -145,12 +145,17 @@ export async function DELETE(req: NextRequest) {
                     data: { twoFactorRecoveryCodes: remainingCodes },
                 });
             } else if (totpCode && user.twoFactorSecret) {
-                // Verify TOTP code
+                // Verify TOTP code.
+                // otplib v13's `verify` is async — it returns
+                // Promise<{ valid: boolean; delta?: number }> — so we MUST
+                // await it. Without `await` the Promise object is always
+                // truthy and ANY TOTP code is accepted (P10-FIXES).
                 const { verify: verifyTOTP } = await import("otplib");
-                const isValid = verifyTOTP({
+                const result = await verifyTOTP({
                     token: totpCode,
                     secret: user.twoFactorSecret,
                 });
+                const isValid = result?.valid ?? false;
                 if (!isValid) {
                     return NextResponse.json(
                         { error: "Invalid TOTP code" },

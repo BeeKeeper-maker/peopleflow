@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/branches — List all branches
 export async function GET(req: Request) {
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       }),
     );
 
-    return NextResponse.json(branches);
+    return applyRateLimitHeaders(NextResponse.json(branches), rl.headers);
   } catch (error) {
     const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     apiLogger.error({ err: error, errorId }, "GET_BRANCHES_ERROR");

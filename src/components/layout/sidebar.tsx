@@ -38,6 +38,7 @@ import {
     Bell,
     Settings2,
     Coins,
+    Activity,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -114,6 +115,9 @@ const navSections: NavSection[] = [
             { labelKey: "exchangeRates", href: "/settings/exchange-rates", icon: Coins, roles: ["super_admin", "admin", "hr_admin"] },
             { labelKey: "notificationPrefs", href: "/settings/notifications", icon: Bell, roles: ["super_admin", "admin", "hr_admin", "manager", "employee"] },
             { labelKey: "devices", href: "/devices", icon: Fingerprint, roles: ["super_admin", "admin", "hr_admin"] },
+
+            { labelKey: "queueHealth", href: "/settings/queue-health", icon: BarChart3, roles: ["super_admin", "admin"] },
+            { labelKey: "systemMonitor", href: "/settings/system-monitor", icon: Activity, roles: ["super_admin", "admin"] },
 
             { labelKey: "settings", href: "/settings", icon: Settings, roles: ["super_admin", "admin"] },
         ],

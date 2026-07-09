@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/approval-workflows — List workflows for the organization
 export async function GET(req: Request) {
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
             orderBy: { entityType: "asc" },
         }));
 
-        return NextResponse.json(workflows);
+        return applyRateLimitHeaders(NextResponse.json(workflows), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "Failed to fetch workflows:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
