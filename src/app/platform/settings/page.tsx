@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import {
     Settings,
     Shield,
@@ -32,6 +33,7 @@ interface PlatformAdmin {
 }
 
 export default function PlatformSettingsPage() {
+    const t = useTranslations("Platform");
     const [admins, setAdmins] = useState<PlatformAdmin[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export default function PlatformSettingsPage() {
     };
 
     const formatDate = (iso: string | null) => {
-        if (!iso) return "Never";
+        if (!iso) return t("never");
         return new Date(iso).toLocaleString("en-US", {
             day: "2-digit",
             month: "short",
@@ -114,9 +116,9 @@ export default function PlatformSettingsPage() {
                         <Settings className="h-5 w-5 text-indigo-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-foreground">Platform Settings</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t("settings")}</h1>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                            Manage admin accounts, security, and system configuration
+                            {t("settingsSubtitle")}
                         </p>
                     </div>
                 </div>
@@ -125,7 +127,7 @@ export default function PlatformSettingsPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-hover text-sm text-foreground hover:text-foreground hover:bg-hover transition-colors"
                 >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Refresh
+                    {t("refresh")}
                 </button>
             </div>
 
@@ -136,23 +138,23 @@ export default function PlatformSettingsPage() {
                         <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                             <Server className="w-[18px] h-[18px] text-emerald-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-foreground">Application</h3>
+                        <h3 className="text-sm font-semibold text-foreground">{t("application")}</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Name</span>
+                            <span className="text-muted-foreground">{t("name")}</span>
                             <span className="text-foreground">PeopleFlow HR</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Version</span>
+                            <span className="text-muted-foreground">{t("version")}</span>
                             <span className="text-foreground font-mono">v2.0</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Stack</span>
+                            <span className="text-muted-foreground">{t("stack")}</span>
                             <span className="text-foreground">Next.js 16 · Prisma</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Region</span>
+                            <span className="text-muted-foreground">{t("region")}</span>
                             <span className="text-foreground">Asia (Singapore)</span>
                         </div>
                     </div>
@@ -163,23 +165,23 @@ export default function PlatformSettingsPage() {
                         <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
                             <Database className="w-[18px] h-[18px] text-blue-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-foreground">Data Layer</h3>
+                        <h3 className="text-sm font-semibold text-foreground">{t("dataLayer")}</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Database</span>
+                            <span className="text-muted-foreground">{t("database")}</span>
                             <span className="text-foreground">PostgreSQL + RLS</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Cache</span>
+                            <span className="text-muted-foreground">{t("cache")}</span>
                             <span className="text-foreground">Redis + BullMQ</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Pooler</span>
+                            <span className="text-muted-foreground">{t("pooler")}</span>
                             <span className="text-foreground">PgBouncer</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Backup</span>
+                            <span className="text-muted-foreground">{t("backup")}</span>
                             <span className="text-foreground">Daily + S3</span>
                         </div>
                     </div>
@@ -190,24 +192,24 @@ export default function PlatformSettingsPage() {
                         <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
                             <Cloud className="w-[18px] h-[18px] text-violet-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-foreground">Integrations</h3>
+                        <h3 className="text-sm font-semibold text-foreground">{t("integrations")}</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Payments</span>
+                            <span className="text-muted-foreground">{t("payments")}</span>
                             <span className="text-foreground">Stripe</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Storage</span>
+                            <span className="text-muted-foreground">{t("storage")}</span>
                             <span className="text-foreground">S3 / R2</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Auth</span>
+                            <span className="text-muted-foreground">{t("auth")}</span>
                             <span className="text-foreground">Auth.js v5</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">SMS</span>
-                            <span className="text-foreground">Not configured</span>
+                            <span className="text-muted-foreground">{t("sms")}</span>
+                            <span className="text-foreground">{t("notConfigured")}</span>
                         </div>
                     </div>
                 </div>
@@ -218,7 +220,7 @@ export default function PlatformSettingsPage() {
                 <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Shield className="h-4 w-4 text-indigo-400" />
-                        <h3 className="text-sm font-semibold text-foreground">Platform Admin Accounts</h3>
+                        <h3 className="text-sm font-semibold text-foreground">{t("platformAdminAccounts")}</h3>
                         <span className="text-xs text-muted-foreground">({admins.length})</span>
                     </div>
                     <button
@@ -226,7 +228,7 @@ export default function PlatformSettingsPage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors border border-indigo-500/30"
                     >
                         <Plus className="w-3.5 h-3.5" />
-                        Add Admin
+                        {t("addAdmin")}
                     </button>
                 </div>
 
@@ -235,7 +237,7 @@ export default function PlatformSettingsPage() {
                     <form onSubmit={handleCreate} className="px-5 py-4 border-b border-border bg-indigo-500/[0.02]">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                             <label className="block">
-                                <span className="mb-1 block text-xs text-muted-foreground">Name</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">{t("name")}</span>
                                 <input
                                     type="text"
                                     value={createForm.name}
@@ -247,7 +249,7 @@ export default function PlatformSettingsPage() {
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-muted-foreground">Email</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">{t("email")}</span>
                                 <input
                                     type="email"
                                     value={createForm.email}
@@ -258,7 +260,7 @@ export default function PlatformSettingsPage() {
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-muted-foreground">Password (min 8 chars)</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">{t("passwordMinChars")}</span>
                                 <input
                                     type="password"
                                     value={createForm.password}
@@ -270,14 +272,14 @@ export default function PlatformSettingsPage() {
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-muted-foreground">Role</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">{t("role")}</span>
                                 <select
                                     value={createForm.role}
                                     onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as "platform_admin" | "platform_super" })}
                                     className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50"
                                 >
-                                    <option value="platform_admin">Platform Admin</option>
-                                    <option value="platform_super">Super Admin</option>
+                                    <option value="platform_admin">{t("platformAdminRole")}</option>
+                                    <option value="platform_super">{t("superAdminRole")}</option>
                                 </select>
                             </label>
                         </div>
@@ -292,15 +294,15 @@ export default function PlatformSettingsPage() {
                                 onClick={() => setShowCreateForm(false)}
                                 className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition"
                             >
-                                Cancel
+                                {t("cancel")}
                             </button>
                             <button
                                 type="submit"
                                 disabled={creating}
-                                className="h-9 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50 inline-flex items-center gap-2"
+                                className="h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50 inline-flex items-center gap-2"
                             >
                                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                Create Admin
+                                {t("createAdmin")}
                             </button>
                         </div>
                     </form>
@@ -316,7 +318,7 @@ export default function PlatformSettingsPage() {
                             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors text-sm"
                         >
                             <RefreshCw className="h-4 w-4" />
-                            Retry
+                            {t("retry")}
                         </button>
                     </div>
                 ) : loading ? (
@@ -351,18 +353,18 @@ export default function PlatformSettingsPage() {
                                         {admin.isActive ? (
                                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
                                                 <CheckCircle2 className="w-2.5 h-2.5" />
-                                                Active
+                                                {t("active")}
                                             </span>
                                         ) : (
                                             <span className="inline-flex items-center gap-1 text-[10px] text-red-400">
                                                 <XCircle className="w-2.5 h-2.5" />
-                                                Disabled
+                                                {t("disabled")}
                                             </span>
                                         )}
                                         {admin.twoFactorEnabled && (
                                             <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
                                                 <Lock className="w-2.5 h-2.5" />
-                                                2FA
+                                                {t("twoFA")}
                                             </span>
                                         )}
                                     </div>
@@ -373,7 +375,7 @@ export default function PlatformSettingsPage() {
                                         </span>
                                         <span className="flex items-center gap-1">
                                             <Clock className="w-3 h-3" />
-                                            Last login: {formatDate(admin.lastLogin)}
+                                            {t("lastLogin")}: {formatDate(admin.lastLogin)}
                                         </span>
                                     </div>
                                 </div>
@@ -387,35 +389,35 @@ export default function PlatformSettingsPage() {
             <div className="rounded-xl border border-border bg-hover/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
                     <KeyRound className="h-4 w-4 text-amber-400" />
-                    <h3 className="text-sm font-semibold text-foreground">Security Policy</h3>
+                    <h3 className="text-sm font-semibold text-foreground">{t("securityPolicy")}</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Globe className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-foreground font-medium">CSP Hardened</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Content Security Policy blocks unsafe-eval in production</p>
+                            <p className="text-foreground font-medium">{t("cspHardened")}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{t("cspHardenedDesc")}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Lock className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-foreground font-medium">AES-256-GCM Encryption</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">bKash credentials and PII encrypted at rest</p>
+                            <p className="text-foreground font-medium">{t("aesEncryption")}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{t("aesEncryptionDesc")}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Database className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-foreground font-medium">Row-Level Security</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">PostgreSQL RLS enforces tenant isolation at DB layer</p>
+                            <p className="text-foreground font-medium">{t("rls")}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{t("rlsDesc")}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Clock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-foreground font-medium">3-Year Audit Retention</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Per Bangladesh Labour Act 2006 compliance</p>
+                            <p className="text-foreground font-medium">{t("auditRetention")}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{t("auditRetentionDesc")}</p>
                         </div>
                     </div>
                 </div>

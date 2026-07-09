@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
     ArrowLeft,
     ArrowRight,
@@ -105,25 +106,36 @@ const STATUS_STYLES: Record<string, string> = {
     past_due: "text-amber-400 bg-amber-500/10",
 };
 
-const FEATURE_LABELS: Record<FeatureKey, string> = {
-    payroll: "Payroll",
-    biometric: "Biometric / Fingerprint",
-    expenses: "Expenses",
-    loans: "Loans & Advances",
-    recruitment: "Recruitment",
-    performance: "Performance",
-    customDocuments: "Documents",
-    advancedReports: "Advanced Reports",
-    compliance: "Compliance",
-    apiAccess: "API Access",
-};
+const FEATURE_KEYS: FeatureKey[] = [
+    "payroll",
+    "biometric",
+    "expenses",
+    "loans",
+    "recruitment",
+    "performance",
+    "customDocuments",
+    "advancedReports",
+    "compliance",
+    "apiAccess",
+];
 
-const FEATURE_KEYS = Object.keys(FEATURE_LABELS) as FeatureKey[];
-
-const formatLimit = (value: number) => (value === -1 ? "Unlimited" : value.toLocaleString());
 const inputLimitValue = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
 export default function TenantDetailPage() {
+    const t = useTranslations("Platform");
+    const formatLimit = (value: number) => (value === -1 ? t("unlimited") : value.toLocaleString());
+    const FEATURE_LABELS: Record<FeatureKey, string> = {
+        payroll: t("featurePayroll"),
+        biometric: t("tenantFeatureBiometric"),
+        expenses: t("tenantFeatureExpenses"),
+        loans: t("tenantFeatureLoans"),
+        recruitment: t("featureRecruitment"),
+        performance: t("tenantFeaturePerformance"),
+        customDocuments: t("tenantFeatureDocuments"),
+        advancedReports: t("tenantFeatureAdvancedReports"),
+        compliance: t("tenantFeatureCompliance"),
+        apiAccess: t("tenantFeatureApiAccess"),
+    };
     const params = useParams();
     const router = useRouter();
     const tenantId = params.id as string;
@@ -245,7 +257,7 @@ export default function TenantDetailPage() {
         try {
             await action();
             await loadTenant();
-            setMessage("Saved successfully.");
+            setMessage(t("savedSuccessfullyMessage"));
         } catch (error) {
             setMessage(error instanceof Error ? error.message : "Action failed.");
         } finally {
@@ -306,13 +318,13 @@ export default function TenantDetailPage() {
         );
     }
 
-    if (!tenant) return <div className="text-muted-foreground">Tenant not found</div>;
+    if (!tenant) return <div className="text-muted-foreground">{t("tenantNotFound")}</div>;
 
     return (
         <div className="space-y-6">
             <div>
                 <button onClick={() => router.push("/platform/tenants")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
-                    <ArrowLeft className="w-4 h-4" /> Back to Tenants
+                    <ArrowLeft className="w-4 h-4" /> {t("backToTenants")}
                 </button>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="flex min-w-0 items-center gap-4">
@@ -321,9 +333,9 @@ export default function TenantDetailPage() {
                         </div>
                         <div className="min-w-0">
                             <h1 className="truncate text-2xl font-bold text-foreground">{tenant.name}</h1>
-                            <p className="truncate text-sm text-muted-foreground font-mono">{tenant.slug} • Created {new Date(tenant.createdAt).toLocaleDateString()}</p>
+                            <p className="truncate text-sm text-muted-foreground font-mono">{tenant.slug} • {t("created")} {new Date(tenant.createdAt).toLocaleDateString()}</p>
                             {activeCustomizations.length > 0 && (
-                                <p className="mt-1 text-xs text-indigo-300">Custom deal active: {activeCustomizations.join(", ")}</p>
+                                <p className="mt-1 text-xs text-indigo-300">{t("customDealActive", { items: activeCustomizations.join(", ") })}</p>
                             )}
                         </div>
                     </div>
@@ -332,7 +344,7 @@ export default function TenantDetailPage() {
                             {tenant.status.toUpperCase()}
                         </span>
                         <button onClick={() => setShowImpersonation(true)} className="h-9 px-3 rounded-lg bg-hover border border-border text-sm text-muted-foreground hover:text-foreground hover:border-indigo-500/30 flex items-center gap-2 transition-all">
-                            <UserCog className="w-4 h-4" /> Impersonate
+                            <UserCog className="w-4 h-4" /> {t("impersonate")}
                         </button>
                         <button onClick={() => setShowKillSwitch(true)} className={`h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
                             tenant.status === "suspended"
@@ -340,7 +352,7 @@ export default function TenantDetailPage() {
                                 : "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20"
                         }`}>
                             <Power className="w-4 h-4" />
-                            {tenant.status === "suspended" ? "Reactivate" : "Suspend"}
+                            {tenant.status === "suspended" ? t("reactivate") : t("suspend")}
                         </button>
                     </div>
                 </div>
@@ -349,55 +361,55 @@ export default function TenantDetailPage() {
             {message && <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-200">{message}</div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <InfoCard title="Organization" icon={<Building2 className="w-4 h-4 text-indigo-400" />}>
-                    <InfoRow label="Country" value={tenant.countryCode || "BD"} />
-                    <InfoRow label="Currency" value={tenant.currencyCode || "BDT"} />
-                    <InfoRow label="Employees" value={counts.employees} />
-                    <InfoRow label="Admins" value={counts.users} />
-                    <InfoRow label="Branches" value={counts.branches} />
-                    <InfoRow label="Departments" value={counts.departments} />
+                <InfoCard title={t("organization")} icon={<Building2 className="w-4 h-4 text-indigo-400" />}>
+                    <InfoRow label={t("country")} value={tenant.countryCode || "BD"} />
+                    <InfoRow label={t("currency")} value={tenant.currencyCode || "BDT"} />
+                    <InfoRow label={t("employees")} value={counts.employees} />
+                    <InfoRow label={t("admins")} value={counts.users} />
+                    <InfoRow label={t("branches")} value={counts.branches} />
+                    <InfoRow label={t("departments")} value={counts.departments} />
                 </InfoCard>
 
-                <InfoCard title="Subscription" icon={<CreditCard className="w-4 h-4 text-violet-400" />}>
+                <InfoCard title={t("subscription")} icon={<CreditCard className="w-4 h-4 text-violet-400" />}>
                     {sub ? (
                         <>
                             <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-500/10">
                                 <p className="text-lg font-bold text-foreground">{plan?.name || "—"}</p>
-                                <p className="text-sm text-indigo-300">৳{plan?.priceMonthly?.toLocaleString()}/mo</p>
+                                <p className="text-sm text-indigo-300">৳{plan?.priceMonthly?.toLocaleString()}{t("perMonth")}</p>
                             </div>
-                            <InfoRow label="Status" value={sub.status} />
-                            <InfoRow label="Billing" value={sub.billingCycle} />
-                            <InfoRow label="Period End" value={sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : "—"} />
-                            <InfoRow label="Trial End" value={sub.trialEnd ? new Date(sub.trialEnd).toLocaleDateString() : "—"} />
+                            <InfoRow label={t("statusColumn")} value={sub.status} />
+                            <InfoRow label={t("billingLabel")} value={sub.billingCycle} />
+                            <InfoRow label={t("periodEnd")} value={sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : "—"} />
+                            <InfoRow label={t("trialEnd")} value={sub.trialEnd ? new Date(sub.trialEnd).toLocaleDateString() : "—"} />
                         </>
-                    ) : <p className="text-sm text-muted-foreground">No subscription</p>}
+                    ) : <p className="text-sm text-muted-foreground">{t("noSubscription")}</p>}
                 </InfoCard>
 
-                <InfoCard title="Usage Limits" icon={<Layers className="w-4 h-4 text-amber-400" />}>
+                <InfoCard title={t("usageLimits")} icon={<Layers className="w-4 h-4 text-amber-400" />}>
                     {limits ? (
                         <>
-                            <UsageBar label="Employees" current={counts.employees} limit={limits.maxEmployees} />
-                            <UsageBar label="Admins" current={counts.users} limit={limits.maxAdmins} />
-                            <UsageBar label="Branches" current={counts.branches} limit={limits.maxBranches} />
-                            <UsageBar label="Devices" current={0} limit={limits.maxDevices} />
+                            <UsageBar label={t("employees")} current={counts.employees} limit={limits.maxEmployees} />
+                            <UsageBar label={t("admins")} current={counts.users} limit={limits.maxAdmins} />
+                            <UsageBar label={t("branches")} current={counts.branches} limit={limits.maxBranches} />
+                            <UsageBar label={t("devices")} current={0} limit={limits.maxDevices} />
                         </>
-                    ) : <p className="text-sm text-muted-foreground">No plan limits</p>}
+                    ) : <p className="text-sm text-muted-foreground">{t("noPlanLimits")}</p>}
                 </InfoCard>
             </div>
 
 
 
-            <InfoCard title="Company Usage Intelligence" icon={<Activity className="w-4 h-4 text-cyan-400" />}>
-                <p className="text-sm text-muted-foreground">Owner-level telemetry for support, billing psychology, abuse monitoring, and upgrade conversations.</p>
+            <InfoCard title={t("companyUsageIntelligence")} icon={<Activity className="w-4 h-4 text-cyan-400" />}>
+                <p className="text-sm text-muted-foreground">{t("companyUsageIntelligenceDesc")}</p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <MetricTile icon={<Users className="w-4 h-4" />} label="Employees" value={usage?.employees ?? counts.employees} />
-                    <MetricTile icon={<Mail className="w-4 h-4" />} label="Emails sent" value={usage?.emailsSent ?? 0} />
-                    <MetricTile icon={<ImageIcon className="w-4 h-4" />} label="Images uploaded" value={usage?.imagesUploaded ?? 0} />
-                    <MetricTile icon={<Database className="w-4 h-4" />} label="Storage used" value={`${usage?.storageMB ?? 0} MB`} />
-                    <MetricTile icon={<Building2 className="w-4 h-4" />} label="Branches" value={usage?.branches ?? counts.branches} />
-                    <MetricTile icon={<Shield className="w-4 h-4" />} label="Admins/users" value={usage?.users ?? counts.users} />
-                    <MetricTile icon={<Layers className="w-4 h-4" />} label="API calls" value={usage?.apiCalls ?? 0} />
-                    <MetricTile icon={<SlidersHorizontal className="w-4 h-4" />} label="Feature signals" value={usage?.featureEvents?.length ?? 0} />
+                    <MetricTile icon={<Users className="w-4 h-4" />} label={t("employees")} value={usage?.employees ?? counts.employees} />
+                    <MetricTile icon={<Mail className="w-4 h-4" />} label={t("emailsSent")} value={usage?.emailsSent ?? 0} />
+                    <MetricTile icon={<ImageIcon className="w-4 h-4" />} label={t("imagesUploaded")} value={usage?.imagesUploaded ?? 0} />
+                    <MetricTile icon={<Database className="w-4 h-4" />} label={t("storageUsed")} value={`${usage?.storageMB ?? 0} MB`} />
+                    <MetricTile icon={<Building2 className="w-4 h-4" />} label={t("branches")} value={usage?.branches ?? counts.branches} />
+                    <MetricTile icon={<Shield className="w-4 h-4" />} label={t("adminsUsers")} value={usage?.users ?? counts.users} />
+                    <MetricTile icon={<Layers className="w-4 h-4" />} label={t("apiCalls")} value={usage?.apiCalls ?? 0} />
+                    <MetricTile icon={<SlidersHorizontal className="w-4 h-4" />} label={t("featureSignals")} value={usage?.featureEvents?.length ?? 0} />
                 </div>
                 {usage?.featureEvents?.length ? (
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -412,53 +424,53 @@ export default function TenantDetailPage() {
             </InfoCard>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <InfoCard title="Package Control" icon={<SlidersHorizontal className="w-4 h-4 text-indigo-400" />}>
-                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Plan</label>
+                <InfoCard title={t("packageControl")} icon={<SlidersHorizontal className="w-4 h-4 text-indigo-400" />}>
+                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">{t("plan")}</label>
                     <select value={selectedPlanSlug} onChange={(e) => setSelectedPlanSlug(e.target.value)} className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50">
-                        {plans.map((p) => <option key={p.id} value={p.slug}>{p.name} — ৳{p.priceMonthly.toLocaleString()}/mo</option>)}
+                        {plans.map((p) => <option key={p.id} value={p.slug}>{p.name} — ৳{p.priceMonthly.toLocaleString()}{t("perMonth")}</option>)}
                     </select>
                     <button
                         onClick={() => runAction("change-plan", () => patchSubscription({ action: "change_plan", planSlug: selectedPlanSlug, reason: "Platform owner package adjustment" }))}
                         disabled={actionLoading === "change-plan" || !selectedPlanSlug || selectedPlanSlug === plan?.slug}
-                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50"
+                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50"
                     >
-                        <Save className="inline w-4 h-4 mr-1" /> Save Plan
+                        <Save className="inline w-4 h-4 mr-1" /> {t("savePlan")}
                     </button>
                 </InfoCard>
 
-                <InfoCard title="Trial Control" icon={<CalendarPlus className="w-4 h-4 text-blue-400" />}>
-                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Extend Trial By Days</label>
+                <InfoCard title={t("trialControl")} icon={<CalendarPlus className="w-4 h-4 text-blue-400" />}>
+                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">{t("extendTrialByDays")}</label>
                     <input value={trialDays} onChange={(e) => setTrialDays(e.target.value)} type="number" min="1" max="90" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                     <button
                         onClick={() => runAction("extend-trial", () => patchSubscription({ action: "extend_trial", days: Number(trialDays), reason: "Platform owner trial extension" }))}
                         disabled={actionLoading === "extend-trial"}
                         className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-blue-600 hover:bg-blue-500 transition disabled:opacity-50"
                     >
-                        Extend Trial
+                        {t("extendTrial")}
                     </button>
                 </InfoCard>
 
-                <InfoCard title="Custom Limits" icon={<Users className="w-4 h-4 text-emerald-400" />}>
+                <InfoCard title={t("customLimits")} icon={<Users className="w-4 h-4 text-emerald-400" />}>
                     <div className="grid grid-cols-2 gap-2">
-                        <LimitInput label="Employees" value={limitForm.maxEmployeesOverride} onChange={(v) => setLimitForm((p) => ({ ...p, maxEmployeesOverride: v }))} placeholder={plan ? formatLimit(plan.maxEmployees) : ""} />
-                        <LimitInput label="Admins" value={limitForm.maxAdmins} onChange={(v) => setLimitForm((p) => ({ ...p, maxAdmins: v }))} />
-                        <LimitInput label="Branches" value={limitForm.maxBranches} onChange={(v) => setLimitForm((p) => ({ ...p, maxBranches: v }))} />
-                        <LimitInput label="Devices" value={limitForm.maxDevices} onChange={(v) => setLimitForm((p) => ({ ...p, maxDevices: v }))} />
-                        <LimitInput label="Storage MB" value={limitForm.maxStorageOverride} onChange={(v) => setLimitForm((p) => ({ ...p, maxStorageOverride: v }))} placeholder={plan ? formatLimit(plan.maxStorageMB) : ""} />
+                        <LimitInput label={t("employees")} value={limitForm.maxEmployeesOverride} onChange={(v) => setLimitForm((p) => ({ ...p, maxEmployeesOverride: v }))} placeholder={plan ? formatLimit(plan.maxEmployees) : ""} />
+                        <LimitInput label={t("admins")} value={limitForm.maxAdmins} onChange={(v) => setLimitForm((p) => ({ ...p, maxAdmins: v }))} />
+                        <LimitInput label={t("branches")} value={limitForm.maxBranches} onChange={(v) => setLimitForm((p) => ({ ...p, maxBranches: v }))} />
+                        <LimitInput label={t("devices")} value={limitForm.maxDevices} onChange={(v) => setLimitForm((p) => ({ ...p, maxDevices: v }))} />
+                        <LimitInput label={t("storageMB")} value={limitForm.maxStorageOverride} onChange={(v) => setLimitForm((p) => ({ ...p, maxStorageOverride: v }))} placeholder={plan ? formatLimit(plan.maxStorageMB) : ""} />
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">Use -1 for unlimited. Empty employee/storage resets to plan default.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{t("customLimitsHelp")}</p>
                     <button
                         onClick={() => runAction("limits", () => patchSubscription({ action: "override_limits", ...limitForm, reason: "Platform owner custom package limits" }))}
                         disabled={actionLoading === "limits"}
                         className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50"
                     >
-                        Save Limits
+                        {t("saveLimits")}
                     </button>
                 </InfoCard>
             </div>
 
-            <InfoCard title="Feature Access Control" icon={<Shield className="w-4 h-4 text-violet-400" />}>
-                <p className="text-sm text-muted-foreground mb-4">Enable only the modules this company paid for. These overrides merge on top of the selected plan and are audit-logged.</p>
+            <InfoCard title={t("featureAccessControl")} icon={<Shield className="w-4 h-4 text-violet-400" />}>
+                <p className="text-sm text-muted-foreground mb-4">{t("featureAccessControlDesc")}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {FEATURE_KEYS.map((key) => (
                         <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-hover/50 px-4 py-3 text-sm text-foreground">
@@ -477,12 +489,12 @@ export default function TenantDetailPage() {
                     disabled={actionLoading === "features"}
                     className="mt-4 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-violet-600 hover:bg-violet-500 transition disabled:opacity-50"
                 >
-                    Save Feature Access
+                    {t("saveFeatureAccess")}
                 </button>
             </InfoCard>
 
             {/* Activity Timeline */}
-            <InfoCard title="Activity Timeline" icon={<Activity className="w-4 h-4 text-cyan-400" />}>
+            <InfoCard title={t("activityTimeline")} icon={<Activity className="w-4 h-4 text-cyan-400" />}>
                 {activityLoading ? (
                     <div className="space-y-2">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -498,8 +510,8 @@ export default function TenantDetailPage() {
                 ) : activity.length === 0 ? (
                     <div className="text-center py-6">
                         <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No activity recorded for this tenant yet.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Actions like subscription changes, feature overrides, and suspensions will appear here.</p>
+                        <p className="text-sm text-muted-foreground">{t("noActivityRecorded")}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{t("noActivityRecordedDesc")}</p>
                     </div>
                 ) : (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin pr-2">
@@ -534,13 +546,13 @@ export default function TenantDetailPage() {
                                         </div>
                                         {log.platformAdmin?.name && (
                                             <p className="text-xs text-muted-foreground mt-0.5">
-                                                by <span className="text-foreground font-medium">{log.platformAdmin.name}</span>
+                                                {t("byWord")} <span className="text-foreground font-medium">{log.platformAdmin.name}</span>
                                             </p>
                                         )}
                                         {log.metadata && Object.keys(log.metadata).length > 0 && (
                                             <details className="mt-1.5">
                                                 <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-muted-foreground select-none">
-                                                    View details
+                                                    {t("viewDetails")}
                                                 </summary>
                                                 <pre className="text-[10px] text-muted-foreground mt-1 p-2 rounded bg-hover/50 overflow-x-auto">
 {JSON.stringify(log.metadata, null, 2)}
@@ -558,51 +570,51 @@ export default function TenantDetailPage() {
                         href={`/platform/audit-logs?targetType=organization&targetId=${tenantId}`}
                         className="inline-flex items-center gap-1 mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
-                        View all {activity.length}+ entries in Audit Logs
+                        {t("viewAllEntries", { count: activity.length })}
                         <ArrowRight className="w-3 h-3" />
                     </Link>
                 )}
             </InfoCard>
 
             {showKillSwitch && (
-                <Modal onClose={() => setShowKillSwitch(false)} title={tenant.status === "suspended" ? "Reactivate Tenant" : "⚠️ Suspend Tenant"}>
+                <Modal onClose={() => setShowKillSwitch(false)} title={tenant.status === "suspended" ? t("reactivateTenant") : t("suspendTenant")}>
                     <p className="text-sm text-muted-foreground mb-4">
                         {tenant.status === "suspended"
-                            ? `This will restore access for "${tenant.name}".`
-                            : `This will immediately block all users of "${tenant.name}" from accessing the platform.`}
+                            ? t("restoreAccess", { name: tenant.name })
+                            : t("blockAccess", { name: tenant.name })}
                     </p>
                     {tenant.status !== "suspended" && (
                         <div className="mb-4">
-                            <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Reason</label>
+                            <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">{t("reason")}</label>
                             <input value={killReason} onChange={(e) => setKillReason(e.target.value)} placeholder="e.g., Payment failure" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                         </div>
                     )}
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowKillSwitch(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">Cancel</button>
+                        <button onClick={() => setShowKillSwitch(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">{t("cancel")}</button>
                         <button onClick={() => handleKillSwitch(tenant.status === "suspended" ? "activate" : "suspend")} disabled={!!actionLoading} className={`h-9 px-4 rounded-lg text-sm font-medium text-foreground transition ${tenant.status === "suspended" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600 hover:bg-red-500"} disabled:opacity-50`}>
-                            {actionLoading ? "Processing..." : tenant.status === "suspended" ? "Reactivate" : "Suspend Now"}
+                            {actionLoading ? t("processing") : tenant.status === "suspended" ? t("reactivate") : t("suspendNow")}
                         </button>
                     </div>
                 </Modal>
             )}
 
             {showImpersonation && (
-                <Modal onClose={() => setShowImpersonation(false)} title="🔐 Impersonate Tenant">
+                <Modal onClose={() => setShowImpersonation(false)} title={t("impersonateTenant")}>
                     <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/15 text-amber-400 text-sm mb-4 flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                         <div>
-                            <p className="font-medium">Full Access Mode</p>
-                            <p className="text-xs text-amber-500/80 mt-0.5">Session expires in 1 hour. All actions are audit-logged.</p>
+                            <p className="font-medium">{t("fullAccessMode")}</p>
+                            <p className="text-xs text-amber-500/80 mt-0.5">{t("sessionExpires")}</p>
                         </div>
                     </div>
                     <div className="mb-4">
-                        <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Reason (required)</label>
+                        <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">{t("reasonRequired")}</label>
                         <input value={impersonationReason} onChange={(e) => setImpersonationReason(e.target.value)} placeholder="e.g., Support ticket #1234" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                     </div>
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowImpersonation(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">Cancel</button>
-                        <button onClick={handleImpersonate} disabled={!!actionLoading || impersonationReason.trim().length < 3} className="h-9 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50">
-                            {actionLoading ? "Starting..." : "Start Session"}
+                        <button onClick={() => setShowImpersonation(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">{t("cancel")}</button>
+                        <button onClick={handleImpersonate} disabled={!!actionLoading || impersonationReason.trim().length < 3} className="h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50">
+                            {actionLoading ? t("starting") : t("startSession")}
                         </button>
                     </div>
                 </Modal>

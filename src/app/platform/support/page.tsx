@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
     Activity,
     AlertTriangle,
@@ -96,10 +97,10 @@ interface SupportIssue {
     reportedBy: null | { id: string; name: string; email: string };
 }
 
-const STATUS_CONFIG: Record<Severity, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-    healthy: { label: "Healthy", className: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20", icon: CheckCircle2 },
-    warning: { label: "Needs attention", className: "text-amber-300 bg-amber-500/10 border-amber-500/20", icon: AlertTriangle },
-    critical: { label: "Critical", className: "text-red-300 bg-red-500/10 border-red-500/20", icon: XCircle },
+const STATUS_CONFIG: Record<Severity, { labelKey: string; className: string; icon: typeof CheckCircle2 }> = {
+    healthy: { labelKey: "healthy", className: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20", icon: CheckCircle2 },
+    warning: { labelKey: "needsAttention", className: "text-amber-300 bg-amber-500/10 border-amber-500/20", icon: AlertTriangle },
+    critical: { labelKey: "critical", className: "text-red-300 bg-red-500/10 border-red-500/20", icon: XCircle },
 };
 
 const PRIORITY_CLASS: Record<string, string> = {
@@ -119,9 +120,10 @@ const formatDate = (value: string | null | undefined) => (value ? new Intl.DateT
 const formatLimit = (limit: number) => (limit === -1 ? "∞" : limit.toLocaleString());
 
 function StatusBadge({ status }: { status: Severity }) {
+    const t = useTranslations("Platform");
     const config = STATUS_CONFIG[status];
     const Icon = config.icon;
-    return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.className}`}><Icon className="h-3.5 w-3.5" />{config.label}</span>;
+    return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.className}`}><Icon className="h-3.5 w-3.5" />{t(config.labelKey)}</span>;
 }
 
 function MetricCard({ title, value, sub, icon: Icon, tone = "indigo" }: { title: string; value: string | number; sub: string; icon: typeof Activity; tone?: "indigo" | "emerald" | "amber" | "red" }) {
@@ -162,6 +164,7 @@ function UsageBar({ label, metric }: { label: string; metric: UsageMetric }) {
 }
 
 export default function PlatformSupportPage() {
+    const t = useTranslations("Platform");
     const [health, setHealth] = useState<TenantHealth[]>([]);
     const [summary, setSummary] = useState({ totalTenants: 0, healthy: 0, warning: 0, critical: 0, openIssues: 0, urgentIssues: 0 });
     const [issues, setIssues] = useState<SupportIssue[]>([]);
@@ -273,7 +276,7 @@ export default function PlatformSupportPage() {
     }
 
     if (loading) {
-        return <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading support command center...</div>;
+        return <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />{t("loadingSupportCommandCenter")}</div>;
     }
 
     return (
@@ -281,35 +284,35 @@ export default function PlatformSupportPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-300">
-                        <LifeBuoy className="h-3.5 w-3.5" /> Tenant Support Command Center
+                        <LifeBuoy className="h-3.5 w-3.5" /> {t("tenantSupportCommandCenter")}
                     </div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">Tenant Health & Support Log</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Monitor subscription, package usage, sync-agent health, device errors, and support triage from one platform-admin screen.</p>
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">{t("tenantHealthSupportLog")}</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t("supportPageSubtitle")}</p>
                 </div>
                 <button onClick={() => void loadAll()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-hover px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-hover">
-                    <RefreshCw className="h-4 w-4" /> Refresh
+                    <RefreshCw className="h-4 w-4" /> {t("refresh")}
                 </button>
             </div>
 
             {message && <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">{message}</div>}
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <MetricCard title="Tenants" value={summary.totalTenants} sub="visible in support view" icon={Gauge} />
-                <MetricCard title="Healthy" value={summary.healthy} sub="no urgent signals" icon={CheckCircle2} tone="emerald" />
-                <MetricCard title="Warning" value={summary.warning} sub="needs attention" icon={AlertTriangle} tone="amber" />
-                <MetricCard title="Critical" value={summary.critical} sub="support intervention" icon={ShieldAlert} tone="red" />
-                <MetricCard title="Open Issues" value={summary.openIssues} sub={`${summary.urgentIssues} high/urgent`} icon={LifeBuoy} tone={summary.urgentIssues ? "red" : "indigo"} />
+                <MetricCard title={t("tenants")} value={summary.totalTenants} sub={t("visibleInSupportView")} icon={Gauge} />
+                <MetricCard title={t("healthy")} value={summary.healthy} sub={t("noUrgentSignals")} icon={CheckCircle2} tone="emerald" />
+                <MetricCard title={t("warning")} value={summary.warning} sub={t("needsAttentionStatus")} icon={AlertTriangle} tone="amber" />
+                <MetricCard title={t("critical")} value={summary.critical} sub={t("supportIntervention")} icon={ShieldAlert} tone="red" />
+                <MetricCard title={t("openIssues")} value={summary.openIssues} sub={t("highUrgent", { count: summary.urgentIssues })} icon={LifeBuoy} tone={summary.urgentIssues ? "red" : "indigo"} />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
                 <section className="rounded-2xl border border-border bg-hover">
                     <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold text-foreground">Tenant health</h2>
-                            <p className="text-sm text-muted-foreground">Package limits, sync agent, devices, and active support signals.</p>
+                            <h2 className="text-lg font-semibold text-foreground">{t("tenantHealth")}</h2>
+                            <p className="text-sm text-muted-foreground">{t("tenantHealthDesc")}</p>
                         </div>
                         <select value={selectedTenantId} onChange={(e) => setSelectedTenantId(e.target.value)} className="rounded-xl border border-border bg-hover px-3 py-2 text-sm text-foreground outline-none focus:border-indigo-400">
-                            <option value="all">All tenants</option>
+                            <option value="all">{t("allTenants")}</option>
                             {allTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
                         </select>
                     </div>
@@ -322,37 +325,37 @@ export default function PlatformSupportPage() {
                                             <h3 className="text-lg font-semibold text-foreground">{item.tenant.name}</h3>
                                             <StatusBadge status={item.overallStatus} />
                                         </div>
-                                        <p className="mt-1 text-sm text-muted-foreground">{item.subscription.planName} • subscription {item.subscription.status} • tenant {item.tenant.status}</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">{item.subscription.planName} • {t("subscriptionWord")} {item.subscription.status} • {t("tenantWord")} {item.tenant.status}</p>
                                     </div>
-                                    <div className="text-sm text-muted-foreground">Renews/ends: <span className="text-foreground">{formatDate(item.subscription.currentPeriodEnd || item.subscription.trialEnd)}</span></div>
+                                    <div className="text-sm text-muted-foreground">{t("renewsEnds")} <span className="text-foreground">{formatDate(item.subscription.currentPeriodEnd || item.subscription.trialEnd)}</span></div>
                                 </div>
 
                                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                                     <div className="space-y-3 rounded-xl border border-border bg-black/20 p-4">
-                                        <div className="flex items-center gap-2 text-sm font-medium text-foreground"><SlidersHorizontal className="h-4 w-4 text-indigo-300" /> Package usage</div>
+                                        <div className="flex items-center gap-2 text-sm font-medium text-foreground"><SlidersHorizontal className="h-4 w-4 text-indigo-300" /> {t("packageUsage")}</div>
                                         {item.usage ? (
                                             <>
-                                                <UsageBar label="Employees" metric={item.usage.employees} />
-                                                <UsageBar label="Admins/users" metric={item.usage.admins} />
-                                                <UsageBar label="Branches" metric={item.usage.branches} />
-                                                <UsageBar label="Devices" metric={item.usage.devices} />
+                                                <UsageBar label={t("employees")} metric={item.usage.employees} />
+                                                <UsageBar label={t("adminsUsers")} metric={item.usage.admins} />
+                                                <UsageBar label={t("branches")} metric={item.usage.branches} />
+                                                <UsageBar label={t("devices")} metric={item.usage.devices} />
                                             </>
-                                        ) : <p className="text-sm text-red-300">No package configured.</p>}
+                                        ) : <p className="text-sm text-red-300">{t("noPackageConfigured")}</p>}
                                     </div>
                                     <div className="rounded-xl border border-border bg-black/20 p-4">
                                         <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium text-foreground"><Wifi className="h-4 w-4 text-emerald-300" /> Sync telemetry</div>
+                                            <div className="flex items-center gap-2 text-sm font-medium text-foreground"><Wifi className="h-4 w-4 text-emerald-300" /> {t("syncTelemetry")}</div>
                                             <StatusBadge status={item.sync.status} />
                                         </div>
                                         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                            <div><p className="text-muted-foreground">Agents</p><p className="text-foreground">{item.sync.activeAgents}/{item.sync.totalAgents} active</p></div>
-                                            <div><p className="text-muted-foreground">Devices</p><p className="text-foreground">{item.sync.onlineDevices}/{item.sync.totalDevices} online</p></div>
-                                            <div><p className="text-muted-foreground">Last agent</p><p className="text-foreground">{formatDate(item.sync.lastAgentSeenAt)}</p></div>
-                                            <div><p className="text-muted-foreground">Last sync</p><p className="text-foreground">{formatDate(item.sync.lastSyncAt)}</p></div>
+                                            <div><p className="text-muted-foreground">{t("agents")}</p><p className="text-foreground">{item.sync.activeAgents}/{item.sync.totalAgents} {t("activeWord")}</p></div>
+                                            <div><p className="text-muted-foreground">{t("devices")}</p><p className="text-foreground">{item.sync.onlineDevices}/{item.sync.totalDevices} {t("online")}</p></div>
+                                            <div><p className="text-muted-foreground">{t("lastAgent")}</p><p className="text-foreground">{formatDate(item.sync.lastAgentSeenAt)}</p></div>
+                                            <div><p className="text-muted-foreground">{t("lastSync")}</p><p className="text-foreground">{formatDate(item.sync.lastSyncAt)}</p></div>
                                         </div>
                                         {(item.sync.failedSyncCount > 0 || item.sync.unmappedUserIds.length > 0) && (
                                             <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
-                                                {item.sync.failedSyncCount} failed sync logs • {item.sync.unmappedUserIds.length} unmapped biometric IDs
+                                                {t("failedSyncLogs", { count: item.sync.failedSyncCount })} • {t("unmappedBiometricIds", { count: item.sync.unmappedUserIds.length })}
                                             </div>
                                         )}
                                     </div>
@@ -361,22 +364,22 @@ export default function PlatformSupportPage() {
                                 {(item.sync.recentErrors.length > 0 || item.support.highlightedIssues.length > 0) && (
                                     <div className="mt-4 grid gap-4 lg:grid-cols-2">
                                         <div className="rounded-xl border border-border bg-black/20 p-4">
-                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><Router className="h-4 w-4 text-amber-300" /> Recent sync/device errors</h4>
+                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><Router className="h-4 w-4 text-amber-300" /> {t("recentSyncErrors")}</h4>
                                             {item.sync.recentErrors.length ? item.sync.recentErrors.map((error) => (
                                                 <div key={`${error.type}-${error.id}`} className="mb-3 last:mb-0">
                                                     <p className="text-sm text-foreground">{error.deviceName}</p>
                                                     <p className="text-xs text-muted-foreground">{error.message} • {formatDate(error.createdAt)}</p>
                                                 </div>
-                                            )) : <p className="text-sm text-muted-foreground">No recent device errors.</p>}
+                                            )) : <p className="text-sm text-muted-foreground">{t("noRecentDeviceErrors")}</p>}
                                         </div>
                                         <div className="rounded-xl border border-border bg-black/20 p-4">
-                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><LifeBuoy className="h-4 w-4 text-indigo-300" /> Highlighted support issues</h4>
+                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><LifeBuoy className="h-4 w-4 text-indigo-300" /> {t("highlightedSupportIssues")}</h4>
                                             {item.support.highlightedIssues.length ? item.support.highlightedIssues.map((issue) => (
                                                 <div key={issue.id} className="mb-3 last:mb-0">
                                                     <p className="text-sm text-foreground">{issue.title}</p>
-                                                    <p className="text-xs text-muted-foreground">{pretty(issue.priority)} • {pretty(issue.category)} • {issue.nextAction || "No next action set"}</p>
+                                                    <p className="text-xs text-muted-foreground">{pretty(issue.priority)} • {pretty(issue.category)} • {issue.nextAction || t("noNextActionSet")}</p>
                                                 </div>
-                                            )) : <p className="text-sm text-muted-foreground">No highlighted support issues.</p>}
+                                            )) : <p className="text-sm text-muted-foreground">{t("noHighlightedSupportIssues")}</p>}
                                         </div>
                                     </div>
                                 )}
@@ -386,24 +389,24 @@ export default function PlatformSupportPage() {
                 </section>
 
                 <section className="rounded-2xl border border-border bg-hover p-5">
-                    <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground"><Plus className="h-5 w-5 text-indigo-300" /> Log support issue</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Classify requests before building. This keeps Khatiana support organized and product-safe.</p>
+                    <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground"><Plus className="h-5 w-5 text-indigo-300" /> {t("logSupportIssue")}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("logSupportIssueDesc")}</p>
                     <form onSubmit={createIssue} className="mt-5 space-y-4">
                         <select required value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">
-                            <option value="">Select tenant</option>
+                            <option value="">{t("selectTenant")}</option>
                             {allTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
                         </select>
-                        <input required minLength={3} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Issue title" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
-                        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What happened? Include exact user-facing error if available." rows={4} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <input required minLength={3} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={t("issueTitle")} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t("issueDescriptionPlaceholder")} rows={4} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
                         <div className="grid grid-cols-2 gap-3">
                             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as IssueCategory })} className="rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{CATEGORY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
                             <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as IssuePriority })} className="rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{PRIORITY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
                             <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value as IssueScope })} className="col-span-2 rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{SCOPE_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
                         </div>
-                        <input value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} placeholder="Business impact" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
-                        <input value={form.nextAction} onChange={(e) => setForm({ ...form, nextAction: e.target.value })} placeholder="Next action" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <input value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} placeholder={t("businessImpact")} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <input value={form.nextAction} onChange={(e) => setForm({ ...form, nextAction: e.target.value })} placeholder={t("nextAction")} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
                         <button disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60">
-                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save issue
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {t("saveIssue")}
                         </button>
                     </form>
                 </section>
@@ -412,16 +415,16 @@ export default function PlatformSupportPage() {
             <section className="rounded-2xl border border-border bg-hover">
                 <div className="flex flex-col gap-3 border-b border-border p-5 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h2 className="text-lg font-semibold text-foreground">Support log</h2>
-                        <p className="text-sm text-muted-foreground">Bug, training, feature request, billing, and sync-agent triage.</p>
+                        <h2 className="text-lg font-semibold text-foreground">{t("supportLog")}</h2>
+                        <p className="text-sm text-muted-foreground">{t("supportLogDesc")}</p>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search issues" className="w-full rounded-xl border border-border bg-hover py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400 sm:w-56" />
+                            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("searchIssues")} className="w-full rounded-xl border border-border bg-hover py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400 sm:w-56" />
                         </div>
                         <select value={issueStatus} onChange={(e) => setIssueStatus(e.target.value)} className="rounded-xl border border-border bg-hover px-3 py-2 text-sm text-foreground outline-none focus:border-indigo-400">
-                            <option value="all">All statuses</option>
+                            <option value="all">{t("allStatuses")}</option>
                             {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}
                         </select>
                     </div>
@@ -430,13 +433,13 @@ export default function PlatformSupportPage() {
                     <table className="w-full min-w-[980px] text-left text-sm">
                         <thead className="border-b border-border text-xs uppercase tracking-[0.18em] text-muted-foreground">
                             <tr>
-                                <th className="px-5 py-3">Issue</th>
-                                <th className="px-5 py-3">Tenant</th>
-                                <th className="px-5 py-3">Type</th>
-                                <th className="px-5 py-3">Scope</th>
-                                <th className="px-5 py-3">Priority</th>
-                                <th className="px-5 py-3">Status</th>
-                                <th className="px-5 py-3">Next action</th>
+                                <th className="px-5 py-3">{t("issueColumn")}</th>
+                                <th className="px-5 py-3">{t("tenantColumn")}</th>
+                                <th className="px-5 py-3">{t("typeColumn")}</th>
+                                <th className="px-5 py-3">{t("scopeColumn")}</th>
+                                <th className="px-5 py-3">{t("priorityColumn")}</th>
+                                <th className="px-5 py-3">{t("statusColumn")}</th>
+                                <th className="px-5 py-3">{t("nextActionColumn")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/8">
@@ -459,7 +462,7 @@ export default function PlatformSupportPage() {
                                 </tr>
                             ))}
                             {!issues.length && (
-                                <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">No support issues found. Suspiciously peaceful, Sir.</td></tr>
+                                <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">{t("noSupportIssuesFound")}</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -468,7 +471,7 @@ export default function PlatformSupportPage() {
 
             {selectedTenant && (
                 <div className="rounded-2xl border border-indigo-500/15 bg-indigo-500/8 p-5 text-sm text-indigo-100">
-                    Focus mode: showing {selectedTenant.tenant.name}. Use this during Khatiana calls to see package state, sync activity, and issue history without digging through five screens.
+                    {t("focusMode", { name: selectedTenant.tenant.name })}
                 </div>
             )}
         </div>

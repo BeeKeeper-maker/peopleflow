@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ScrollText, Search, Filter, Activity, Shield, UserCog, CreditCard, Power, X } from "lucide-react";
 
 interface AuditLog {
@@ -27,6 +28,7 @@ function getActionMeta(action: string) {
 }
 
 export default function AuditLogsPage() {
+    const t = useTranslations("Platform");
     const searchParams = useSearchParams();
     const router = useRouter();
     const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -79,29 +81,29 @@ export default function AuditLogsPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-foreground tracking-tight">Audit Logs</h1>
-                <p className="text-sm text-muted-foreground mt-1">Complete audit trail for all platform actions</p>
+                <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("auditLogs")}</h1>
+                <p className="text-sm text-muted-foreground mt-1">{t("auditLogsSubtitle")}</p>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
                 <div className="relative flex-1 min-w-[200px] max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search actions..."
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchActions")}
                         className="w-full h-10 pl-10 pr-4 rounded-lg bg-hover border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-indigo-500/50 transition-colors" />
                 </div>
                 <select value={actionFilter} onChange={e => setActionFilter(e.target.value)}
                     className="h-10 px-3 rounded-lg bg-hover border border-border text-sm text-muted-foreground focus:outline-none appearance-none">
-                    <option value="">All Actions</option>
-                    <option value="tenant">Tenant</option>
-                    <option value="subscription">Subscription</option>
-                    <option value="impersonation">Impersonation</option>
+                    <option value="">{t("allActions")}</option>
+                    <option value="tenant">{t("tenant")}</option>
+                    <option value="subscription">{t("subscription")}</option>
+                    <option value="impersonation">{t("impersonation")}</option>
                 </select>
                 <select value={targetTypeFilter} onChange={e => setTargetTypeFilter(e.target.value)}
                     className="h-10 px-3 rounded-lg bg-hover border border-border text-sm text-muted-foreground focus:outline-none appearance-none">
-                    <option value="">All Target Types</option>
-                    <option value="organization">Organization</option>
-                    <option value="subscription">Subscription</option>
-                    <option value="platform_admin">Platform Admin</option>
+                    <option value="">{t("allTargetTypes")}</option>
+                    <option value="organization">{t("organization")}</option>
+                    <option value="subscription">{t("subscription")}</option>
+                    <option value="platform_admin">{t("platformAdmin")}</option>
                 </select>
                 {targetIdFilter && (
                     <div className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300">
@@ -115,7 +117,7 @@ export default function AuditLogsPage() {
                         className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg bg-hover border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-hover transition-colors"
                     >
                         <X className="w-3.5 h-3.5" />
-                        Clear
+                        {t("clear")}
                     </button>
                 )}
             </div>
@@ -142,13 +144,13 @@ export default function AuditLogsPage() {
                                     <p className="text-sm text-foreground">
                                         <span className="text-foreground font-medium">{log.platformAdmin?.name}</span>
                                         {" "}
-                                        <span className="text-muted-foreground">performed</span>
+                                        <span className="text-muted-foreground">{t("performed")}</span>
                                         {" "}
                                         <span className="text-indigo-400 font-mono text-xs bg-indigo-500/10 px-1.5 py-0.5 rounded">
                                             {log.action}
                                         </span>
                                         {" "}
-                                        <span className="text-muted-foreground">on</span>
+                                        <span className="text-muted-foreground">{t("onWord")}</span>
                                         {" "}
                                         <span className="text-foreground">{log.targetType}</span>
                                     </p>
@@ -163,7 +165,7 @@ export default function AuditLogsPage() {
                     {!loading && filteredLogs.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                             <ScrollText className="w-10 h-10 mb-3" />
-                            <p className="text-sm">No audit logs found</p>
+                            <p className="text-sm">{t("noAuditLogsFound")}</p>
                         </div>
                     )}
                 </div>
