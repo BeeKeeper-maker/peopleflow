@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { encryptPii } from "@/lib/pii";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PeopleFlow — SINGLE SOURCE OF TRUTH: Employee Validation Schema
@@ -322,8 +321,12 @@ export function toPrismaEmployeeData(data: EmployeeData) {
         tinNumber: data.tinNumber ?? null,
         pfNumber: data.pfNumber ?? null,
 
-        bkashNumber: encryptPii(data.bkashNumber) ?? null,
-        nagadNumber: encryptPii(data.nagadNumber) ?? null,
+        // NOTE: bkashNumber / nagadNumber are returned as plaintext here.
+        // PII encryption (AES-256-GCM with "enc:" prefix) is applied at
+        // the API route layer via `encryptPII(...)` from `@/lib/pii` so
+        // the validation/mapper layer stays a pure data transformer.
+        bkashNumber: data.bkashNumber ?? null,
+        nagadNumber: data.nagadNumber ?? null,
 
         isSeniorCitizen: data.isSeniorCitizen,
         isDisabled: data.isDisabled,

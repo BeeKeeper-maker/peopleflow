@@ -5,7 +5,7 @@ import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { sendTemplateEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
-import { decryptEmployeePhoneNumbers } from "@/lib/pii";
+import { encryptPII, decryptEmployeePhoneNumbers } from "@/lib/pii";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/employees/:id
@@ -256,6 +256,14 @@ export async function PUT(
         const prismaData = toPrismaEmployeeData(body);
         const emergencyContact = buildEmergencyContactJson(body);
 
+        // ── PII Encryption (P8-PII-ENCRYPTION) ───────────────────────────
+        // Encrypt sensitive mobile-banking numbers at rest before writing
+        // to the database. `encryptPII` is idempotent (no-op if already
+        // encrypted) and falls back to plaintext if ENCRYPTION_KEY is unset
+        // in development so the write doesn't 500.
+        const encryptedBkash = encryptPII(prismaData.bkashNumber);
+        const encryptedNagad = encryptPII(prismaData.nagadNumber);
+
         const organizationId = auth.organizationId;
         const { grossSalary, salaryStructureId } = body;
 
@@ -270,6 +278,10 @@ export async function PUT(
                     ...prismaData,
                     emergencyContact,
                     ...(isActiveEmployment ? { deletedAt: null } : {}),
+                    // Override with explicitly-encrypted PII (idempotent — safe
+                    // even if prismaData already carried an encrypted value).
+                    bkashNumber: encryptedBkash,
+                    nagadNumber: encryptedNagad,
                 },
             });
 

@@ -1,0 +1,32 @@
+-- ═══════════════════════════════════════════════════════════════════
+-- P8-PII-ENCRYPTION: Encrypt Existing PII Data (bkashNumber, nagadNumber)
+-- ═══════════════════════════════════════════════════════════════════
+-- This migration CANNOT encrypt data in SQL — encryption happens in
+-- the application layer using AES-256-GCM with ENCRYPTION_KEY (the
+-- key never leaves the application, so PG itself can't perform the
+-- encrypt step).
+--
+-- Instead, this file documents the cutover strategy:
+--
+--   1. Existing plaintext rows keep reading correctly because
+--      `decryptPII()` returns plaintext values as-is when they lack
+--      the `enc:` prefix (backward-compatible read path).
+--   2. The next write to each row (POST/PUT via the Employee API)
+--      re-encrypts the value with the `enc:` prefix, so the cutover
+--      happens organically as HR edits records.
+--   3. To force-encrypt all existing rows immediately (e.g. before
+--      a compliance audit), run:
+--
+--          node scripts/encrypt-existing-pii.js
+--
+--      The script reads all employees with non-null bkashNumber or
+--      nagadNumber, encrypts any plaintext values via the application
+--      crypto module, and writes the encrypted form back.
+--
+-- No SQL schema changes are needed — `bkashNumber` and `nagadNumber`
+-- remain `String?` columns. The `enc:` prefix is parsed in the
+-- application layer, not at the DB level.
+-- ═══════════════════════════════════════════════════════════════════
+
+-- No-op migration — exists only to document the cutover step.
+SELECT 1;

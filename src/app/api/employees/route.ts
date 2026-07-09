@@ -10,7 +10,7 @@ import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
 import { randomBytes } from "crypto";
-import { decryptEmployeePhoneNumbers } from "@/lib/pii";
+import { encryptPII, decryptEmployeePhoneNumbers } from "@/lib/pii";
 import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,6 +65,14 @@ export async function POST(req: Request) {
     const normalizedEmail = body.email?.toLowerCase();
     const prismaData = toPrismaEmployeeData(body);
     const emergencyContact = buildEmergencyContactJson(body);
+
+    // ── PII Encryption (P8-PII-ENCRYPTION) ───────────────────────────
+    // Encrypt sensitive mobile-banking numbers at rest before writing
+    // to the database. `encryptPII` is idempotent (no-op if already
+    // encrypted) and falls back to plaintext if ENCRYPTION_KEY is unset
+    // in development so the write doesn't 500.
+    const encryptedBkash = encryptPII(prismaData.bkashNumber);
+    const encryptedNagad = encryptPII(prismaData.nagadNumber);
 
     const transaction = await auth.withDB(async (tx) => {
       // ── Uniqueness Checks ────────────────────────────────────────────
@@ -230,6 +238,10 @@ export async function POST(req: Request) {
           organizationId: auth.organizationId,
           userId: user?.id,
           branchId: defaultBranch?.id,
+          // Override with explicitly-encrypted PII (idempotent — safe
+          // even if prismaData already carried an encrypted value).
+          bkashNumber: encryptedBkash,
+          nagadNumber: encryptedNagad,
         },
       });
 
