@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
+import { useNotificationPreferences, queryKeys } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,34 +30,29 @@ const CATEGORIES = [
 ];
 
 export default function NotificationSettingsPage() {
+    const queryClient = useQueryClient();
     const { addToast } = useToast();
+    const { data: initialPrefs, isLoading: loading } = useNotificationPreferences();
     const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("default");
 
+    // Hydrate local form state whenever the cached preferences change (initial
+    // load + post-mutation refetch). This keeps the form editable while still
+    // leveraging TanStack Query for cache + invalidation.
     useEffect(() => {
-        fetchPrefs();
+        if (initialPrefs) {
+            setPrefs(initialPrefs as unknown as NotificationPreferences);
+        }
+    }, [initialPrefs]);
+
+    useEffect(() => {
         if (typeof window !== "undefined" && "Notification" in window) {
             setPushPermission(Notification.permission);
         } else {
             setPushPermission("unsupported");
         }
     }, []);
-
-    const fetchPrefs = async () => {
-        try {
-            const res = await fetch("/api/notifications/preferences");
-            if (res.ok) {
-                const data = await res.json();
-                setPrefs(data);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load preferences", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleSave = async () => {
         if (!prefs) return;
@@ -76,6 +73,7 @@ export default function NotificationSettingsPage() {
             });
             if (res.ok) {
                 addToast({ title: "Preferences saved", type: "success" });
+                void queryClient.invalidateQueries({ queryKey: queryKeys.settings.notificationPreferences() });
             }
         } catch {
             addToast({ title: "Error", description: "Failed to save", type: "error" });

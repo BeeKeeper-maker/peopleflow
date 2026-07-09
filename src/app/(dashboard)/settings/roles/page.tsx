@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { useRoles, usePermissions, queryKeys } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -81,39 +83,20 @@ const MODULE_LABELS: Record<string, string> = {
 
 export default function RolesPage() {
     const t = useTranslations("Settings");
+    const queryClient = useQueryClient();
     const { addToast } = useToast();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
-    const [roles, setRoles] = useState<Role[]>([]);
-    const [permissions, setPermissions] = useState<Permission[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: rawRoles = [], isLoading: loading } = useRoles();
+    const roles = rawRoles as unknown as Role[];
+    const { data: permsCatalog } = usePermissions();
+    const permissions = (permsCatalog?.data ?? []) as unknown as Permission[];
     const [editingRole, setEditingRole] = useState<Role | null>(null);
     const [showEditor, setShowEditor] = useState(false);
     const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
-    const fetchData = useCallback(async () => {
-        try {
-            const [rolesRes, permsRes] = await Promise.all([
-                fetch("/api/rbac/roles"),
-                fetch("/api/rbac/permissions"),
-            ]);
-            if (rolesRes.ok) {
-                const data = await rolesRes.json();
-                setRoles(data.data || []);
-            }
-            if (permsRes.ok) {
-                const data = await permsRes.json();
-                setPermissions(data.data || []);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load roles", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [addToast]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+    const invalidateRoles = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.rbac.roles() });
+    };
 
     const handleCreate = () => {
         setEditingRole(null);
@@ -138,7 +121,7 @@ export default function RolesPage() {
             const res = await fetch(`/api/rbac/roles/${role.id}`, { method: "DELETE" });
             if (res.ok) {
                 addToast({ title: "Role deleted", type: "success" });
-                fetchData();
+                invalidateRoles();
             } else {
                 const err = await res.json();
                 addToast({ title: "Error", description: err.error || "Failed to delete", type: "error" });
@@ -247,7 +230,7 @@ export default function RolesPage() {
                     onSaved={() => {
                         setShowEditor(false);
                         setEditingRole(null);
-                        fetchData();
+                        invalidateRoles();
                     }}
                 />
             )}

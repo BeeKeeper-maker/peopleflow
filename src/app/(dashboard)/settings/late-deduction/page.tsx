@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +45,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useLateDeductionPolicy, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,8 +226,9 @@ function PipelineTierCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LateDeductionPolicyPage() {
-    const [policies, setPolicies] = useState<Policy[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const queryClient = useQueryClient()
+    const { data: policies = [], isLoading } = useLateDeductionPolicy()
+    const policyList = policies as unknown as Policy[]
     const [showCreateDialog, setShowCreateDialog] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -239,21 +242,9 @@ export default function LateDeductionPolicyPage() {
 
     useEffect(() => { setMounted(true) }, [])
 
-    const fetchPolicies = useCallback(async () => {
-        try {
-            const res = await fetch("/api/policies/late-deduction")
-            if (res.ok) {
-                const json = await res.json()
-                setPolicies(json.data || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch policies:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { fetchPolicies() }, [fetchPolicies])
+    const invalidatePolicies = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.policies.lateDeduction() })
+    }
 
     const addTier = () => {
         const lastTier = tiers[tiers.length - 1]
@@ -300,7 +291,7 @@ export default function LateDeductionPolicyPage() {
                 setPolicyName("Corporate Standard Policy")
                 setLateThreshold(10)
                 setTiers([...defaultTiers])
-                fetchPolicies()
+                invalidatePolicies()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || "Failed to create policy", type: "error" })
@@ -312,8 +303,8 @@ export default function LateDeductionPolicyPage() {
         }
     }
 
-    const activePolicy = policies.find((p) => p.isActive)
-    const inactivePolicies = policies.filter((p) => !p.isActive)
+    const activePolicy = policyList.find((p) => p.isActive)
+    const inactivePolicies = policyList.filter((p) => !p.isActive)
 
     // ─── Loading Skeleton ─────────────────────────────────────────────────
     if (isLoading) {
@@ -380,7 +371,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalPolicies')}</p>
-                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{policies.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{policyList.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalPoliciesDesc')}</p>
                     </CardContent>
                 </Card>

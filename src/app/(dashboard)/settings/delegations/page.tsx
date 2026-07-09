@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useDelegations, useEmployees, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -260,12 +262,14 @@ function DelegationCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DelegationsPage() {
-    const [delegated, setDelegated] = useState<Delegation[]>([])
-    const [received, setReceived] = useState<Delegation[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const queryClient = useQueryClient()
+    const { data: delegationsData, isLoading: isLoading } = useDelegations()
+    const delegated = useMemo<Delegation[]>(() => (delegationsData?.delegated ?? []) as unknown as Delegation[], [delegationsData])
+    const received = useMemo<Delegation[]>(() => (delegationsData?.received ?? []) as unknown as Delegation[], [delegationsData])
+    const { data: employeesResp } = useEmployees({ limit: 500 })
+    const employees = useMemo<Employee[]>(() => (employeesResp?.data ?? []) as unknown as Employee[], [employeesResp])
     const [showCreateDialog, setShowCreateDialog] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
-    const [employees, setEmployees] = useState<Employee[]>([])
     const [employeeSearch, setEmployeeSearch] = useState("")
     const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -284,35 +288,9 @@ export default function DelegationsPage() {
 
     useEffect(() => { setMounted(true) }, [])
 
-    const fetchDelegations = useCallback(async () => {
-        try {
-            const res = await fetch("/api/rbac/delegations")
-            if (res.ok) {
-                const json = await res.json()
-                setDelegated(json.data?.delegated || [])
-                setReceived(json.data?.received || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch delegations:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    const fetchEmployees = useCallback(async () => {
-        try {
-            const res = await fetch("/api/employees?limit=500")
-            if (res.ok) {
-                const json = await res.json()
-                setEmployees(json.data || [])
-            }
-        } catch { /* ignore */ }
-    }, [])
-
-    useEffect(() => {
-        fetchDelegations()
-        fetchEmployees()
-    }, [fetchDelegations, fetchEmployees])
+    const invalidateDelegations = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.rbac.delegations() })
+    }
 
     const handleCreate = async () => {
         if (!formData.targetEmployeeId || !formData.validUntil) {
@@ -334,7 +312,7 @@ export default function DelegationsPage() {
                     validFrom: getTodayISO(), validUntil: "", reason: "",
                 })
                 setEmployeeSearch("")
-                fetchDelegations()
+                invalidateDelegations()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || "Failed to create delegation", type: "error" })
@@ -351,7 +329,7 @@ export default function DelegationsPage() {
             const res = await fetch(`/api/rbac/delegations?id=${id}`, { method: "DELETE" })
             if (res.ok) {
                 addToast({ title: "Delegation revoked successfully", type: "success" })
-                fetchDelegations()
+                invalidateDelegations()
             } else {
                 addToast({ title: "Failed to revoke", type: "error" })
             }

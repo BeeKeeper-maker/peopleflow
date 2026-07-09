@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Building2, CheckCircle2, Clock, KeyRound, Mail, RefreshCw, Search, Shield, ShieldCheck, UserCheck, Users, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { useAccessUsers, queryKeys } from "@/hooks/use-data";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "hr_admin" | "manager" | "employee" | "super_admin";
@@ -81,31 +83,23 @@ function getDisplayName(user: AccessUser) {
 }
 
 export default function AccessSettingsPage() {
+  const queryClient = useQueryClient();
   const { addToast } = useToast();
-  const [users, setUsers] = useState<AccessUser[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: accessData, isLoading: loading, isFetching, refetch } = useAccessUsers();
+  const users = useMemo<AccessUser[]>(() => (accessData?.data ?? []) as unknown as AccessUser[], [accessData]);
+  const summary = useMemo<Summary | null>(() => (accessData?.summary ?? null) as unknown as Summary | null, [accessData]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [setupSendingId, setSetupSendingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/access/users");
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setUsers(data.data || []);
-      setSummary(data.summary || null);
-    } catch (error) {
-      addToast({ title: "Failed to load access users", description: error instanceof Error ? error.message : undefined, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast]);
+  const invalidateUsers = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.access.users() });
+  };
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  const fetchUsers = () => {
+    void refetch();
+  };
 
   const sendSetupLink = async (userId: string) => {
     setSetupSendingId(userId);
@@ -118,7 +112,7 @@ export default function AccessSettingsPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || await res.text());
       addToast({ title: "Setup link sent", description: data?.email ? `Sent to ${data.email}` : undefined, type: "success" });
-      await fetchUsers();
+      invalidateUsers();
     } catch (error) {
       addToast({ title: "Setup link failed", description: error instanceof Error ? error.message : undefined, type: "error" });
     } finally {
@@ -139,7 +133,7 @@ export default function AccessSettingsPage() {
         throw new Error(data?.error || await res.text());
       }
       addToast({ title: "Access updated", type: "success" });
-      await fetchUsers();
+      invalidateUsers();
     } catch (error) {
       addToast({ title: "Access update failed", description: error instanceof Error ? error.message : undefined, type: "error" });
     } finally {
@@ -179,7 +173,7 @@ export default function AccessSettingsPage() {
           <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-3"><ShieldCheck className="h-7 w-7 text-blue-400" /> Access Control</h1>
           <p className="text-muted-foreground mt-1 max-w-3xl">Control who can log in, what role they have, and whether each office user is ready for leave/attendance approval flows.</p>
         </div>
-        <Button variant="outline" onClick={fetchUsers} disabled={loading} className="gap-2 self-start md:self-auto"><RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />Refresh</Button>
+        <Button variant="outline" onClick={fetchUsers} disabled={loading || isFetching} className="gap-2 self-start md:self-auto"><RefreshCw className={cn("h-4 w-4", (loading || isFetching) && "animate-spin")} />Refresh</Button>
       </div>
 
       <Card className="bg-linear-to-r from-blue-500/10 via-card to-card border-blue-500/20">

@@ -1,47 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
+import { useExchangeRates, queryKeys } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Save, RefreshCw, AlertTriangle } from "lucide-react";
 
-interface ExchangeRateEntry {
-    code: string;
-    name: string;
-    symbol: string;
-    rate: number | null;
-    fetchedAt: string | null;
-    source: string | null;
-    isStale: boolean;
-}
-
 export default function ExchangeRatesPage() {
+    const queryClient = useQueryClient();
     const { addToast } = useToast();
-    const [rates, setRates] = useState<ExchangeRateEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: rates = [], isLoading: loading } = useExchangeRates();
     const [editingRates, setEditingRates] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState<string | null>(null);
-
-    const fetchRates = useCallback(async () => {
-        try {
-            const res = await fetch("/api/settings/exchange-rates");
-            if (res.ok) {
-                const data = await res.json();
-                setRates(data.data || []);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load rates", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [addToast]);
-
-    useEffect(() => {
-        fetchRates();
-    }, [fetchRates]);
 
     const handleSave = async (currency: string) => {
         const rateStr = editingRates[currency];
@@ -63,7 +37,7 @@ export default function ExchangeRatesPage() {
             if (res.ok) {
                 addToast({ title: `${currency} rate updated`, type: "success" });
                 setEditingRates({ ...editingRates, [currency]: "" });
-                fetchRates();
+                void queryClient.invalidateQueries({ queryKey: queryKeys.settings.exchangeRates() });
             }
         } catch {
             addToast({ title: "Error", description: "Failed to update", type: "error" });

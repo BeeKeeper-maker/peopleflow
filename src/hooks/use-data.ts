@@ -90,6 +90,31 @@ export const queryKeys = {
         attendance: (filters?: Record<string, unknown>) => [...queryKeys.manager.all, "attendance", filters] as const,
         reviews: () => [...queryKeys.manager.all, "reviews"] as const,
     },
+    // Settings — org-wide configuration pages (rarely change)
+    settings: {
+        all: ["settings"] as const,
+        org: () => [...queryKeys.settings.all, "org"] as const,
+        customFields: (filters?: Record<string, unknown>) => [...queryKeys.settings.all, "custom-fields", filters] as const,
+        exchangeRates: () => [...queryKeys.settings.all, "exchange-rates"] as const,
+        notificationPreferences: () => [...queryKeys.settings.all, "notification-preferences"] as const,
+    },
+    // RBAC — roles, permissions catalog, and time-bounded delegations
+    rbac: {
+        all: ["rbac"] as const,
+        roles: () => [...queryKeys.rbac.all, "roles"] as const,
+        permissions: () => [...queryKeys.rbac.all, "permissions"] as const,
+        delegations: () => [...queryKeys.rbac.all, "delegations"] as const,
+    },
+    // Policies — late deduction tiers, etc.
+    policies: {
+        all: ["policies"] as const,
+        lateDeduction: () => [...queryKeys.policies.all, "late-deduction"] as const,
+    },
+    // Access — user login & role governance (/api/access/users)
+    access: {
+        all: ["access"] as const,
+        users: () => [...queryKeys.access.all, "users"] as const,
+    },
 };
 
 // ============================================
@@ -1772,5 +1797,454 @@ export function useManagerReviews() {
             return Array.isArray(json) ? json : (json.data || []);
         },
         staleTime: 60 * 1000, // 1 minute — review status changes occasionally
+    });
+}
+
+// ============================================
+// Settings Subpage Hooks
+// ============================================
+//
+// These hooks power the /settings/* admin pages. Settings change rarely so
+// staleTime is set to 2-5 minutes — much higher than the dashboard/ESS hooks.
+
+// ── a) General organization settings ────────────────────────────────────────
+// /api/settings returns { organization: { ...org, currency, dateFormat, workWeekStart, documents } }
+export interface SettingsDocuments {
+    orgAddress?: string;
+    letterheadTitle?: string;
+    legalName?: string;
+    tradeLicenseNo?: string;
+    taxId?: string;
+    officePhone?: string;
+    officeEmail?: string;
+    website?: string;
+    signatoryName?: string;
+    signatoryDesignation?: string;
+    signatureImageUrl?: string;
+    companySealUrl?: string;
+    footerNote?: string;
+    [key: string]: unknown;
+}
+
+export interface OrgSettingsResponse {
+    organization: {
+        id: string;
+        name: string;
+        logoUrl: string | null;
+        industry: string | null;
+        employeeCountRange?: string | null;
+        fiscalYearStart: number;
+        currencyCode: string;
+        currency: string;
+        timezone: string;
+        settings?: unknown;
+        dateFormat: string;
+        workWeekStart: number;
+        documents: SettingsDocuments;
+        binNumber?: string | null;
+        tinNumber?: string | null;
+        vatNumber?: string | null;
+        tradeLicenseNumber?: string | null;
+        tradeLicenseExpiry?: string | null;
+        binExpiry?: string | null;
+        [key: string]: unknown;
+    };
+}
+
+export function useSettings() {
+    return useQuery<OrgSettingsResponse, ApiError>({
+        queryKey: queryKeys.settings.org(),
+        queryFn: async () => {
+            const res = await fetch("/api/settings", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "SETTINGS_FETCH_ERROR"),
+                    String(err.error || "Failed to load organization settings"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return json as OrgSettingsResponse;
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — settings change rarely
+    });
+}
+
+// ── b) Custom fields builder ────────────────────────────────────────────────
+// /api/settings/custom-fields returns { data: [...], total: N }.
+export interface CustomFieldRecord {
+    id: string;
+    label: string;
+    key: string;
+    entityType: string;
+    fieldType: string;
+    options: string[];
+    isRequired: boolean;
+    isFilterable: boolean;
+    isSearchable: boolean;
+    defaultValue: string | null;
+    description: string | null;
+    sortOrder: number;
+    isActive: boolean;
+    organizationId?: string;
+    [key: string]: unknown;
+}
+
+export function useCustomFields(filters?: {
+    entityType?: string;
+    active?: boolean;
+}) {
+    return useQuery<CustomFieldRecord[], ApiError>({
+        queryKey: queryKeys.settings.customFields(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.entityType) params.set("entityType", filters.entityType);
+            if (filters?.active === true) params.set("active", "true");
+            if (filters?.active === false) params.set("active", "false");
+            const url = `/api/settings/custom-fields${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "CUSTOM_FIELDS_FETCH_ERROR"),
+                    String(err.error || "Failed to load custom fields"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — field definitions change rarely
+    });
+}
+
+// ── c) RBAC roles (system + custom) ─────────────────────────────────────────
+// /api/rbac/roles returns { data: [...], total: N }.
+export interface RbacPermissionSummary {
+    id: string;
+    key: string;
+    module: string;
+    action: string;
+    description: string | null;
+    isDangerous: boolean;
+}
+
+export interface RbacRolePermission {
+    id: string;
+    permissionId: string;
+    scope: string;
+    permission: RbacPermissionSummary;
+}
+
+export interface RbacRoleRecord {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    isSystem: boolean;
+    isDefault: boolean;
+    color: string | null;
+    sortOrder: number;
+    rolePermissions: RbacRolePermission[];
+    _count: { userAssignments: number };
+    [key: string]: unknown;
+}
+
+export function useRoles() {
+    return useQuery<RbacRoleRecord[], ApiError>({
+        queryKey: queryKeys.rbac.roles(),
+        queryFn: async () => {
+            const res = await fetch("/api/rbac/roles", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ROLES_FETCH_ERROR"),
+                    String(err.error || "Failed to load roles"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — roles change rarely
+    });
+}
+
+// ── d) RBAC permission catalog ──────────────────────────────────────────────
+// /api/rbac/permissions returns { data: [...], byModule: {...}, total: N }.
+export interface RbacPermissionCatalogResponse {
+    data: RbacPermissionSummary[];
+    byModule: Record<string, RbacPermissionSummary[]>;
+    total: number;
+}
+
+export function usePermissions() {
+    return useQuery<RbacPermissionCatalogResponse, ApiError>({
+        queryKey: queryKeys.rbac.permissions(),
+        queryFn: async () => {
+            const res = await fetch("/api/rbac/permissions", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "PERMISSIONS_FETCH_ERROR"),
+                    String(err.error || "Failed to load permission catalog"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // Defensive — fall back to an empty catalog if shape is unexpected
+            if (json && typeof json === "object" && "data" in json) {
+                return json as RbacPermissionCatalogResponse;
+            }
+            return {
+                data: Array.isArray(json) ? json : [],
+                byModule: {},
+                total: Array.isArray(json) ? json.length : 0,
+            };
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — the catalog is system-defined and never changes at runtime
+    });
+}
+
+// ── e) RBAC delegations ─────────────────────────────────────────────────────
+// /api/rbac/delegations returns { data: { delegated: [...], received: [...] } }.
+export interface RbacDelegationRecord {
+    id: string;
+    userId: string;
+    organizationId: string;
+    permission: string;
+    scope: string;
+    departmentIds: string[] | null;
+    validFrom: string;
+    validUntil: string | null;
+    isActive: boolean;
+    createdAt: string;
+    user?: { name: string | null; email: string };
+    [key: string]: unknown;
+}
+
+export interface RbacDelegationsResponse {
+    delegated: RbacDelegationRecord[];
+    received: RbacDelegationRecord[];
+}
+
+export function useDelegations() {
+    return useQuery<RbacDelegationsResponse, ApiError>({
+        queryKey: queryKeys.rbac.delegations(),
+        queryFn: async () => {
+            const res = await fetch("/api/rbac/delegations", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "DELEGATIONS_FETCH_ERROR"),
+                    String(err.error || "Failed to load delegations"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // The endpoint wraps the result as { data: { delegated, received } }.
+            const payload = (json?.data ?? json) as Partial<RbacDelegationsResponse> | undefined;
+            return {
+                delegated: payload?.delegated || [],
+                received: payload?.received || [],
+            };
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — delegations are time-bounded and change rarely
+    });
+}
+
+// ── f) Exchange rates ───────────────────────────────────────────────────────
+// /api/settings/exchange-rates returns { data: [...], total, ratesCount }.
+export interface ExchangeRateEntry {
+    code: string;
+    name: string;
+    symbol: string;
+    rate: number | null;
+    fetchedAt: string | null;
+    source: string | null;
+    isStale: boolean;
+    [key: string]: unknown;
+}
+
+export function useExchangeRates() {
+    return useQuery<ExchangeRateEntry[], ApiError>({
+        queryKey: queryKeys.settings.exchangeRates(),
+        queryFn: async () => {
+            const res = await fetch("/api/settings/exchange-rates", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "EXCHANGE_RATES_FETCH_ERROR"),
+                    String(err.error || "Failed to load exchange rates"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — rates are auto-refreshed by a cron job
+    });
+}
+
+// ── g) Late deduction policy ────────────────────────────────────────────────
+// /api/policies/late-deduction returns { data: [...] } with nested tiers.
+export interface LateDeductionTierRecord {
+    id: string;
+    tierOrder: number;
+    name: string;
+    fromCount: number;
+    toCount: number;
+    deductionType: string;
+    deductionValue: number;
+    issueWarning: boolean;
+    warningLevel: string;
+}
+
+export interface LateDeductionPolicyRecord {
+    id: string;
+    name: string;
+    lateThresholdMinutes: number;
+    isActive: boolean;
+    createdAt: string;
+    tiers: LateDeductionTierRecord[];
+    [key: string]: unknown;
+}
+
+export function useLateDeductionPolicy() {
+    return useQuery<LateDeductionPolicyRecord[], ApiError>({
+        queryKey: queryKeys.policies.lateDeduction(),
+        queryFn: async () => {
+            const res = await fetch("/api/policies/late-deduction", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "LATE_DEDUCTION_FETCH_ERROR"),
+                    String(err.error || "Failed to load late deduction policy"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — policies change rarely
+    });
+}
+
+// ── h) Notification preferences (current user) ──────────────────────────────
+// /api/notifications/preferences returns the preference object directly (no envelope).
+export interface NotificationPreferenceRecord {
+    id: string;
+    userId: string;
+    inAppEnabled: boolean;
+    emailEnabled: boolean;
+    pushEnabled: boolean;
+    digestMode: string;
+    quietHoursStart: string | null;
+    quietHoursEnd: string | null;
+    categoryOverrides: Record<string, { inApp?: boolean; email?: boolean; push?: boolean }> | null;
+    [key: string]: unknown;
+}
+
+export function useNotificationPreferences() {
+    return useQuery<NotificationPreferenceRecord, ApiError>({
+        queryKey: queryKeys.settings.notificationPreferences(),
+        queryFn: async () => {
+            const res = await fetch("/api/notifications/preferences", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "NOTIFICATION_PREFS_FETCH_ERROR"),
+                    String(err.error || "Failed to load notification preferences"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return json as NotificationPreferenceRecord;
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — preferences change rarely
+    });
+}
+
+// ── i) Access users ─────────────────────────────────────────────────────────
+// /api/access/users returns { data: [...], summary: {...} }.
+export interface AccessUserEmployee {
+    id: string;
+    employeeCode: string;
+    firstName: string;
+    lastName: string;
+    employmentStatus: string;
+    branch: { id: string; name: string } | null;
+    department: { id: string; name: string } | null;
+    designation: { id: string; name: string } | null;
+    reportingManager: { id: string; firstName: string; lastName: string; employeeCode: string } | null;
+    _count: { reportees: number };
+}
+
+export interface AccessUserRecord {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string;
+    isActive: boolean;
+    emailVerified: string | null;
+    lastLogin: string | null;
+    createdAt: string;
+    twoFactorEnabled: boolean;
+    employee: AccessUserEmployee | null;
+}
+
+export interface AccessUsersSummary {
+    total: number;
+    active: number;
+    inactive: number;
+    admins: number;
+    hrAdmins: number;
+    managers: number;
+    employees: number;
+    unlinked: number;
+    managersWithoutReportees: number;
+    setupPending: number;
+}
+
+export interface AccessUsersResponse {
+    data: AccessUserRecord[];
+    summary: AccessUsersSummary;
+}
+
+export function useAccessUsers() {
+    return useQuery<AccessUsersResponse, ApiError>({
+        queryKey: queryKeys.access.users(),
+        queryFn: async () => {
+            const res = await fetch("/api/access/users", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ACCESS_USERS_FETCH_ERROR"),
+                    String(err.error || "Failed to load access users"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            // Endpoint returns { data, summary } — fall back to a safe empty
+            // summary so consuming components never have to defend against null.
+            const emptySummary: AccessUsersSummary = {
+                total: 0,
+                active: 0,
+                inactive: 0,
+                admins: 0,
+                hrAdmins: 0,
+                managers: 0,
+                employees: 0,
+                unlinked: 0,
+                managersWithoutReportees: 0,
+                setupPending: 0,
+            };
+            return {
+                data: Array.isArray(json) ? json : (json.data || []),
+                summary: (json?.summary ?? emptySummary) as AccessUsersSummary,
+            };
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — access changes rarely
     });
 }

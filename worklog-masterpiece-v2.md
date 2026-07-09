@@ -140,7 +140,7 @@
 ### Phase 4 — Operational Excellence
 - [ ] Worker/Queue admin dashboard (Bull-Board)
 - [ ] Off-server backup (S3 daily) + restore drill
-- [ ] CI/CD pipeline (GitHub Actions)
+- [~] CI/CD pipeline (GitHub Actions) — P3-CICD: workflow + templates + CONTRIBUTING.md added locally; push of `.github/workflows/ci.yml` blocked by PAT missing `workflow` scope (see /home/z/my-project/worklog.md)
 - [ ] Bengali-first UX audit (all 81 pages)
 - [ ] CSP hardening (nonce-based)
 - [ ] 2FA recovery codes

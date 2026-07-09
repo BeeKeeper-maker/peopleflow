@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -55,6 +56,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useSettings, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -140,6 +142,8 @@ export function SettingsClient() {
     const searchParams = useSearchParams()
     const t = useTranslations('Settings')
     const { addToast } = useToast()
+    const queryClient = useQueryClient()
+    const { data: settingsData } = useSettings()
     const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "organization")
     const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -217,31 +221,34 @@ export function SettingsClient() {
     const [savingGeo, setSavingGeo] = useState(false)
     const [geoLoaded, setGeoLoaded] = useState(false)
 
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch("/api/settings")
-            if (res.ok) {
-                const data = await res.json()
-                if (data.organization) {
-                    // Convert ISO DateTime strings to YYYY-MM-DD for <input type="date">
-                    const toDateInput = (value: unknown): string | null => {
-                        if (!value || typeof value !== "string") return null
-                        return value.slice(0, 10) || null
-                    }
-                    setOrgSettings(prev => ({
-                        ...prev,
-                        ...data.organization,
-                        tradeLicenseExpiry: toDateInput(data.organization.tradeLicenseExpiry),
-                        binExpiry: toDateInput(data.organization.binExpiry),
-                    }))
-                    if (data.organization.documents) {
-                        setDocumentSettings(prev => ({ ...prev, ...data.organization.documents }))
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch settings:", error)
+    // Hydrate form state from the TanStack Query cache. The settings page is
+    // a heavily form-driven page, so we keep the local orgSettings/documentSettings
+    // state as the source of truth for inputs and just sync from the cached
+    // /api/settings response whenever it changes (initial load + post-mutation
+    // refetch). This satisfies the "keep UI unchanged" requirement while still
+    // routing reads + invalidations through TanStack Query.
+    useEffect(() => {
+        if (!settingsData?.organization) return
+        const org = settingsData.organization
+        const toDateInput = (value: unknown): string | null => {
+            if (!value || typeof value !== "string") return null
+            return value.slice(0, 10) || null
         }
+        setOrgSettings(prev => ({
+            ...prev,
+            ...org,
+            tradeLicenseExpiry: toDateInput(org.tradeLicenseExpiry),
+            binExpiry: toDateInput(org.binExpiry),
+        }))
+        if (org.documents) {
+            setDocumentSettings(prev => ({ ...prev, ...org.documents }))
+        }
+    }, [settingsData])
+
+    // Trigger an immediate refetch of the cached settings query (used by
+    // mutation handlers below to keep the form in sync with the server).
+    const invalidateSettings = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings.org() })
     }
 
     const fetchBilling = async () => {
@@ -300,9 +307,8 @@ export function SettingsClient() {
     }
 
 
-    useEffect(() => {
-        fetchSettings()
-    }, [])
+    // The settings query (useSettings) drives initial load and post-mutation
+    // refetches — no manual fetch on mount is needed.
 
     // Keep direct tab links (for example /settings?tab=billing) in sync with UI state.
     useEffect(() => {
@@ -432,6 +438,7 @@ export function SettingsClient() {
                 if (res.ok) {
                     setOrgSettings(prev => ({ ...prev, logoUrl: base64 }))
                     addToast({ title: t('toastLogoSuccess'), type: 'success' })
+                    invalidateSettings()
                 } else {
                     addToast({ title: t('toastLogoFail'), type: 'error' })
                 }
@@ -471,8 +478,10 @@ export function SettingsClient() {
                     binExpiry: orgSettings.binExpiry || null,
                 }),
             })
-            if (res.ok) addToast({ title: t('toastSettingsSaved'), type: 'success' })
-            else addToast({ title: t('toastSettingsFail'), type: 'error' })
+            if (res.ok) {
+                addToast({ title: t('toastSettingsSaved'), type: 'success' })
+                invalidateSettings()
+            } else addToast({ title: t('toastSettingsFail'), type: 'error' })
         } catch {
             addToast({ title: t('toastSettingsFail'), type: 'error' })
         } finally { setSaving(false) }
@@ -516,8 +525,10 @@ export function SettingsClient() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ documents: documentSettings }),
             })
-            if (res.ok) addToast({ title: "Official document system saved", type: 'success' })
-            else addToast({ title: "Failed to save document settings", type: 'error' })
+            if (res.ok) {
+                addToast({ title: "Official document system saved", type: 'success' })
+                invalidateSettings()
+            } else addToast({ title: "Failed to save document settings", type: 'error' })
         } catch {
             addToast({ title: "Failed to save document settings", type: 'error' })
         } finally { setSaving(false) }

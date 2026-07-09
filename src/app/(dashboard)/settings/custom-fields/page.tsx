@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { useCustomFields, queryKeys } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -50,37 +52,24 @@ const FIELD_TYPES = [
 ];
 
 export default function CustomFieldsPage() {
+    const queryClient = useQueryClient();
     const { addToast } = useToast();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
-    const [fields, setFields] = useState<CustomField[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: rawFields = [], isLoading: loading } = useCustomFields();
+    const fields = rawFields as unknown as CustomField[];
     const [showForm, setShowForm] = useState(false);
     const [editingField, setEditingField] = useState<CustomField | null>(null);
 
-    const fetchFields = useCallback(async () => {
-        try {
-            const res = await fetch("/api/settings/custom-fields");
-            if (res.ok) {
-                const data = await res.json();
-                setFields(data.data || []);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load fields", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [addToast]);
-
-    useEffect(() => {
-        fetchFields();
-    }, [fetchFields]);
+    const invalidateFields = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings.customFields({}) });
+    };
 
     const handleDelete = async (field: CustomField) => {
         const _ok = await confirm({ title: `Deactivate field "${field.label}"?`, description: "Existing values will be preserved. The field will be hidden from forms.", confirmLabel: "Deactivate", variant: "destructive" }); if (!_ok) return;
         try {
             await fetch(`/api/settings/custom-fields/${field.id}`, { method: "DELETE" });
             addToast({ title: "Field deactivated", type: "success" });
-            fetchFields();
+            invalidateFields();
         } catch {
             addToast({ title: "Error", description: "Failed to delete", type: "error" });
         }
@@ -211,7 +200,7 @@ export default function CustomFieldsPage() {
                     onSaved={() => {
                         setShowForm(false);
                         setEditingField(null);
-                        fetchFields();
+                        invalidateFields();
                     }}
                 />
             )}
