@@ -197,7 +197,7 @@ export default function ESSDashboardPage() {
         if (outcome === "unavailable") {
             addToast({
                 title: tDash("installApp"),
-                description: "Use your browser menu and choose Add to Home Screen / Install App.",
+                description: tDash("installAppDesc"),
                 type: "info",
             });
         }
