@@ -145,18 +145,33 @@ export async function processCarryForward(
             },
         });
 
+        // ✅ PERF: Single batch query instead of N×M sequential findUnique calls.
+        // At 1000 employees × 5 leave types this collapses ~5000 sequential
+        // queries into ONE findMany. We then look up allocations via a Map
+        // keyed by `${employeeId}:${leaveTypeId}` for O(1) access.
+        const employeeIds = employees.map((e) => e.id);
+        const leaveTypeIds = leaveTypes.map((lt) => lt.id);
+
+        const existingAllocations =
+            employeeIds.length > 0 && leaveTypeIds.length > 0
+                ? await db.leaveAllocation.findMany({
+                      where: {
+                          employeeId: { in: employeeIds },
+                          leaveTypeId: { in: leaveTypeIds },
+                          year: fromYear,
+                      },
+                  })
+                : [];
+
+        const allocMap = new Map<string, (typeof existingAllocations)[number]>();
+        for (const a of existingAllocations) {
+            allocMap.set(`${a.employeeId}:${a.leaveTypeId}`, a);
+        }
+
         for (const employee of employees) {
             for (const lt of leaveTypes) {
-                // Get current year's balance
-                const allocation = await db.leaveAllocation.findUnique({
-                    where: {
-                        employeeId_leaveTypeId_year: {
-                            employeeId: employee.id,
-                            leaveTypeId: lt.id,
-                            year: fromYear,
-                        },
-                    },
-                });
+                // Get current year's balance from the pre-fetched map
+                const allocation = allocMap.get(`${employee.id}:${lt.id}`);
 
                 if (!allocation) continue;
 

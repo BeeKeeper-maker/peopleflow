@@ -211,15 +211,15 @@ export async function POST(request: Request) {
         },
       ];
 
-      // Create leave types individually (SQLite doesn't support createMany natively)
-      for (const lt of leaveTypes) {
-        await tx.leaveType.create({
-          data: {
-            ...lt,
-            organizationId: organization.id,
-          },
-        });
-      }
+      // Create leave types in a single batched INSERT. (PostgreSQL supports
+      // createMany natively — the previous per-row loop was an N+1 left over
+      // from an earlier SQLite assumption.)
+      await tx.leaveType.createMany({
+        data: leaveTypes.map((lt) => ({
+          ...lt,
+          organizationId: organization.id,
+        })),
+      });
 
       // Create default shift
       await tx.shift.create({

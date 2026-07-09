@@ -146,7 +146,29 @@ async function processAbsentBatch(
 
     const onLeaveIds = new Set(onLeave.map((l) => l.employeeId));
 
-    // Mark absent for employees who didn't check in and aren't on leave
+    // ✅ PERF: Batch-insert absent & on_leave records instead of one
+    // create() per employee. At 1000 absent employees this collapses
+    // ~1000 sequential INSERTs into a single createMany call.
+    //
+    // Attendance has @@unique([employeeId, date]) so skipDuplicates:true
+    // makes the operation idempotent against any race-condition rows that
+    // appeared between the findMany above and the insert below.
+    const onLeaveRecords: Array<{
+        date: Date;
+        status: "on_leave";
+        source: string;
+        employeeId: string;
+        organizationId: string;
+    }> = [];
+    const absentRecords: Array<{
+        date: Date;
+        status: "absent";
+        source: string;
+        notes: string;
+        employeeId: string;
+        organizationId: string;
+    }> = [];
+
     for (const employeeId of employeeIds) {
         if (checkedInIds.has(employeeId)) {
             result.skipped++;
@@ -154,37 +176,53 @@ async function processAbsentBatch(
         }
 
         if (onLeaveIds.has(employeeId)) {
-            try {
-                await db.attendance.create({
-                    data: {
-                        date,
-                        status: "on_leave",
-                        source: "system",
-                        employeeId,
-                        organizationId,
-                    },
-                });
-            } catch {
-                // Unique constraint — already exists
-            }
+            onLeaveRecords.push({
+                date,
+                status: "on_leave",
+                source: "system",
+                employeeId,
+                organizationId,
+            });
             result.skipped++;
             continue;
         }
 
+        absentRecords.push({
+            date,
+            status: "absent",
+            source: "system",
+            notes: "Auto-marked absent — no check-in recorded",
+            employeeId,
+            organizationId,
+        });
+    }
+
+    // Single batched INSERT for on_leave records (idempotent).
+    if (onLeaveRecords.length > 0) {
         try {
-            await db.attendance.create({
-                data: {
-                    date,
-                    status: "absent",
-                    source: "system",
-                    notes: "Auto-marked absent — no check-in recorded",
-                    employeeId,
-                    organizationId,
-                },
+            await db.attendance.createMany({
+                data: onLeaveRecords,
+                skipDuplicates: true,
             });
-            result.marked++;
+        } catch {
+            // Unique constraint / race — already exists. Original code
+            // swallowed these silently per-row; we preserve that behavior.
+        }
+    }
+
+    // Single batched INSERT for absent records (idempotent).
+    if (absentRecords.length > 0) {
+        try {
+            const insertResult = await db.attendance.createMany({
+                data: absentRecords,
+                skipDuplicates: true,
+            });
+            // createMany returns { count: N } where N = rows actually inserted.
+            // This preserves the original semantics where `marked` only counts
+            // successful inserts (duplicates from races are silently skipped).
+            result.marked += insertResult.count;
         } catch (error) {
-            result.errors.push(`Failed for employee ${employeeId}: ${error}`);
+            result.errors.push(`Failed to batch-insert absent records: ${error}`);
         }
     }
 }
