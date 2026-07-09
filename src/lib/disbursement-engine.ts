@@ -108,12 +108,30 @@ function getBkashConfig(orgSettings: unknown): BkashConfig | null {
 
 // ── bKash Token ──────────────────────────────────────────────────────
 
-let bkashTokenCache: { token: string; expiresAt: number } | null = null;
+/**
+ * SECURITY: The bKash token cache is keyed by organization ID.
+ *
+ * Previously this was a single module-level variable shared across all
+ * tenants, which meant Tenant A's bKash token could be (incorrectly) used
+ * to authorize a disbursement for Tenant B. Because bKash tokens encode
+ * the merchant credentials used to mint them, this could let Tenant B
+ * accidentally (or maliciously) draw funds from Tenant A's bKash wallet.
+ *
+ * Keying by organizationId guarantees that each tenant's token cache is
+ * isolated, and that a token minted with Tenant A's credentials can never
+ * be presented on a request for Tenant B.
+ */
+const bkashTokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getBkashToken(config: BkashConfig): Promise<string> {
-    // Check cache (token valid for ~1 hour, we refresh at 50 min)
-    if (bkashTokenCache && Date.now() < bkashTokenCache.expiresAt) {
-        return bkashTokenCache.token;
+async function getBkashToken(
+    config: BkashConfig,
+    organizationId: string,
+): Promise<string> {
+    // Check cache (token valid for ~1 hour, we refresh at 50 min).
+    // Refresh slightly earlier (1 minute buffer) to avoid edge-case expiry.
+    const cached = bkashTokenCache.get(organizationId);
+    if (cached && cached.expiresAt > Date.now() + 60 * 1000) {
+        return cached.token;
     }
 
     const response = await fetch(`${config.baseUrl}/tokenized/checkout/token/grant`, {
@@ -137,10 +155,10 @@ async function getBkashToken(config: BkashConfig): Promise<string> {
     }
 
     const token = data.idToken;
-    bkashTokenCache = {
+    bkashTokenCache.set(organizationId, {
         token,
         expiresAt: Date.now() + 50 * 60 * 1000, // 50 minutes
-    };
+    });
 
     return token;
 }
@@ -166,9 +184,10 @@ async function disburseViaBkash(
     config: BkashConfig,
     amount: number,
     receiverMsisdn: string,
+    organizationId: string,
 ): Promise<DisbursementResult> {
     try {
-        const token = await getBkashToken(config);
+        const token = await getBkashToken(config, organizationId);
 
         const response = await fetch(`${config.baseUrl}/tokenized/checkout/payment/b2c`, {
             method: "POST",
@@ -331,7 +350,7 @@ export async function disburseSalary(params: {
                     errorMessage: "Employee does not have a bKash number. Please add it to the employee profile.",
                 };
             } else {
-                result = await disburseViaBkash(config, amount, bkashNumber);
+                result = await disburseViaBkash(config, amount, bkashNumber, organizationId);
             }
         }
     } else if (channel === "nagad") {

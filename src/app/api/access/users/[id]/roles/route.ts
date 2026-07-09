@@ -156,9 +156,15 @@ export async function POST(req: Request, { params }: RouteParams) {
         }));
 
         // Update User.role (legacy string) to match
+        // SECURITY: increment sessionVersion so any active session is
+        // invalidated and the user must re-authenticate to pick up the new
+        // role's permissions (and lose any elevated permissions they had).
         await auth.withDB((db) => db.user.update({
             where: { id },
-            data: { role: role.slug },
+            data: {
+                role: role.slug,
+                sessionVersion: { increment: 1 },
+            },
         }));
 
         invalidatePermissionCache(id);
@@ -236,9 +242,15 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             where: { userId: id, roleId },
         }));
 
+        // SECURITY: increment sessionVersion so any active session is
+        // invalidated and the user must re-authenticate to lose the removed
+        // role's permissions.
         await auth.withDB((db) => db.user.update({
             where: { id },
-            data: { role: "employee" },
+            data: {
+                role: "employee",
+                sessionVersion: { increment: 1 },
+            },
         }));
 
         invalidatePermissionCache(id);

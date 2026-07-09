@@ -7,11 +7,14 @@
  * - Result grouping
  * - Search suggestions
  * - Recent searches (client-side)
+ *
+ * SECURITY: All Prisma reads go through `requireAuth()` + `auth.withDB()` so
+ * they are RLS-scoped to the caller's organization and protected by
+ * sessionVersion / isActive / org-status checks enforced in requireAuth().
  */
 
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
 
@@ -36,18 +39,8 @@ interface SearchResponse {
 
 export async function GET(req: NextRequest) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim() || "";
@@ -58,12 +51,12 @@ export async function GET(req: NextRequest) {
             return errorResponse(ErrorCodes.VALIDATION_ERROR, "Search query must be at least 2 characters");
         }
 
-        const organizationId = user.organizationId;
+        const organizationId = auth.organizationId;
         const results: SearchResult[] = [];
 
         // Search Employees
         if (types.includes("all") || types.includes("employee")) {
-            const employees = await prisma.employee.findMany({
+            const employees = await auth.withDB((db) => db.employee.findMany({
                 where: {
                     organizationId,
                     deletedAt: null,
@@ -80,7 +73,7 @@ export async function GET(req: NextRequest) {
                     designation: { select: { name: true } },
                 },
                 take: limit,
-            });
+            }));
 
             for (const emp of employees) {
                 results.push({
@@ -102,7 +95,7 @@ export async function GET(req: NextRequest) {
 
         // Search Departments
         if (types.includes("all") || types.includes("department")) {
-            const departments = await prisma.department.findMany({
+            const departments = await auth.withDB((db) => db.department.findMany({
                 where: {
                     organizationId,
                     isActive: true,
@@ -116,7 +109,7 @@ export async function GET(req: NextRequest) {
                     _count: { select: { employees: true } },
                 },
                 take: limit,
-            });
+            }));
 
             for (const dept of departments) {
                 results.push({
@@ -133,7 +126,7 @@ export async function GET(req: NextRequest) {
 
         // Search Designations
         if (types.includes("all") || types.includes("designation")) {
-            const designations = await prisma.designation.findMany({
+            const designations = await auth.withDB((db) => db.designation.findMany({
                 where: {
                     organizationId,
                     isActive: true,
@@ -146,7 +139,7 @@ export async function GET(req: NextRequest) {
                     _count: { select: { employees: true } },
                 },
                 take: limit,
-            });
+            }));
 
             for (const des of designations) {
                 results.push({
@@ -163,7 +156,7 @@ export async function GET(req: NextRequest) {
 
         // Search Job Postings
         if (types.includes("all") || types.includes("job")) {
-            const jobs = await prisma.jobPosting.findMany({
+            const jobs = await auth.withDB((db) => db.jobPosting.findMany({
                 where: {
                     organizationId,
                     OR: [
@@ -176,7 +169,7 @@ export async function GET(req: NextRequest) {
                     _count: { select: { applications: true } },
                 },
                 take: limit,
-            });
+            }));
 
             for (const job of jobs) {
                 results.push({

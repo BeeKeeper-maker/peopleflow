@@ -1,52 +1,77 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated, type AuthContext } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
+
+/**
+ * Determine whether the caller is allowed to view allocations for the given
+ * employee ID.
+ *
+ *   - super_admin / admin / hr_admin → always allowed (within their org)
+ *   - manager → allowed for self or their direct reportees
+ *   - employee → allowed only for self
+ */
+async function canViewEmployeeAllocations(
+    auth: AuthContext,
+    employeeId: string,
+): Promise<boolean> {
+    if (["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return true;
+    }
+    if (employeeId === auth.employeeId) {
+        return true;
+    }
+    if (auth.role === "manager" && auth.employeeId) {
+        const reportee = await auth.withDB((db) =>
+            db.employee.findFirst({
+                where: {
+                    id: employeeId,
+                    reportingManagerId: auth.employeeId,
+                    organizationId: auth.organizationId,
+                    deletedAt: null,
+                },
+                select: { id: true },
+            }),
+        );
+        return !!reportee;
+    }
+    return false;
+}
 
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { employee: true },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { searchParams } = new URL(req.url);
-        const employeeId = searchParams.get("employeeId") || user.employee?.id;
+        const employeeId = searchParams.get("employeeId") || auth.employeeId;
 
         if (!employeeId) {
             return new NextResponse("Employee ID required", { status: 400 });
         }
 
-        // Strict check: only allow viewing own allocations unless admin/hr/manager
-        const userRole = user.role;
-        const isAdminOrHR = ["admin", "hr_admin", "manager"].includes(userRole);
-        if (!isAdminOrHR && employeeId !== user.employee?.id) {
+        // Strict check: only allow viewing own allocations unless admin/HR/manager
+        // (manager restricted to own + direct reportees).
+        const allowed = await canViewEmployeeAllocations(auth, employeeId);
+        if (!allowed) {
             return new NextResponse("Forbidden: Cannot view other employee's allocations", { status: 403 });
         }
 
-        const allocations = await prisma.leaveAllocation.findMany({
-            where: {
-                employeeId: employeeId,
-                year: new Date().getFullYear(),
-            },
-            include: {
-                leaveType: true
-            }
-        });
-
-        // Also get all Leave Types to show 0 balance for those not yet allocated
-        const leaveTypes = await prisma.leaveType.findMany({
-            where: { organizationId: user.organizationId }
-        });
+        const [allocations, leaveTypes] = await auth.withDB((db) =>
+            Promise.all([
+                db.leaveAllocation.findMany({
+                    where: {
+                        employeeId: employeeId,
+                        year: new Date().getFullYear(),
+                    },
+                    include: {
+                        leaveType: true,
+                    },
+                }),
+                db.leaveType.findMany({
+                    where: { organizationId: auth.organizationId },
+                }),
+            ]),
+        );
 
         // Merge: if allocation exists use it, else mock one
         const result = leaveTypes.map(type => {
@@ -75,21 +100,11 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         // Only admin/HR can manage allocations
-        if (!["admin", "hr_admin"].includes(user.role)) {
+        if (!["admin", "hr_admin", "super_admin"].includes(auth.role)) {
             return new NextResponse("Forbidden: Admin/HR access required", { status: 403 });
         }
 
@@ -101,16 +116,16 @@ export async function POST(req: Request) {
         }
 
         // Verify employee belongs to same organization
-        const employee = await prisma.employee.findFirst({
-            where: { id: employeeId, organizationId: user.organizationId },
-        });
+        const employee = await auth.withDB((db) => db.employee.findFirst({
+            where: { id: employeeId, organizationId: auth.organizationId },
+        }));
 
         if (!employee) {
             return new NextResponse("Employee not found in your organization", { status: 404 });
         }
 
         // Upsert the allocation
-        const allocation = await prisma.leaveAllocation.upsert({
+        const allocation = await auth.withDB((db) => db.leaveAllocation.upsert({
             where: {
                 employeeId_leaveTypeId_year: {
                     employeeId,
@@ -134,7 +149,7 @@ export async function POST(req: Request) {
                 leaveType: { select: { name: true, code: true } },
                 employee: { select: { firstName: true, lastName: true } },
             },
-        });
+        }));
 
         return NextResponse.json({
             message: "Allocation updated successfully",
@@ -154,20 +169,10 @@ export async function POST(req: Request) {
  */
 export async function PUT(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
-
-        if (!["admin", "hr_admin"].includes(user.role)) {
+        if (!["admin", "hr_admin", "super_admin"].includes(auth.role)) {
             return new NextResponse("Forbidden: Admin/HR access required", { status: 403 });
         }
 
@@ -181,21 +186,23 @@ export async function PUT(req: Request) {
         const targetYear = parseInt(year);
 
         // Get all active employees and leave types
-        const [employees, leaveTypes] = await Promise.all([
-            prisma.employee.findMany({
-                where: {
-                    organizationId: user.organizationId,
-                    employmentStatus: "active",
-                },
-                select: { id: true, firstName: true, lastName: true, gender: true, joiningDate: true },
-            }),
-            prisma.leaveType.findMany({
-                where: {
-                    organizationId: user.organizationId,
-                    isActive: true,
-                },
-            }),
-        ]);
+        const [employees, leaveTypes] = await auth.withDB((db) =>
+            Promise.all([
+                db.employee.findMany({
+                    where: {
+                        organizationId: auth.organizationId,
+                        employmentStatus: "active",
+                    },
+                    select: { id: true, firstName: true, lastName: true, gender: true, joiningDate: true },
+                }),
+                db.leaveType.findMany({
+                    where: {
+                        organizationId: auth.organizationId,
+                        isActive: true,
+                    },
+                }),
+            ]),
+        );
 
         let created = 0;
         let skipped = 0;
@@ -222,7 +229,7 @@ export async function PUT(req: Request) {
                 }
 
                 // Upsert — won't override existing data (only creates if not exists)
-                await prisma.leaveAllocation.upsert({
+                await auth.withDB((db) => db.leaveAllocation.upsert({
                     where: {
                         employeeId_leaveTypeId_year: {
                             employeeId: employee.id,
@@ -239,7 +246,7 @@ export async function PUT(req: Request) {
                         carriedForward: 0,
                     },
                     update: {}, // No update — preserve existing allocations
-                });
+                }));
 
                 created++;
             }

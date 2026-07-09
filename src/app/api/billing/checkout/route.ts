@@ -3,10 +3,18 @@
  *
  * POST /api/billing/checkout — Redirect tenant to Stripe Checkout
  * POST /api/billing/portal — Redirect to Stripe Customer Portal
+ *
+ * SECURITY: All DB access goes through `requireAuth()` + `auth.withDB()` so
+ * reads are RLS-scoped to the caller's organization and protected by
+ * sessionVersion / isActive / org-status checks enforced in requireAuth().
+ *
+ * Note: The `Plan` model is a global lookup table (not tenant-scoped), so we
+ * read it via the platform (non-RLS) client. The subscription record is the
+ * tenant-scoped artefact and is read through `auth.withDB()`.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { createCheckoutSession, createPortalSession } from "@/lib/stripe";
 import { apiLogger } from "@/lib/logger";
@@ -15,14 +23,8 @@ import { apiLogger } from "@/lib/logger";
  * POST: Create a Stripe Checkout session for subscribing or upgrading
  */
 export async function POST(request: NextRequest) {
-    const session = await auth();
-
-    if (!session?.user?.email) {
-        return NextResponse.json(
-            { error: "Authentication required" },
-            { status: 401 }
-        );
-    }
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
 
     try {
         const body = await request.json();
@@ -35,28 +37,31 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get user and org
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { organization: true },
-        });
-
-        if (!user?.organizationId || !user.organization) {
-            return NextResponse.json(
-                { error: "No organization found" },
-                { status: 400 }
-            );
-        }
-
         // Only admins can manage billing
-        if (!["admin", "super_admin"].includes(user.role)) {
+        if (!["admin", "super_admin"].includes(auth.role)) {
             return NextResponse.json(
                 { error: "Only admins can manage billing" },
                 { status: 403 }
             );
         }
 
-        // Get plan
+        // Get the organization (RLS-scoped)
+        const organization = await auth.withDB((db) =>
+            db.organization.findUnique({
+                where: { id: auth.organizationId },
+                select: { id: true, name: true },
+            }),
+        );
+
+        if (!organization) {
+            return NextResponse.json(
+                { error: "No organization found" },
+                { status: 400 }
+            );
+        }
+
+        // Get plan — global lookup table, not tenant-scoped. Use the platform
+        // (non-RLS) client.
         const plan = await prisma.plan.findUnique({
             where: { slug: planSlug },
         });
@@ -81,10 +86,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check if tenant already has a Stripe customer
-        const existingSub = await prisma.subscription.findUnique({
-            where: { organizationId: user.organizationId },
-        });
+        // Check if tenant already has a Stripe customer (RLS-scoped)
+        const existingSub = await auth.withDB((db) =>
+            db.subscription.findUnique({
+                where: { organizationId: auth.organizationId },
+            }),
+        );
 
         // If they have an existing Stripe subscription, redirect to portal
         if (existingSub?.stripeCustomerId) {
@@ -101,9 +108,9 @@ export async function POST(request: NextRequest) {
             process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
         const checkoutSession = await createCheckoutSession({
-            organizationId: user.organizationId,
-            organizationName: user.organization.name,
-            customerEmail: user.email,
+            organizationId: auth.organizationId,
+            organizationName: organization.name,
+            customerEmail: auth.email,
             stripePriceId,
             successUrl: `${appUrl}/settings/billing?checkout=success`,
             cancelUrl: `${appUrl}/settings/billing?checkout=cancel`,

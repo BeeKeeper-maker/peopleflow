@@ -119,7 +119,13 @@ export async function PATCH(req: Request) {
       data: {
         ...(body.role !== undefined && { role: body.role }),
         ...(body.isActive !== undefined && { isActive: body.isActive }),
-        ...(body.isActive === false && { sessionVersion: { increment: 1 } }),
+        // Always invalidate sessions when role changes or user is deactivated.
+        // A role change (e.g., admin → employee) must immediately revoke any
+        // elevated-privilege session; otherwise the demoted user retains
+        // admin access until their JWT expires or is refreshed.
+        ...((body.role !== undefined || body.isActive === false) && {
+          sessionVersion: { increment: 1 },
+        }),
       },
       select: { id: true, role: true, isActive: true },
     }));

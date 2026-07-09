@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated, type AuthContext } from "@/lib/api-auth";
+import { errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
 
-// GET - Get goal details
-export async function GET(
-    req: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const { id } = await params;
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 404 });
-        }
-
-        const goal = await prisma.goal.findFirst({
-            where: { id, organizationId: user.organizationId },
+/**
+ * Verify that the caller is allowed to access a given goal.
+ *
+ *   - super_admin / admin / hr_admin → always allowed (within their org)
+ *   - manager → allowed if the goal belongs to them or one of their reportees
+ *   - employee → allowed only if the goal belongs to them
+ *
+ * Returns the goal (with employee + keyResults + reviewCycle included) if
+ * access is granted, otherwise null.
+ */
+async function getGoalIfAccessible(
+    auth: AuthContext,
+    id: string,
+): Promise<Record<string, unknown> | null> {
+    const goal = await auth.withDB((db) =>
+        db.goal.findFirst({
+            where: { id, organizationId: auth.organizationId },
             include: {
                 employee: {
                     select: { id: true, firstName: true, lastName: true, photoUrl: true },
@@ -32,10 +27,64 @@ export async function GET(
                 keyResults: true,
                 reviewCycle: { select: { id: true, name: true } },
             },
-        });
+        }),
+    );
 
+    if (!goal) return null;
+
+    // Elevated roles can see any goal in the org.
+    if (["super_admin", "admin", "hr_admin"].includes(auth.role)) {
+        return goal as Record<string, unknown>;
+    }
+
+    const goalEmployeeId = goal.employeeId ?? null;
+
+    // Employee can only see their own goals.
+    if (auth.role === "employee") {
+        return goalEmployeeId && goalEmployeeId === auth.employeeId
+            ? (goal as Record<string, unknown>)
+            : null;
+    }
+
+    // Manager: own goals + reportees' goals.
+    if (auth.role === "manager" && auth.employeeId) {
+        if (goalEmployeeId === auth.employeeId) {
+            return goal as Record<string, unknown>;
+        }
+        if (goalEmployeeId) {
+            const reportee = await auth.withDB((db) =>
+                db.employee.findFirst({
+                    where: {
+                        id: goalEmployeeId,
+                        reportingManagerId: auth.employeeId,
+                        organizationId: auth.organizationId,
+                        deletedAt: null,
+                    },
+                    select: { id: true },
+                }),
+            );
+            if (reportee) return goal as Record<string, unknown>;
+        }
+        return null;
+    }
+
+    return null;
+}
+
+// GET - Get goal details
+export async function GET(
+    _req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
+
+        const { id } = await params;
+
+        const goal = await getGoalIfAccessible(auth, id);
         if (!goal) {
-            return new NextResponse("Goal not found", { status: 404 });
+            return errorResponse(ErrorCodes.NOT_FOUND, "Goal not found");
         }
 
         return NextResponse.json(goal);
@@ -51,29 +100,18 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
+
         const { id } = await params;
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 404 });
-        }
-
-        const existingGoal = await prisma.goal.findFirst({
-            where: { id, organizationId: user.organizationId },
-        });
-
+        const existingGoal = await getGoalIfAccessible(auth, id);
         if (!existingGoal) {
-            return new NextResponse("Goal not found", { status: 404 });
+            return errorResponse(ErrorCodes.NOT_FOUND, "Goal not found");
         }
 
         const body = await req.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updateData: any = {};
 
         const allowedFields = [
@@ -92,12 +130,12 @@ export async function PATCH(
         if (updateData.dueDate) updateData.dueDate = new Date(updateData.dueDate);
 
         // Handle completion
-        if (body.status === "completed" && existingGoal.status !== "completed") {
+        if (body.status === "completed" && (existingGoal as { status?: string }).status !== "completed") {
             updateData.completedAt = new Date();
             updateData.progress = 100;
         }
 
-        const goal = await prisma.goal.update({
+        const goal = await auth.withDB((db) => db.goal.update({
             where: { id },
             data: updateData,
             include: {
@@ -106,7 +144,7 @@ export async function PATCH(
                 },
                 keyResults: true,
             },
-        });
+        }));
 
         return NextResponse.json(goal);
     } catch (error) {
@@ -117,33 +155,21 @@ export async function PATCH(
 
 // DELETE - Delete goal
 export async function DELETE(
-    req: Request,
+    _req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
+
         const { id } = await params;
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 404 });
-        }
-
-        const existingGoal = await prisma.goal.findFirst({
-            where: { id, organizationId: user.organizationId },
-        });
-
+        const existingGoal = await getGoalIfAccessible(auth, id);
         if (!existingGoal) {
-            return new NextResponse("Goal not found", { status: 404 });
+            return errorResponse(ErrorCodes.NOT_FOUND, "Goal not found");
         }
 
-        await prisma.goal.delete({ where: { id } });
+        await auth.withDB((db) => db.goal.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -8,49 +8,37 @@
  * - Subscription status
  * - Resource usage vs limits
  * - Billing history (recent invoices)
+ *
+ * SECURITY: All tenant-scoped reads go through `requireAuth()` + `auth.withDB()`
+ * so they are RLS-scoped to the caller's organization and protected by
+ * sessionVersion / isActive / org-status checks enforced in requireAuth().
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
 
 export async function GET() {
-    const session = await auth();
-
-    if (!session?.user?.email) {
-        return NextResponse.json(
-            { error: "Authentication required" },
-            { status: 401 }
-        );
-    }
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const orgId = auth.organizationId;
 
-        if (!user?.organizationId) {
-            return NextResponse.json(
-                { error: "No organization found" },
-                { status: 400 }
-            );
-        }
-
-        const orgId = user.organizationId;
-
-        // Get subscription + plan + recent invoices
-        const subscription = await prisma.subscription.findUnique({
-            where: { organizationId: orgId },
-            include: {
-                plan: true,
-                invoices: {
-                    orderBy: { createdAt: "desc" },
-                    take: 10,
+        // Get subscription + plan + recent invoices (RLS-scoped)
+        const subscription = await auth.withDB((db) =>
+            db.subscription.findUnique({
+                where: { organizationId: orgId },
+                include: {
+                    plan: true,
+                    invoices: {
+                        orderBy: { createdAt: "desc" },
+                        take: 10,
+                    },
                 },
-            },
-        });
+            }),
+        );
 
         if (!subscription) {
             return NextResponse.json({
@@ -59,23 +47,24 @@ export async function GET() {
             });
         }
 
-        // Get current resource counts
-        const [employeeCount, userCount, branchCount] =
-            await prisma.$transaction([
-                prisma.employee.count({
+        // Get current resource counts (RLS-scoped)
+        const [employeeCount, userCount, branchCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.employee.count({
                     where: { organizationId: orgId },
                 }),
-                prisma.user.count({
+                db.user.count({
                     where: {
                         organizationId: orgId,
                         role: { in: ["admin", "hr_admin"] },
                         isActive: true,
                     },
                 }),
-                prisma.branch.count({
+                db.branch.count({
                     where: { organizationId: orgId },
                 }),
-            ]);
+            ]),
+        );
 
         const plan = subscription.plan;
         const effectiveSubscription = await getOrgSubscription(orgId);

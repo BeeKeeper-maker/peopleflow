@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPDF, SalarySlipData } from "@/components/payroll/salary-slip-pdf";
 import { payrollLogger } from "@/lib/logger";
@@ -11,23 +10,13 @@ type RouteParams = {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
+
         const { id } = await params;
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
-
-        if (!user?.organizationId) {
-            return NextResponse.json({ error: "No organization" }, { status: 400 });
-        }
-
-        // Get salary slip
-        const salarySlip = await prisma.salarySlip.findUnique({
+        // Get salary slip (RLS-scoped via auth.withDB)
+        const salarySlip = await auth.withDB((db) => db.salarySlip.findUnique({
             where: { id },
             include: {
                 employee: {
@@ -38,15 +27,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
-        if (!salarySlip || salarySlip.employee.organizationId !== user.organizationId) {
+        if (!salarySlip || salarySlip.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
 
         // Check access - employee can only view their own, HR can view all
-        const isHR = ["admin", "hr_admin", "super_admin"].includes(user.role);
-        if (!isHR && salarySlip.employeeId !== user.employee?.id) {
+        const isHR = ["admin", "hr_admin", "super_admin"].includes(auth.role);
+        if (!isHR && salarySlip.employeeId !== auth.employeeId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
