@@ -19,10 +19,16 @@
  *   - BLA 2006 Section 26: Notice period
  *   - BLA 2006 Section 27: Gratuity
  *   - BLA 2006 Section 100: Leave encashment
+ *
+ * P0-BACKEND fix: pro-rated salary now uses ACTUAL working days
+ * (excluding weekends + holidays) instead of raw calendar day-of-month,
+ * so employees leaving mid-month are paid for the days they actually
+ * worked, not for calendar days.
  */
 
 import { prisma } from "@/lib/prisma";
 import { payrollLogger } from "@/lib/logger";
+import { calculateWorkingDays, getWeekendDays, fetchHolidays } from "@/lib/leave-utils";
 
 export interface FinalSettlementInput {
     employeeId: string;
@@ -108,10 +114,30 @@ export async function calculateFinalSettlement(
     const warnings: string[] = [];
 
     // ── 4. Unpaid salary (pro-rated for partial month) ──
-    const lastDayOfMonth = new Date(lastWorkingDate.getFullYear(), lastWorkingDate.getMonth() + 1, 0);
-    const workingDaysInMonth = lastWorkingDate.getDate();
-    const totalDaysInMonth = lastDayOfMonth.getDate();
-    const proRatedSalary = Math.round((monthlyGross * workingDaysInMonth) / totalDaysInMonth);
+    // Use ACTUAL working days (excluding weekends + holidays) — not raw
+    // calendar day-of-month. The old formula used `lastWorkingDate.getDate()`
+    // which treated every calendar day as a payable day; an employee leaving
+    // on the 5th (a Friday) would be paid for 5 days even though only 3 were
+    // working days. This caused over-payment to separating employees.
+    const monthStart = new Date(lastWorkingDate.getFullYear(), lastWorkingDate.getMonth(), 1);
+    const monthEnd = new Date(lastWorkingDate.getFullYear(), lastWorkingDate.getMonth() + 1, 0);
+
+    // Fetch organization settings + holiday list for the separation month.
+    // Falls back to BD defaults (Fri/Sat weekend, no holidays) when missing.
+    const org = await prisma.organization.findUnique({
+        where: { id: employee.organizationId },
+        select: { settings: true },
+    });
+    const weekendDays = getWeekendDays(org?.settings);
+    const holidays = await fetchHolidays(prisma, employee.organizationId, lastWorkingDate.getFullYear());
+
+    const workingDaysEmployed = calculateWorkingDays(monthStart, lastWorkingDate, holidays, weekendDays);
+    const workingDaysInMonth = calculateWorkingDays(monthStart, monthEnd, holidays, weekendDays);
+
+    // Guard against division-by-zero (e.g. month is entirely holidays/weekends)
+    const proRatedSalary = workingDaysInMonth > 0
+        ? Math.round((monthlyGross * workingDaysEmployed) / workingDaysInMonth)
+        : 0;
 
     components.push({
         label: "Pro-rated Salary",
@@ -119,7 +145,7 @@ export async function calculateFinalSettlement(
         amount: proRatedSalary,
         type: "payable",
         reference: "BLA 2006 Section 23",
-        details: `${workingDaysInMonth}/${totalDaysInMonth} days of ${monthlyGross.toLocaleString()} BDT gross`,
+        details: `${workingDaysEmployed}/${workingDaysInMonth} working days of ৳${monthlyGross.toLocaleString()} BDT gross`,
     });
 
     // ── 5. Earned leave encashment ──

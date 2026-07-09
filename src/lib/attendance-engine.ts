@@ -3,14 +3,16 @@
  *
  * Core module for auto-absence marking, geo-fencing validation,
  * and attendance regularization workflows.
- * 
+ *
  * ✅ Audit fixes applied:
  *  - Future date prevention in regularization
  *  - requestedStatus validation
  *  - Structured notes instead of fragile string concatenation
+ *  - RLS-aware: all DB calls go through withTenant/withPlatform (P0-BACKEND)
  */
 
 import prisma from "@/lib/prisma";
+import { withTenant, type TxClient } from "@/lib/prisma";
 
 // ============================================
 // Auto-Mark Absent
@@ -25,6 +27,9 @@ export interface AutoAbsentResult {
 /**
  * Auto-mark absent for employees who didn't check in on a given date.
  * Should be called via cron job at end of each working day.
+ *
+ * All DB operations are executed inside a tenant-scoped RLS context
+ * (`withTenant`) so this works correctly in production with RLS enforced.
  */
 export async function autoMarkAbsent(
     organizationId: string,
@@ -38,77 +43,83 @@ export async function autoMarkAbsent(
         return { ...result, skipped: -1 }; // -1 indicates weekend skip
     }
 
-    // Get all active employees WITH their shift config
-    const employees = await prisma.employee.findMany({
-        where: { organizationId, employmentStatus: "active" },
-        select: {
-            id: true,
-            shift: {
-                select: {
-                    crossesMidnight: true,
-                    startTime: true,
-                    endTime: true,
+    return withTenant(organizationId, async (db) => {
+        // Get all active employees WITH their shift config
+        const employees = await db.employee.findMany({
+            where: { organizationId, employmentStatus: "active" },
+            select: {
+                id: true,
+                shift: {
+                    select: {
+                        crossesMidnight: true,
+                        startTime: true,
+                        endTime: true,
+                    },
                 },
             },
-        },
-    });
+        });
 
-    if (employees.length === 0) return result;
+        if (employees.length === 0) return result;
 
-    // ── Night Shift Awareness ──
-    // Night shift workers (crossesMidnight=true) should NOT be auto-marked absent
-    // on the date their shift STARTS, because their check-out comes the next calendar day.
-    // Instead, they should be evaluated for the PREVIOUS day's shift.
-    //
-    // Example: Worker on 22:00→06:00 shift:
-    //   - On March 15th, we check if they were absent for the March 14th night shift
-    //   - NOT whether they checked in on March 15th (their shift hasn't started yet)
-    //
-    // Strategy: Split employees into two groups:
-    //   1. Day shift workers → check attendance for today
-    //   2. Night shift workers → check attendance for yesterday (their shift date)
+        // ── Night Shift Awareness ──
+        // Night shift workers (crossesMidnight=true) should NOT be auto-marked absent
+        // on the date their shift STARTS, because their check-out comes the next calendar day.
+        // Instead, they should be evaluated for the PREVIOUS day's shift.
+        //
+        // Example: Worker on 22:00→06:00 shift:
+        //   - On March 15th, we check if they were absent for the March 14th night shift
+        //   - NOT whether they checked in on March 15th (their shift hasn't started yet)
+        //
+        // Strategy: Split employees into two groups:
+        //   1. Day shift workers → check attendance for today
+        //   2. Night shift workers → check attendance for yesterday (their shift date)
 
-    const dayShiftEmployees = employees.filter(
-        (e) => !e.shift?.crossesMidnight
-    );
-    const nightShiftEmployees = employees.filter(
-        (e) => e.shift?.crossesMidnight === true
-    );
+        const dayShiftEmployees = employees.filter(
+            (e) => !e.shift?.crossesMidnight
+        );
+        const nightShiftEmployees = employees.filter(
+            (e) => e.shift?.crossesMidnight === true
+        );
 
-    // Process day shift employees (standard logic)
-    const dayShiftIds = dayShiftEmployees.map((e) => e.id);
-    if (dayShiftIds.length > 0) {
-        await processAbsentBatch(dayShiftIds, date, result);
-    }
-
-    // Process night shift employees (check YESTERDAY's shift date)
-    const nightShiftIds = nightShiftEmployees.map((e) => e.id);
-    if (nightShiftIds.length > 0) {
-        const yesterday = new Date(date);
-        yesterday.setDate(yesterday.getDate() - 1);
-        yesterday.setHours(0, 0, 0, 0);
-
-        // Only process if yesterday wasn't a weekend
-        const yesterdayDow = yesterday.getDay();
-        if (yesterdayDow !== 5 && yesterdayDow !== 6) {
-            await processAbsentBatch(nightShiftIds, yesterday, result);
+        // Process day shift employees (standard logic)
+        const dayShiftIds = dayShiftEmployees.map((e) => e.id);
+        if (dayShiftIds.length > 0) {
+            await processAbsentBatch(db, dayShiftIds, date, result);
         }
-    }
 
-    return result;
+        // Process night shift employees (check YESTERDAY's shift date)
+        const nightShiftIds = nightShiftEmployees.map((e) => e.id);
+        if (nightShiftIds.length > 0) {
+            const yesterday = new Date(date);
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+
+            // Only process if yesterday wasn't a weekend
+            const yesterdayDow = yesterday.getDay();
+            if (yesterdayDow !== 5 && yesterdayDow !== 6) {
+                await processAbsentBatch(db, nightShiftIds, yesterday, result);
+            }
+        }
+
+        return result;
+    });
 }
 
 /**
  * Process auto-absent for a batch of employees on a specific date.
  * Shared logic between day-shift and night-shift processing.
+ *
+ * NOTE: receives a `db` transaction client from `withTenant` so all
+ * reads/writes are RLS-scoped to the current tenant.
  */
 async function processAbsentBatch(
+    db: TxClient,
     employeeIds: string[],
     date: Date,
     result: AutoAbsentResult
 ): Promise<void> {
     // Get employees who already have attendance for this date
-    const existingAttendance = await prisma.attendance.findMany({
+    const existingAttendance = await db.attendance.findMany({
         where: {
             date: {
                 gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
@@ -122,7 +133,7 @@ async function processAbsentBatch(
     const checkedInIds = new Set(existingAttendance.map((a) => a.employeeId));
 
     // Get employees on approved leave
-    const onLeave = await prisma.leaveApplication.findMany({
+    const onLeave = await db.leaveApplication.findMany({
         where: {
             status: "approved",
             fromDate: { lte: date },
@@ -143,7 +154,7 @@ async function processAbsentBatch(
 
         if (onLeaveIds.has(employeeId)) {
             try {
-                await prisma.attendance.create({
+                await db.attendance.create({
                     data: {
                         date,
                         status: "on_leave",
@@ -159,7 +170,7 @@ async function processAbsentBatch(
         }
 
         try {
-            await prisma.attendance.create({
+            await db.attendance.create({
                 data: {
                     date,
                     status: "absent",

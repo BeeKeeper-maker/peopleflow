@@ -388,138 +388,172 @@ export async function PUT(
 }
 
 // ── Helper: Handle approval side-effects (balance deduction + attendance marking) ──
+// All side-effects are wrapped in a SINGLE auth.withDB() transaction so that
+// if any one operation fails, the entire batch rolls back. This prevents the
+// historical bug where balance deduction succeeded but attendance marking
+// failed mid-loop — leaving the employee's balance consumed but their
+// attendance not marked as "on_leave".
 async function handleApproval(auth: AuthContext, leaveApplicationId: string) {
     try {
-        const application = await auth.withDB((db) => db.leaveApplication.findFirst({
-            where: {
-                id: leaveApplicationId,
-                employee: { organizationId: auth.organizationId },
-            },
-            include: {
-                leaveType: true,
-                employee: {
-                    include: { organization: { select: { settings: true } } },
-                },
-            },
-        }));
-
-        if (!application) return;
-
-        const currentYear = new Date().getFullYear();
-
-        // Deduct from allocation
-        const allocation = await auth.withDB((db) => db.leaveAllocation.findUnique({
-            where: {
-                employeeId_leaveTypeId_year: {
-                    employeeId: application.employeeId,
-                    leaveTypeId: application.leaveTypeId,
-                    year: currentYear,
-                },
-            },
-        }));
-
-        if (allocation) {
-            await auth.withDB((db) => db.leaveAllocation.update({
-                where: { id: allocation.id },
-                data: { usedDays: { increment: application.totalDays } },
-            }));
-        }
-
-        // Auto-mark attendance
-        const weekendDays = getWeekendDays(application.employee.organization?.settings);
-        const holidays = await fetchHolidays(prisma, auth.organizationId, application.fromDate.getFullYear());
-
-        const holidaySet = new Set(
-            holidays.map((h) => new Date(h.date).toISOString().split("T")[0])
-        );
-
-        const allDays = eachDayOfInterval({
-            start: application.fromDate,
-            end: application.toDate,
-        });
-
-        for (const day of allDays) {
-            const dayOfWeek = day.getDay();
-            const dateStr = day.toISOString().split("T")[0];
-            if (weekendDays.includes(dayOfWeek)) continue;
-            if (holidaySet.has(dateStr)) continue;
-
-            const normalizedDate = new Date(day);
-            normalizedDate.setHours(0, 0, 0, 0);
-
-            await auth.withDB((db) => db.attendance.upsert({
+        await auth.withDB(async (db) => {
+            // 1. Read the leave application (with org RLS check)
+            const application = await db.leaveApplication.findFirst({
                 where: {
-                    employeeId_date: {
-                        employeeId: application.employeeId,
-                        date: normalizedDate,
+                    id: leaveApplicationId,
+                    employee: { organizationId: auth.organizationId },
+                },
+                include: {
+                    leaveType: true,
+                    employee: {
+                        include: { organization: { select: { settings: true } } },
                     },
                 },
-                create: {
-                    employeeId: application.employeeId,
-                    date: normalizedDate,
-                    status: application.halfDay ? "half_day" : "on_leave",
-                    source: "system",
-                    notes: `Auto-marked: ${application.leaveType.name} leave`,
+            });
+
+            if (!application) return;
+
+            const currentYear = new Date().getFullYear();
+
+            // 2. Deduct leave balance (create allocation if missing)
+            const allocation = await db.leaveAllocation.findUnique({
+                where: {
+                    employeeId_leaveTypeId_year: {
+                        employeeId: application.employeeId,
+                        leaveTypeId: application.leaveTypeId,
+                        year: currentYear,
+                    },
                 },
-                update: {
-                    status: application.halfDay ? "half_day" : "on_leave",
-                    source: "system",
-                    notes: `Auto-marked: ${application.leaveType.name} leave`,
-                },
-            }));
-        }
+            });
+
+            if (allocation) {
+                await db.leaveAllocation.update({
+                    where: { id: allocation.id },
+                    data: { usedDays: { increment: application.totalDays } },
+                });
+            } else {
+                await db.leaveAllocation.create({
+                    data: {
+                        employeeId: application.employeeId,
+                        leaveTypeId: application.leaveTypeId,
+                        year: currentYear,
+                        allocatedDays: application.leaveType.annualAllocation,
+                        usedDays: application.totalDays,
+                        carriedForward: 0,
+                    },
+                });
+            }
+
+            // 3. Auto-mark attendance as "on_leave" for each working day in range
+            const weekendDays = getWeekendDays(application.employee.organization?.settings);
+            const holidays = await fetchHolidays(db, auth.organizationId, application.fromDate.getFullYear());
+
+            if (application.toDate.getFullYear() !== application.fromDate.getFullYear()) {
+                const nextYearHolidays = await fetchHolidays(
+                    db, auth.organizationId, application.toDate.getFullYear()
+                );
+                holidays.push(...nextYearHolidays);
+            }
+
+            const holidaySet = new Set(
+                holidays.map((h) => {
+                    const d = new Date(h.date);
+                    d.setHours(0, 0, 0, 0);
+                    return d.toISOString().split("T")[0];
+                })
+            );
+
+            const allDays = eachDayOfInterval({
+                start: application.fromDate,
+                end: application.toDate,
+            });
+
+            for (const day of allDays) {
+                const dayOfWeek = day.getDay();
+                const dateStr = day.toISOString().split("T")[0];
+                if (weekendDays.includes(dayOfWeek)) continue;
+                if (holidaySet.has(dateStr)) continue;
+
+                const normalizedDate = new Date(day);
+                normalizedDate.setHours(0, 0, 0, 0);
+
+                await db.attendance.upsert({
+                    where: {
+                        employeeId_date: {
+                            employeeId: application.employeeId,
+                            date: normalizedDate,
+                        },
+                    },
+                    create: {
+                        employeeId: application.employeeId,
+                        date: normalizedDate,
+                        status: application.halfDay ? "half_day" : "on_leave",
+                        source: "system",
+                        notes: `Auto-marked: ${application.leaveType.name} leave`,
+                    },
+                    update: {
+                        status: application.halfDay ? "half_day" : "on_leave",
+                        source: "system",
+                        notes: `Auto-marked: ${application.leaveType.name} leave`,
+                    },
+                });
+            }
+        });
     } catch (error) {
         leaveLogger.error({ err: error }, "HANDLE_APPROVAL_ERROR");
     }
 }
 
 // ── Helper: Handle cancellation side-effects (balance revert + attendance cleanup) ──
+// Wrapped in a single auth.withDB() for the same atomicity reasons as handleApproval.
 async function handleCancellation(auth: AuthContext, leaveApplicationId: string) {
     try {
-        const application = await auth.withDB((db) => db.leaveApplication.findFirst({
-            where: {
-                id: leaveApplicationId,
-                employee: { organizationId: auth.organizationId },
-            },
-            include: { leaveType: true },
-        }));
-        if (!application) return;
-
-        const currentYear = new Date().getFullYear();
-        const allocation = await auth.withDB((db) => db.leaveAllocation.findUnique({
-            where: {
-                employeeId_leaveTypeId_year: {
-                    employeeId: application.employeeId,
-                    leaveTypeId: application.leaveTypeId,
-                    year: currentYear,
-                },
-            },
-        }));
-
-        if (allocation) {
-            await auth.withDB((db) => db.leaveAllocation.update({
-                where: { id: allocation.id },
-                data: { usedDays: { decrement: application.totalDays } },
-            }));
-        }
-
-        const allDays = eachDayOfInterval({
-            start: application.fromDate,
-            end: application.toDate,
-        });
-
-        for (const day of allDays) {
-            const normalizedDate = new Date(day);
-            normalizedDate.setHours(0, 0, 0, 0);
-            await auth.withDB((db) => db.attendance.deleteMany({
+        await auth.withDB(async (db) => {
+            const application = await db.leaveApplication.findFirst({
                 where: {
-                    employeeId: application.employeeId,
-                    date: normalizedDate,
-                    source: "system",
-                    status: { in: ["on_leave", "half_day"] },
+                    id: leaveApplicationId,
+                    employee: { organizationId: auth.organizationId },
                 },
-            }));
-        }
+                include: { leaveType: true },
+            });
+            if (!application) return;
+
+            const currentYear = new Date().getFullYear();
+
+            const allocation = await db.leaveAllocation.findUnique({
+                where: {
+                    employeeId_leaveTypeId_year: {
+                        employeeId: application.employeeId,
+                        leaveTypeId: application.leaveTypeId,
+                        year: currentYear,
+                    },
+                },
+            });
+
+            if (allocation) {
+                await db.leaveAllocation.update({
+                    where: { id: allocation.id },
+                    data: { usedDays: { decrement: application.totalDays } },
+                });
+            }
+
+            const allDays = eachDayOfInterval({
+                start: application.fromDate,
+                end: application.toDate,
+            });
+
+            for (const day of allDays) {
+                const normalizedDate = new Date(day);
+                normalizedDate.setHours(0, 0, 0, 0);
+                await db.attendance.deleteMany({
+                    where: {
+                        employeeId: application.employeeId,
+                        date: normalizedDate,
+                        source: "system",
+                        status: { in: ["on_leave", "half_day"] },
+                    },
+                });
+            }
+        });
     } catch (error) {
         leaveLogger.error({ err: error }, "HANDLE_CANCELLATION_ERROR");
     }

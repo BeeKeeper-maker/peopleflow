@@ -776,7 +776,7 @@ model EmployeeDocument {
 
   employeeId     String
   employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   @@index([employeeId])
   @@index([category])
@@ -838,7 +838,7 @@ model LeaveAllocation {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -940,7 +940,7 @@ model LeaveApplication {
 
   employeeId     String
   employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   leaveTypeId String
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
@@ -979,7 +979,7 @@ model Attendance {
 
   employeeId     String
   employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organizationId String?    // Denormalized for RLS (Phase 1.1.2)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   @@unique([employeeId, date])
   // Performance indexes
@@ -1073,7 +1073,7 @@ model SalaryStructureAssignment {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   salaryStructureId String
   salaryStructure   SalaryStructure @relation(fields: [salaryStructureId], references: [id])
@@ -1147,7 +1147,7 @@ model SalarySlip {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   disbursements SalaryDisbursement[]
 
@@ -1233,7 +1233,7 @@ model Loan {
   deletedAt      DateTime?
 
   employeeId String
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   approverId String?
@@ -1326,7 +1326,7 @@ model FestivalBonusPayment {
   updatedAt         DateTime @updatedAt
 
   employeeId String
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   bonusConfigId String
@@ -1466,7 +1466,7 @@ model PFTransaction {
   referenceYear   Int?     // For contributions: year
   transactionDate DateTime @default(now())
   createdAt       DateTime @default(now())
-  organizationId String?    // Denormalized for RLS
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   pfAccountId String
   pfAccount   PFAccount @relation(fields: [pfAccountId], references: [id], onDelete: Cascade)

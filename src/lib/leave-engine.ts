@@ -3,14 +3,18 @@
  *
  * Core module for leave balance computation, carry-forward,
  * encashment, and sandwich policy enforcement.
- * 
+ *
  * ✅ Audit fixes applied:
  *  - encashmentRate from schema now used in calculateEncashment()
  *  - Sandwich policy corrected: only count weekends BETWEEN leave days
  *  - Date validation: fromDate ≤ toDate
+ *  - RLS-aware: cron entry-point processCarryForward() now wraps its
+ *    reads/writes in withTenant() so it works in production with RLS
+ *    enforced (P0-BACKEND).
  */
 
 import prisma from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 
 // ============================================
 // Leave Balance Calculation
@@ -123,77 +127,81 @@ export async function processCarryForward(
     const toYear = fromYear + 1;
     const results: CarryForwardResult[] = [];
 
-    // Get all active employees
-    const employees = await prisma.employee.findMany({
-        where: { organizationId, employmentStatus: "active" },
-        include: { user: { select: { name: true } } },
-    });
+    // RLS-aware: wrap all DB work in withTenant so the cron-driven
+    // carry-forward job works correctly in production with RLS enforced.
+    await withTenant(organizationId, async (db) => {
+        // Get all active employees
+        const employees = await db.employee.findMany({
+            where: { organizationId, employmentStatus: "active" },
+            include: { user: { select: { name: true } } },
+        });
 
-    // Get leave types with carry-forward
-    const leaveTypes = await prisma.leaveType.findMany({
-        where: {
-            organizationId,
-            isActive: true,
-            carryForwardLimit: { not: null },
-        },
-    });
+        // Get leave types with carry-forward
+        const leaveTypes = await db.leaveType.findMany({
+            where: {
+                organizationId,
+                isActive: true,
+                carryForwardLimit: { not: null },
+            },
+        });
 
-    for (const employee of employees) {
-        for (const lt of leaveTypes) {
-            // Get current year's balance
-            const allocation = await prisma.leaveAllocation.findUnique({
-                where: {
-                    employeeId_leaveTypeId_year: {
-                        employeeId: employee.id,
-                        leaveTypeId: lt.id,
-                        year: fromYear,
+        for (const employee of employees) {
+            for (const lt of leaveTypes) {
+                // Get current year's balance
+                const allocation = await db.leaveAllocation.findUnique({
+                    where: {
+                        employeeId_leaveTypeId_year: {
+                            employeeId: employee.id,
+                            leaveTypeId: lt.id,
+                            year: fromYear,
+                        },
                     },
-                },
-            });
+                });
 
-            if (!allocation) continue;
+                if (!allocation) continue;
 
-            const remainingDays = Math.max(
-                0,
-                allocation.allocatedDays + allocation.carriedForward - allocation.usedDays
-            );
+                const remainingDays = Math.max(
+                    0,
+                    allocation.allocatedDays + allocation.carriedForward - allocation.usedDays
+                );
 
-            const maxCarry = lt.carryForwardLimit ?? 0;
-            const carriedForward = Math.min(remainingDays, maxCarry);
-            const lapsed = remainingDays - carriedForward;
+                const maxCarry = lt.carryForwardLimit ?? 0;
+                const carriedForward = Math.min(remainingDays, maxCarry);
+                const lapsed = remainingDays - carriedForward;
 
-            // Create or update next year's allocation
-            await prisma.leaveAllocation.upsert({
-                where: {
-                    employeeId_leaveTypeId_year: {
+                // Create or update next year's allocation
+                await db.leaveAllocation.upsert({
+                    where: {
+                        employeeId_leaveTypeId_year: {
+                            employeeId: employee.id,
+                            leaveTypeId: lt.id,
+                            year: toYear,
+                        },
+                    },
+                    create: {
                         employeeId: employee.id,
                         leaveTypeId: lt.id,
                         year: toYear,
+                        allocatedDays: lt.annualAllocation,
+                        carriedForward,
+                        usedDays: 0,
                     },
-                },
-                create: {
-                    employeeId: employee.id,
-                    leaveTypeId: lt.id,
-                    year: toYear,
-                    allocatedDays: lt.annualAllocation,
-                    carriedForward,
-                    usedDays: 0,
-                },
-                update: {
-                    carriedForward,
-                },
-            });
+                    update: {
+                        carriedForward,
+                    },
+                });
 
-            results.push({
-                employeeId: employee.id,
-                employeeName: employee.user?.name ?? "Unknown",
-                leaveType: lt.name,
-                previousBalance: remainingDays,
-                carriedForward,
-                lapsed,
-            });
+                results.push({
+                    employeeId: employee.id,
+                    employeeName: employee.user?.name ?? "Unknown",
+                    leaveType: lt.name,
+                    previousBalance: remainingDays,
+                    carriedForward,
+                    lapsed,
+                });
+            }
         }
-    }
+    });
 
     return results;
 }

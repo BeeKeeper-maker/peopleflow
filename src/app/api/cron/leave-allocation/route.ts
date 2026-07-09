@@ -9,12 +9,16 @@
  *  2. ?action=carryforward&fromYear=2026 — Process carry-forward from previous year
  * 
  * Default (no params): provisions for current year + carry-forward from previous year
+ *
+ * RLS note (P0-BACKEND): Cross-tenant "list all organizations" uses `withPlatform()`.
+ * Per-org work (provisionAllocations + processCarryForward) is wrapped in
+ * `withTenant(orgId, …)` so each tenant's data is properly isolated.
  */
 
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { processCarryForward } from "@/lib/leave-engine";
 import { emit } from "@/lib/event-bus";
-import { prisma } from "@/lib/prisma";
+import { withPlatform, withTenant } from "@/lib/prisma";
 import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +38,13 @@ export async function GET(req: Request) {
         const targetYear = parseInt(searchParams.get("year") || String(currentYear));
         const fromYear = parseInt(searchParams.get("fromYear") || String(currentYear - 1));
 
-        // Get all active organizations
-        const organizations = await prisma.organization.findMany({
-            where: { status: "active" },
-            select: { id: true, name: true },
-        });
+        // Get all active organizations via RLS bypass (cron is cross-tenant)
+        const organizations = await withPlatform((db) =>
+            db.organization.findMany({
+                where: { status: "active" },
+                select: { id: true, name: true },
+            }),
+        );
 
         const allResults: Array<{
             orgName: string;
@@ -65,6 +71,7 @@ export async function GET(req: Request) {
                 }
 
                 // ── Step 2: Process carry-forward from previous year ──
+                // processCarryForward now wraps itself in withTenant() internally.
                 if (action === "carryforward" || action === "auto") {
                     const cfResults = await processCarryForward(org.id, fromYear);
                     orgResult.carryForwardProcessed = cfResults.length;
@@ -120,89 +127,94 @@ export async function GET(req: Request) {
 /**
  * Create fresh leave allocations for all active employees × all active leave types
  * for a given year. Skips employees who already have an allocation for that type+year.
+ *
+ * RLS-aware: all DB work is wrapped in `withTenant(organizationId, …)` so this
+ * works in production with RLS enforced.
  */
 async function provisionAllocations(
     organizationId: string,
     year: number
 ): Promise<number> {
-    // Get all active employees
-    const employees = await prisma.employee.findMany({
-        where: {
-            organizationId,
-            employmentStatus: "active",
-            deletedAt: null,
-        },
-        select: {
-            id: true,
-            gender: true,
-            joiningDate: true,
-        },
-    });
+    return withTenant(organizationId, async (db) => {
+        // Get all active employees
+        const employees = await db.employee.findMany({
+            where: {
+                organizationId,
+                employmentStatus: "active",
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                gender: true,
+                joiningDate: true,
+            },
+        });
 
-    // Get all active leave types
-    const leaveTypes = await prisma.leaveType.findMany({
-        where: {
-            organizationId,
-            isActive: true,
-        },
-        select: {
-            id: true,
-            name: true,
-            annualAllocation: true,
-            applicableGender: true,
-            minServiceDays: true,
-        },
-    });
+        // Get all active leave types
+        const leaveTypes = await db.leaveType.findMany({
+            where: {
+                organizationId,
+                isActive: true,
+            },
+            select: {
+                id: true,
+                name: true,
+                annualAllocation: true,
+                applicableGender: true,
+                minServiceDays: true,
+            },
+        });
 
-    let created = 0;
-    const today = new Date();
+        let created = 0;
+        const today = new Date();
 
-    for (const employee of employees) {
-        for (const lt of leaveTypes) {
-            // ── Gender eligibility check ──
-            if (
-                lt.applicableGender &&
-                lt.applicableGender !== "all" &&
-                employee.gender?.toLowerCase() !== lt.applicableGender.toLowerCase()
-            ) {
-                continue;
-            }
+        for (const employee of employees) {
+            for (const lt of leaveTypes) {
+                // ── Gender eligibility check ──
+                if (
+                    lt.applicableGender &&
+                    lt.applicableGender !== "all" &&
+                    employee.gender?.toLowerCase() !== lt.applicableGender.toLowerCase()
+                ) {
+                    continue;
+                }
 
-            // ── Minimum service days check ──
-            if (lt.minServiceDays && employee.joiningDate) {
-                const serviceDays = Math.floor(
-                    (today.getTime() - new Date(employee.joiningDate).getTime()) / 86400000
-                );
-                if (serviceDays < lt.minServiceDays) continue;
-            }
+                // ── Minimum service days check ──
+                if (lt.minServiceDays && employee.joiningDate) {
+                    const serviceDays = Math.floor(
+                        (today.getTime() - new Date(employee.joiningDate).getTime()) / 86400000
+                    );
+                    if (serviceDays < lt.minServiceDays) continue;
+                }
 
-            // ── Upsert allocation (create if not exists) ──
-            try {
-                await prisma.leaveAllocation.upsert({
-                    where: {
-                        employeeId_leaveTypeId_year: {
+                // ── Upsert allocation (create if not exists) ──
+                try {
+                    await db.leaveAllocation.upsert({
+                        where: {
+                            employeeId_leaveTypeId_year: {
+                                employeeId: employee.id,
+                                leaveTypeId: lt.id,
+                                year,
+                            },
+                        },
+                        create: {
                             employeeId: employee.id,
                             leaveTypeId: lt.id,
                             year,
+                            allocatedDays: lt.annualAllocation,
+                            usedDays: 0,
+                            carriedForward: 0,
                         },
-                    },
-                    create: {
-                        employeeId: employee.id,
-                        leaveTypeId: lt.id,
-                        year,
-                        allocatedDays: lt.annualAllocation,
-                        usedDays: 0,
-                        carriedForward: 0,
-                    },
-                    update: {}, // Don't overwrite existing allocations
-                });
-                created++;
-            } catch (error) {
-                // Unique constraint or other DB error — skip
-                cronLogger.error({ err: error }, `[ALLOC] Skip ${employee.id}×${lt.name}:`);
+                        update: {}, // Don't overwrite existing allocations
+                    });
+                    created++;
+                } catch (error) {
+                    // Unique constraint or other DB error — skip
+                    cronLogger.error({ err: error }, `[ALLOC] Skip ${employee.id}×${lt.name}:`);
+                }
             }
         }
-    }
 
-    return created;
+        return created;
+    });
 }

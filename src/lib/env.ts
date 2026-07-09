@@ -30,6 +30,16 @@ const serverSchema = z.object({
         .refine(
             (url) => url.startsWith("postgresql://") || url.startsWith("postgres://"),
             "DATABASE_URL must use postgresql:// or postgres:// protocol"
+        )
+        .refine(
+            (url) => {
+                // In production, prevent connecting as superuser (bypasses RLS)
+                if (process.env.NODE_ENV === "production") {
+                    return !url.includes(":peopleflow@") || url.includes(":peopleflow_app@");
+                }
+                return true;
+            },
+            "DATABASE_URL must use peopleflow_app role (NOSUPERUSER) in production, not peopleflow (SUPERUSER) — RLS would be bypassed"
         ),
 
     // ── Redis ──

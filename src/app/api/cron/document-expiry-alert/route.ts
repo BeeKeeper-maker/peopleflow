@@ -1,10 +1,6 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { verifyCronAuth } from "@/lib/cron-auth";
-import { createBulkNotifications } from "@/lib/notifications";
-import { apiLogger } from "@/lib/logger";
-
 /**
+ * CRON: Document Expiry Alert
+ *
  * POST /api/cron/document-expiry-alert
  *
  * Runs daily (e.g., via Coolify cron or BullMQ scheduled job).
@@ -18,7 +14,19 @@ import { apiLogger } from "@/lib/logger";
  * contract, visa, professional certification, etc.
  *
  * Auth: CRON_SECRET header (same as other cron endpoints)
+ *
+ * RLS note (P0-BACKEND): Cross-tenant "find all expiring docs" uses
+ * `withPlatform()` (rls_bypass=true). Per-org work (find HR recipients +
+ * create notifications) is wrapped in `withTenant(orgId, …)` so the
+ * Notification rows pass the tenant_isolation RLS policy (which checks
+ * that the userId belongs to the current tenant).
  */
+
+import { NextResponse } from "next/server";
+import { withPlatform, withTenant } from "@/lib/prisma";
+import { verifyCronAuth } from "@/lib/cron-auth";
+import { apiLogger } from "@/lib/logger";
+
 export async function POST(req: Request) {
     // Authenticate via CRON_SECRET
     const authResult = verifyCronAuth(req);
@@ -27,55 +35,54 @@ export async function POST(req: Request) {
     try {
         const now = new Date();
         const next30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-        // Find documents expiring in the alert windows
-        // Only alert for non-deleted documents with expiry dates set
-        const expiringDocs = await prisma.employeeDocument.findMany({
-            where: {
-                deletedAt: null,
-                expiryDate: {
-                    gte: now,
-                    lte: next30Days,
-                },
-                // Don't re-alert on the same day (check via a simple heuristic:
-                // we alert on 30, 7, 1, and 0 day marks)
-            },
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        organizationId: true,
-                        user: { select: { id: true } },
+        // Find documents expiring in the alert windows (cross-tenant → RLS bypass)
+        const [expiringDocs, expiredToday] = await withPlatform((db) =>
+            Promise.all([
+                // Documents expiring in the next 30 days
+                db.employeeDocument.findMany({
+                    where: {
+                        deletedAt: null,
+                        expiryDate: {
+                            gte: now,
+                            lte: next30Days,
+                        },
                     },
-                },
-            },
-        });
-
-        // Also find documents that expired in the last 24 hours (already expired today)
-        const expiredToday = await prisma.employeeDocument.findMany({
-            where: {
-                deletedAt: null,
-                expiryDate: {
-                    gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-                    lt: now,
-                },
-            },
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        organizationId: true,
-                        user: { select: { id: true } },
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                organizationId: true,
+                                user: { select: { id: true } },
+                            },
+                        },
                     },
-                },
-            },
-        });
+                }),
+                // Documents that expired in the last 24 hours (already expired today)
+                db.employeeDocument.findMany({
+                    where: {
+                        deletedAt: null,
+                        expiryDate: {
+                            gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+                            lt: now,
+                        },
+                    },
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                organizationId: true,
+                                user: { select: { id: true } },
+                            },
+                        },
+                    },
+                }),
+            ]),
+        );
 
         const allDocs = [...expiringDocs, ...expiredToday];
 
@@ -133,79 +140,90 @@ export async function POST(req: Request) {
         let totalAlerts = 0;
 
         for (const [orgId, alerts] of alertsByOrg.entries()) {
-            // Find HR/admin users in this org to notify
-            const recipients = await prisma.user.findMany({
-                where: {
-                    organizationId: orgId,
-                    role: { in: ["admin", "hr_admin", "super_admin"] },
-                    isActive: true,
-                },
-                select: { id: true },
+            // Per-org: find HR/admin recipients AND create notifications inside
+            // the tenant RLS context so the Notification rows satisfy the
+            // tenant_isolation policy (which checks userId → User.organizationId).
+            await withTenant(orgId, async (db) => {
+                const recipients = await db.user.findMany({
+                    where: {
+                        organizationId: orgId,
+                        role: { in: ["admin", "hr_admin", "super_admin"] },
+                        isActive: true,
+                    },
+                    select: { id: true },
+                });
+
+                if (recipients.length === 0) return;
+
+                const recipientIds = recipients.map((r) => r.id);
+
+                // Group alerts by severity for cleaner notifications
+                const expired = alerts.filter((a) => a.severity === "expired");
+                const urgent = alerts.filter((a) => a.severity === "urgent");
+                const warning = alerts.filter((a) => a.severity === "warning");
+                const info = alerts.filter((a) => a.severity === "info");
+
+                const notifications: Array<{ title: string; message: string; type: "alert"; link: string }> = [];
+
+                if (expired.length > 0) {
+                    notifications.push({
+                        title: "🔴 Documents Expired",
+                        message: `${expired.length} document(s) have expired: ${expired
+                            .slice(0, 5)
+                            .map((a) => `${a.employeeName} (${a.docType})`)
+                            .join(", ")}${expired.length > 5 ? ` and ${expired.length - 5} more` : ""}.`,
+                        type: "alert",
+                        link: "/documents",
+                    });
+                }
+
+                if (urgent.length > 0) {
+                    notifications.push({
+                        title: "⚠️ Documents Expiring Tomorrow",
+                        message: `${urgent.length} document(s) expire in 1 day: ${urgent
+                            .slice(0, 5)
+                            .map((a) => `${a.employeeName} (${a.docType})`)
+                            .join(", ")}${urgent.length > 5 ? ` and ${urgent.length - 5} more` : ""}.`,
+                        type: "alert",
+                        link: "/documents",
+                    });
+                }
+
+                if (warning.length > 0) {
+                    notifications.push({
+                        title: "📄 Documents Expiring This Week",
+                        message: `${warning.length} document(s) expire within 7 days: ${warning
+                            .slice(0, 3)
+                            .map((a) => `${a.employeeName} (${a.docType})`)
+                            .join(", ")}${warning.length > 3 ? ` and ${warning.length - 3} more` : ""}.`,
+                        type: "alert",
+                        link: "/documents",
+                    });
+                }
+
+                if (info.length > 0) {
+                    notifications.push({
+                        title: "📋 Documents Expiring This Month",
+                        message: `${info.length} document(s) expire within 30 days. Review them in the Documents section.`,
+                        type: "alert",
+                        link: "/documents",
+                    });
+                }
+
+                // Bulk-insert notifications for all recipients at once (RLS-scoped).
+                for (const notif of notifications) {
+                    await db.notification.createMany({
+                        data: recipientIds.map((userId) => ({
+                            userId,
+                            title: notif.title,
+                            message: notif.message,
+                            type: notif.type,
+                            link: notif.link,
+                        })),
+                    });
+                    totalAlerts++;
+                }
             });
-
-            if (recipients.length === 0) continue;
-
-            // Group alerts by severity for cleaner notifications
-            const expired = alerts.filter((a) => a.severity === "expired");
-            const urgent = alerts.filter((a) => a.severity === "urgent");
-            const warning = alerts.filter((a) => a.severity === "warning");
-            const info = alerts.filter((a) => a.severity === "info");
-
-            const notifications: Array<{ title: string; message: string; type: "alert"; link: string }> = [];
-
-            if (expired.length > 0) {
-                notifications.push({
-                    title: "🔴 Documents Expired",
-                    message: `${expired.length} document(s) have expired: ${expired
-                        .slice(0, 5)
-                        .map((a) => `${a.employeeName} (${a.docType})`)
-                        .join(", ")}${expired.length > 5 ? ` and ${expired.length - 5} more` : ""}.`,
-                    type: "alert",
-                    link: "/documents",
-                });
-            }
-
-            if (urgent.length > 0) {
-                notifications.push({
-                    title: "⚠️ Documents Expiring Tomorrow",
-                    message: `${urgent.length} document(s) expire in 1 day: ${urgent
-                        .slice(0, 5)
-                        .map((a) => `${a.employeeName} (${a.docType})`)
-                        .join(", ")}${urgent.length > 5 ? ` and ${urgent.length - 5} more` : ""}.`,
-                    type: "alert",
-                    link: "/documents",
-                });
-            }
-
-            if (warning.length > 0) {
-                notifications.push({
-                    title: "📄 Documents Expiring This Week",
-                    message: `${warning.length} document(s) expire within 7 days: ${warning
-                        .slice(0, 3)
-                        .map((a) => `${a.employeeName} (${a.docType})`)
-                        .join(", ")}${warning.length > 3 ? ` and ${warning.length - 3} more` : ""}.`,
-                    type: "alert",
-                    link: "/documents",
-                });
-            }
-
-            if (info.length > 0) {
-                notifications.push({
-                    title: "📋 Documents Expiring This Month",
-                    message: `${info.length} document(s) expire within 30 days. Review them in the Documents section.`,
-                    type: "alert",
-                    link: "/documents",
-                });
-            }
-
-            // Send notifications to all HR/admin recipients
-            for (const notif of notifications) {
-                await createBulkNotifications(
-                    recipients.map((r) => r.id),
-                    notif,
-                );
-                totalAlerts++;
-            }
         }
 
         apiLogger.info(

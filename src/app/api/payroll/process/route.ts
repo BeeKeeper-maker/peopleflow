@@ -236,11 +236,21 @@ export async function POST(req: Request) {
                 // festival bonus auto-inclusion, PF ledger posting.
                 // Manual adjustments (bonus/arrears/other) are passed through
                 // so HR can give ad-hoc earnings/deductions at process time.
+                //
+                // ── Atomicity note ──────────────────────────────────────────
+                // `postPFContributions: false` defers PF ledger posting so we
+                // can post it AFTER the slip is successfully created. If slip
+                // creation fails we also roll back any festival bonus that
+                // `getFestivalBonusForPayroll()` marked as included_in_payroll
+                // (it marks bonuses inside calculateSalary() since it can't be
+                // cleanly split). This prevents the data inconsistency where
+                // PF is posted / festival bonus is marked but no salary slip
+                // exists for the period.
                 const salary = await calculateSalary({
                     employeeId: employee.id,
                     month,
                     year,
-                    postPFContributions: true,
+                    postPFContributions: false,
                     includeInactiveAssignment: hasExplicitEmployeeSelection,
                     bonus: bonus ?? 0,
                     arrears: arrears ?? 0,
@@ -251,58 +261,115 @@ export async function POST(req: Request) {
                 // Get active loans from pre-built Map (O(1) instead of DB query)
                 const activeLoans = loansByEmployee.get(employee.id) || [];
 
-                // Atomic: create slip + update loan balances (withDB wraps in transaction)
-                await auth.withDB(async (db) => {
-                    // Create salary slip with full v2 breakdown
-                    await db.salarySlip.create({
-                        data: {
+                // Atomic: create slip + update loan balances + post PF (withDB wraps in transaction)
+                // If ANY of these fail, we roll back the festival bonus marking
+                // done inside calculateSalary() so bonuses remain "pending" for re-processing.
+                try {
+                    await auth.withDB(async (db) => {
+                        // Create salary slip with full v2 breakdown
+                        await db.salarySlip.create({
+                            data: {
+                                employeeId: employee.id,
+                                month,
+                                year,
+                                totalWorkingDays: salary.totalWorkingDays,
+                                presentDays: salary.presentDays,
+                                absentDays: salary.absentDays,
+                                leaveDays: salary.leaveDays,
+                                basicSalary: salary.basicSalary,
+                                houseRent: salary.houseRent,
+                                medicalAllowance: salary.medicalAllowance,
+                                conveyance: salary.conveyance,
+                                specialAllowance: salary.specialAllowance,
+                                overtime: salary.overtime,
+                                bonus: salary.bonus,
+                                festivalBonus: salary.festivalBonus,
+                                arrears: salary.arrears,
+                                otherEarnings: salary.otherEarnings,
+                                grossSalary: salary.grossSalary,
+                                pfEmployee: salary.pfEmployee,
+                                pfEmployer: salary.pfEmployer,
+                                incomeTax: salary.incomeTax,
+                                loanDeduction: salary.loanDeduction,
+                                absentDeduction: salary.absentDeduction,
+                                lateDeduction: salary.lateDeduction,
+                                otherDeductions: salary.otherDeductions,
+                                totalDeductions: salary.totalDeductions,
+                                netSalary: salary.netSalary,
+                                status: "draft",
+                            },
+                        });
+
+                        // Update loan balances
+                        for (const loan of activeLoans) {
+                            const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
+                            const newPaid = loan.paidAmount + deductionAmount;
+                            const newRemaining = loan.remainingAmount - deductionAmount;
+
+                            await db.loan.update({
+                                where: { id: loan.id },
+                                data: {
+                                    paidAmount: newPaid,
+                                    remainingAmount: newRemaining,
+                                    status: newRemaining <= 0 ? "closed" : "disbursed",
+                                },
+                            });
+                        }
+                    });
+                } catch (slipError) {
+                    // ── Rollback: unmark festival bonuses that calculateSalary() marked ──
+                    // Without this, a failed slip creation would leave bonuses permanently
+                    // tagged as "included_in_payroll" with no actual payslip — they would
+                    // never be paid out and never be re-pickable by the next payroll run.
+                    if (salary.festivalBonus > 0) {
+                        try {
+                            await auth.withDB((db) =>
+                                db.festivalBonusPayment.updateMany({
+                                    where: {
+                                        employeeId: employee.id,
+                                        status: "included_in_payroll",
+                                        payrollMonth: month,
+                                        payrollYear: year,
+                                    },
+                                    data: {
+                                        status: "pending",
+                                        payrollMonth: null,
+                                        payrollYear: null,
+                                    },
+                                }),
+                            );
+                        } catch (rollbackError) {
+                            payrollLogger.error(
+                                { err: rollbackError, employeeId: employee.id, month, year },
+                                "FESTIVAL_BONUS_ROLLBACK_FAILED",
+                            );
+                        }
+                    }
+                    // Re-throw so the outer catch logs it as a skip
+                    throw slipError;
+                }
+
+                // ── Post PF contributions ONLY after slip is committed ──
+                // calculateSalary() returned the computed PF amounts but did NOT
+                // post them (we passed postPFContributions: false). Post now so
+                // PF is never recorded for a period without a salary slip.
+                if (salary.pfEmployee > 0) {
+                    try {
+                        const { recordMonthlyContributions } = await import("@/lib/pf-ledger-engine");
+                        await recordMonthlyContributions({
                             employeeId: employee.id,
                             month,
                             year,
-                            totalWorkingDays: salary.totalWorkingDays,
-                            presentDays: salary.presentDays,
-                            absentDays: salary.absentDays,
-                            leaveDays: salary.leaveDays,
-                            basicSalary: salary.basicSalary,
-                            houseRent: salary.houseRent,
-                            medicalAllowance: salary.medicalAllowance,
-                            conveyance: salary.conveyance,
-                            specialAllowance: salary.specialAllowance,
-                            overtime: salary.overtime,
-                            bonus: salary.bonus,
-                            festivalBonus: salary.festivalBonus,
-                            arrears: salary.arrears,
-                            otherEarnings: salary.otherEarnings,
-                            grossSalary: salary.grossSalary,
-                            pfEmployee: salary.pfEmployee,
-                            pfEmployer: salary.pfEmployer,
-                            incomeTax: salary.incomeTax,
-                            loanDeduction: salary.loanDeduction,
-                            absentDeduction: salary.absentDeduction,
-                            lateDeduction: salary.lateDeduction,
-                            otherDeductions: salary.otherDeductions,
-                            totalDeductions: salary.totalDeductions,
-                            netSalary: salary.netSalary,
-                            status: "draft",
-                        },
-                    });
-
-                    // Update loan balances
-                    for (const loan of activeLoans) {
-                        const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
-                        const newPaid = loan.paidAmount + deductionAmount;
-                        const newRemaining = loan.remainingAmount - deductionAmount;
-
-                        await db.loan.update({
-                            where: { id: loan.id },
-                            data: {
-                                paidAmount: newPaid,
-                                remainingAmount: newRemaining,
-                                status: newRemaining <= 0 ? "closed" : "disbursed",
-                            },
+                            employeeAmount: salary.pfEmployee,
+                            employerAmount: salary.pfEmployer,
                         });
+                    } catch (pfError) {
+                        // PF posting failure should NOT block salary calculation
+                        // (slip is already created; PF has an idempotency guard
+                        // and can be re-posted from the PF ledger reconciliation tool).
+                        payrollLogger.error({ err: pfError, employeeId: employee.id }, "Failed to post PF contribution");
                     }
-                });
+                }
 
                 created.push({
                     employeeId: employee.id,

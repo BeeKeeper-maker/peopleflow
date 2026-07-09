@@ -7,12 +7,16 @@
  * Iterates all organizations and calls autoMarkAbsent() for each.
  * Skips weekends automatically (handled by the engine).
  * Emits attendance.auto_absent.completed events per organization.
+ *
+ * RLS note (P0-BACKEND): The cross-tenant "list all organizations" query
+ * uses `withPlatform()` (rls_bypass=true). Per-org work is delegated to
+ * `autoMarkAbsent()` which internally uses `withTenant(orgId, …)`.
  */
 
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { autoMarkAbsent } from "@/lib/attendance-engine";
 import { emit } from "@/lib/event-bus";
-import { prisma } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -32,11 +36,13 @@ export async function GET(req: Request) {
         const targetDate = dateParam ? new Date(dateParam + "T00:00:00.000Z") : new Date();
         targetDate.setHours(0, 0, 0, 0);
 
-        // Get all active organizations (status field, not isActive)
-        const organizations = await prisma.organization.findMany({
-            where: { status: "active" },
-            select: { id: true, name: true },
-        });
+        // Get all active organizations via RLS bypass (cron is cross-tenant)
+        const organizations = await withPlatform((db) =>
+            db.organization.findMany({
+                where: { status: "active" },
+                select: { id: true, name: true },
+            }),
+        );
 
         let totalMarked = 0;
         let totalSkipped = 0;

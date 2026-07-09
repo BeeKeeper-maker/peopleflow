@@ -447,10 +447,22 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
         ? Math.round(basicSalary * (structure.pfEmployerPercent / 100))
         : 0;
 
-    // Gender-aware tax
+    // Gender-aware tax with BD tax-exempt allowances (BD Finance Act 2024)
+    // Per the BD Finance Act, certain allowances are exempt from income tax
+    // up to annual caps: conveyance (৳30k), medical (৳1.2L), house rent (৳3L).
+    // Without this exemption, employees with these allowances are over-taxed.
     const annualGross = grossSalaryMonthly * 12;
     const annualPF = pfEmployee * 12;
-    const taxableIncome = annualGross - annualPF;
+
+    // Calculate tax-exempt portion of each allowance (monthly × 12, capped at annual exempt limit)
+    const annualConveyance = Math.min((conveyance || 0) * 12, TAX_EXEMPT_ALLOWANCES.conveyance);
+    const annualMedical = Math.min((medicalAllowance || 0) * 12, TAX_EXEMPT_ALLOWANCES.medical);
+    const annualHouseRent = Math.min((houseRent || 0) * 12, TAX_EXEMPT_ALLOWANCES.houseRent);
+
+    const totalExempt = annualConveyance + annualMedical + annualHouseRent;
+    // Guard against negative taxable income (e.g. when PF + exemptions exceed gross)
+    const taxableIncome = Math.max(0, annualGross - annualPF - totalExempt);
+
     const isWoman = assignment.employee?.gender === "female";
     const incomeTax = calculateMonthlyTax(taxableIncome, isWoman);
 
