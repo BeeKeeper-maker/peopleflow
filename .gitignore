@@ -52,4 +52,3 @@ next-env.d.ts
 .deploy_key
 .deploy_key.pub
 /uploads/
-.github/workflows/
