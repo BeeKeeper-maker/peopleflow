@@ -29,7 +29,8 @@ const prismaMock = {
     attendance: { findMany: vi.fn(), count: vi.fn() },
     leaveApplication: { findMany: vi.fn(), count: vi.fn() },
     loan: { findMany: vi.fn() },
-    employee: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
+    // P10-TESTS: system-stats route calls employee.count + approvalRequest.count
+    employee: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     pFAccount: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     pFTransaction: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
     festivalBonusConfig: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
@@ -38,6 +39,8 @@ const prismaMock = {
     organization: { findMany: vi.fn(), findUnique: vi.fn() },
     impersonationSession: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     leaveAllocation: { findMany: vi.fn() },
+    // P10-TESTS: system-stats route counts pending approvals via approvalRequest.count
+    approvalRequest: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
     // P0 regression: 2FA disable + sessionVersion bump routes touch user.*
     user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), count: vi.fn() },
     // P0 regression: bKash disbursement + payroll atomicity touch salarySlip.*
