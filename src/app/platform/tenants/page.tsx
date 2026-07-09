@@ -35,17 +35,17 @@ const STATUS_CONFIG: Record<string, { dot: string; bg: string; text: string; lab
     active: { dot: "bg-emerald-400", bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
     trialing: { dot: "bg-blue-400", bg: "bg-blue-500/10", text: "text-blue-400", label: "Trial" },
     suspended: { dot: "bg-red-400", bg: "bg-red-500/10", text: "text-red-400", label: "Suspended" },
-    deactivated: { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Deactivated" },
+    deactivated: { dot: "bg-zinc-500", bg: "bg-zinc-500/10", text: "text-muted-foreground", label: "Deactivated" },
 };
 
 const ONBOARDING_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-    not_started: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Not Started" },
+    not_started: { bg: "bg-zinc-500/10", text: "text-muted-foreground", label: "Not Started" },
     in_progress: { bg: "bg-amber-500/10", text: "text-amber-400", label: "In Progress" },
     active: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
 };
 
 function formatLastActive(dateStr: string | null): { text: string; color: string } {
-    if (!dateStr) return { text: "Never", color: "text-zinc-600" };
+    if (!dateStr) return { text: "Never", color: "text-muted-foreground" };
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -56,8 +56,8 @@ function formatLastActive(dateStr: string | null): { text: string; color: string
     if (diffMins < 1) return { text: "Just now", color: "text-emerald-400" };
     if (diffMins < 60) return { text: `${diffMins}m ago`, color: "text-emerald-400" };
     if (diffHours < 24) return { text: `${diffHours}h ago`, color: "text-emerald-400" };
-    if (diffDays === 1) return { text: "Yesterday", color: "text-zinc-400" };
-    if (diffDays < 7) return { text: `${diffDays}d ago`, color: "text-zinc-400" };
+    if (diffDays === 1) return { text: "Yesterday", color: "text-muted-foreground" };
+    if (diffDays < 7) return { text: `${diffDays}d ago`, color: "text-muted-foreground" };
     if (diffDays < 30) return { text: `${Math.floor(diffDays / 7)}w ago`, color: "text-amber-400" };
     return { text: `${Math.floor(diffDays / 30)}mo ago`, color: "text-red-400" };
 }
@@ -107,13 +107,13 @@ export default function TenantsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">Tenants</h1>
-                    <p className="text-sm text-zinc-500 mt-1">
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">Tenants</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
                         Manage all organizations on the platform
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Building2 className="w-4 h-4" />
                         <span className="tabular-nums">{total} total</span>
                     </div>
@@ -138,18 +138,18 @@ export default function TenantsPage() {
             <div className="flex items-center gap-3">
                 {/* Search */}
                 <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search by name or slug..."
-                        className="w-full h-10 pl-10 pr-4 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+                        className="w-full h-10 pl-10 pr-4 rounded-lg bg-hover border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-indigo-500/50 transition-colors"
                     />
                 </div>
 
                 {/* Status Filter Pills */}
-                <div className="flex items-center gap-1.5 p-1 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div className="flex items-center gap-1.5 p-1 rounded-lg bg-hover border border-border">
                     {["all", "active", "trialing", "suspended"].map((s) => (
                         <button
                             key={s}
@@ -157,7 +157,7 @@ export default function TenantsPage() {
                             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                                 statusFilter === s
                                     ? "bg-indigo-500/20 text-indigo-400"
-                                    : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-hover"
                             }`}
                         >
                             {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -167,17 +167,17 @@ export default function TenantsPage() {
             </div>
 
             {/* Table */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="rounded-xl border border-border bg-hover/50 overflow-hidden">
                 <table className="w-full">
                     <thead>
-                        <tr className="border-b border-white/[0.06]">
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Organization</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Plan</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Status</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Onboarding</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Employees</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Last Active</th>
-                            <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">Created</th>
+                        <tr className="border-b border-border">
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Organization</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Plan</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Status</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Onboarding</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Employees</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Last Active</th>
+                            <th className="text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Created</th>
                             <th className="w-12 px-5 py-3"></th>
                         </tr>
                     </thead>
@@ -187,7 +187,7 @@ export default function TenantsPage() {
                                 <tr key={i} className="border-b border-white/[0.03]">
                                     {[...Array(8)].map((_, j) => (
                                         <td key={j} className="px-5 py-4">
-                                            <div className="h-4 rounded bg-white/[0.04] animate-pulse" style={{ width: `${60 + j * 10}%` }} />
+                                            <div className="h-4 rounded bg-hover animate-pulse" style={{ width: `${60 + j * 10}%` }} />
                                         </td>
                                     ))}
                                 </tr>
@@ -199,7 +199,7 @@ export default function TenantsPage() {
                                 return (
                                     <tr
                                         key={tenant.id}
-                                        className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                                        className="border-b border-white/[0.03] hover:bg-hover/50 transition-colors cursor-pointer group"
                                         onClick={() => router.push(`/platform/tenants/${tenant.id}`)}
                                     >
                                         <td className="px-5 py-3.5">
@@ -208,15 +208,15 @@ export default function TenantsPage() {
                                                     {tenant.name?.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-white group-hover:text-indigo-300 transition-colors">
+                                                    <p className="text-sm font-medium text-foreground group-hover:text-indigo-300 transition-colors">
                                                         {tenant.name}
                                                     </p>
-                                                    <p className="text-xs text-zinc-600 font-mono">{tenant.slug}</p>
+                                                    <p className="text-xs text-muted-foreground font-mono">{tenant.slug}</p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-5 py-3.5">
-                                            <span className="text-sm text-zinc-300">
+                                            <span className="text-sm text-foreground">
                                                 {tenant.subscription?.plan?.name || "—"}
                                             </span>
                                         </td>
@@ -232,8 +232,8 @@ export default function TenantsPage() {
                                             </span>
                                         </td>
                                         <td className="px-5 py-3.5">
-                                            <div className="flex items-center gap-1.5 text-sm text-zinc-400">
-                                                <Users className="w-3.5 h-3.5 text-zinc-600" />
+                                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                                <Users className="w-3.5 h-3.5 text-muted-foreground" />
                                                 <span className="tabular-nums">{tenant._count?.employees || 0}</span>
                                             </div>
                                         </td>
@@ -242,14 +242,14 @@ export default function TenantsPage() {
                                                 {lastActive.text}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-3.5 text-sm text-zinc-500 tabular-nums">
+                                        <td className="px-5 py-3.5 text-sm text-muted-foreground tabular-nums">
                                             {new Date(tenant.createdAt).toLocaleDateString()}
                                         </td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); router.push(`/platform/tenants/${tenant.id}`); }}
-                                                    className="w-7 h-7 rounded flex items-center justify-center text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all"
+                                                    className="w-7 h-7 rounded flex items-center justify-center text-muted-foreground hover:text-indigo-400 hover:bg-indigo-500/10 transition-all"
                                                     title="View details"
                                                 >
                                                     <Eye className="w-3.5 h-3.5" />
@@ -264,7 +264,7 @@ export default function TenantsPage() {
 
                 {/* Empty State */}
                 {!loading && tenants.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-16 text-zinc-600">
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                         <Building2 className="w-10 h-10 mb-3" />
                         <p className="text-sm font-medium">No tenants found</p>
                         <p className="text-xs mt-1">
@@ -275,25 +275,25 @@ export default function TenantsPage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
-                        <span className="text-xs text-zinc-600">
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+                        <span className="text-xs text-muted-foreground">
                             Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}
                         </span>
                         <div className="flex items-center gap-1">
                             <button
                                 disabled={page <= 1}
                                 onClick={() => setPage(page - 1)}
-                                className="w-8 h-8 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 transition-all"
+                                className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-hover disabled:opacity-30 transition-all"
                             >
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
-                            <span className="text-xs text-zinc-400 tabular-nums px-2">
+                            <span className="text-xs text-muted-foreground tabular-nums px-2">
                                 {page} / {totalPages}
                             </span>
                             <button
                                 disabled={page >= totalPages}
                                 onClick={() => setPage(page + 1)}
-                                className="w-8 h-8 rounded flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 transition-all"
+                                className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-hover disabled:opacity-30 transition-all"
                             >
                                 <ChevronRight className="w-4 h-4" />
                             </button>

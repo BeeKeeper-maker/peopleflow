@@ -122,20 +122,20 @@ Password: ${result.admin.tempPassword}`;
                 onClick={handleClose}
             />
 
-            <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[#0F0F1A] border border-white/[0.08] shadow-2xl">
-                <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-[#0F0F1A]">
+            <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-2xl">
+                <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-violet-500/20 flex items-center justify-center">
                             <Building2 className="w-4 h-4 text-indigo-400" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-white">Provision New Tenant</h2>
-                            <p className="text-xs text-zinc-500">Create a new organization with admin account</p>
+                            <h2 className="text-lg font-semibold text-foreground">Provision New Tenant</h2>
+                            <p className="text-xs text-muted-foreground">Create a new organization with admin account</p>
                         </div>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-hover transition"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -148,9 +148,9 @@ Password: ${result.admin.tempPassword}`;
                                 <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-4">
                                     <CheckCircle2 className="w-7 h-7 text-emerald-400" />
                                 </div>
-                                <h3 className="text-lg font-semibold text-white">Tenant Provisioned Successfully</h3>
-                                <p className="text-sm text-zinc-500 mt-1">
-                                    <span className="text-white font-medium">{result.organization?.name}</span> is ready
+                                <h3 className="text-lg font-semibold text-foreground">Tenant Provisioned Successfully</h3>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    <span className="text-foreground font-medium">{result.organization?.name}</span> is ready
                                 </p>
                             </div>
 
@@ -168,27 +168,27 @@ Password: ${result.admin.tempPassword}`;
                                 <div className="space-y-2 mt-3">
                                     <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/20">
                                         <div>
-                                            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Login URL</p>
-                                            <p className="text-sm text-white font-mono">/login</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Login URL</p>
+                                            <p className="text-sm text-foreground font-mono">/login</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/20">
                                         <div>
-                                            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Email</p>
-                                            <p className="text-sm text-white font-mono">{result.admin?.email}</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Email</p>
+                                            <p className="text-sm text-foreground font-mono">{result.admin?.email}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/20">
                                         <div>
-                                            <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Password</p>
-                                            <p className="text-sm text-white font-mono">{result.admin?.tempPassword}</p>
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Password</p>
+                                            <p className="text-sm text-foreground font-mono">{result.admin?.tempPassword}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={handleCopyCredentials}
-                                    className="w-full h-9 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition flex items-center justify-center gap-2"
+                                    className="w-full h-9 rounded-lg bg-hover border border-border text-sm text-foreground hover:text-foreground hover:bg-hover transition flex items-center justify-center gap-2"
                                 >
                                     {copied ? (
                                         <>
@@ -205,13 +205,13 @@ Password: ${result.admin.tempPassword}`;
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Status</p>
-                                    <p className="text-sm text-white font-medium capitalize mt-1">{result.subscription?.status}</p>
+                                <div className="rounded-lg border border-border bg-hover/50 p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Status</p>
+                                    <p className="text-sm text-foreground font-medium capitalize mt-1">{result.subscription?.status}</p>
                                 </div>
-                                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Trial Ends</p>
-                                    <p className="text-sm text-white font-medium mt-1">
+                                <div className="rounded-lg border border-border bg-hover/50 p-3">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Trial Ends</p>
+                                    <p className="text-sm text-foreground font-medium mt-1">
                                         {result.subscription?.trialEndsAt
                                             ? new Date(result.subscription.trialEndsAt).toLocaleDateString()
                                             : "—"}
@@ -222,7 +222,7 @@ Password: ${result.admin.tempPassword}`;
                             <div className="flex gap-2 pt-2">
                                 <button
                                     onClick={handleClose}
-                                    className="flex-1 h-10 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition"
+                                    className="flex-1 h-10 rounded-lg bg-hover border border-border text-sm text-foreground hover:text-foreground hover:bg-hover transition"
                                 >
                                     Close
                                 </button>
@@ -244,7 +244,7 @@ Password: ${result.admin.tempPassword}`;
                             )}
 
                             <div>
-                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                                     <Building2 className="inline w-3 h-3 mr-1" />
                                     Company Name
                                 </label>
@@ -254,12 +254,12 @@ Password: ${result.admin.tempPassword}`;
                                     onChange={(e) => setForm({ ...form, companyName: e.target.value })}
                                     required
                                     placeholder="e.g., Apex RMG Ltd."
-                                    className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition"
+                                    className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-indigo-500/50 transition"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                                     <User className="inline w-3 h-3 mr-1" />
                                     Admin Name
                                 </label>
@@ -269,12 +269,12 @@ Password: ${result.admin.tempPassword}`;
                                     onChange={(e) => setForm({ ...form, adminName: e.target.value })}
                                     required
                                     placeholder="e.g., Rashida Akter"
-                                    className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition"
+                                    className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-indigo-500/50 transition"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                                     <Mail className="inline w-3 h-3 mr-1" />
                                     Admin Email
                                 </label>
@@ -284,20 +284,20 @@ Password: ${result.admin.tempPassword}`;
                                     onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
                                     required
                                     placeholder="admin@company.com"
-                                    className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 transition"
+                                    className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-indigo-500/50 transition"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                                         <CreditCard className="inline w-3 h-3 mr-1" />
                                         Plan
                                     </label>
                                     <select
                                         value={form.planSlug}
                                         onChange={(e) => setForm({ ...form, planSlug: e.target.value })}
-                                        className="w-full h-10 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50 transition"
+                                        className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50 transition"
                                     >
                                         {plans.map((p) => (
                                             <option key={p.id} value={p.slug}>
@@ -308,7 +308,7 @@ Password: ${result.admin.tempPassword}`;
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                                         <Calendar className="inline w-3 h-3 mr-1" />
                                         Trial Days
                                     </label>
@@ -318,7 +318,7 @@ Password: ${result.admin.tempPassword}`;
                                         onChange={(e) => setForm({ ...form, trialDays: e.target.value })}
                                         min="1"
                                         max="90"
-                                        className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50 transition"
+                                        className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50 transition"
                                     />
                                 </div>
                             </div>
@@ -327,7 +327,7 @@ Password: ${result.admin.tempPassword}`;
                                 <button
                                     type="button"
                                     onClick={handleClose}
-                                    className="flex-1 h-10 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition"
+                                    className="flex-1 h-10 rounded-lg bg-hover border border-border text-sm text-foreground hover:text-foreground hover:bg-hover transition"
                                 >
                                     Cancel
                                 </button>

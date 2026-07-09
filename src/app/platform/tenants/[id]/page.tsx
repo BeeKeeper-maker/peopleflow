@@ -101,7 +101,7 @@ const STATUS_STYLES: Record<string, string> = {
     active: "text-emerald-400 bg-emerald-500/10",
     trialing: "text-blue-400 bg-blue-500/10",
     suspended: "text-red-400 bg-red-500/10",
-    deactivated: "text-zinc-400 bg-zinc-500/10",
+    deactivated: "text-muted-foreground bg-zinc-500/10",
     past_due: "text-amber-400 bg-amber-500/10",
 };
 
@@ -298,20 +298,20 @@ export default function TenantDetailPage() {
     if (loading) {
         return (
             <div className="space-y-6 animate-pulse">
-                <div className="h-8 w-48 rounded bg-white/[0.04]" />
+                <div className="h-8 w-48 rounded bg-hover" />
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {[...Array(3)].map((_, i) => <div key={i} className="h-48 rounded-xl bg-white/[0.03]" />)}
+                    {[...Array(3)].map((_, i) => <div key={i} className="h-48 rounded-xl bg-hover" />)}
                 </div>
             </div>
         );
     }
 
-    if (!tenant) return <div className="text-zinc-500">Tenant not found</div>;
+    if (!tenant) return <div className="text-muted-foreground">Tenant not found</div>;
 
     return (
         <div className="space-y-6">
             <div>
-                <button onClick={() => router.push("/platform/tenants")} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-4">
+                <button onClick={() => router.push("/platform/tenants")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
                     <ArrowLeft className="w-4 h-4" /> Back to Tenants
                 </button>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -320,8 +320,8 @@ export default function TenantDetailPage() {
                             {tenant.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                            <h1 className="truncate text-2xl font-bold text-white">{tenant.name}</h1>
-                            <p className="truncate text-sm text-zinc-500 font-mono">{tenant.slug} • Created {new Date(tenant.createdAt).toLocaleDateString()}</p>
+                            <h1 className="truncate text-2xl font-bold text-foreground">{tenant.name}</h1>
+                            <p className="truncate text-sm text-muted-foreground font-mono">{tenant.slug} • Created {new Date(tenant.createdAt).toLocaleDateString()}</p>
                             {activeCustomizations.length > 0 && (
                                 <p className="mt-1 text-xs text-indigo-300">Custom deal active: {activeCustomizations.join(", ")}</p>
                             )}
@@ -331,7 +331,7 @@ export default function TenantDetailPage() {
                         <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${STATUS_STYLES[tenant.status] || STATUS_STYLES.active}`}>
                             {tenant.status.toUpperCase()}
                         </span>
-                        <button onClick={() => setShowImpersonation(true)} className="h-9 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:border-indigo-500/30 flex items-center gap-2 transition-all">
+                        <button onClick={() => setShowImpersonation(true)} className="h-9 px-3 rounded-lg bg-hover border border-border text-sm text-muted-foreground hover:text-foreground hover:border-indigo-500/30 flex items-center gap-2 transition-all">
                             <UserCog className="w-4 h-4" /> Impersonate
                         </button>
                         <button onClick={() => setShowKillSwitch(true)} className={`h-9 px-3 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${
@@ -362,7 +362,7 @@ export default function TenantDetailPage() {
                     {sub ? (
                         <>
                             <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border border-indigo-500/10">
-                                <p className="text-lg font-bold text-white">{plan?.name || "—"}</p>
+                                <p className="text-lg font-bold text-foreground">{plan?.name || "—"}</p>
                                 <p className="text-sm text-indigo-300">৳{plan?.priceMonthly?.toLocaleString()}/mo</p>
                             </div>
                             <InfoRow label="Status" value={sub.status} />
@@ -370,7 +370,7 @@ export default function TenantDetailPage() {
                             <InfoRow label="Period End" value={sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString() : "—"} />
                             <InfoRow label="Trial End" value={sub.trialEnd ? new Date(sub.trialEnd).toLocaleDateString() : "—"} />
                         </>
-                    ) : <p className="text-sm text-zinc-500">No subscription</p>}
+                    ) : <p className="text-sm text-muted-foreground">No subscription</p>}
                 </InfoCard>
 
                 <InfoCard title="Usage Limits" icon={<Layers className="w-4 h-4 text-amber-400" />}>
@@ -381,14 +381,14 @@ export default function TenantDetailPage() {
                             <UsageBar label="Branches" current={counts.branches} limit={limits.maxBranches} />
                             <UsageBar label="Devices" current={0} limit={limits.maxDevices} />
                         </>
-                    ) : <p className="text-sm text-zinc-500">No plan limits</p>}
+                    ) : <p className="text-sm text-muted-foreground">No plan limits</p>}
                 </InfoCard>
             </div>
 
 
 
             <InfoCard title="Company Usage Intelligence" icon={<Activity className="w-4 h-4 text-cyan-400" />}>
-                <p className="text-sm text-zinc-500">Owner-level telemetry for support, billing psychology, abuse monitoring, and upgrade conversations.</p>
+                <p className="text-sm text-muted-foreground">Owner-level telemetry for support, billing psychology, abuse monitoring, and upgrade conversations.</p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <MetricTile icon={<Users className="w-4 h-4" />} label="Employees" value={usage?.employees ?? counts.employees} />
                     <MetricTile icon={<Mail className="w-4 h-4" />} label="Emails sent" value={usage?.emailsSent ?? 0} />
@@ -402,9 +402,9 @@ export default function TenantDetailPage() {
                 {usage?.featureEvents?.length ? (
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {usage.featureEvents.map((event) => (
-                            <div key={`${event.metric}-${event.recordedAt}`} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs">
-                                <div className="flex justify-between gap-2 text-zinc-300"><span>{event.metric}</span><span className="font-semibold text-white">{event.value}</span></div>
-                                <p className="mt-1 text-zinc-600">{new Date(event.recordedAt).toLocaleString()}</p>
+                            <div key={`${event.metric}-${event.recordedAt}`} className="rounded-lg border border-border bg-hover/50 px-3 py-2 text-xs">
+                                <div className="flex justify-between gap-2 text-foreground"><span>{event.metric}</span><span className="font-semibold text-foreground">{event.value}</span></div>
+                                <p className="mt-1 text-muted-foreground">{new Date(event.recordedAt).toLocaleString()}</p>
                             </div>
                         ))}
                     </div>
@@ -413,8 +413,8 @@ export default function TenantDetailPage() {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 <InfoCard title="Package Control" icon={<SlidersHorizontal className="w-4 h-4 text-indigo-400" />}>
-                    <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Plan</label>
-                    <select value={selectedPlanSlug} onChange={(e) => setSelectedPlanSlug(e.target.value)} className="w-full h-10 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50">
+                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Plan</label>
+                    <select value={selectedPlanSlug} onChange={(e) => setSelectedPlanSlug(e.target.value)} className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50">
                         {plans.map((p) => <option key={p.id} value={p.slug}>{p.name} — ৳{p.priceMonthly.toLocaleString()}/mo</option>)}
                     </select>
                     <button
@@ -427,12 +427,12 @@ export default function TenantDetailPage() {
                 </InfoCard>
 
                 <InfoCard title="Trial Control" icon={<CalendarPlus className="w-4 h-4 text-blue-400" />}>
-                    <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Extend Trial By Days</label>
-                    <input value={trialDays} onChange={(e) => setTrialDays(e.target.value)} type="number" min="1" max="90" className="w-full h-10 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50" />
+                    <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Extend Trial By Days</label>
+                    <input value={trialDays} onChange={(e) => setTrialDays(e.target.value)} type="number" min="1" max="90" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                     <button
                         onClick={() => runAction("extend-trial", () => patchSubscription({ action: "extend_trial", days: Number(trialDays), reason: "Platform owner trial extension" }))}
                         disabled={actionLoading === "extend-trial"}
-                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition disabled:opacity-50"
+                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-blue-600 hover:bg-blue-500 transition disabled:opacity-50"
                     >
                         Extend Trial
                     </button>
@@ -446,11 +446,11 @@ export default function TenantDetailPage() {
                         <LimitInput label="Devices" value={limitForm.maxDevices} onChange={(v) => setLimitForm((p) => ({ ...p, maxDevices: v }))} />
                         <LimitInput label="Storage MB" value={limitForm.maxStorageOverride} onChange={(v) => setLimitForm((p) => ({ ...p, maxStorageOverride: v }))} placeholder={plan ? formatLimit(plan.maxStorageMB) : ""} />
                     </div>
-                    <p className="mt-2 text-xs text-zinc-500">Use -1 for unlimited. Empty employee/storage resets to plan default.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">Use -1 for unlimited. Empty employee/storage resets to plan default.</p>
                     <button
                         onClick={() => runAction("limits", () => patchSubscription({ action: "override_limits", ...limitForm, reason: "Platform owner custom package limits" }))}
                         disabled={actionLoading === "limits"}
-                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50"
+                        className="mt-3 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-emerald-600 hover:bg-emerald-500 transition disabled:opacity-50"
                     >
                         Save Limits
                     </button>
@@ -458,10 +458,10 @@ export default function TenantDetailPage() {
             </div>
 
             <InfoCard title="Feature Access Control" icon={<Shield className="w-4 h-4 text-violet-400" />}>
-                <p className="text-sm text-zinc-500 mb-4">Enable only the modules this company paid for. These overrides merge on top of the selected plan and are audit-logged.</p>
+                <p className="text-sm text-muted-foreground mb-4">Enable only the modules this company paid for. These overrides merge on top of the selected plan and are audit-logged.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {FEATURE_KEYS.map((key) => (
-                        <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm text-zinc-200">
+                        <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-hover/50 px-4 py-3 text-sm text-foreground">
                             <span>{FEATURE_LABELS[key]}</span>
                             <input
                                 type="checkbox"
@@ -475,7 +475,7 @@ export default function TenantDetailPage() {
                 <button
                     onClick={() => runAction("features", () => patchSubscription({ action: "override_features", featureOverrides: featureForm, reason: "Platform owner custom feature access" }))}
                     disabled={actionLoading === "features"}
-                    className="mt-4 h-9 px-4 rounded-lg text-sm font-medium text-white bg-violet-600 hover:bg-violet-500 transition disabled:opacity-50"
+                    className="mt-4 h-9 px-4 rounded-lg text-sm font-medium text-foreground bg-violet-600 hover:bg-violet-500 transition disabled:opacity-50"
                 >
                     Save Feature Access
                 </button>
@@ -489,17 +489,17 @@ export default function TenantDetailPage() {
                             <div key={i} className="flex gap-3">
                                 <div className="w-2 h-2 rounded-full bg-zinc-700 mt-1.5 shrink-0" />
                                 <div className="flex-1 space-y-1.5">
-                                    <div className="h-3 w-1/2 rounded bg-white/[0.04] animate-pulse" />
-                                    <div className="h-2.5 w-1/4 rounded bg-white/[0.04] animate-pulse" />
+                                    <div className="h-3 w-1/2 rounded bg-hover animate-pulse" />
+                                    <div className="h-2.5 w-1/4 rounded bg-hover animate-pulse" />
                                 </div>
                             </div>
                         ))}
                     </div>
                 ) : activity.length === 0 ? (
                     <div className="text-center py-6">
-                        <Activity className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
-                        <p className="text-sm text-zinc-500">No activity recorded for this tenant yet.</p>
-                        <p className="text-xs text-zinc-600 mt-1">Actions like subscription changes, feature overrides, and suspensions will appear here.</p>
+                        <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No activity recorded for this tenant yet.</p>
+                        <p className="text-xs text-muted-foreground mt-1">Actions like subscription changes, feature overrides, and suspensions will appear here.</p>
                     </div>
                 ) : (
                     <div className="space-y-3 max-h-[400px] overflow-y-auto scrollbar-thin pr-2">
@@ -515,14 +515,14 @@ export default function TenantDetailPage() {
                                 <div key={log.id} className="flex gap-3 group">
                                     <div className="flex flex-col items-center shrink-0">
                                         <div className={`w-2 h-2 rounded-full ${iconColor} mt-1.5`} />
-                                        <div className="w-px flex-1 bg-white/[0.06] mt-1" />
+                                        <div className="w-px flex-1 bg-hover mt-1" />
                                     </div>
                                     <div className="flex-1 pb-4">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-xs font-mono font-medium text-indigo-300">
                                                 {log.action}
                                             </span>
-                                            <span className="text-xs text-zinc-600">
+                                            <span className="text-xs text-muted-foreground">
                                                 {new Date(log.createdAt).toLocaleString("en-US", {
                                                     day: "2-digit",
                                                     month: "short",
@@ -533,16 +533,16 @@ export default function TenantDetailPage() {
                                             </span>
                                         </div>
                                         {log.platformAdmin?.name && (
-                                            <p className="text-xs text-zinc-500 mt-0.5">
-                                                by <span className="text-zinc-300 font-medium">{log.platformAdmin.name}</span>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                by <span className="text-foreground font-medium">{log.platformAdmin.name}</span>
                                             </p>
                                         )}
                                         {log.metadata && Object.keys(log.metadata).length > 0 && (
                                             <details className="mt-1.5">
-                                                <summary className="text-[10px] text-zinc-600 cursor-pointer hover:text-zinc-400 select-none">
+                                                <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-muted-foreground select-none">
                                                     View details
                                                 </summary>
-                                                <pre className="text-[10px] text-zinc-500 mt-1 p-2 rounded bg-white/[0.02] overflow-x-auto">
+                                                <pre className="text-[10px] text-muted-foreground mt-1 p-2 rounded bg-hover/50 overflow-x-auto">
 {JSON.stringify(log.metadata, null, 2)}
                                                 </pre>
                                             </details>
@@ -566,20 +566,20 @@ export default function TenantDetailPage() {
 
             {showKillSwitch && (
                 <Modal onClose={() => setShowKillSwitch(false)} title={tenant.status === "suspended" ? "Reactivate Tenant" : "⚠️ Suspend Tenant"}>
-                    <p className="text-sm text-zinc-400 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                         {tenant.status === "suspended"
                             ? `This will restore access for "${tenant.name}".`
                             : `This will immediately block all users of "${tenant.name}" from accessing the platform.`}
                     </p>
                     {tenant.status !== "suspended" && (
                         <div className="mb-4">
-                            <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Reason</label>
-                            <input value={killReason} onChange={(e) => setKillReason(e.target.value)} placeholder="e.g., Payment failure" className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50" />
+                            <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Reason</label>
+                            <input value={killReason} onChange={(e) => setKillReason(e.target.value)} placeholder="e.g., Payment failure" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                         </div>
                     )}
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowKillSwitch(false)} className="h-9 px-4 rounded-lg text-sm text-zinc-400 hover:text-white transition">Cancel</button>
-                        <button onClick={() => handleKillSwitch(tenant.status === "suspended" ? "activate" : "suspend")} disabled={!!actionLoading} className={`h-9 px-4 rounded-lg text-sm font-medium text-white transition ${tenant.status === "suspended" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600 hover:bg-red-500"} disabled:opacity-50`}>
+                        <button onClick={() => setShowKillSwitch(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">Cancel</button>
+                        <button onClick={() => handleKillSwitch(tenant.status === "suspended" ? "activate" : "suspend")} disabled={!!actionLoading} className={`h-9 px-4 rounded-lg text-sm font-medium text-foreground transition ${tenant.status === "suspended" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-red-600 hover:bg-red-500"} disabled:opacity-50`}>
                             {actionLoading ? "Processing..." : tenant.status === "suspended" ? "Reactivate" : "Suspend Now"}
                         </button>
                     </div>
@@ -596,11 +596,11 @@ export default function TenantDetailPage() {
                         </div>
                     </div>
                     <div className="mb-4">
-                        <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Reason (required)</label>
-                        <input value={impersonationReason} onChange={(e) => setImpersonationReason(e.target.value)} placeholder="e.g., Support ticket #1234" className="w-full h-10 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50" />
+                        <label className="block text-xs text-muted-foreground uppercase tracking-wider mb-2">Reason (required)</label>
+                        <input value={impersonationReason} onChange={(e) => setImpersonationReason(e.target.value)} placeholder="e.g., Support ticket #1234" className="w-full h-10 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50" />
                     </div>
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowImpersonation(false)} className="h-9 px-4 rounded-lg text-sm text-zinc-400 hover:text-white transition">Cancel</button>
+                        <button onClick={() => setShowImpersonation(false)} className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition">Cancel</button>
                         <button onClick={handleImpersonate} disabled={!!actionLoading || impersonationReason.trim().length < 3} className="h-9 px-4 rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 transition disabled:opacity-50">
                             {actionLoading ? "Starting..." : "Start Session"}
                         </button>
@@ -613,8 +613,8 @@ export default function TenantDetailPage() {
 
 function InfoCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">{icon} {title}</div>
+        <div className="rounded-xl border border-border bg-hover/50 p-5 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">{icon} {title}</div>
             {children}
         </div>
     );
@@ -622,10 +622,10 @@ function InfoCard({ title, icon, children }: { title: string; icon: React.ReactN
 
 function MetricTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
     return (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+        <div className="rounded-xl border border-border bg-hover/50 p-4">
             <div className="mb-3 text-cyan-400">{icon}</div>
-            <p className="text-xs text-zinc-500">{label}</p>
-            <p className="mt-1 text-lg font-bold text-white tabular-nums">{String(value)}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 text-lg font-bold text-foreground tabular-nums">{String(value)}</p>
         </div>
     );
 }
@@ -633,8 +633,8 @@ function MetricTile({ icon, label, value }: { icon: React.ReactNode; label: stri
 function InfoRow({ label, value }: { label: string; value: string | number }) {
     return (
         <div className="flex items-center justify-between text-sm">
-            <span className="text-zinc-500">{label}</span>
-            <span className="text-white font-medium tabular-nums">{String(value)}</span>
+            <span className="text-muted-foreground">{label}</span>
+            <span className="text-foreground font-medium tabular-nums">{String(value)}</span>
         </div>
     );
 }
@@ -642,8 +642,8 @@ function InfoRow({ label, value }: { label: string; value: string | number }) {
 function LimitInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
     return (
         <label className="block">
-            <span className="mb-1 block text-xs text-zinc-500">{label}</span>
-            <input value={value} onChange={(e) => onChange(e.target.value)} type="number" placeholder={placeholder} className="w-full h-9 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50" />
+            <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+            <input value={value} onChange={(e) => onChange(e.target.value)} type="number" placeholder={placeholder} className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-indigo-500/50" />
         </label>
     );
 }
@@ -656,12 +656,12 @@ function UsageBar({ label, current, limit }: { label: string; current: number; l
     return (
         <div>
             <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-zinc-500">{label}</span>
-                <span className={`font-medium tabular-nums ${isOver ? "text-red-400" : "text-zinc-300"}`}>
+                <span className="text-muted-foreground">{label}</span>
+                <span className={`font-medium tabular-nums ${isOver ? "text-red-400" : "text-foreground"}`}>
                     {current} / {isUnlimited ? "∞" : limit}
                 </span>
             </div>
-            <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="h-1.5 rounded-full bg-hover overflow-hidden">
                 <div className={`h-full rounded-full transition-all duration-500 ${isOver ? "bg-red-500" : pct > 80 ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
             </div>
         </div>
@@ -672,10 +672,10 @@ function Modal({ children, onClose, title }: { children: React.ReactNode; onClos
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-md rounded-2xl bg-[#1C1C2A] border border-white/[0.08] p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">{title}</h3>
-                    <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/[0.06] transition"><X className="w-4 h-4" /></button>
+                    <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                    <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-hover transition"><X className="w-4 h-4" /></button>
                 </div>
                 {children}
             </div>

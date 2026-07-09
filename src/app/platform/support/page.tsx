@@ -106,7 +106,7 @@ const PRIORITY_CLASS: Record<string, string> = {
     urgent: "text-red-300 bg-red-500/10 border-red-500/20",
     high: "text-orange-300 bg-orange-500/10 border-orange-500/20",
     medium: "text-amber-300 bg-amber-500/10 border-amber-500/20",
-    low: "text-zinc-300 bg-zinc-500/10 border-zinc-500/20",
+    low: "text-foreground bg-zinc-500/10 border-zinc-500/20",
 };
 
 const STATUS_OPTIONS: IssueStatus[] = ["open", "triaging", "in_progress", "waiting_on_client", "resolved", "closed"];
@@ -132,12 +132,12 @@ function MetricCard({ title, value, sub, icon: Icon, tone = "indigo" }: { title:
         red: "from-red-500/15 to-rose-500/10 text-red-300 border-red-500/15",
     };
     return (
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+        <div className="rounded-2xl border border-border bg-hover p-5">
             <div className="flex items-start justify-between gap-4">
                 <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{title}</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
-                    <p className="mt-1 text-sm text-zinc-500">{sub}</p>
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{title}</p>
+                    <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{sub}</p>
                 </div>
                 <div className={`rounded-xl border bg-linear-to-br p-3 ${tones[tone]}`}><Icon className="h-5 w-5" /></div>
             </div>
@@ -151,10 +151,10 @@ function UsageBar({ label, metric }: { label: string; metric: UsageMetric }) {
     return (
         <div>
             <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="text-zinc-300">{label}</span>
-                <span className="text-zinc-500">{metric.current.toLocaleString()} / {formatLimit(metric.limit)}</span>
+                <span className="text-foreground">{label}</span>
+                <span className="text-muted-foreground">{metric.current.toLocaleString()} / {formatLimit(metric.limit)}</span>
             </div>
-            <div className="h-2 rounded-full bg-white/8 overflow-hidden">
+            <div className="h-2 rounded-full bg-hover overflow-hidden">
                 <div className={`h-full rounded-full ${color}`} style={{ width: metric.limit === -1 ? "12%" : `${pct}%` }} />
             </div>
         </div>
@@ -273,7 +273,7 @@ export default function PlatformSupportPage() {
     }
 
     if (loading) {
-        return <div className="flex min-h-[60vh] items-center justify-center text-zinc-400"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading support command center...</div>;
+        return <div className="flex min-h-[60vh] items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading support command center...</div>;
     }
 
     return (
@@ -283,10 +283,10 @@ export default function PlatformSupportPage() {
                     <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-300">
                         <LifeBuoy className="h-3.5 w-3.5" /> Tenant Support Command Center
                     </div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-white">Tenant Health & Support Log</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-zinc-500">Monitor subscription, package usage, sync-agent health, device errors, and support triage from one platform-admin screen.</p>
+                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">Tenant Health & Support Log</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Monitor subscription, package usage, sync-agent health, device errors, and support triage from one platform-admin screen.</p>
                 </div>
-                <button onClick={() => void loadAll()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/10">
+                <button onClick={() => void loadAll()} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-hover px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-hover">
                     <RefreshCw className="h-4 w-4" /> Refresh
                 </button>
             </div>
@@ -302,13 +302,13 @@ export default function PlatformSupportPage() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <section className="rounded-2xl border border-white/8 bg-white/[0.03]">
-                    <div className="flex flex-col gap-3 border-b border-white/8 p-5 md:flex-row md:items-center md:justify-between">
+                <section className="rounded-2xl border border-border bg-hover">
+                    <div className="flex flex-col gap-3 border-b border-border p-5 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold text-white">Tenant health</h2>
-                            <p className="text-sm text-zinc-500">Package limits, sync agent, devices, and active support signals.</p>
+                            <h2 className="text-lg font-semibold text-foreground">Tenant health</h2>
+                            <p className="text-sm text-muted-foreground">Package limits, sync agent, devices, and active support signals.</p>
                         </div>
-                        <select value={selectedTenantId} onChange={(e) => setSelectedTenantId(e.target.value)} className="rounded-xl border border-white/10 bg-[#11111A] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-400">
+                        <select value={selectedTenantId} onChange={(e) => setSelectedTenantId(e.target.value)} className="rounded-xl border border-border bg-hover px-3 py-2 text-sm text-foreground outline-none focus:border-indigo-400">
                             <option value="all">All tenants</option>
                             {allTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
                         </select>
@@ -319,17 +319,17 @@ export default function PlatformSupportPage() {
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-lg font-semibold text-white">{item.tenant.name}</h3>
+                                            <h3 className="text-lg font-semibold text-foreground">{item.tenant.name}</h3>
                                             <StatusBadge status={item.overallStatus} />
                                         </div>
-                                        <p className="mt-1 text-sm text-zinc-500">{item.subscription.planName} • subscription {item.subscription.status} • tenant {item.tenant.status}</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">{item.subscription.planName} • subscription {item.subscription.status} • tenant {item.tenant.status}</p>
                                     </div>
-                                    <div className="text-sm text-zinc-500">Renews/ends: <span className="text-zinc-300">{formatDate(item.subscription.currentPeriodEnd || item.subscription.trialEnd)}</span></div>
+                                    <div className="text-sm text-muted-foreground">Renews/ends: <span className="text-foreground">{formatDate(item.subscription.currentPeriodEnd || item.subscription.trialEnd)}</span></div>
                                 </div>
 
                                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                                    <div className="space-y-3 rounded-xl border border-white/8 bg-black/20 p-4">
-                                        <div className="flex items-center gap-2 text-sm font-medium text-zinc-200"><SlidersHorizontal className="h-4 w-4 text-indigo-300" /> Package usage</div>
+                                    <div className="space-y-3 rounded-xl border border-border bg-black/20 p-4">
+                                        <div className="flex items-center gap-2 text-sm font-medium text-foreground"><SlidersHorizontal className="h-4 w-4 text-indigo-300" /> Package usage</div>
                                         {item.usage ? (
                                             <>
                                                 <UsageBar label="Employees" metric={item.usage.employees} />
@@ -339,16 +339,16 @@ export default function PlatformSupportPage() {
                                             </>
                                         ) : <p className="text-sm text-red-300">No package configured.</p>}
                                     </div>
-                                    <div className="rounded-xl border border-white/8 bg-black/20 p-4">
+                                    <div className="rounded-xl border border-border bg-black/20 p-4">
                                         <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium text-zinc-200"><Wifi className="h-4 w-4 text-emerald-300" /> Sync telemetry</div>
+                                            <div className="flex items-center gap-2 text-sm font-medium text-foreground"><Wifi className="h-4 w-4 text-emerald-300" /> Sync telemetry</div>
                                             <StatusBadge status={item.sync.status} />
                                         </div>
                                         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                                            <div><p className="text-zinc-500">Agents</p><p className="text-zinc-200">{item.sync.activeAgents}/{item.sync.totalAgents} active</p></div>
-                                            <div><p className="text-zinc-500">Devices</p><p className="text-zinc-200">{item.sync.onlineDevices}/{item.sync.totalDevices} online</p></div>
-                                            <div><p className="text-zinc-500">Last agent</p><p className="text-zinc-200">{formatDate(item.sync.lastAgentSeenAt)}</p></div>
-                                            <div><p className="text-zinc-500">Last sync</p><p className="text-zinc-200">{formatDate(item.sync.lastSyncAt)}</p></div>
+                                            <div><p className="text-muted-foreground">Agents</p><p className="text-foreground">{item.sync.activeAgents}/{item.sync.totalAgents} active</p></div>
+                                            <div><p className="text-muted-foreground">Devices</p><p className="text-foreground">{item.sync.onlineDevices}/{item.sync.totalDevices} online</p></div>
+                                            <div><p className="text-muted-foreground">Last agent</p><p className="text-foreground">{formatDate(item.sync.lastAgentSeenAt)}</p></div>
+                                            <div><p className="text-muted-foreground">Last sync</p><p className="text-foreground">{formatDate(item.sync.lastSyncAt)}</p></div>
                                         </div>
                                         {(item.sync.failedSyncCount > 0 || item.sync.unmappedUserIds.length > 0) && (
                                             <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
@@ -360,23 +360,23 @@ export default function PlatformSupportPage() {
 
                                 {(item.sync.recentErrors.length > 0 || item.support.highlightedIssues.length > 0) && (
                                     <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                                        <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200"><Router className="h-4 w-4 text-amber-300" /> Recent sync/device errors</h4>
+                                        <div className="rounded-xl border border-border bg-black/20 p-4">
+                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><Router className="h-4 w-4 text-amber-300" /> Recent sync/device errors</h4>
                                             {item.sync.recentErrors.length ? item.sync.recentErrors.map((error) => (
                                                 <div key={`${error.type}-${error.id}`} className="mb-3 last:mb-0">
-                                                    <p className="text-sm text-zinc-300">{error.deviceName}</p>
-                                                    <p className="text-xs text-zinc-500">{error.message} • {formatDate(error.createdAt)}</p>
+                                                    <p className="text-sm text-foreground">{error.deviceName}</p>
+                                                    <p className="text-xs text-muted-foreground">{error.message} • {formatDate(error.createdAt)}</p>
                                                 </div>
-                                            )) : <p className="text-sm text-zinc-500">No recent device errors.</p>}
+                                            )) : <p className="text-sm text-muted-foreground">No recent device errors.</p>}
                                         </div>
-                                        <div className="rounded-xl border border-white/8 bg-black/20 p-4">
-                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-zinc-200"><LifeBuoy className="h-4 w-4 text-indigo-300" /> Highlighted support issues</h4>
+                                        <div className="rounded-xl border border-border bg-black/20 p-4">
+                                            <h4 className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground"><LifeBuoy className="h-4 w-4 text-indigo-300" /> Highlighted support issues</h4>
                                             {item.support.highlightedIssues.length ? item.support.highlightedIssues.map((issue) => (
                                                 <div key={issue.id} className="mb-3 last:mb-0">
-                                                    <p className="text-sm text-zinc-300">{issue.title}</p>
-                                                    <p className="text-xs text-zinc-500">{pretty(issue.priority)} • {pretty(issue.category)} • {issue.nextAction || "No next action set"}</p>
+                                                    <p className="text-sm text-foreground">{issue.title}</p>
+                                                    <p className="text-xs text-muted-foreground">{pretty(issue.priority)} • {pretty(issue.category)} • {issue.nextAction || "No next action set"}</p>
                                                 </div>
-                                            )) : <p className="text-sm text-zinc-500">No highlighted support issues.</p>}
+                                            )) : <p className="text-sm text-muted-foreground">No highlighted support issues.</p>}
                                         </div>
                                     </div>
                                 )}
@@ -385,42 +385,42 @@ export default function PlatformSupportPage() {
                     </div>
                 </section>
 
-                <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-                    <h2 className="flex items-center gap-2 text-lg font-semibold text-white"><Plus className="h-5 w-5 text-indigo-300" /> Log support issue</h2>
-                    <p className="mt-1 text-sm text-zinc-500">Classify requests before building. This keeps Khatiana support organized and product-safe.</p>
+                <section className="rounded-2xl border border-border bg-hover p-5">
+                    <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground"><Plus className="h-5 w-5 text-indigo-300" /> Log support issue</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Classify requests before building. This keeps Khatiana support organized and product-safe.</p>
                     <form onSubmit={createIssue} className="mt-5 space-y-4">
-                        <select required value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} className="w-full rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-400">
+                        <select required value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">
                             <option value="">Select tenant</option>
                             {allTenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
                         </select>
-                        <input required minLength={3} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Issue title" className="w-full rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-indigo-400" />
-                        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What happened? Include exact user-facing error if available." rows={4} className="w-full rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-indigo-400" />
+                        <input required minLength={3} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Issue title" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What happened? Include exact user-facing error if available." rows={4} className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
                         <div className="grid grid-cols-2 gap-3">
-                            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as IssueCategory })} className="rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-400">{CATEGORY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
-                            <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as IssuePriority })} className="rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-400">{PRIORITY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
-                            <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value as IssueScope })} className="col-span-2 rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-indigo-400">{SCOPE_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
+                            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as IssueCategory })} className="rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{CATEGORY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
+                            <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as IssuePriority })} className="rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{PRIORITY_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
+                            <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value as IssueScope })} className="col-span-2 rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none focus:border-indigo-400">{SCOPE_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}</select>
                         </div>
-                        <input value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} placeholder="Business impact" className="w-full rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-indigo-400" />
-                        <input value={form.nextAction} onChange={(e) => setForm({ ...form, nextAction: e.target.value })} placeholder="Next action" className="w-full rounded-xl border border-white/10 bg-[#11111A] px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-indigo-400" />
-                        <button disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60">
+                        <input value={form.impact} onChange={(e) => setForm({ ...form, impact: e.target.value })} placeholder="Business impact" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <input value={form.nextAction} onChange={(e) => setForm({ ...form, nextAction: e.target.value })} placeholder="Next action" className="w-full rounded-xl border border-border bg-hover px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400" />
+                        <button disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60">
                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save issue
                         </button>
                     </form>
                 </section>
             </div>
 
-            <section className="rounded-2xl border border-white/8 bg-white/[0.03]">
-                <div className="flex flex-col gap-3 border-b border-white/8 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <section className="rounded-2xl border border-border bg-hover">
+                <div className="flex flex-col gap-3 border-b border-border p-5 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h2 className="text-lg font-semibold text-white">Support log</h2>
-                        <p className="text-sm text-zinc-500">Bug, training, feature request, billing, and sync-agent triage.</p>
+                        <h2 className="text-lg font-semibold text-foreground">Support log</h2>
+                        <p className="text-sm text-muted-foreground">Bug, training, feature request, billing, and sync-agent triage.</p>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
-                            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search issues" className="w-full rounded-xl border border-white/10 bg-[#11111A] py-2 pl-9 pr-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-indigo-400 sm:w-56" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search issues" className="w-full rounded-xl border border-border bg-hover py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-indigo-400 sm:w-56" />
                         </div>
-                        <select value={issueStatus} onChange={(e) => setIssueStatus(e.target.value)} className="rounded-xl border border-white/10 bg-[#11111A] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-indigo-400">
+                        <select value={issueStatus} onChange={(e) => setIssueStatus(e.target.value)} className="rounded-xl border border-border bg-hover px-3 py-2 text-sm text-foreground outline-none focus:border-indigo-400">
                             <option value="all">All statuses</option>
                             {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}
                         </select>
@@ -428,7 +428,7 @@ export default function PlatformSupportPage() {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[980px] text-left text-sm">
-                        <thead className="border-b border-white/8 text-xs uppercase tracking-[0.18em] text-zinc-600">
+                        <thead className="border-b border-border text-xs uppercase tracking-[0.18em] text-muted-foreground">
                             <tr>
                                 <th className="px-5 py-3">Issue</th>
                                 <th className="px-5 py-3">Tenant</th>
@@ -441,25 +441,25 @@ export default function PlatformSupportPage() {
                         </thead>
                         <tbody className="divide-y divide-white/8">
                             {issues.map((issue) => (
-                                <tr key={issue.id} className="hover:bg-white/[0.02]">
+                                <tr key={issue.id} className="hover:bg-hover/50">
                                     <td className="px-5 py-4">
-                                        <p className="font-medium text-white">{issue.title}</p>
-                                        <p className="mt-1 flex items-center gap-1 text-xs text-zinc-500"><Clock3 className="h-3 w-3" /> {formatDate(issue.createdAt)}</p>
+                                        <p className="font-medium text-foreground">{issue.title}</p>
+                                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="h-3 w-3" /> {formatDate(issue.createdAt)}</p>
                                     </td>
-                                    <td className="px-5 py-4 text-zinc-300">{issue.organization.name}</td>
-                                    <td className="px-5 py-4 text-zinc-400">{pretty(issue.category)}</td>
-                                    <td className="px-5 py-4 text-zinc-400">{pretty(issue.scope)}</td>
+                                    <td className="px-5 py-4 text-foreground">{issue.organization.name}</td>
+                                    <td className="px-5 py-4 text-muted-foreground">{pretty(issue.category)}</td>
+                                    <td className="px-5 py-4 text-muted-foreground">{pretty(issue.scope)}</td>
                                     <td className="px-5 py-4"><span className={`rounded-full border px-2.5 py-1 text-xs ${PRIORITY_CLASS[issue.priority] || PRIORITY_CLASS.medium}`}>{pretty(issue.priority)}</span></td>
                                     <td className="px-5 py-4">
-                                        <select value={issue.status} disabled={saving} onChange={(e) => void updateIssueStatus(issue, e.target.value as IssueStatus)} className="rounded-lg border border-white/10 bg-[#11111A] px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-400">
+                                        <select value={issue.status} disabled={saving} onChange={(e) => void updateIssueStatus(issue, e.target.value as IssueStatus)} className="rounded-lg border border-border bg-hover px-2 py-1.5 text-xs text-foreground outline-none focus:border-indigo-400">
                                             {STATUS_OPTIONS.map((item) => <option key={item} value={item}>{pretty(item)}</option>)}
                                         </select>
                                     </td>
-                                    <td className="max-w-xs px-5 py-4 text-zinc-400">{issue.nextAction || "—"}</td>
+                                    <td className="max-w-xs px-5 py-4 text-muted-foreground">{issue.nextAction || "—"}</td>
                                 </tr>
                             ))}
                             {!issues.length && (
-                                <tr><td colSpan={7} className="px-5 py-10 text-center text-zinc-500">No support issues found. Suspiciously peaceful, Sir.</td></tr>
+                                <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">No support issues found. Suspiciously peaceful, Sir.</td></tr>
                             )}
                         </tbody>
                     </table>

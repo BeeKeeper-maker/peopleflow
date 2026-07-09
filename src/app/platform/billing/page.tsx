@@ -79,7 +79,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof
     pending: { label: "Pending", color: "text-amber-400 bg-amber-500/10", icon: Clock },
     failed: { label: "Failed", color: "text-red-400 bg-red-500/10", icon: XCircle },
     refunded: { label: "Refunded", color: "text-blue-400 bg-blue-500/10", icon: RefreshCw },
-    void: { label: "Void", color: "text-zinc-400 bg-zinc-500/10", icon: XCircle },
+    void: { label: "Void", color: "text-muted-foreground bg-zinc-500/10", icon: XCircle },
 };
 
 const STATUS_FILTERS = [
@@ -172,15 +172,15 @@ export default function PlatformBillingPage() {
                         <DollarSign className="h-5 w-5 text-emerald-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-white">Billing & Invoices</h1>
-                        <p className="text-sm text-zinc-500 mt-0.5">
+                        <h1 className="text-2xl font-display font-bold text-foreground">Billing & Invoices</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
                             Revenue, invoices, and payment health across all tenants
                         </p>
                     </div>
                 </div>
                 <button
                     onClick={fetchBilling}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/[0.08] bg-white/[0.03] text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-hover text-sm text-foreground hover:text-foreground hover:bg-hover transition-colors"
                 >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     Refresh
@@ -220,19 +220,19 @@ export default function PlatformBillingPage() {
             )}
 
             {/* Filters Bar */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+            <div className="rounded-xl border border-border bg-hover/50 p-4 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
                 <form onSubmit={handleSearchSubmit} className="relative flex-1 lg:max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                         placeholder="Search invoice # or tenant name..."
-                        className="w-full h-9 pl-10 pr-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                        className="w-full h-9 pl-10 pr-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-indigo-500/50"
                     />
                 </form>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-zinc-500">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Filter className="h-3.5 w-3.5" />
                         Status
                     </span>
@@ -243,7 +243,7 @@ export default function PlatformBillingPage() {
                             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                                 statusFilter === f.value
                                     ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                                    : "bg-white/[0.03] text-zinc-400 border border-white/[0.06] hover:text-white hover:bg-white/[0.06]"
+                                    : "bg-hover text-muted-foreground border border-border hover:text-foreground hover:bg-hover"
                             }`}
                         >
                             {f.label}
@@ -269,11 +269,11 @@ export default function PlatformBillingPage() {
 
             {/* Invoices Table */}
             {!error && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                <div className="rounded-xl border border-border bg-hover/50 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
-                                <tr className="border-b border-white/[0.06] text-left text-xs uppercase tracking-wider text-zinc-500">
+                                <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                                     <th className="px-4 py-3 font-medium">Invoice</th>
                                     <th className="px-4 py-3 font-medium">Tenant</th>
                                     <th className="px-4 py-3 font-medium">Plan</th>
@@ -290,7 +290,7 @@ export default function PlatformBillingPage() {
                                         <tr key={i}>
                                             {Array.from({ length: 8 }).map((_, j) => (
                                                 <td key={j} className="px-4 py-3">
-                                                    <div className="h-4 rounded bg-white/[0.04] animate-pulse" style={{ width: `${40 + Math.random() * 40}%` }} />
+                                                    <div className="h-4 rounded bg-hover animate-pulse" style={{ width: `${40 + Math.random() * 40}%` }} />
                                                 </td>
                                             ))}
                                         </tr>
@@ -298,9 +298,9 @@ export default function PlatformBillingPage() {
                                 ) : !data?.invoices.length ? (
                                     <tr>
                                         <td colSpan={8} className="px-4 py-12 text-center">
-                                            <Receipt className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
-                                            <p className="text-sm text-zinc-400">No invoices found</p>
-                                            <p className="text-xs text-zinc-600 mt-1">
+                                            <Receipt className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                                            <p className="text-sm text-muted-foreground">No invoices found</p>
+                                            <p className="text-xs text-muted-foreground mt-1">
                                                 {search || statusFilter !== "all"
                                                     ? "Try adjusting your filters."
                                                     : "Invoices will appear here once tenants subscribe to a paid plan."}
@@ -312,42 +312,42 @@ export default function PlatformBillingPage() {
                                         const statusCfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending;
                                         const StatusIcon = statusCfg.icon;
                                         return (
-                                            <tr key={inv.id} className="text-sm hover:bg-white/[0.02] transition-colors">
+                                            <tr key={inv.id} className="text-sm hover:bg-hover/50 transition-colors">
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
-                                                        <Receipt className="h-4 w-4 text-zinc-500 shrink-0" />
-                                                        <span className="font-mono text-white">{inv.invoiceNumber}</span>
+                                                        <Receipt className="h-4 w-4 text-muted-foreground shrink-0" />
+                                                        <span className="font-mono text-foreground">{inv.invoiceNumber}</span>
                                                     </div>
-                                                    <p className="text-xs text-zinc-600 mt-0.5">Created {formatDate(inv.createdAt)}</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">Created {formatDate(inv.createdAt)}</p>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <Link
                                                         href={`/platform/tenants/${inv.subscription.organization.id}`}
-                                                        className="flex items-center gap-2 text-zinc-300 hover:text-white"
+                                                        className="flex items-center gap-2 text-foreground hover:text-foreground"
                                                     >
-                                                        <Building2 className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                                                        <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                                         <span className="font-medium truncate max-w-[160px]">
                                                             {inv.subscription.organization.name}
                                                         </span>
                                                     </Link>
-                                                    <p className="text-xs text-zinc-600 mt-0.5 capitalize">
+                                                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">
                                                         {inv.subscription.billingCycle} billing
                                                     </p>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <span className="text-zinc-300">{inv.subscription.plan.name}</span>
+                                                    <span className="text-foreground">{inv.subscription.plan.name}</span>
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
-                                                    <p className="font-semibold text-white tabular-nums">
+                                                    <p className="font-semibold text-foreground tabular-nums">
                                                         {formatBDT(inv.amountBDT)}
                                                     </p>
-                                                    <p className="text-xs text-zinc-600">{inv.currency}</p>
+                                                    <p className="text-xs text-muted-foreground">{inv.currency}</p>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <p className="text-xs text-zinc-400">
+                                                    <p className="text-xs text-muted-foreground">
                                                         {formatDate(inv.periodStart)}
                                                     </p>
-                                                    <p className="text-xs text-zinc-600">→ {formatDate(inv.periodEnd)}</p>
+                                                    <p className="text-xs text-muted-foreground">→ {formatDate(inv.periodEnd)}</p>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${statusCfg.color}`}>
@@ -355,7 +355,7 @@ export default function PlatformBillingPage() {
                                                         {statusCfg.label}
                                                     </span>
                                                     {inv.paymentMethod && (
-                                                        <p className="text-xs text-zinc-600 mt-1 capitalize">
+                                                        <p className="text-xs text-muted-foreground mt-1 capitalize">
                                                             via {inv.paymentMethod.replace("_", " ")}
                                                         </p>
                                                     )}
@@ -367,20 +367,20 @@ export default function PlatformBillingPage() {
                                                         <div>
                                                             <p className="text-xs text-red-400">{formatDateTime(inv.failedAt)}</p>
                                                             {inv.failureReason && (
-                                                                <p className="text-xs text-zinc-600 mt-0.5 truncate max-w-[200px]" title={inv.failureReason}>
+                                                                <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[200px]" title={inv.failureReason}>
                                                                     {inv.failureReason}
                                                                 </p>
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-xs text-zinc-600">
+                                                        <p className="text-xs text-muted-foreground">
                                                             Due {formatDate(inv.dueDate)}
                                                         </p>
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <button
-                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-hover transition-colors"
                                                         title="Download invoice (coming soon)"
                                                         disabled
                                                     >
@@ -398,31 +398,31 @@ export default function PlatformBillingPage() {
 
                     {/* Pagination */}
                     {data && data.pagination.total > 0 && (
-                        <div className="border-t border-white/[0.06] px-4 py-3 flex items-center justify-between text-xs text-zinc-500">
+                        <div className="border-t border-border px-4 py-3 flex items-center justify-between text-xs text-muted-foreground">
                             <p>
-                                Showing <span className="text-white">{(data.pagination.page - 1) * data.pagination.limit + 1}</span>
+                                Showing <span className="text-foreground">{(data.pagination.page - 1) * data.pagination.limit + 1}</span>
                                 {" "}-{" "}
-                                <span className="text-white">
+                                <span className="text-foreground">
                                     {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)}
                                 </span>
-                                {" "}of <span className="text-white">{data.pagination.total}</span> invoices
+                                {" "}of <span className="text-foreground">{data.pagination.total}</span> invoices
                             </p>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     disabled={page === 1 || loading}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-border text-foreground hover:text-foreground hover:bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     <ChevronLeft className="h-3.5 w-3.5" />
                                     Prev
                                 </button>
                                 <span className="px-2">
-                                    Page <span className="text-white">{data.pagination.page}</span> / {data.pagination.totalPages}
+                                    Page <span className="text-foreground">{data.pagination.page}</span> / {data.pagination.totalPages}
                                 </span>
                                 <button
                                     onClick={() => setPage((p) => p + 1)}
                                     disabled={!data.pagination.hasMore || loading}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-white/[0.06] text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-border text-foreground hover:text-foreground hover:bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     Next
                                     <ChevronRight className="h-3.5 w-3.5" />

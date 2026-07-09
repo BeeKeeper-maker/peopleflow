@@ -114,15 +114,15 @@ export default function PlatformSettingsPage() {
                         <Settings className="h-5 w-5 text-indigo-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-white">Platform Settings</h1>
-                        <p className="text-sm text-zinc-500 mt-0.5">
+                        <h1 className="text-2xl font-display font-bold text-foreground">Platform Settings</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
                             Manage admin accounts, security, and system configuration
                         </p>
                     </div>
                 </div>
                 <button
                     onClick={fetchAdmins}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/[0.08] bg-white/[0.03] text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-hover text-sm text-foreground hover:text-foreground hover:bg-hover transition-colors"
                 >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     Refresh
@@ -131,95 +131,95 @@ export default function PlatformSettingsPage() {
 
             {/* System Info Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+                <div className="rounded-xl border border-border bg-hover/50 p-5">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                             <Server className="w-[18px] h-[18px] text-emerald-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-white">Application</h3>
+                        <h3 className="text-sm font-semibold text-foreground">Application</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Name</span>
-                            <span className="text-zinc-300">PeopleFlow HR</span>
+                            <span className="text-muted-foreground">Name</span>
+                            <span className="text-foreground">PeopleFlow HR</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Version</span>
-                            <span className="text-zinc-300 font-mono">v2.0</span>
+                            <span className="text-muted-foreground">Version</span>
+                            <span className="text-foreground font-mono">v2.0</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Stack</span>
-                            <span className="text-zinc-300">Next.js 16 · Prisma</span>
+                            <span className="text-muted-foreground">Stack</span>
+                            <span className="text-foreground">Next.js 16 · Prisma</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Region</span>
-                            <span className="text-zinc-300">Asia (Singapore)</span>
+                            <span className="text-muted-foreground">Region</span>
+                            <span className="text-foreground">Asia (Singapore)</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+                <div className="rounded-xl border border-border bg-hover/50 p-5">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
                             <Database className="w-[18px] h-[18px] text-blue-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-white">Data Layer</h3>
+                        <h3 className="text-sm font-semibold text-foreground">Data Layer</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Database</span>
-                            <span className="text-zinc-300">PostgreSQL + RLS</span>
+                            <span className="text-muted-foreground">Database</span>
+                            <span className="text-foreground">PostgreSQL + RLS</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Cache</span>
-                            <span className="text-zinc-300">Redis + BullMQ</span>
+                            <span className="text-muted-foreground">Cache</span>
+                            <span className="text-foreground">Redis + BullMQ</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Pooler</span>
-                            <span className="text-zinc-300">PgBouncer</span>
+                            <span className="text-muted-foreground">Pooler</span>
+                            <span className="text-foreground">PgBouncer</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Backup</span>
-                            <span className="text-zinc-300">Daily + S3</span>
+                            <span className="text-muted-foreground">Backup</span>
+                            <span className="text-foreground">Daily + S3</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+                <div className="rounded-xl border border-border bg-hover/50 p-5">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center">
                             <Cloud className="w-[18px] h-[18px] text-violet-400" />
                         </div>
-                        <h3 className="text-sm font-semibold text-white">Integrations</h3>
+                        <h3 className="text-sm font-semibold text-foreground">Integrations</h3>
                     </div>
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Payments</span>
-                            <span className="text-zinc-300">Stripe</span>
+                            <span className="text-muted-foreground">Payments</span>
+                            <span className="text-foreground">Stripe</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Storage</span>
-                            <span className="text-zinc-300">S3 / R2</span>
+                            <span className="text-muted-foreground">Storage</span>
+                            <span className="text-foreground">S3 / R2</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">Auth</span>
-                            <span className="text-zinc-300">Auth.js v5</span>
+                            <span className="text-muted-foreground">Auth</span>
+                            <span className="text-foreground">Auth.js v5</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-zinc-500">SMS</span>
-                            <span className="text-zinc-300">Not configured</span>
+                            <span className="text-muted-foreground">SMS</span>
+                            <span className="text-foreground">Not configured</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Admin Accounts Section */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="rounded-xl border border-border bg-hover/50 overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Shield className="h-4 w-4 text-indigo-400" />
-                        <h3 className="text-sm font-semibold text-white">Platform Admin Accounts</h3>
-                        <span className="text-xs text-zinc-500">({admins.length})</span>
+                        <h3 className="text-sm font-semibold text-foreground">Platform Admin Accounts</h3>
+                        <span className="text-xs text-muted-foreground">({admins.length})</span>
                     </div>
                     <button
                         onClick={() => setShowCreateForm(!showCreateForm)}
@@ -232,10 +232,10 @@ export default function PlatformSettingsPage() {
 
                 {/* Create Form */}
                 {showCreateForm && (
-                    <form onSubmit={handleCreate} className="px-5 py-4 border-b border-white/[0.06] bg-indigo-500/[0.02]">
+                    <form onSubmit={handleCreate} className="px-5 py-4 border-b border-border bg-indigo-500/[0.02]">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                             <label className="block">
-                                <span className="mb-1 block text-xs text-zinc-500">Name</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">Name</span>
                                 <input
                                     type="text"
                                     value={createForm.name}
@@ -243,22 +243,22 @@ export default function PlatformSettingsPage() {
                                     placeholder="John Doe"
                                     required
                                     minLength={2}
-                                    className="w-full h-9 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                                    className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-indigo-500/50"
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-zinc-500">Email</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">Email</span>
                                 <input
                                     type="email"
                                     value={createForm.email}
                                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
                                     placeholder="admin@peopleflow.com"
                                     required
-                                    className="w-full h-9 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                                    className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-indigo-500/50"
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-zinc-500">Password (min 8 chars)</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">Password (min 8 chars)</span>
                                 <input
                                     type="password"
                                     value={createForm.password}
@@ -266,15 +266,15 @@ export default function PlatformSettingsPage() {
                                     placeholder="••••••••"
                                     required
                                     minLength={8}
-                                    className="w-full h-9 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50"
+                                    className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-indigo-500/50"
                                 />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-xs text-zinc-500">Role</span>
+                                <span className="mb-1 block text-xs text-muted-foreground">Role</span>
                                 <select
                                     value={createForm.role}
                                     onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as "platform_admin" | "platform_super" })}
-                                    className="w-full h-9 px-3 rounded-lg bg-[#11111b] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                                    className="w-full h-9 px-3 rounded-lg bg-hover border border-border text-sm text-foreground focus:outline-none focus:border-indigo-500/50"
                                 >
                                     <option value="platform_admin">Platform Admin</option>
                                     <option value="platform_super">Super Admin</option>
@@ -290,7 +290,7 @@ export default function PlatformSettingsPage() {
                             <button
                                 type="button"
                                 onClick={() => setShowCreateForm(false)}
-                                className="h-9 px-4 rounded-lg text-sm text-zinc-400 hover:text-white transition"
+                                className="h-9 px-4 rounded-lg text-sm text-muted-foreground hover:text-foreground transition"
                             >
                                 Cancel
                             </button>
@@ -323,10 +323,10 @@ export default function PlatformSettingsPage() {
                     <div className="divide-y divide-white/[0.04]">
                         {Array.from({ length: 3 }).map((_, i) => (
                             <div key={i} className="flex items-center gap-4 px-5 py-4">
-                                <div className="w-10 h-10 rounded-full bg-white/[0.04] animate-pulse" />
+                                <div className="w-10 h-10 rounded-full bg-hover animate-pulse" />
                                 <div className="flex-1 space-y-2">
-                                    <div className="h-4 w-1/3 rounded bg-white/[0.04] animate-pulse" />
-                                    <div className="h-3 w-1/4 rounded bg-white/[0.04] animate-pulse" />
+                                    <div className="h-4 w-1/3 rounded bg-hover animate-pulse" />
+                                    <div className="h-3 w-1/4 rounded bg-hover animate-pulse" />
                                 </div>
                             </div>
                         ))}
@@ -334,7 +334,7 @@ export default function PlatformSettingsPage() {
                 ) : (
                     <div className="divide-y divide-white/[0.04]">
                         {admins.map((admin) => (
-                            <div key={admin.id} className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
+                            <div key={admin.id} className="flex items-center gap-4 px-5 py-4 hover:bg-hover/50 transition-colors">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
                                     admin.role === "platform_super"
                                         ? "bg-violet-500/15 text-violet-300"
@@ -344,7 +344,7 @@ export default function PlatformSettingsPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-sm font-medium text-white">{admin.name}</p>
+                                        <p className="text-sm font-medium text-foreground">{admin.name}</p>
                                         {admin.role === "platform_super" && (
                                             <span className="text-[10px] font-medium text-violet-300 bg-violet-500/10 px-1.5 py-0.5 rounded">SUPER</span>
                                         )}
@@ -366,7 +366,7 @@ export default function PlatformSettingsPage() {
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
+                                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                                         <span className="flex items-center gap-1">
                                             <Mail className="w-3 h-3" />
                                             {admin.email}
@@ -384,38 +384,38 @@ export default function PlatformSettingsPage() {
             </div>
 
             {/* Security Policy Info */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <div className="rounded-xl border border-border bg-hover/50 p-5">
                 <div className="flex items-center gap-2 mb-4">
                     <KeyRound className="h-4 w-4 text-amber-400" />
-                    <h3 className="text-sm font-semibold text-white">Security Policy</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Security Policy</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02]">
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Globe className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-zinc-300 font-medium">CSP Hardened</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">Content Security Policy blocks unsafe-eval in production</p>
+                            <p className="text-foreground font-medium">CSP Hardened</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Content Security Policy blocks unsafe-eval in production</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02]">
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Lock className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-zinc-300 font-medium">AES-256-GCM Encryption</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">bKash credentials and PII encrypted at rest</p>
+                            <p className="text-foreground font-medium">AES-256-GCM Encryption</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">bKash credentials and PII encrypted at rest</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02]">
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Database className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-zinc-300 font-medium">Row-Level Security</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">PostgreSQL RLS enforces tenant isolation at DB layer</p>
+                            <p className="text-foreground font-medium">Row-Level Security</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">PostgreSQL RLS enforces tenant isolation at DB layer</p>
                         </div>
                     </div>
-                    <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.02]">
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-hover/50">
                         <Clock className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
                         <div>
-                            <p className="text-zinc-300 font-medium">3-Year Audit Retention</p>
-                            <p className="text-xs text-zinc-500 mt-0.5">Per Bangladesh Labour Act 2006 compliance</p>
+                            <p className="text-foreground font-medium">3-Year Audit Retention</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">Per Bangladesh Labour Act 2006 compliance</p>
                         </div>
                     </div>
                 </div>

@@ -56,7 +56,7 @@ export default function PlatformLayout({
     // Login page renders without shell
     if (isLoginPage) {
         return (
-            <div className="platform-theme min-h-screen bg-[#08080F]">
+            <div className="platform-theme min-h-screen bg-background">
                 {children}
             </div>
         );
@@ -64,17 +64,17 @@ export default function PlatformLayout({
 
     if (loading) {
         return (
-            <div className="platform-theme min-h-screen bg-[#08080F] flex items-center justify-center">
+            <div className="platform-theme min-h-screen bg-background flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-                    <p className="text-sm text-zinc-500">Loading Mission Control...</p>
+                    <p className="text-sm text-muted-foreground">Loading Mission Control...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="platform-theme min-h-screen bg-[#08080F] text-white">
+        <div className="platform-theme min-h-screen bg-background text-foreground">
             {/* Desktop sidebar — fixed, always visible on lg+ */}
             <div className="hidden lg:block">
                 <PlatformSidebar

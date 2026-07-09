@@ -66,10 +66,10 @@ export default async function LeadsPage({
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">
                         Lead Pipeline
                     </h1>
-                    <p className="text-sm text-zinc-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         Manage incoming sales leads and track conversions
                     </p>
                 </div>
@@ -164,7 +164,7 @@ function PipelineStat({
         <div
             className={`rounded-xl border ${c.border} ${c.bg} ${c.glow} px-4 py-3 transition-all duration-200 hover:scale-[1.02]`}
         >
-            <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 {label}
             </p>
             <p className={`text-2xl font-bold ${c.text} tabular-nums mt-0.5`}>

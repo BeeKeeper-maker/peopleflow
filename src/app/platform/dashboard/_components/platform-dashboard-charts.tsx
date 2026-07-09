@@ -50,7 +50,7 @@ export function PlatformDashboardCharts({
     if (render === "revenue") {
         if (revenueTrend.length === 0) {
             return (
-                <div className="flex flex-col items-center justify-center h-[240px] text-zinc-600">
+                <div className="flex flex-col items-center justify-center h-[240px] text-muted-foreground">
                     <DollarSign className="w-8 h-8 mb-2" />
                     <p className="text-sm">No revenue data yet</p>
                     <p className="text-xs mt-1">Revenue appears after first paid invoice</p>
