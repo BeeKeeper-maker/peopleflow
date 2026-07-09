@@ -3,6 +3,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 interface Props {
     children: ReactNode;
@@ -32,10 +33,16 @@ export class ErrorBoundary extends Component<Props, State> {
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         this.setState({ errorInfo });
 
-        // Log error to console (in production, send to monitoring service)
-        console.error("ErrorBoundary caught an error:", error, errorInfo);
+        // Send to Sentry for production error monitoring. The client config
+        // (sentry.client.config.ts) no-ops in development, so this is a safe
+        // no-op outside production. Component stack is attached as extra
+        // context so the Sentry UI can show the React subtree that threw.
+        Sentry.captureException(error, {
+            extra: { componentStack: errorInfo.componentStack },
+        });
 
-        // TODO: Send to error monitoring service (Sentry, etc.)
+        // Log error to console (useful in development)
+        console.error("ErrorBoundary caught an error:", error, errorInfo);
     }
 
     handleReset = (): void => {

@@ -88,7 +88,7 @@ export async function PUT(
                         userId: updatedLoan.employee.user.id,
                         employeeName: empName,
                         amount: Number(updatedLoan.amount),
-                        loanType: (updatedLoan as any).loanType || "Loan",
+                        loanType: updatedLoan.type || "Loan",
                         ...(json.status === "rejected" ? { reason: json.notes || json.reason } : {}),
                     } as any).catch((err: unknown) => apiLogger.error({ err: err }, "[EVENT_FAIL] loan:"));
                 }
