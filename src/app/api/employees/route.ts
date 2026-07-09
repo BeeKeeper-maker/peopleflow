@@ -10,6 +10,7 @@ import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
 import { randomBytes } from "crypto";
+import { decryptEmployeePhoneNumbers } from "@/lib/pii";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employees — Create Employee
@@ -328,7 +329,7 @@ export async function POST(req: Request) {
     await onResourceCreated(auth.organizationId, "employee");
 
     return NextResponse.json({
-      ...result.employee,
+      ...decryptEmployeePhoneNumbers(result.employee),
       onboardingInvitationSent: !!result.invitationToken,
       leaveAllocationsCreated: result.leaveAllocationsCreated,
     });
@@ -404,7 +405,7 @@ export async function GET(req: Request) {
     );
 
     return NextResponse.json({
-      data: employees,
+      data: employees.map(decryptEmployeePhoneNumbers),
       meta: {
         total,
         page,

@@ -380,6 +380,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     const assignment = await prisma.salaryStructureAssignment.findFirst({
         where: {
             employeeId,
+            deletedAt: null,
             ...(includeInactiveAssignment ? {} : { isActive: true }),
             effectiveFrom: { lte: new Date(year, month - 1, 28) },
             OR: [

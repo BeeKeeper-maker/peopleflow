@@ -5,6 +5,7 @@ import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { sendTemplateEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
+import { decryptEmployeePhoneNumbers } from "@/lib/pii";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/employees/:id
@@ -83,7 +84,9 @@ export async function GET(
                 return new NextResponse("Employee not found", { status: 404 });
             }
 
-            return NextResponse.json(employee);
+            // PII: bkashNumber/nagadNumber are encrypted at rest; decrypt for HR/manager/self views.
+            // (The non-HR public-fields branch below does not select these columns.)
+            return NextResponse.json(decryptEmployeePhoneNumbers(employee));
         }
 
         // Regular employees viewing others: public fields only (no salary, NID, bank details)
@@ -384,7 +387,7 @@ export async function PUT(
         }
 
         return NextResponse.json({
-            ...result.updatedEmployee,
+            ...decryptEmployeePhoneNumbers(result.updatedEmployee),
             reactivationInvitationSent: !!result.reactivationToken,
         });
     } catch (error) {

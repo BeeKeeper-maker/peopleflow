@@ -55,13 +55,6 @@ const statusColors: Record<string, string> = {
     closed: "bg-red-500/20 text-red-400",
 }
 
-const employmentTypeLabels: Record<string, string> = {
-    full_time: "Full Time",
-    part_time: "Part Time",
-    contract: "Contract",
-    internship: "Internship",
-}
-
 export default function RecruitmentPage() {
     const { data: jobsData = [], isLoading: loading } = useJobPostings()
     const jobs = jobsData as unknown as JobPosting[]
@@ -201,6 +194,22 @@ export default function RecruitmentPage() {
 
 function JobCard({ job }: { job: JobPosting }) {
     const t = useTranslations('Recruitment')
+
+    const employmentTypeLabel = (employmentType: string): string => {
+        switch (employmentType) {
+            case "full_time":
+                return t('fullTime')
+            case "part_time":
+                return t('partTime')
+            case "contract":
+                return t('contract')
+            case "internship":
+                return t('internship')
+            default:
+                return employmentType
+        }
+    }
+
     return (
         <Card className="bg-card border-card-border hover:border-border-hover transition-all group">
             <CardContent className="p-6">
@@ -211,7 +220,7 @@ function JobCard({ job }: { job: JobPosting }) {
                                 {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                             </Badge>
                             <Badge variant="outline" className="border-border-hover">
-                                {employmentTypeLabels[job.employmentType] || job.employmentType}
+                                {employmentTypeLabel(job.employmentType)}
                             </Badge>
                         </div>
 

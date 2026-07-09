@@ -126,6 +126,7 @@ async function runComplianceEngine(ctx: AuthContext) {
                 where: {
                     employee: { organizationId: orgId, employmentStatus: "active" },
                     isActive: true,
+                    deletedAt: null,
                 },
                 select: {
                     employeeId: true,

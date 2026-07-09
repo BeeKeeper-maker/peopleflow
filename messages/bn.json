@@ -611,7 +611,11 @@
     "typeIntern": "ইন্টার্ন",
     "applications": "আবেদন",
     "vacancies": "শূন্যপদ",
-    "viewDetails": "বিস্তারিত দেখুন"
+    "viewDetails": "বিস্তারিত দেখুন",
+    "fullTime": "ফুল টাইম",
+    "partTime": "পার্ট টাইম",
+    "contract": "চুক্তিভিত্তিক",
+    "internship": "ইন্টার্নশিপ"
   },
   "Reports": {
     "title": "রিপোর্ট ও বিশ্লেষণ",
@@ -3269,5 +3273,45 @@
     "formJDesc": "শ্রম পরিদর্শকের পরিদর্শন — তারিখ, নাম, পর্যবেক্ষণ, পরবর্তী পদক্ষেপ।",
     "formK": "আইনের সারসংক্ষেপ",
     "formKDesc": "প্রদর্শনী নোটিশ — কর্মঘণ্টা, মজুরি, ছুটি ও সুবিধার সারসংক্ষেপ।"
+  },
+  "Onboarding": {
+    "stepWelcome": "স্বাগতম",
+    "stepDepartments": "বিভাগ",
+    "stepDesignations": "পদবি",
+    "stepWorkShift": "কাজের শিফট",
+    "stepFirstEmployee": "প্রথম কর্মচারী",
+    "stepComplete": "সম্পূর্ণ"
+  },
+  "Platform": {
+    "dashboard": "ড্যাশবোর্ড",
+    "dashboardSubtitle": "রিয়েল-টাইম প্ল্যাটফর্ম ওভারভিউ এবং SaaS মেট্রিক্স",
+    "tenants": "টেন্যান্ট",
+    "tenantsSubtitle": "আপনার টেন্যান্ট পরিচালনা করুন",
+    "billing": "বিলিং ও ইনভয়েস",
+    "billingSubtitle": "সকল টেন্যান্টের রাজস্ব, ইনভয়েস, এবং পেমেন্ট স্বাস্থ্য",
+    "settings": "সেটিংস",
+    "settingsSubtitle": "অ্যাডমিন অ্যাকাউন্ট, নিরাপত্তা, এবং সিস্টেম কনফিগারেশন",
+    "leads": "লিডস",
+    "leadsSubtitle": "ইনকামিং সেলস লিড পরিচালনা এবং ট্র্যাক করুন",
+    "auditLogs": "অডিট লগ",
+    "auditLogsSubtitle": "সকল প্ল্যাটফর্ম অ্যাকশনের সম্পূর্ণ অডিট ট্রেইল",
+    "plans": "প্ল্যান",
+    "plansSubtitle": "SaaS সাবস্ক্রিপশন প্ল্যান পরিচালনা",
+    "support": "সাপোর্ট",
+    "supportSubtitle": "টেন্যান্ট থেকে সাপোর্ট টিকিট পরিচালনা",
+    "refresh": "রিফ্রেশ",
+    "totalTenants": "মোট টেন্যান্ট",
+    "activeTenants": "সক্রিয় টেন্যান্ট",
+    "mrr": "মাসিক রিকারিং রাজস্ব",
+    "arr": "বার্ষিক রান রেট",
+    "churnRate": "চার্ন রেট",
+    "trialConversion": "ট্রায়াল কনভার্সন",
+    "newThisMonth": "এই মাসে নতুন",
+    "needsAttention": "মনোযোগ দরকার",
+    "totalRevenue": "মোট রাজস্ব",
+    "revenue30d": "রাজস্ব (৩০ দিন)",
+    "pendingRevenue": "অপেক্ষমাণ রাজস্ব",
+    "failedPayments": "ব্যর্থ পেমেন্ট",
+    "viewAll": "সব দেখুন"
   }
 }

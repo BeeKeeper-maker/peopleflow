@@ -611,7 +611,11 @@
     "typeIntern": "Intern",
     "applications": "applications",
     "vacancies": "vacancies",
-    "viewDetails": "View Details"
+    "viewDetails": "View Details",
+    "fullTime": "Full Time",
+    "partTime": "Part Time",
+    "contract": "Contract",
+    "internship": "Internship"
   },
   "Reports": {
     "title": "Reports & Analytics",
@@ -3269,5 +3273,45 @@
     "formJDesc": "Labour inspector visits — date, inspector name, observations, follow-up actions.",
     "formK": "Abstract of Act",
     "formKDesc": "Display notice — summary of working hours, wages, leave and benefits applicable."
+  },
+  "Onboarding": {
+    "stepWelcome": "Welcome",
+    "stepDepartments": "Departments",
+    "stepDesignations": "Designations",
+    "stepWorkShift": "Work Shift",
+    "stepFirstEmployee": "First Employee",
+    "stepComplete": "Complete"
+  },
+  "Platform": {
+    "dashboard": "Dashboard",
+    "dashboardSubtitle": "Real-time platform overview and SaaS metrics",
+    "tenants": "Tenants",
+    "tenantsSubtitle": "Manage your tenants",
+    "billing": "Billing & Invoices",
+    "billingSubtitle": "Revenue, invoices, and payment health across all tenants",
+    "settings": "Settings",
+    "settingsSubtitle": "Manage admin accounts, security, and system configuration",
+    "leads": "Leads",
+    "leadsSubtitle": "Manage incoming sales leads and track conversions",
+    "auditLogs": "Audit Logs",
+    "auditLogsSubtitle": "Complete audit trail for all platform actions",
+    "plans": "Plans",
+    "plansSubtitle": "Manage SaaS subscription plans",
+    "support": "Support",
+    "supportSubtitle": "Manage support tickets from tenants",
+    "refresh": "Refresh",
+    "totalTenants": "Total Tenants",
+    "activeTenants": "Active Tenants",
+    "mrr": "Monthly Recurring Revenue",
+    "arr": "Annual Run Rate",
+    "churnRate": "Churn Rate",
+    "trialConversion": "Trial Conversion",
+    "newThisMonth": "New This Month",
+    "needsAttention": "Needs Attention",
+    "totalRevenue": "Total Revenue",
+    "revenue30d": "Revenue (30d)",
+    "pendingRevenue": "Pending Revenue",
+    "failedPayments": "Failed Payments",
+    "viewAll": "View All"
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import {
     DollarSign,
     TrendingUp,
@@ -74,6 +75,7 @@ interface RecentActivity {
 const PIE_COLORS = ["#6366F1", "#8B5CF6", "#A78BFA", "#C4B5FD", "#818CF8"];
 
 export default function PlatformDashboardPage() {
+    const t = useTranslations("Platform");
     const [analytics, setAnalytics] = useState<Analytics | null>(null);
     const [activities, setActivities] = useState<RecentActivity[]>([]);
     const [loading, setLoading] = useState(true);
@@ -117,17 +119,17 @@ export default function PlatformDashboardPage() {
             {/* Page Header */}
             <div>
                 <h1 className="text-2xl font-bold text-foreground tracking-tight">
-                    Dashboard
+                    {t("dashboard")}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Real-time platform overview and SaaS metrics
+                    {t("dashboardSubtitle")}
                 </p>
             </div>
 
             {/* Metric Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <MetricCard
-                    title="Monthly Recurring Revenue"
+                    title={t("mrr")}
                     value={analytics?.mrr || 0}
                     prefix="৳"
                     change={revenueGrowth}
@@ -136,7 +138,7 @@ export default function PlatformDashboardPage() {
                     delay={0}
                 />
                 <MetricCard
-                    title="Annual Run Rate"
+                    title={t("arr")}
                     value={analytics?.arr || 0}
                     prefix="৳"
                     change={revenueGrowth}
@@ -145,7 +147,7 @@ export default function PlatformDashboardPage() {
                     delay={60}
                 />
                 <MetricCard
-                    title="Active Tenants"
+                    title={t("activeTenants")}
                     value={analytics?.activeTenants || 0}
                     suffix={`/ ${analytics?.totalTenants || 0}`}
                     change={newTenantsThisMonth > 0 ? 8 : 0}
@@ -154,7 +156,7 @@ export default function PlatformDashboardPage() {
                     delay={120}
                 />
                 <MetricCard
-                    title="Churn Rate"
+                    title={t("churnRate")}
                     value={analytics?.churnRate?.toFixed(1) || "0.0"}
                     suffix="%"
                     change={-2.1}
@@ -169,21 +171,21 @@ export default function PlatformDashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <SecondaryMetric
                     icon={Target}
-                    label="Trial Conversion"
+                    label={t("trialConversion")}
                     value={`${trialConversionRate}%`}
                     color="text-blue-400"
                     bgColor="bg-blue-500/10"
                 />
                 <SecondaryMetric
                     icon={UserPlus}
-                    label="New This Month"
+                    label={t("newThisMonth")}
                     value={newTenantsThisMonth}
                     color="text-emerald-400"
                     bgColor="bg-emerald-500/10"
                 />
                 <SecondaryMetric
                     icon={CreditCard}
-                    label="Failed Payments"
+                    label={t("failedPayments")}
                     value={failedPayments}
                     color="text-red-400"
                     bgColor="bg-red-500/10"
@@ -272,7 +274,7 @@ export default function PlatformDashboardPage() {
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-foreground">Top Tenants</h3>
                         <Link href="/platform/tenants" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                            View all →
+                            {t("viewAll")} →
                         </Link>
                     </div>
                     <div className="space-y-3">
@@ -312,7 +314,7 @@ export default function PlatformDashboardPage() {
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-foreground">Recent Activity</h3>
                         <a href="/platform/audit-logs" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                            View all →
+                            {t("viewAll")} →
                         </a>
                     </div>
                     <div className="space-y-1">

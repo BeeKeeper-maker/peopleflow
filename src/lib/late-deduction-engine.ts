@@ -152,9 +152,11 @@ export async function calculateLateDeduction(
         }
 
         // Calculate deduction per late based on tier type
+        // Phase 3 (Float → Decimal): tier.deductionValue is now Prisma.Decimal;
+        // the per-tier helper works in plain `number`, so coerce at the call site.
         const deductionPerLate = calculateTierDeduction(
             tier.deductionType,
-            tier.deductionValue,
+            Number(tier.deductionValue),
             dailySalary
         );
 

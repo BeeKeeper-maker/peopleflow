@@ -133,6 +133,7 @@ export async function recordMonthlyContributions(
             transactionType: "employee_contribution",
             referenceMonth: month,
             referenceYear: year,
+            deletedAt: null,
         },
         select: {
             pfAccountId: true,
@@ -338,7 +339,7 @@ export async function creditInterestForOrganization(
     errors: string[];
 }> {
     const accounts = await prisma.pFAccount.findMany({
-        where: { organizationId, status: "active" },
+        where: { organizationId, status: "active", deletedAt: null },
         select: { id: true },
     });
 
@@ -484,6 +485,7 @@ export async function getPFStatement(
     const transactions = await prisma.pFTransaction.findMany({
         where: {
             pfAccountId: account.id,
+            deletedAt: null,
             ...(options?.fromDate || options?.toDate
                 ? {
                     transactionDate: {

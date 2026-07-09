@@ -428,7 +428,7 @@ export async function calculateLeaveSettlement(
 ): Promise<LeaveSettlementResult> {
     // Get employee's basic salary
     const salaryAssignment = await prisma.salaryStructureAssignment.findFirst({
-        where: { employeeId, isActive: true },
+        where: { employeeId, isActive: true, deletedAt: null },
         include: { salaryStructure: true },
     });
 

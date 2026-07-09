@@ -100,6 +100,7 @@ export async function GET() {
           where: {
             isActive: true,
             grossSalary: { gt: 0 },
+            deletedAt: null,
             employee: { organizationId: auth.organizationId, employmentStatus: "active", deletedAt: null },
           },
           select: { employeeId: true },

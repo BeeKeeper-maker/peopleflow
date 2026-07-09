@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         const month = searchParams.get("month");
         const year = searchParams.get("year");
 
-        const where: Record<string, unknown> = { organizationId: ctx.organizationId };
+        const where: Record<string, unknown> = { organizationId: ctx.organizationId, deletedAt: null };
         if (month && year) {
             where.salarySlip = { month: Number(month), year: Number(year) };
         }

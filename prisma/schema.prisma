@@ -1073,6 +1073,7 @@ model SalaryStructureAssignment {
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1083,6 +1084,7 @@ model SalaryStructureAssignment {
 
   @@index([employeeId])
   @@index([isActive])
+  @@index([deletedAt])
 }
 
 model SalarySlip {
@@ -1196,6 +1198,7 @@ model SalaryDisbursement {
   processedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
 
   salarySlipId    String
   salarySlip      SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
@@ -1211,6 +1214,7 @@ model SalaryDisbursement {
   @@index([organizationId])
   @@index([status])
   @@index([channel])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -1259,12 +1263,14 @@ model LoanRepayment {
   reference     String?  // Transaction reference number
   note          String?
   createdAt     DateTime @default(now())
+  deletedAt     DateTime?
 
   loanId String
   loan   Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@index([loanId])
   @@index([paidDate])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -1286,7 +1292,7 @@ model FestivalBonusConfig {
 
   // Calculation rules
   calculationBasis  String  @default("basic") // basic, gross
-  percentageOfBasis Float   @default(100)     // 50%, 100%, 200% of basic/gross
+  percentageOfBasis Decimal @default(100) @db.Decimal(5,2) // 50%, 100%, 200% of basic/gross
 
   // Eligibility rules
   minimumServiceDays  Int     @default(180)     // Must have worked N days to be eligible (6 months)
@@ -1327,6 +1333,7 @@ model FestivalBonusPayment {
   notes             String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
 
   employeeId String
   organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
@@ -1339,6 +1346,7 @@ model FestivalBonusPayment {
   @@index([employeeId])
   @@index([bonusConfigId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -1393,7 +1401,7 @@ model LateDeductionTier {
 
   // Deduction per late in this tier
   deductionType  String @default("none") // none, half_day, full_day, fixed_amount, percentage_of_daily
-  deductionValue Float  @default(0)      // For fixed_amount: BDT value. For percentage_of_daily: % (e.g., 50 = half day)
+  deductionValue Decimal @default(0) @db.Decimal(18,2) // For fixed_amount: BDT value. For percentage_of_daily: % (e.g., 50 = half day)
 
   // Administrative action
   issueWarning  Boolean @default(false) // Generate a warning notification
@@ -1435,6 +1443,7 @@ model PFAccount {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   employeeId String @unique // One PF account per employee
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1446,6 +1455,7 @@ model PFAccount {
 
   @@index([organizationId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 /**
@@ -1469,6 +1479,7 @@ model PFTransaction {
   referenceYear   Int?     // For contributions: year
   transactionDate DateTime @default(now())
   createdAt       DateTime @default(now())
+  deletedAt       DateTime?
   organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   pfAccountId String
@@ -1478,6 +1489,7 @@ model PFTransaction {
   @@index([transactionType])
   @@index([transactionDate])
   @@index([referenceMonth, referenceYear])
+  @@index([deletedAt])
 }
 
 // ============================================

@@ -93,7 +93,7 @@ export async function calculateFinalSettlement(
 
     // ── 2. Fetch salary structure ──
     const salaryAssignment = await prisma.salaryStructureAssignment.findFirst({
-        where: { employeeId, isActive: true },
+        where: { employeeId, isActive: true, deletedAt: null },
         include: {
             salaryStructure: true,
         },
@@ -240,7 +240,7 @@ export async function calculateFinalSettlement(
 
     // ── 8. PF balance (full withdrawal on separation) ──
     const pfAccount = await prisma.pFAccount.findFirst({
-        where: { employeeId },
+        where: { employeeId, deletedAt: null },
         include: {
             transactions: {
                 where: { transactionType: { in: ["employee_contribution", "employer_contribution", "interest_credit"] } },

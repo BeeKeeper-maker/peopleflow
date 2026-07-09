@@ -292,6 +292,7 @@ export async function getFestivalBonusForPayroll(
         where: {
             employeeId,
             status: "pending",
+            deletedAt: null,
         },
     });
 

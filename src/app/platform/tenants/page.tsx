@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
     Search,
     Building2,
@@ -64,6 +65,7 @@ function formatLastActive(dateStr: string | null): { text: string; color: string
 
 export default function TenantsPage() {
     const router = useRouter();
+    const t = useTranslations("Platform");
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -107,9 +109,9 @@ export default function TenantsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground tracking-tight">Tenants</h1>
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("tenants")}</h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Manage all organizations on the platform
+                        {t("tenantsSubtitle")}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">

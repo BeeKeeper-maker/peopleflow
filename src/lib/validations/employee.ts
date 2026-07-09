@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { encryptPii } from "@/lib/pii";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PeopleFlow — SINGLE SOURCE OF TRUTH: Employee Validation Schema
@@ -321,8 +322,8 @@ export function toPrismaEmployeeData(data: EmployeeData) {
         tinNumber: data.tinNumber ?? null,
         pfNumber: data.pfNumber ?? null,
 
-        bkashNumber: data.bkashNumber ?? null,
-        nagadNumber: data.nagadNumber ?? null,
+        bkashNumber: encryptPii(data.bkashNumber) ?? null,
+        nagadNumber: encryptPii(data.nagadNumber) ?? null,
 
         isSeniorCitizen: data.isSeniorCitizen,
         isDisabled: data.isDisabled,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { decryptEmployeePhoneNumbers } from "@/lib/pii";
 
 // GET /api/employees/me - Get current employee's profile
 export async function GET() {
@@ -65,13 +66,14 @@ export async function GET() {
         }
 
         // Return structured response with employee + user context
+        // PII: bkashNumber/nagadNumber are encrypted at rest; decrypt for self-view.
         return NextResponse.json({
             data: {
                 id: user?.id || auth.userId,
                 name: user?.name,
                 email: user?.email,
                 role: user?.role || "employee",
-                employee,
+                employee: decryptEmployeePhoneNumbers(employee),
                 organization: user?.organization || null,
             },
         });
@@ -142,7 +144,7 @@ export async function PATCH(req: NextRequest) {
             },
         }));
 
-        return NextResponse.json({ data: updatedEmployee });
+        return NextResponse.json({ data: decryptEmployeePhoneNumbers(updatedEmployee) });
     } catch (error) {
         apiLogger.error({ err: error }, "Error updating employee profile:");
         return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });

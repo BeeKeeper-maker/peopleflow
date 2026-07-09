@@ -10,20 +10,40 @@ import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, Building2, Briefcase, Clo
 import { useToast } from "@/components/ui/toast";
 
 const STEPS = [
-    { id: "welcome", icon: Sparkles, label: "Welcome" },
-    { id: "departments", icon: Building2, label: "Departments" },
-    { id: "designations", icon: Briefcase, label: "Designations" },
-    { id: "shift", icon: Clock, label: "Work Shift" },
-    { id: "employee", icon: UserPlus, label: "First Employee" },
-    { id: "complete", icon: PartyPopper, label: "Complete" },
+    { id: "welcome", icon: Sparkles },
+    { id: "departments", icon: Building2 },
+    { id: "designations", icon: Briefcase },
+    { id: "shift", icon: Clock },
+    { id: "employee", icon: UserPlus },
+    { id: "complete", icon: PartyPopper },
 ];
 
 export default function OnboardingPage() {
     const router = useRouter();
     const { addToast } = useToast();
+    const t = useTranslations("Onboarding");
     const [currentStep, setCurrentStep] = useState(0);
     const [loading, setLoading] = useState(false);
     const [onboardingStatus, setOnboardingStatus] = useState<Record<string, boolean>>({});
+
+    const getStepLabel = (stepId: string): string => {
+        switch (stepId) {
+            case "welcome":
+                return t("stepWelcome");
+            case "departments":
+                return t("stepDepartments");
+            case "designations":
+                return t("stepDesignations");
+            case "shift":
+                return t("stepWorkShift");
+            case "employee":
+                return t("stepFirstEmployee");
+            case "complete":
+                return t("stepComplete");
+            default:
+                return stepId;
+        }
+    };
 
     // Form state
     const [departments, setDepartments] = useState([{ name: "Administration", code: "ADMIN" }, { name: "Operations", code: "OPS" }]);
@@ -181,7 +201,7 @@ export default function OnboardingPage() {
                                         {isComplete ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
                                     </div>
                                     <span className={`text-[10px] font-medium hidden sm:block ${isActive ? "text-blue-400" : isComplete ? "text-emerald-400" : "text-zinc-600"}`}>
-                                        {step.label}
+                                        {getStepLabel(step.id)}
                                     </span>
                                 </div>
                                 {i < STEPS.length - 1 && (

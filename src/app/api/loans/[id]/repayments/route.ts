@@ -29,7 +29,7 @@ export async function GET(req: Request, { params }: RouteParams) {
 
         const repayments = await auth.withDB((db) =>
             db.loanRepayment.findMany({
-                where: { loanId: id },
+                where: { loanId: id, deletedAt: null },
                 orderBy: { installmentNo: "asc" },
             }),
         );

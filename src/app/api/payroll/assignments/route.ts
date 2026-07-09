@@ -26,6 +26,7 @@ export async function GET(req: Request) {
             employee: {
                 organizationId: auth.organizationId,
             },
+            deletedAt: null,
         };
 
         if (employeeId) {

@@ -32,6 +32,7 @@ import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
 import { decrypt, isEncrypted } from "@/lib/crypto";
 import { toNumber } from "@/lib/payroll-engine";
+import { decryptPii } from "@/lib/pii";
 
 export type DisbursementChannel = "bank_transfer" | "bkash" | "nagad";
 export type DisbursementStatus = "pending" | "processing" | "success" | "failed" | "refunded";
@@ -336,14 +337,19 @@ export async function disburseSalary(params: {
                 errorMessage: "bKash is not configured for this organization. Please set up bKash credentials in Settings.",
             };
         } else {
-            // Get employee's bKash number from custom fields or a dedicated field
-            // For now, we check the employee's phone number as fallback
+            // Get employee's bKash number.
+            // Lookup order (most-trusted first):
+            //   1. Employee.bkashNumber — the dedicated column (encrypted at rest since P6-DECIMAL-PII).
+            //   2. customFields.bkashNumber — legacy escape hatch used by older UI flows.
+            //   3. Employee.phone — last-resort fallback (assuming the worker uses their
+            //      personal phone as their bKash number, which is common for RMG workers).
             const employeeWithPhone = await prisma.employee.findUnique({
                 where: { id: slip.employee.id },
-                select: { phone: true, customFields: true },
+                select: { phone: true, customFields: true, bkashNumber: true },
             });
 
             const bkashNumber =
+                decryptPii(employeeWithPhone?.bkashNumber) ||
                 (employeeWithPhone?.customFields as Record<string, unknown>)?.bkashNumber as string ||
                 employeeWithPhone?.phone?.replace(/[^0-9]/g, "") ||
                 "";

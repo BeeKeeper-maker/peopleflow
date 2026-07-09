@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
     DollarSign,
     TrendingUp,
@@ -113,6 +114,7 @@ function formatDateTime(iso: string): string {
 }
 
 export default function PlatformBillingPage() {
+    const t = useTranslations("Platform");
     const [data, setData] = useState<BillingResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -172,9 +174,9 @@ export default function PlatformBillingPage() {
                         <DollarSign className="h-5 w-5 text-emerald-400" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-display font-bold text-foreground">Billing & Invoices</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t("billing")}</h1>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                            Revenue, invoices, and payment health across all tenants
+                            {t("billingSubtitle")}
                         </p>
                     </div>
                 </div>
@@ -183,7 +185,7 @@ export default function PlatformBillingPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-hover text-sm text-foreground hover:text-foreground hover:bg-hover transition-colors"
                 >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Refresh
+                    {t("refresh")}
                 </button>
             </div>
 
@@ -191,13 +193,13 @@ export default function PlatformBillingPage() {
             {metrics && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <MetricCard
-                        title="Total Revenue"
+                        title={t("totalRevenue")}
                         value={formatBDT(metrics.totalRevenueBDT)}
                         icon={DollarSign}
                         color="emerald"
                     />
                     <MetricCard
-                        title="Revenue (30d)"
+                        title={t("revenue30d")}
                         value={formatBDT(metrics.revenueThisMonthBDT)}
                         change={metrics.revenueGrowthPercent}
                         changeLabel="vs last 30d"
@@ -205,13 +207,13 @@ export default function PlatformBillingPage() {
                         color="indigo"
                     />
                     <MetricCard
-                        title="Pending Revenue"
+                        title={t("pendingRevenue")}
                         value={formatBDT(metrics.pendingRevenueBDT)}
                         icon={Clock}
                         color="amber"
                     />
                     <MetricCard
-                        title="Failed Payments"
+                        title={t("failedPayments")}
                         value={metrics.failedPayments}
                         icon={AlertCircle}
                         color="rose"
