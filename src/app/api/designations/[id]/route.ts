@@ -32,8 +32,12 @@ export async function GET(
 
         return NextResponse.json(designation);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_DESIGNATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_DESIGNATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -89,8 +93,12 @@ export async function PUT(
 
         return NextResponse.json(designation);
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_DESIGNATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_DESIGNATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -134,7 +142,11 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_DESIGNATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_DESIGNATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

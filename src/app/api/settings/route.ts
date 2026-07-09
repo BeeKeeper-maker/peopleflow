@@ -151,9 +151,10 @@ export async function GET() {
             },
         })
     } catch (error) {
-        apiLogger.error({ err: error }, "Settings fetch error:")
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "Settings fetch error:");
         return NextResponse.json(
-            { error: "Failed to fetch settings" },
+            { error: "Failed to fetch settings", errorId },
             { status: 500 }
         )
     }
@@ -244,9 +245,10 @@ export async function PATCH(req: NextRequest) {
 
         return NextResponse.json({ organization: updatedOrg })
     } catch (error) {
-        apiLogger.error({ err: error }, "Settings update error:")
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "Settings update error:");
         return NextResponse.json(
-            { error: "Failed to update settings" },
+            { error: "Failed to update settings", errorId },
             { status: 500 }
         )
     }

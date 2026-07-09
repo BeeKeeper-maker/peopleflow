@@ -72,8 +72,9 @@ export async function GET(req: Request) {
 
         return successResponse(goals);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_GOALS_ERROR");
-        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch goals");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_GOALS_ERROR");
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Internal server error", { details: { errorId } });
     }
 }
 
@@ -170,8 +171,8 @@ export async function POST(req: Request) {
 
         return createdResponse(goal, "Goal created successfully");
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_GOAL_ERROR");
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        return errorResponse(ErrorCodes.INTERNAL_ERROR, `Failed to create goal: ${errorMessage}`);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_GOAL_ERROR");
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Internal server error", { details: { errorId } });
     }
 }

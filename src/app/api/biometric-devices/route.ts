@@ -28,8 +28,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(devices);
     } catch (error) {
-        biometricLogger.error({ err: error }, "GET_BIOMETRIC_DEVICES_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "GET_BIOMETRIC_DEVICES_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -150,7 +154,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(device, { status: 201 });
     } catch (error) {
-        biometricLogger.error({ err: error }, "CREATE_BIOMETRIC_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "CREATE_BIOMETRIC_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

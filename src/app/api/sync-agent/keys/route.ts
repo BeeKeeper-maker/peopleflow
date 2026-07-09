@@ -54,8 +54,12 @@ export async function POST(req: Request) {
             },
         });
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_SYNC_KEY_ERROR");
-        return new NextResponse("Failed to create API key", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_SYNC_KEY_ERROR");
+        return NextResponse.json(
+            { error: "Failed to create API key", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -89,7 +93,11 @@ export async function GET() {
 
         return NextResponse.json({ success: true, keys });
     } catch (error) {
-        apiLogger.error({ err: error }, "LIST_SYNC_KEYS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "LIST_SYNC_KEYS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

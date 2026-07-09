@@ -131,8 +131,12 @@ export async function GET(
 
         return NextResponse.json(employee);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_EMPLOYEE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_EMPLOYEE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -391,9 +395,10 @@ export async function PUT(
             reactivationInvitationSent: !!result.reactivationToken,
         });
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_EMPLOYEE_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_EMPLOYEE_ERROR");
         return NextResponse.json(
-            { error: (error as Error).message || "Internal Error" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }
@@ -484,7 +489,11 @@ export async function DELETE(
             { status: 200 },
         );
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_EMPLOYEE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_EMPLOYEE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

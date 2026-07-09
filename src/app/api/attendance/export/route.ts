@@ -94,7 +94,11 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        attendanceLogger.error({ err: error }, "EXPORT_ATTENDANCE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "EXPORT_ATTENDANCE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

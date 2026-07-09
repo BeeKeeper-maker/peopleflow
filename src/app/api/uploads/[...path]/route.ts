@@ -104,7 +104,11 @@ export async function GET(
             },
         });
     } catch (error) {
-        storageLogger.error({ err: error }, "SERVE_FILE_ERROR");
-        return new NextResponse("Internal Server Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        storageLogger.error({ err: error, errorId }, "SERVE_FILE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

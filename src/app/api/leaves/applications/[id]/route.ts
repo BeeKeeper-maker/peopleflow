@@ -59,8 +59,12 @@ export async function GET(
 
         return NextResponse.json(application);
     } catch (error) {
-        leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "GET_LEAVE_APPLICATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -384,8 +388,12 @@ export async function PUT(
         return NextResponse.json(updatedApp);
 
     } catch (error) {
-        leaveLogger.error({ err: error }, "UPDATE_LEAVE_APPLICATION_ERROR");
-        return new NextResponse(error instanceof Error ? error.message : "Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "UPDATE_LEAVE_APPLICATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 

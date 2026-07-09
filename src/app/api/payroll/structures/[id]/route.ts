@@ -46,8 +46,12 @@ export async function PUT(
 
         return NextResponse.json(structure);
     } catch (error) {
-        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_PUT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "SALARY_STRUCTURE_PUT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -87,7 +91,11 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 200 });
     } catch (error) {
-        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_DELETE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "SALARY_STRUCTURE_DELETE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

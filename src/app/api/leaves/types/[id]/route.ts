@@ -46,8 +46,12 @@ export async function GET(
 
         return NextResponse.json(leaveType);
     } catch (error) {
-        leaveLogger.error({ err: error }, "GET_LEAVE_TYPE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "GET_LEAVE_TYPE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -98,8 +102,12 @@ export async function PUT(
 
         return NextResponse.json(leaveType);
     } catch (error) {
-        leaveLogger.error({ err: error }, "UPDATE_LEAVE_TYPE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "UPDATE_LEAVE_TYPE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -161,7 +169,11 @@ export async function DELETE(
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        leaveLogger.error({ err: error }, "DELETE_LEAVE_TYPE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "DELETE_LEAVE_TYPE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

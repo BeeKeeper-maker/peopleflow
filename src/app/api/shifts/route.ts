@@ -54,8 +54,12 @@ export async function POST(req: Request) {
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.issues), { status: 422 });
     }
-    apiLogger.error({ err: error }, "CREATE_SHIFT_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "CREATE_SHIFT_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }
 

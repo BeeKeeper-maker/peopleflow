@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
-        payrollLogger.error({ err: error }, "PF_LEDGER_GET_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "PF_LEDGER_GET_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to fetch PF data" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }

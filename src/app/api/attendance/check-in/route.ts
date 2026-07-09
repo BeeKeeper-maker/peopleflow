@@ -232,8 +232,12 @@ export async function POST(req: Request) {
         });
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "CHECK_IN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "CHECK_IN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -348,7 +352,11 @@ export async function PUT(req: Request) {
         return NextResponse.json(updated);
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "CHECK_OUT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "CHECK_OUT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

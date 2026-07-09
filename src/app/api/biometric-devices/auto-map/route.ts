@@ -274,7 +274,11 @@ export async function POST(req: Request) {
                 })),
         });
     } catch (error) {
-        biometricLogger.error({ err: error }, "AUTO_MAP_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "AUTO_MAP_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

@@ -39,8 +39,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(requests);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_DOCUMENT_REQUESTS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_DOCUMENT_REQUESTS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 

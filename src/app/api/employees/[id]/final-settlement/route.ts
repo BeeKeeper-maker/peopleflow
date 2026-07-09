@@ -158,9 +158,12 @@ export async function GET(
 
         return NextResponse.json({ settlement });
     } catch (error) {
-        apiLogger.error({ err: error }, "FINAL_SETTLEMENT_GET_ERROR");
-        const message = error instanceof Error ? error.message : "Failed to calculate final settlement";
-        return NextResponse.json({ error: message }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "FINAL_SETTLEMENT_GET_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -236,8 +239,11 @@ export async function POST(
 
         return NextResponse.json({ settlement });
     } catch (error) {
-        apiLogger.error({ err: error }, "FINAL_SETTLEMENT_POST_ERROR");
-        const message = error instanceof Error ? error.message : "Failed to calculate final settlement";
-        return NextResponse.json({ error: message }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "FINAL_SETTLEMENT_POST_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

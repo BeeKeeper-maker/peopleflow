@@ -33,8 +33,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(holidayLists);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_HOLIDAYS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_HOLIDAYS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -93,7 +97,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(holidayList);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_HOLIDAY_LIST_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_HOLIDAY_LIST_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

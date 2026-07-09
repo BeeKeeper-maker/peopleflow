@@ -67,8 +67,12 @@ const PRE_CONFIGURED_KEY = ${JSON.stringify(apiKey)};
             },
         });
     } catch (error) {
-        apiLogger.error({ err: error }, "DOWNLOAD_AGENT_ERROR");
-        return new NextResponse("Failed to generate agent script", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DOWNLOAD_AGENT_ERROR");
+        return NextResponse.json(
+            { error: "Failed to generate agent script", errorId },
+            { status: 500 }
+        );
     }
 }
 

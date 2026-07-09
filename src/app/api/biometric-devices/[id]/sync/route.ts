@@ -119,7 +119,11 @@ export async function POST(req: Request, { params }: RouteParams) {
             return NextResponse.json(result);
         }
     } catch (error) {
-        biometricLogger.error({ err: error }, "SYNC_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "SYNC_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

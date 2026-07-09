@@ -37,7 +37,11 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        apiLogger.error({ err: error }, "REVOKE_SYNC_KEY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "REVOKE_SYNC_KEY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

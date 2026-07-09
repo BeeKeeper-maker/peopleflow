@@ -34,8 +34,12 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_LIST_ERROR");
-        return NextResponse.json({ error: "Failed to fetch delegations" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_LIST_ERROR");
+        return NextResponse.json(
+            { error: "Failed to fetch delegations", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -80,9 +84,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: delegation }, { status: 201 });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_CREATE_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_CREATE_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to create delegation" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }
@@ -115,7 +120,11 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ message: "Delegation revoked" });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_DELETE_ERROR");
-        return NextResponse.json({ error: "Failed to revoke delegation" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_DELETE_ERROR");
+        return NextResponse.json(
+            { error: "Failed to revoke delegation", errorId },
+            { status: 500 }
+        );
     }
 }

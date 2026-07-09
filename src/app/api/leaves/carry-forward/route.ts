@@ -141,7 +141,11 @@ export async function POST(req: Request) {
             details: results,
         });
     } catch (error) {
-        leaveLogger.error({ err: error }, "CARRY_FORWARD_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "CARRY_FORWARD_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

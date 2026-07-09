@@ -80,8 +80,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(announcements);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_ANNOUNCEMENTS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_ANNOUNCEMENTS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -142,7 +146,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(announcement);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_ANNOUNCEMENT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_ANNOUNCEMENT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

@@ -129,7 +129,11 @@ export async function GET() {
         });
 
     } catch (error) {
-        apiLogger.error({ err: error }, "REPORTS_API_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "REPORTS_API_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

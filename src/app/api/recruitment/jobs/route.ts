@@ -124,7 +124,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(job);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_JOB_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_JOB_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

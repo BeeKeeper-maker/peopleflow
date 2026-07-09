@@ -20,8 +20,12 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ data: policies });
     } catch (error) {
-        apiLogger.error({ err: error }, "LATE_POLICY_GET_ERROR");
-        return NextResponse.json({ error: "Failed to fetch late deduction policy" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "LATE_POLICY_GET_ERROR");
+        return NextResponse.json(
+            { error: "Failed to fetch late deduction policy", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -75,9 +79,10 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ data: policy }, { status: 201 });
     } catch (error) {
-        apiLogger.error({ err: error }, "LATE_POLICY_CREATE_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "LATE_POLICY_CREATE_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to create policy" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }

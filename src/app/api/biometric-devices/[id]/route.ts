@@ -49,8 +49,12 @@ export async function GET(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(device);
     } catch (error) {
-        biometricLogger.error({ err: error }, "GET_DEVICE_DETAIL_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "GET_DEVICE_DETAIL_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -156,8 +160,12 @@ export async function PUT(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(updated);
     } catch (error) {
-        biometricLogger.error({ err: error }, "UPDATE_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "UPDATE_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -187,7 +195,11 @@ export async function DELETE(req: Request, { params }: RouteParams) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        biometricLogger.error({ err: error }, "DELETE_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "DELETE_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

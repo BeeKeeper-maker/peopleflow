@@ -43,8 +43,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         return NextResponse.json(shift);
 
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_SHIFT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_SHIFT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -77,7 +81,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         return new NextResponse(null, { status: 204 });
 
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_SHIFT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_SHIFT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
