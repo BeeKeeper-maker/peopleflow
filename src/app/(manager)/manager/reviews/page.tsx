@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { useManagerReviews, queryKeys, type ManagerReviewRecord } from "@/hooks/
 
 export default function ManagerReviewsPage() {
     const { addToast } = useToast();
+    const tShared = useTranslations("SharedComponents");
     const queryClient = useQueryClient();
 
     // ── TanStack Query: team performance reviews ──
@@ -31,8 +33,8 @@ export default function ManagerReviewsPage() {
 
     const handleSubmit = async () => {
         if (!selectedReview) return;
-        if (managerRating < 1 || managerRating > 5) { addToast({ title: "Select a rating", type: "error" }); return; }
-        if (!managerComments.trim()) { addToast({ title: "Write your comments", type: "error" }); return; }
+        if (managerRating < 1 || managerRating > 5) { addToast({ title: tShared("selectRating"), type: "error" }); return; }
+        if (!managerComments.trim()) { addToast({ title: tShared("writeComments"), type: "error" }); return; }
 
         setSubmitting(true);
         try {
@@ -46,11 +48,11 @@ export default function ManagerReviewsPage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                addToast({ title: data.message || "Manager review submitted", type: "success" });
+                addToast({ title: data.message || tShared("managerReviewSubmitted"), type: "success" });
                 setSelectedReview(null); setManagerRating(0); setManagerComments(""); setStrengths(""); setImprovements("");
                 invalidateReviews();
-            } else { const err = await res.json().catch(() => ({})); addToast({ title: err.error || "Failed", type: "error" }); }
-        } catch { addToast({ title: "Network error", type: "error" }); }
+            } else { const err = await res.json().catch(() => ({})); addToast({ title: err.error || tShared("reviewFailed"), type: "error" }); }
+        } catch { addToast({ title: tShared("networkError"), type: "error" }); }
         finally { setSubmitting(false); }
     };
 

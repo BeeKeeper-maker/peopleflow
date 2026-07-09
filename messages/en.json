@@ -1665,7 +1665,12 @@
     "pleaseTryAgain": "Please try again",
     "notAuthorized": "Not authorized",
     "serverError": "Server error. Please try again.",
-    "loginAgain": "Please log in again"
+    "loginAgain": "Please log in again",
+    "selectRating": "Select a rating",
+    "writeComments": "Write your comments",
+    "reviewSubmitted": "Review submitted",
+    "managerReviewSubmitted": "Manager review submitted",
+    "reviewFailed": "Failed to submit review"
   },
   "Manager": {
     "dashboardTitle": "Manager Dashboard",

@@ -1817,7 +1817,12 @@
     "pleaseTryAgain": "আবার চেষ্টা করুন",
     "notAuthorized": "অনুমতি নেই",
     "serverError": "সার্ভার ত্রুটি। আবার চেষ্টা করুন।",
-    "loginAgain": "আবার লগইন করুন"
+    "loginAgain": "আবার লগইন করুন",
+    "selectRating": "একটি রেটিং নির্বাচন করুন",
+    "writeComments": "আপনার মন্তব্য লিখুন",
+    "reviewSubmitted": "রিভিউ জমা দেওয়া হয়েছে",
+    "managerReviewSubmitted": "ম্যানেজার রিভিউ জমা দেওয়া হয়েছে",
+    "reviewFailed": "রিভিউ জমা দিতে ব্যর্থ"
   },
   "Manager": {
     "dashboardTitle": "ম্যানেজার ড্যাশবোর্ড",

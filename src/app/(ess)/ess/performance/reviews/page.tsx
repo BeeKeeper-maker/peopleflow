@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ interface Review {
 
 export default function ESSPerformanceReviewsPage() {
     const { addToast } = useToast();
+    const tShared = useTranslations("SharedComponents");
     const [reviews, setReviews] = useState<Review[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedReview, setSelectedReview] = useState<Review | null>(null);
@@ -37,14 +39,14 @@ export default function ESSPerformanceReviewsPage() {
         try {
             const res = await fetch("/api/performance/reviews?my=true");
             if (res.ok) { const data = await res.json(); setReviews(data.data || []); }
-        } catch { addToast({ title: "Error", description: "Failed to load", type: "error" }); }
+        } catch { addToast({ title: tShared("error"), description: tShared("failedLoadData"), type: "error" }); }
         finally { setLoading(false); }
     };
 
     const handleSubmit = async () => {
         if (!selectedReview) return;
-        if (selfRating < 1 || selfRating > 5) { addToast({ title: "Select a rating", type: "error" }); return; }
-        if (!selfComments.trim()) { addToast({ title: "Write your comments", type: "error" }); return; }
+        if (selfRating < 1 || selfRating > 5) { addToast({ title: tShared("selectRating"), type: "error" }); return; }
+        if (!selfComments.trim()) { addToast({ title: tShared("writeComments"), type: "error" }); return; }
         setSubmitting(true);
         try {
             const res = await fetch(`/api/performance/reviews/${selectedReview.id}?action=self`, {
@@ -53,11 +55,11 @@ export default function ESSPerformanceReviewsPage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                addToast({ title: data.message || "Submitted", type: "success" });
+                addToast({ title: data.message || tShared("reviewSubmitted"), type: "success" });
                 setSelectedReview(null); setSelfRating(0); setSelfComments("");
                 fetchReviews();
-            } else { const err = await res.json().catch(() => ({})); addToast({ title: err.error || "Failed", type: "error" }); }
-        } catch { addToast({ title: "Network error", type: "error" }); }
+            } else { const err = await res.json().catch(() => ({})); addToast({ title: err.error || tShared("reviewFailed"), type: "error" }); }
+        } catch { addToast({ title: tShared("networkError"), type: "error" }); }
         finally { setSubmitting(false); }
     };
 
