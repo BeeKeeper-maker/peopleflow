@@ -16,32 +16,49 @@ process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_mock";
 // ── Prisma Mock ─────────────────────────────────────────────────────
 // Global mock for Prisma client — prevents DB connections during unit tests.
 // Individual tests can override specific methods using vi.mocked().
+//
+// IMPORTANT: both `default` and the named `prisma` export point to the SAME
+// mock object so that test code can use either import style:
+//     import prisma from "@/lib/prisma"      // default
+//     import { prisma } from "@/lib/prisma"  // named
+// and still mutate / assert against the same mock function instances.
 import { vi } from "vitest";
 
+const prismaMock = {
+    salaryStructureAssignment: { findFirst: vi.fn() },
+    attendance: { findMany: vi.fn(), count: vi.fn() },
+    leaveApplication: { findMany: vi.fn(), count: vi.fn() },
+    loan: { findMany: vi.fn() },
+    employee: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
+    pFAccount: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    pFTransaction: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
+    festivalBonusConfig: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+    festivalBonusPayment: { findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+    lateDeductionPolicy: { findFirst: vi.fn() },
+    organization: { findMany: vi.fn(), findUnique: vi.fn() },
+    impersonationSession: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    leaveAllocation: { findMany: vi.fn() },
+    // P0 regression: 2FA disable + sessionVersion bump routes touch user.*
+    user: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), count: vi.fn() },
+    // P0 regression: bKash disbursement + payroll atomicity touch salarySlip.*
+    salarySlip: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    // P0 regression: bKash disbursement creates & updates SalaryDisbursement
+    salaryDisbursement: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
+    // P0 regression: final-settlement engine fetches org holidays
+    holidayList: { findFirst: vi.fn() },
+    // P0 regression: impersonation audit log + platform actions
+    platformAuditLog: { create: vi.fn(), findMany: vi.fn() },
+    $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
+};
+
 vi.mock("@/lib/prisma", () => ({
-    default: {
-        salaryStructureAssignment: { findFirst: vi.fn() },
-        attendance: { findMany: vi.fn(), count: vi.fn() },
-        leaveApplication: { findMany: vi.fn() },
-        loan: { findMany: vi.fn() },
-        employee: { findUnique: vi.fn(), findMany: vi.fn() },
-        pFAccount: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-        pFTransaction: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
-        festivalBonusConfig: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-        festivalBonusPayment: { findMany: vi.fn(), update: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
-        lateDeductionPolicy: { findFirst: vi.fn() },
-        organization: { findMany: vi.fn() },
-        impersonationSession: { findMany: vi.fn(), updateMany: vi.fn() },
-        leaveAllocation: { findMany: vi.fn() },
-        $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn({
-            pFTransaction: { create: vi.fn() },
-            pFAccount: { update: vi.fn() },
-            festivalBonusPayment: { create: vi.fn() },
-        })),
-    },
-    prisma: {
-        // named export alias
-    },
+    default: prismaMock,
+    prisma: prismaMock,
+    // Stub the RLS wrappers so tests that go through api-auth.withDB still
+    // resolve to the same prisma mock. Real RLS enforcement is verified by
+    // tenant-isolation.test.ts at the SQL migration level.
+    withTenant: vi.fn(<T>(_orgId: string, fn: (db: unknown) => Promise<T>) => fn(prismaMock)),
+    withPlatform: vi.fn(<T>(fn: (db: unknown) => Promise<T>) => fn(prismaMock)),
 }));
 
 // ── Logger Mock ─────────────────────────────────────────────────────
