@@ -67,7 +67,7 @@ export async function getExchangeRate(currency: string): Promise<number | null> 
         apiLogger.warn({ currency, ageDays: Math.round(ageMs / (24 * 60 * 60 * 1000)) }, "Exchange rate is stale");
     }
 
-    return rate.rate;
+    return Number(rate.rate);
 }
 
 /**
@@ -170,11 +170,11 @@ export async function checkExpensePolicy(params: {
     }
 
     // Check 1: over-limit
-    if (category.maxAmount && amountInBDT > category.maxAmount) {
+    if (category.maxAmount && amountInBDT > Number(category.maxAmount)) {
         return {
             hasViolation: true,
             violationType: "over_limit",
-            violationDescription: `Amount (৳${amountInBDT.toFixed(2)}) exceeds category limit of ৳${category.maxAmount.toFixed(2)}`,
+            violationDescription: `Amount (৳${amountInBDT.toFixed(2)}) exceeds category limit of ৳${Number(category.maxAmount).toFixed(2)}`,
         };
     }
 
@@ -208,12 +208,12 @@ export async function checkExpensePolicy(params: {
             _sum: { amountInBDT: true },
         });
 
-        const monthlyTotal = monthlyClaims._sum.amountInBDT || 0;
-        if (monthlyTotal + amountInBDT > category.monthlyLimit) {
+        const monthlyTotal = Number(monthlyClaims._sum.amountInBDT) || 0;
+        if (monthlyTotal + amountInBDT > Number(category.monthlyLimit)) {
             return {
                 hasViolation: true,
                 violationType: "monthly_limit_exceeded",
-                violationDescription: `Monthly limit for ${category.name} would be exceeded (current: ৳${monthlyTotal.toFixed(2)}, this claim: ৳${amountInBDT.toFixed(2)}, limit: ৳${category.monthlyLimit.toFixed(2)})`,
+                violationDescription: `Monthly limit for ${category.name} would be exceeded (current: ৳${monthlyTotal.toFixed(2)}, this claim: ৳${amountInBDT.toFixed(2)}, limit: ৳${Number(category.monthlyLimit).toFixed(2)})`,
             };
         }
     }
@@ -302,7 +302,7 @@ export async function calculateClaim(params: {
             throw new Error("Mileage rate is not configured for this category");
         }
 
-        amount = calculateMileage(distance, category.mileageRate, distanceUnit || "km");
+        amount = calculateMileage(distance, Number(category.mileageRate), distanceUnit || "km");
         finalCurrency = "BDT";
         exchangeRate = 1.0;
         amountInBDT = amount;

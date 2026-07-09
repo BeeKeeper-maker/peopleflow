@@ -110,7 +110,7 @@ export async function POST(req: Request) {
         // Build document data from employee record
         const assignment = employee.salaryAssignments?.[0];
         const basicSalary = assignment
-            ? Math.round(assignment.grossSalary * (assignment.salaryStructure.basicPercentage / 100))
+            ? Math.round(Number(assignment.grossSalary) * (Number(assignment.salaryStructure.basicPercentage) / 100))
             : 0;
 
         const orgSettings = toPlainSettings(employee.organization?.settings);
@@ -144,9 +144,9 @@ export async function POST(req: Request) {
             joiningDate: employee.joiningDate?.toLocaleDateString("en-GB") || "",
             gender: employee.gender || "",
             // Salary info
-            grossSalary: assignment?.grossSalary || 0,
+            grossSalary: assignment?.grossSalary ? Number(assignment.grossSalary) : 0,
             basicSalary,
-            netSalary: assignment?.grossSalary || 0, // Approximate
+            netSalary: assignment?.grossSalary ? Number(assignment.grossSalary) : 0, // Approximate
             // Current date
             date: new Date().toLocaleDateString("en-GB"),
             // ✅ Custom data merged AFTER defaults (user can override)

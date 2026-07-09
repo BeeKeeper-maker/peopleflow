@@ -176,7 +176,7 @@ async function runComplianceEngine(ctx: AuthContext) {
     // General minimum: BDT 10,000/month (compliance.ts MINIMUM_WAGES.general)
     const MIN_WAGE_BDT = 10000; // General minimum (use rmg: 12500 for RMG sector)
     const empSalaryMap = new Map<string, number>();
-    salaryAssignments.forEach((sa) => empSalaryMap.set(sa.employeeId, sa.grossSalary));
+    salaryAssignments.forEach((sa) => empSalaryMap.set(sa.employeeId, Number(sa.grossSalary)));
 
     const belowMinWage = activeEmployees.filter((e) => {
         const salary = empSalaryMap.get(e.id);

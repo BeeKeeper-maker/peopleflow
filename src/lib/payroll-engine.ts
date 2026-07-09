@@ -405,14 +405,14 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     }
 
     const structure = assignment.salaryStructure;
-    const grossSalaryMonthly = assignment.grossSalary;
+    const grossSalaryMonthly = Number(assignment.grossSalary);
     const organizationId = assignment.employee?.organizationId || "";
 
     // Calculate salary components based on structure percentages
-    const basicSalary = Math.round(grossSalaryMonthly * (structure.basicPercentage / 100));
-    const houseRent = Math.round(basicSalary * (structure.houseRentPercent / 100));
-    const medicalAllowance = Math.round(basicSalary * (structure.medicalPercent / 100));
-    const conveyance = structure.conveyanceFixed;
+    const basicSalary = Math.round(grossSalaryMonthly * (Number(structure.basicPercentage) / 100));
+    const houseRent = Math.round(basicSalary * (Number(structure.houseRentPercent) / 100));
+    const medicalAllowance = Math.round(basicSalary * (Number(structure.medicalPercent) / 100));
+    const conveyance = Number(structure.conveyanceFixed);
     const specialAllowance = Math.max(0,
         grossSalaryMonthly - basicSalary - houseRent - medicalAllowance - conveyance
     );
@@ -476,10 +476,10 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
 
     // PF deduction
     const pfEmployee = assignment.employee?.pfEnabled
-        ? Math.round(basicSalary * (structure.pfEmployeePercent / 100))
+        ? Math.round(basicSalary * (Number(structure.pfEmployeePercent) / 100))
         : 0;
     const pfEmployer = assignment.employee?.pfEnabled
-        ? Math.round(basicSalary * (structure.pfEmployerPercent / 100))
+        ? Math.round(basicSalary * (Number(structure.pfEmployerPercent) / 100))
         : 0;
 
     // Gender-aware tax with BD tax-exempt allowances (BD Finance Act 2024)
@@ -509,7 +509,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
             remainingAmount: { gt: 0 },
         },
     });
-    const loanDeduction = activeLoans.reduce((sum, loan) => sum + loan.emiAmount, 0);
+    const loanDeduction = activeLoans.reduce((sum, loan) => sum + Number(loan.emiAmount), 0);
 
     // Calculate totals
     const grossEarnings = basicSalary + houseRent + medicalAllowance + conveyance +

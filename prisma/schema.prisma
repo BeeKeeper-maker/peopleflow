@@ -480,7 +480,7 @@ model Department {
   code        String?
   description String?
   parentId    String?
-  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Department[] @relation("DepartmentHierarchy")
   managerId   String?
   isActive    Boolean      @default(true)
@@ -683,19 +683,19 @@ model Employee {
   user   User?   @relation(fields: [userId], references: [id])
 
   departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   designationId String?
-  designation   Designation? @relation(fields: [designationId], references: [id])
+  designation   Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
 
   branchId String?
-  branch   Branch? @relation(fields: [branchId], references: [id])
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   shiftId String?
-  shift   Shift?  @relation(fields: [shiftId], references: [id])
+  shift   Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   reportingManagerId String?
-  reportingManager   Employee?  @relation("ReportingHierarchy", fields: [reportingManagerId], references: [id])
+  reportingManager   Employee?  @relation("ReportingHierarchy", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reportees          Employee[] @relation("ReportingHierarchy")
 
   // Employee data relations
@@ -739,6 +739,9 @@ model Employee {
   biometricPunches      BiometricPunch[]
 
   @@unique([organizationId, employeeCode])
+  // Email must be unique per organization (nullable — partial unique index
+  // at the DB level via migration 20260708120000_schema_integrity_fixes).
+  @@unique([organizationId, email])
   // Performance indexes
   @@index([organizationId, employmentStatus])
   @@index([departmentId])
@@ -943,7 +946,7 @@ model LeaveApplication {
   organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   leaveTypeId String
-  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
 
   approverId String?
   approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
@@ -1041,14 +1044,14 @@ model SalaryStructure {
   description String?
 
   // Earnings (percentages or fixed amounts)
-  basicPercentage  Float @default(50) // % of gross
-  houseRentPercent Float @default(50) // % of basic
-  medicalPercent   Float @default(10) // % of basic
-  conveyanceFixed  Float @default(0)
+  basicPercentage  Decimal @default(50) @db.Decimal(5,2) // % of gross
+  houseRentPercent Decimal @default(50) @db.Decimal(5,2) // % of basic
+  medicalPercent   Decimal @default(10) @db.Decimal(5,2) // % of basic
+  conveyanceFixed  Decimal @default(0) @db.Decimal(18,2)
 
   // Deductions
-  pfEmployeePercent Float @default(10) // % of basic
-  pfEmployerPercent Float @default(10)
+  pfEmployeePercent Decimal @default(10) @db.Decimal(5,2) // % of basic
+  pfEmployerPercent Decimal @default(10) @db.Decimal(5,2)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1064,7 +1067,7 @@ model SalaryStructure {
 
 model SalaryStructureAssignment {
   id            String    @id @default(cuid())
-  grossSalary   Float
+  grossSalary   Decimal   @db.Decimal(18,2)
   effectiveFrom DateTime
   effectiveTo   DateTime?
   isActive      Boolean   @default(true)
@@ -1183,7 +1186,7 @@ model SalarySlip {
  */
 model SalaryDisbursement {
   id              String   @id @default(cuid())
-  amount          Float                          // Amount in BDT
+  amount          Decimal                        @db.Decimal(18,2) // Amount in BDT
   channel         String                         // bank_transfer, bkash, nagad
   status          String   @default("pending")   // pending, processing, success, failed, refunded
   reference       String?                        // Provider transaction ID
@@ -1217,13 +1220,13 @@ model SalaryDisbursement {
 model Loan {
   id              String    @id @default(cuid())
   type            String // salary_advance, emergency, personal, etc.
-  amount          Float
-  interestRate    Float     @default(0)
+  amount          Decimal  @db.Decimal(18,2)
+  interestRate    Decimal  @default(0) @db.Decimal(5,2)
   tenure          Int // months
-  emiAmount       Float
-  disbursedAmount Float     @default(0)
-  paidAmount      Float     @default(0)
-  remainingAmount Float
+  emiAmount       Decimal  @db.Decimal(18,2)
+  disbursedAmount Decimal  @default(0) @db.Decimal(18,2)
+  paidAmount      Decimal  @default(0) @db.Decimal(18,2)
+  remainingAmount Decimal  @db.Decimal(18,2)
   status          String    @default("pending") // pending, approved, rejected, disbursed, closed
   reason          String?
   approvedAt      DateTime?
@@ -1248,9 +1251,9 @@ model Loan {
 model LoanRepayment {
   id            String   @id @default(cuid())
   installmentNo Int
-  amount        Float
-  principalPart Float
-  interestPart  Float
+  amount        Decimal  @db.Decimal(18,2)
+  principalPart Decimal  @db.Decimal(18,2)
+  interestPart  Decimal  @db.Decimal(18,2)
   paidDate      DateTime
   method        String   @default("payroll") // payroll, bank_transfer, cash
   reference     String?  // Transaction reference number
@@ -1313,10 +1316,10 @@ model FestivalBonusConfig {
  */
 model FestivalBonusPayment {
   id                String   @id @default(cuid())
-  amount            Float    // Calculated bonus amount
-  basisAmount       Float    // The basic/gross used for calculation
-  percentageApplied Float    // Actual % applied (may differ if pro-rated)
-  proRataFactor     Float    @default(1.0)  // 1.0 = full, 0.5 = half year, etc.
+  amount            Decimal  @db.Decimal(18,2) // Calculated bonus amount
+  basisAmount       Decimal  @db.Decimal(18,2) // The basic/gross used for calculation
+  percentageApplied Decimal  @db.Decimal(5,2)  // Actual % applied (may differ if pro-rated)
+  proRataFactor     Decimal  @default(1.0) @db.Decimal(5,4)  // 1.0 = full, 0.5 = half year, etc.
   isProRated        Boolean  @default(false)
   status            String   @default("pending") // pending, included_in_payroll, paid, cancelled
   payrollMonth      Int?     // Month this bonus was included in payroll
@@ -1421,14 +1424,14 @@ model PFAccount {
   closingDate         DateTime?
 
   // Running balances (updated on each transaction)
-  employeeBalance     Float    @default(0) // Total employee contributions
-  employerBalance     Float    @default(0) // Total employer contributions
-  interestBalance     Float    @default(0) // Total interest accrued
-  totalBalance        Float    @default(0) // employee + employer + interest
+  employeeBalance     Decimal  @default(0) @db.Decimal(18,2) // Total employee contributions
+  employerBalance     Decimal  @default(0) @db.Decimal(18,2) // Total employer contributions
+  interestBalance     Decimal  @default(0) @db.Decimal(18,2) // Total interest accrued
+  totalBalance        Decimal  @default(0) @db.Decimal(18,2) // employee + employer + interest
 
   // Last interest calculation
   lastInterestDate    DateTime?
-  interestRate        Float    @default(12.0) // Annual interest rate (BD standard: 12%)
+  interestRate        Decimal  @default(12.0) @db.Decimal(5,2) // Annual interest rate (BD standard: 12%)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1459,8 +1462,8 @@ model PFAccount {
 model PFTransaction {
   id              String   @id @default(cuid())
   transactionType String   // employee_contribution, employer_contribution, interest_credit, withdrawal, settlement, adjustment
-  amount          Float    // Positive for credits, negative for debits
-  runningBalance  Float    // Balance AFTER this transaction
+  amount          Decimal  @db.Decimal(18,2) // Positive for credits, negative for debits
+  runningBalance  Decimal  @db.Decimal(18,2) // Balance AFTER this transaction
   description     String   // "March 2025 Employee Contribution", "FY2024-25 Interest @12%"
   referenceMonth  Int?     // For contributions: month (1-12)
   referenceYear   Int?     // For contributions: year
@@ -1945,8 +1948,8 @@ model ExpenseCategory {
   name            String // Travel, Meals, Software, Office Supplies, etc.
   nameBn          String? // Bengali name
   description     String?
-  maxAmount       Float? // Maximum claimable amount per claim
-  monthlyLimit    Float? // Monthly limit per employee
+  maxAmount       Decimal? @db.Decimal(18,2) // Maximum claimable amount per claim
+  monthlyLimit    Decimal? @db.Decimal(18,2) // Monthly limit per employee
   requiresReceipt Boolean  @default(true)
   isActive        Boolean  @default(true)
   icon            String? // Icon name for UI
@@ -1958,10 +1961,10 @@ model ExpenseCategory {
   categoryType    String   @default("standard") // standard, mileage, per_diem
 
   // For mileage categories: rate per km (in BDT)
-  mileageRate     Float?   // e.g., 15.0 BDT per km
+  mileageRate     Decimal? @db.Decimal(18,2) // e.g., 15.0 BDT per km
 
   // For per-diem categories: daily rate (in BDT)
-  perDiemRate     Float?   // e.g., 1500.0 BDT per day
+  perDiemRate     Decimal? @db.Decimal(18,2) // e.g., 1500.0 BDT per day
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1981,7 +1984,7 @@ model ExpenseClaim {
   // Claim details
   title       String
   description String?
-  amount      Float    // Original amount in the expense currency
+  amount      Decimal  @db.Decimal(18,2) // Original amount in the expense currency
   currency    String   @default("BDT") // ISO 4217: BDT, USD, EUR, GBP, INR, etc.
   expenseDate DateTime // Date when expense occurred
 
@@ -1989,8 +1992,8 @@ model ExpenseClaim {
   // exchangeRate: 1 unit of `currency` = exchangeRate units of BDT
   // amountInBDT: amount × exchangeRate (computed at submission time)
   // If currency is BDT, exchangeRate = 1 and amountInBDT = amount
-  exchangeRate  Float    @default(1.0)
-  amountInBDT   Float    @default(0) // Converted amount in BDT for payroll/reports
+  exchangeRate  Decimal  @default(1.0) @db.Decimal(18,6)
+  amountInBDT   Decimal  @default(0) @db.Decimal(18,2) // Converted amount in BDT for payroll/reports
 
   // Mileage tracking (for categoryType = "mileage")
   distance      Float?   // Distance in km
@@ -1999,7 +2002,7 @@ model ExpenseClaim {
 
   // Per-diem tracking (for categoryType = "per_diem")
   perDiemDays   Float?   // Number of days (can be fractional: 0.5 for half day)
-  perDiemRate   Float?   // Daily rate (copied from category at submission time)
+  perDiemRate   Decimal? @db.Decimal(18,2) // Daily rate (copied from category at submission time)
   // amount = perDiemDays × perDiemRate (computed)
 
   // Policy violation flag (set by policy engine)
@@ -2062,7 +2065,7 @@ model ExchangeRate {
   id              String   @id @default(cuid())
   baseCurrency    String   @default("BDT")
   quoteCurrency   String   // USD, EUR, GBP, INR, etc.
-  rate            Float    // 1 USD = rate BDT
+  rate            Decimal  @db.Decimal(18,6) // 1 USD = rate BDT
   fetchedAt       DateTime @default(now())
   source          String?  // exchangerate-api, manual, etc.
 
@@ -2437,7 +2440,7 @@ model BiometricDevice {
   updatedAt DateTime @updatedAt
 
   branchId       String?
-  branch         Branch?      @relation(fields: [branchId], references: [id])
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

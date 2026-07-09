@@ -234,7 +234,7 @@ export async function POST(req: Request) {
         }
 
         // dailyBasicRate = grossSalary / 30 (industry standard for encashment)
-        const dailyBasicRate = Math.round(assignment.grossSalary / 30);
+        const dailyBasicRate = Math.round(Number(assignment.grossSalary) / 30);
         const encashmentRate = leaveType.encashmentRate ?? 100;
         const encashmentAmount = Math.round(
             actualEncashableDays * dailyBasicRate * (encashmentRate / 100),

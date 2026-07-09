@@ -312,7 +312,7 @@ export async function PUT(
                         data: { isActive: false }
                     });
                 }
-            } else if (!currentSalary || currentSalary.grossSalary !== grossSalary ||
+            } else if (!currentSalary || Number(currentSalary.grossSalary) !== grossSalary ||
                 (salaryStructureId && currentSalary.salaryStructureId !== salaryStructureId) ||
                 !currentSalary.isActive) {
 

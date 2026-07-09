@@ -133,7 +133,7 @@ export async function POST(req: Request, { params }: RouteParams) {
                     paidAmount: { increment: amount },
                     remainingAmount: { decrement: principal },
                     // Auto-close loan if principal fully repaid
-                    ...(loan.remainingAmount - principal <= 0.01
+                    ...(Number(loan.remainingAmount) - principal <= 0.01
                         ? { status: "closed" }
                         : {}),
                 },

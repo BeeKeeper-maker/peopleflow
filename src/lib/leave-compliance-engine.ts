@@ -442,7 +442,7 @@ export async function calculateLeaveSettlement(
     }
 
     const basicSalary = Math.round(
-        salaryAssignment.grossSalary * (salaryAssignment.salaryStructure.basicPercentage / 100)
+        Number(salaryAssignment.grossSalary) * (Number(salaryAssignment.salaryStructure.basicPercentage) / 100)
     );
     const dailyRate = Math.round(basicSalary / 26); // 26 working days
 

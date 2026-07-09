@@ -276,7 +276,7 @@ export async function calculateEncashment(
     if (!employee || !employee.salaryAssignments[0]) return null;
 
     const assignment = employee.salaryAssignments[0];
-    const basicSalary = assignment.grossSalary * (assignment.salaryStructure.basicPercentage / 100);
+    const basicSalary = Number(assignment.grossSalary) * (Number(assignment.salaryStructure.basicPercentage) / 100);
     const dailyRate = basicSalary / 26; // 26 working days
 
     const encashableDays = Math.max(

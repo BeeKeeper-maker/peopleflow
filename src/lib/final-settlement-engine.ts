@@ -100,9 +100,9 @@ export async function calculateFinalSettlement(
     });
 
     const monthlyBasic = salaryAssignment?.grossSalary
-        ? (salaryAssignment.salaryStructure.basicPercentage / 100) * salaryAssignment.grossSalary
+        ? (Number(salaryAssignment.salaryStructure.basicPercentage) / 100) * Number(salaryAssignment.grossSalary)
         : 0;
-    const monthlyGross = salaryAssignment?.grossSalary || 0;
+    const monthlyGross = salaryAssignment?.grossSalary ? Number(salaryAssignment.grossSalary) : 0;
 
     // ── 3. Calculate years of service ──
     const joiningDate = new Date(employee.joiningDate);
@@ -250,7 +250,7 @@ export async function calculateFinalSettlement(
 
     if (pfAccount) {
         const pfBalance = pfAccount.transactions.reduce(
-            (sum, tx) => sum + tx.amount, 0
+            (sum, tx) => sum + Number(tx.amount), 0
         );
         if (pfBalance > 0) {
             components.push({
@@ -277,7 +277,7 @@ export async function calculateFinalSettlement(
         components.push({
             label: `Loan Recovery (Loan ${loan.type || ""})`,
             labelBn: "ঋণ পরিশোধ",
-            amount: Math.round(loan.remainingAmount),
+            amount: Math.round(Number(loan.remainingAmount)),
             type: "deductible",
             details: `Outstanding loan balance recovered from settlement`,
         });

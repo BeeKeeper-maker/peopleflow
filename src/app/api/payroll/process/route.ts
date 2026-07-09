@@ -333,9 +333,9 @@ export async function POST(req: Request) {
 
                         // Update loan balances
                         for (const loan of activeLoans) {
-                            const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
-                            const newPaid = loan.paidAmount + deductionAmount;
-                            const newRemaining = loan.remainingAmount - deductionAmount;
+                            const deductionAmount = Math.min(Number(loan.emiAmount), Number(loan.remainingAmount));
+                            const newPaid = Number(loan.paidAmount) + deductionAmount;
+                            const newRemaining = Number(loan.remainingAmount) - deductionAmount;
 
                             await db.loan.update({
                                 where: { id: loan.id },

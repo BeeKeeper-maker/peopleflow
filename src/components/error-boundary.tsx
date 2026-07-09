@@ -1,12 +1,12 @@
 "use client";
 
 import { Component, ErrorInfo, ReactNode } from "react";
-import { AlertTriangle, RefreshCw, Home } from "lucide-react";
-import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
+import { ErrorFallback } from "@/components/error-fallback";
 
 interface Props {
     children: ReactNode;
+    /** Optional custom fallback node. Defaults to <ErrorFallback />. */
     fallback?: ReactNode;
 }
 
@@ -18,7 +18,17 @@ interface State {
 
 /**
  * Error Boundary Component
- * Catches React rendering errors and displays a user-friendly fallback
+ *
+ * Catches React rendering errors and delegates the fallback UI to the
+ * shared `ErrorFallback` component (the same component used by every
+ * route-level `error.tsx`). This is the single source of truth for
+ * error presentation across the app — see P5-CONSOLIDATE.
+ *
+ * Note: As of the consolidation audit, this class component is not
+ * imported anywhere in the app, but it is retained (and aligned with
+ * the shared ErrorFallback) so that any future use of
+ * `withErrorBoundary` renders the same premium fallback as route-level
+ * error boundaries.
  */
 export class ErrorBoundary extends Component<Props, State> {
     constructor(props: Props) {
@@ -55,54 +65,16 @@ export class ErrorBoundary extends Component<Props, State> {
                 return this.props.fallback;
             }
 
+            // Delegate to the shared ErrorFallback so visual treatment
+            // matches every other error boundary in the app.
             return (
-                <div className="min-h-screen bg-linear-to-br from-background to-card flex items-center justify-center p-4">
-                    <div className="bg-hover backdrop-blur-xl border border-card-border rounded-2xl p-8 max-w-md w-full text-center">
-                        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <AlertTriangle className="h-8 w-8 text-red-400" />
-                        </div>
-
-                        <h1 className="text-2xl font-bold text-foreground mb-2">
-                            Something went wrong
-                        </h1>
-
-                        <p className="text-muted-foreground mb-6">
-                            We apologize for the inconvenience. Please try refreshing the page
-                            or return to the dashboard.
-                        </p>
-
-                        {process.env.NODE_ENV === "development" && this.state.error && (
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6 text-left">
-                                <p className="text-red-400 text-sm font-mono">
-                                    {this.state.error.message}
-                                </p>
-                                {this.state.errorInfo && (
-                                    <pre className="text-red-400/70 text-xs mt-2 overflow-auto max-h-40">
-                                        {this.state.errorInfo.componentStack}
-                                    </pre>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 justify-center">
-                            <button
-                                onClick={this.handleReset}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-foreground rounded-lg transition-colors"
-                            >
-                                <RefreshCw className="h-4 w-4" />
-                                Try Again
-                            </button>
-
-                            <Link
-                                href="/dashboard"
-                                className="flex items-center gap-2 px-4 py-2 bg-hover hover:bg-hover text-foreground rounded-lg transition-colors"
-                            >
-                                <Home className="h-4 w-4" />
-                                Dashboard
-                            </Link>
-                        </div>
-                    </div>
-                </div>
+                <ErrorFallback
+                    error={
+                        this.state.error as Error & { digest?: string }
+                    }
+                    reset={this.handleReset}
+                    module="This section"
+                />
             );
         }
 

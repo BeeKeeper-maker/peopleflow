@@ -107,7 +107,7 @@ export async function POST(req: Request) {
 
             const assignment = employee.salaryAssignments?.[0];
             const basicSalary = assignment
-                ? Math.round(assignment.grossSalary * (assignment.salaryStructure.basicPercentage / 100))
+                ? Math.round(Number(assignment.grossSalary) * (Number(assignment.salaryStructure.basicPercentage) / 100))
                 : 0;
 
             const docData: Record<string, string | number> = {
@@ -119,9 +119,9 @@ export async function POST(req: Request) {
                 employeeCode: employee.employeeCode || "",
                 joiningDate: employee.joiningDate?.toLocaleDateString("en-GB") || "",
                 gender: employee.gender || "",
-                grossSalary: assignment?.grossSalary || 0,
+                grossSalary: assignment?.grossSalary ? Number(assignment.grossSalary) : 0,
                 basicSalary,
-                netSalary: assignment?.grossSalary || 0,
+                netSalary: assignment?.grossSalary ? Number(assignment.grossSalary) : 0,
                 date: new Date().toLocaleDateString("en-GB"),
             };
 

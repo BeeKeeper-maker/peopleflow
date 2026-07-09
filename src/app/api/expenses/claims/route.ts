@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
                 distance: validatedData.distance,
                 distanceUnit: validatedData.distanceUnit,
                 perDiemDays: validatedData.perDiemDays,
-                perDiemRate: category.perDiemRate || undefined,
+                perDiemRate: category.perDiemRate ? Number(category.perDiemRate) : undefined,
                 receiptUrl: validatedData.receiptUrl || null,
                 expenseDate: new Date(validatedData.expenseDate),
             });

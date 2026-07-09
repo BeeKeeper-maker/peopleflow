@@ -126,7 +126,7 @@ export async function GET(req: Request) {
             const assignment = emp.salaryAssignments[0];
             if (!assignment) continue;
 
-            const basicSalary = assignment.grossSalary * (assignment.salaryStructure.basicPercentage / 100);
+            const basicSalary = Number(assignment.grossSalary) * (Number(assignment.salaryStructure.basicPercentage) / 100);
             const dailyRate = basicSalary / 26;
 
             for (const lt of encashableLeaveTypes) {

@@ -67,15 +67,15 @@ export async function GET(req: Request) {
 
         // Calculate salary breakdown for each assignment
         const assignmentsWithBreakdown = assignments.map((a) => {
-            const gross = a.grossSalary;
+            const gross = Number(a.grossSalary);
             const structure = a.salaryStructure;
 
-            const basic = (gross * structure.basicPercentage) / 100;
-            const houseRent = (basic * structure.houseRentPercent) / 100;
-            const medical = (basic * structure.medicalPercent) / 100;
-            const conveyance = structure.conveyanceFixed;
-            const pfEmployee = (basic * structure.pfEmployeePercent) / 100;
-            const pfEmployer = (basic * structure.pfEmployerPercent) / 100;
+            const basic = (gross * Number(structure.basicPercentage)) / 100;
+            const houseRent = (basic * Number(structure.houseRentPercent)) / 100;
+            const medical = (basic * Number(structure.medicalPercent)) / 100;
+            const conveyance = Number(structure.conveyanceFixed);
+            const pfEmployee = (basic * Number(structure.pfEmployeePercent)) / 100;
+            const pfEmployer = (basic * Number(structure.pfEmployerPercent)) / 100;
 
             return {
                 ...a,
