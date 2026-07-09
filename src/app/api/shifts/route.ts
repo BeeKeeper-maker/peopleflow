@@ -3,6 +3,7 @@ import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { successResponse, errorResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 const shiftSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
     if (!isAuthenticated(auth)) {
       return auth;
     }
+
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     const json = await req.json();
     const body = shiftSchema.parse(json);
@@ -63,9 +68,13 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAuth();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (read op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const shifts = await auth.withDB((db) =>

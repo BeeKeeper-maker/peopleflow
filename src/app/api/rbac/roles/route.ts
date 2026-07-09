@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/rbac-v2";
 import { getOrgRoles } from "@/lib/rbac-v2";
 import { createAuditLog } from "@/lib/audit-log";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
@@ -13,9 +14,13 @@ import * as z from "zod";
  *
  * Authorization: rbac:roles:view
  */
-export async function GET() {
+export async function GET(req: Request) {
     const auth = await requirePermission("rbac:roles:view");
     if (auth instanceof NextResponse) return auth;
+
+    // Per-user rate limit (read op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response;
 
     try {
         const roles = await getOrgRoles(auth.organizationId);
@@ -69,6 +74,10 @@ const createRoleSchema = z.object({
 export async function POST(req: Request) {
     const auth = await requirePermission("rbac:roles:manage");
     if (auth instanceof NextResponse) return auth;
+
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response;
 
     try {
         const body = await req.json();

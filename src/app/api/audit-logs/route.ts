@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { auditLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // ✅ CSV injection protection
 function escapeCsvField(value: string): string {
@@ -28,6 +29,11 @@ export async function GET(req: Request) {
         if (!["admin", "super_admin", "hr_admin"].includes(ctx.role)) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
+
+        // Per-user rate limit (read op — audit logs can be a data-exfiltration
+        // vector, so key on userId not IP)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, ctx.userId);
+        if (!rl.allowed) return rl.response;
 
         const { searchParams } = new URL(req.url);
         const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);

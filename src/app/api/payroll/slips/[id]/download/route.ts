@@ -16,9 +16,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         const { id } = await params;
 
-        // Get salary slip (RLS-scoped via auth.withDB)
-        const salarySlip = await auth.withDB((db) => db.salarySlip.findUnique({
-            where: { id },
+        // Get salary slip (RLS-scoped via auth.withDB).
+        // findFirst + deletedAt: null so soft-deleted slips are hidden
+        // (SalarySlip has had deletedAt since P6-SOFT-DELETE).
+        const salarySlip = await auth.withDB((db) => db.salarySlip.findFirst({
+            where: { id, deletedAt: null },
             include: {
                 employee: {
                     include: {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { successResponse, errorResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // GET - List all job postings
 export async function GET(req: Request) {
@@ -20,6 +21,10 @@ export async function GET(req: Request) {
         if (!user?.organizationId) {
             return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
         }
+
+        // Per-user rate limit (read op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, user.id);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const status = searchParams.get("status");
@@ -66,6 +71,10 @@ export async function POST(req: Request) {
         if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
+
+        // Per-user rate limit (write op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, user.id);
+        if (!rl.allowed) return rl.response!;
 
         const body = await req.json();
         const {

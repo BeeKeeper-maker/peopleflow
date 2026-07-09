@@ -44,8 +44,10 @@ export async function POST(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
-            where: { id },
+        // findFirst + deletedAt: null so soft-deleted slips cannot be paid
+        // (SalarySlip has had deletedAt since P6-SOFT-DELETE).
+        const slip = await auth.withDB((db) => db.salarySlip.findFirst({
+            where: { id, deletedAt: null },
             include: {
                 employee: {
                     select: {

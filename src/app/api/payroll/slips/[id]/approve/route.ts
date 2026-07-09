@@ -40,9 +40,11 @@ export async function POST(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        // Load the slip and verify it belongs to the authed org
-        const slip = await auth.withDB((db) => db.salarySlip.findUnique({
-            where: { id },
+        // Load the slip and verify it belongs to the authed org.
+        // findFirst + deletedAt: null so soft-deleted slips cannot be approved
+        // (SalarySlip has had deletedAt since P6-SOFT-DELETE).
+        const slip = await auth.withDB((db) => db.salarySlip.findFirst({
+            where: { id, deletedAt: null },
             include: {
                 employee: {
                     select: {

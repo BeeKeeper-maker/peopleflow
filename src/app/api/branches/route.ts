@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // GET /api/branches — List all branches
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAuth();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (read op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const branches = await auth.withDB((db) =>
@@ -36,6 +41,10 @@ export async function GET() {
 export async function POST(req: Request) {
   const auth = await requireAdminOrHR();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (write op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const json = await req.json();

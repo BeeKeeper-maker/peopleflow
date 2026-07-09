@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // GET /api/holidays — List holiday lists (filter by year)
 export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit (read op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -51,6 +56,10 @@ export async function POST(req: Request) {
     if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
         return new NextResponse("Forbidden", { status: 403 });
     }
+
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const json = await req.json();

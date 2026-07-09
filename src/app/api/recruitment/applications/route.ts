@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
@@ -16,6 +17,10 @@ export async function GET(req: Request) {
     const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
     const ctx = auth as AuthContext;
+
+    // Per-user rate limit (read op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, ctx.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -92,6 +97,10 @@ export async function POST(req: Request) {
     const auth = await requireAdminOrHR();
     if (!isAuthenticated(auth)) return auth;
     const ctx = auth as AuthContext;
+
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, ctx.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const body = await req.json();

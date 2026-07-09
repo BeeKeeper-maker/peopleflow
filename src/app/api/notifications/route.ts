@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 
 // GET - List notifications for current user
 export async function GET(req: Request) {
     try {
         const auth = await requireAuth();
         if (!isAuthenticated(auth)) return auth;
+
+        // Per-user rate limit (read op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const unreadOnly = searchParams.get("unread") === "true";
