@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useLocale } from "next-intl"
+import { Upload } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/toast"
 import { EmployeeDirectory } from "@/components/employees/employee-directory"
 import { DeleteConfirmationModal } from "@/components/modals/delete-confirmation-modal"
@@ -148,6 +151,14 @@ export default function EmployeesPage() {
                     onAddEmployee: () => router.push("/employees/new"),
                     onEditEmployee: (id) => router.push(`/employees/${id}/edit`),
                     onDeleteEmployee: (id) => setDeleteTarget({ id, name: findEmployeeName(id) }),
+                    extraHeaderActions: (
+                        <Link href="/employees/import">
+                            <Button variant="outline" className="gap-2 border-card-border">
+                                <Upload className="h-4 w-4" />
+                                {isBn ? "ইম্পোর্ট" : "Import"}
+                            </Button>
+                        </Link>
+                    ),
                 }}
             />
 

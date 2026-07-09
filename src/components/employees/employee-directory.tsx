@@ -82,6 +82,8 @@ export interface DirectoryConfig {
     title?: string;
     /** Page subtitle override */
     subtitle?: string;
+    /** Extra action nodes rendered in the header next to the Add Employee button (e.g. Import) */
+    extraHeaderActions?: React.ReactNode;
 }
 
 export interface EmployeeDirectoryProps {
@@ -765,6 +767,9 @@ export function EmployeeDirectory({
                             ))}
                         </select>
                     )}
+
+                    {/* Extra header actions (e.g. Import button) */}
+                    {config.extraHeaderActions}
 
                     {/* {labels.addEmployee} Button (tenant only) */}
                     {config.onAddEmployee && (
