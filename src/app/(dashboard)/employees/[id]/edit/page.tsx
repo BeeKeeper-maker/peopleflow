@@ -62,7 +62,7 @@ export default function EditEmployeePage() {
         <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center gap-4">
                 <Link href={`/employees/${params.id}`}>
-                    <Button variant="ghost" size="icon" className="h-10 w-10">
+                    <Button variant="ghost" size="icon" className="h-10 w-10" title="Back" aria-label="Back">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 </Link>

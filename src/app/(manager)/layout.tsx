@@ -27,6 +27,7 @@ import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
+import { SkipLink } from "@/components/ui/skip-link";
 
 interface ManagerNavItem {
     label: string;
@@ -271,7 +272,8 @@ function ManagerLayoutInner({ children }: ManagerLayoutProps) {
             )}
 
             {/* Main Content */}
-            <main className="lg:pl-64 pt-16 lg:pt-0">
+            <SkipLink href="#main-content">Skip to main content</SkipLink>
+            <main id="main-content" tabIndex={-1} className="lg:pl-64 pt-16 lg:pt-0">
                 <div className="p-6">{children}</div>
             </main>
         </div>

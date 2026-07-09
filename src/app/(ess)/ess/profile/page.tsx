@@ -87,7 +87,7 @@ export default function ESSProfilePage() {
                     console.error("Failed to fetch profile");
                 }
             } catch (error) {
-                console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" }); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
+                console.error("Error fetching data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" });
             } finally {
                 setIsLoading(false);
             }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { PlatformSidebar } from "@/components/platform/sidebar";
 import { PlatformHeader } from "@/components/platform/header";
+import { SkipLink } from "@/components/ui/skip-link";
 
 interface AdminProfile {
     id: string;
@@ -106,7 +107,8 @@ export default function PlatformLayout({
                     admin={admin}
                     onMobileMenuToggle={() => setMobileSidebarOpen(true)}
                 />
-                <main className="flex-1 p-4 sm:p-6 overflow-auto">
+                <SkipLink href="#main-content">Skip to main content</SkipLink>
+                <main id="main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 overflow-auto">
                     {children}
                 </main>
             </div>

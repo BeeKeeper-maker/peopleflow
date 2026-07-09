@@ -73,6 +73,8 @@ export function Modal({
                         className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full px-4"
                     >
                         <div
+                            role="dialog"
+                            aria-modal="true"
                             className={cn(
                                 "mx-auto w-full rounded-2xl border border-card-border bg-dropdown shadow-2xl",
                                 sizeClasses[size]

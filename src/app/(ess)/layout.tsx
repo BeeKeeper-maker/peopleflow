@@ -32,6 +32,7 @@ import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
+import { SkipLink } from "@/components/ui/skip-link";
 
 interface ESSLayoutProps {
     children: ReactNode;
@@ -273,7 +274,8 @@ function ESSLayoutInner({ children }: ESSLayoutProps) {
             )}
 
             {/* Main Content */}
-            <main className="lg:pl-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
+            <SkipLink href="#main-content">Skip to main content</SkipLink>
+            <main id="main-content" tabIndex={-1} className="lg:pl-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
                 <div className="px-4 py-4 sm:p-6">{children}</div>
             </main>
 
