@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/loans — List loans for the organization
 export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -56,8 +61,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(loans);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_LOANS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_LOANS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -65,6 +74,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit (write op: loan create + approval workflow)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const json = await req.json();
@@ -159,7 +172,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(loan);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_LOAN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_LOAN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

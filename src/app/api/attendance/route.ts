@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { attendanceLogger } from "@/lib/logger";
 
 function buildDateFilter(searchParams: URLSearchParams) {
@@ -58,6 +59,10 @@ export async function GET(req: Request) {
     if (!isAuthenticated(auth)) {
         return auth;
     }
+
+    // Per-user rate limit (potentially large date-range reads)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -139,7 +144,11 @@ export async function GET(req: Request) {
         return NextResponse.json(attendances.map(toAttendanceDto));
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "GET_ATTENDANCE_HISTORY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "GET_ATTENDANCE_HISTORY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

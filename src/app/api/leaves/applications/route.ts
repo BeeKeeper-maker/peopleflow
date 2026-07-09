@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { format } from "date-fns";
 import {
     calculateWorkingDays,
@@ -31,6 +32,10 @@ export async function GET(req: Request) {
     if (!isAuthenticated(auth)) {
         return auth; // Returns 401 Unauthorized
     }
+
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -243,8 +248,9 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATIONS_ERROR");
-        return leaveError("Internal Error", 500);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "GET_LEAVE_APPLICATIONS_ERROR");
+        return leaveError("Internal server error", 500, { errorId });
     }
 }
 
@@ -254,6 +260,10 @@ export async function POST(req: Request) {
     if (!isAuthenticated(auth)) {
         return auth; // Returns 401 Unauthorized
     }
+
+    // Per-user rate limit (write op: leave application + approval workflow)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         // Get employee profile with organization settings
@@ -552,7 +562,8 @@ export async function POST(req: Request) {
 
         return NextResponse.json(application);
     } catch (error) {
-        leaveLogger.error({ err: error }, "CREATE_LEAVE_APPLICATION_ERROR");
-        return leaveError("Internal Error", 500);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "CREATE_LEAVE_APPLICATION_ERROR");
+        return leaveError("Internal server error", 500, { errorId });
     }
 }

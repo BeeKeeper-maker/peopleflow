@@ -43,6 +43,20 @@ export const RATE_LIMIT_CONFIGS = {
         windowMs: 60 * 1000, // 1 minute
         maxRequests: 300, // 300 requests
     },
+    // Generous limit for authenticated write operations (creates/updates).
+    // Per-user-keyed via the `rateLimit(request, config, userId)` call site,
+    // so this is per-user-per-minute, not per-IP-per-minute.
+    write: {
+        windowMs: 60 * 1000, // 1 minute
+        maxRequests: 60, // 60 requests/min — generous for legitimate UI use,
+                          // blocks scripted bulk creates/updates
+    },
+    // Strict limit for very heavy operations (payroll runs, bulk imports).
+    // Prevents concurrent/heavy resource usage from starving other tenants.
+    heavy: {
+        windowMs: 10 * 60 * 1000, // 10 minutes
+        maxRequests: 3, // 3 runs per 10 minutes (e.g. payroll re-processing)
+    },
     // Very strict for sensitive operations
     sensitive: {
         windowMs: 60 * 60 * 1000, // 1 hour

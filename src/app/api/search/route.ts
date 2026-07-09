@@ -16,6 +16,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { errorResponse, successResponse, ErrorCodes } from "@/lib/api-response";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 interface SearchResult {
@@ -41,6 +42,10 @@ export async function GET(req: NextRequest) {
     try {
         const auth = await requireAuth();
         if (!isAuthenticated(auth)) return auth;
+
+        // Per-user rate limit (heavy multi-entity query)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim() || "";

@@ -25,7 +25,7 @@ vi.mock("@/lib/prisma", () => ({
         leaveApplication: { findMany: vi.fn() },
         loan: { findMany: vi.fn() },
         employee: { findUnique: vi.fn(), findMany: vi.fn() },
-        pFAccount: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
+        pFAccount: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
         pFTransaction: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
         festivalBonusConfig: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
         festivalBonusPayment: { findMany: vi.fn(), update: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },

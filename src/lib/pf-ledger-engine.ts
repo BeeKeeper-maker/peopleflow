@@ -81,8 +81,8 @@ export async function ensurePFAccount(
     employeeId: string,
     organizationId: string
 ): Promise<string> {
-    const existing = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const existing = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         select: { id: true },
     });
 
@@ -170,8 +170,8 @@ export async function recordMonthlyContributions(
     const pfAccountId = await ensurePFAccount(employeeId, employee.organizationId);
 
     // Get current balances for running balance calculation
-    const account = await prisma.pFAccount.findUnique({
-        where: { id: pfAccountId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { id: pfAccountId, deletedAt: null },
         select: { employeeBalance: true, employerBalance: true, interestBalance: true, totalBalance: true },
     });
     if (!account) throw new Error("PF account not found");
@@ -261,8 +261,8 @@ export async function calculateAndCreditInterest(
     pfAccountId: string,
     fiscalYear: string // "2024-25"
 ): Promise<PFInterestResult> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { id: pfAccountId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { id: pfAccountId, deletedAt: null },
     });
 
     if (!account) throw new Error(`PF Account ${pfAccountId} not found`);
@@ -379,8 +379,8 @@ export async function settlePFAccount(
         interestAccrued: number;
     };
 }> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
     });
 
     if (!account) throw new Error("No PF account found for this employee");
@@ -433,8 +433,8 @@ export async function settlePFAccount(
 export async function getPFAccountSummary(
     employeeId: string
 ): Promise<PFAccountSummary | null> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         include: {
             _count: { select: { transactions: true } },
         },
@@ -475,8 +475,8 @@ export async function getPFStatement(
     description: string;
     transactionDate: Date;
 }>> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         select: { id: true },
     });
 

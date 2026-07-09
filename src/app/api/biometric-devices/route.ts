@@ -2,14 +2,19 @@ import { NextResponse } from "next/server";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { biometricLogger } from "@/lib/logger";
 
 /**
  * GET /api/biometric-devices — List all devices for organization
  */
-export async function GET() {
+export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const devices = await auth.withDB((db) => db.biometricDevice.findMany({
@@ -39,6 +44,10 @@ export async function POST(req: Request) {
     if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
         return new NextResponse("Forbidden", { status: 403 });
     }
+
+    // Per-user rate limit (write op: device registration)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const body = await req.json();

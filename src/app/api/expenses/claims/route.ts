@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createApprovalRequest } from "@/lib/approval-engine";
 import { calculateClaim, formatCurrency } from "@/lib/expense-engine";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 const claimSchema = z.object({
@@ -56,6 +57,10 @@ export async function GET(request: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Per-user rate limit (claims list may include receipts/documents)
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.read, session.user.id);
+        if (!rl.allowed) return rl.response!;
 
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
@@ -148,8 +153,12 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(claims);
     } catch (error) {
-        apiLogger.error({ err: error }, "Error fetching expense claims:");
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "Error fetching expense claims:");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -160,6 +169,10 @@ export async function POST(request: NextRequest) {
         if (!session?.user?.id) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        // Per-user rate limit (write op: claim create + approval workflow)
+        const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.write, session.user.id);
+        if (!rl.allowed) return rl.response!;
 
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
@@ -293,7 +306,11 @@ export async function POST(request: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 });
         }
-        apiLogger.error({ err: error }, "Error creating expense claim:");
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "Error creating expense claim:");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

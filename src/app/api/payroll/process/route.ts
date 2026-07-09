@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { calculateSalary, toNumber } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
+import { rateLimit, RATE_LIMIT_CONFIGS } from "@/lib/rate-limit";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
 
@@ -27,6 +28,10 @@ export async function GET(req: Request) {
         if (!isAuthenticated(auth)) {
             return auth;
         }
+
+        // Per-user rate limit
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const month = searchParams.get("month");
@@ -115,8 +120,12 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        payrollLogger.error({ err: error }, "GET_SLIPS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "GET_SLIPS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -128,6 +137,11 @@ export async function POST(req: Request) {
         if (!isAuthenticated(auth)) {
             return auth;
         }
+
+        // Very strict per-user rate limit (3 runs / 10 min) — payroll
+        // processing is resource-intensive and not safe to run concurrently.
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.heavy, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const body = await req.json();
         const validation = processPayrollSchema.safeParse(body);
@@ -454,7 +468,11 @@ export async function POST(req: Request) {
             errors: skipped,
         });
     } catch (error) {
-        payrollLogger.error({ err: error }, "PROCESS_PAYROLL_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "PROCESS_PAYROLL_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
