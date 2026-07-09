@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
-import { calculateSalary } from "@/lib/payroll-engine";
+import { calculateSalary, toNumber } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
@@ -75,7 +75,37 @@ export async function GET(req: Request) {
         );
 
         return NextResponse.json({
-            data: slips,
+            data: slips.map((slip) => ({
+                ...slip,
+                // Phase 1 (Float → Decimal): convert Decimal fields back to numbers
+                // so JSON serialization produces numbers, not strings. The frontend
+                // (useSalarySlips hook + payroll page) expects numbers for arithmetic
+                // like `slips.reduce((sum, s) => sum + s.netSalary, 0)`.
+                totalWorkingDays: toNumber(slip.totalWorkingDays),
+                presentDays: toNumber(slip.presentDays),
+                absentDays: toNumber(slip.absentDays),
+                leaveDays: toNumber(slip.leaveDays),
+                basicSalary: toNumber(slip.basicSalary),
+                houseRent: toNumber(slip.houseRent),
+                medicalAllowance: toNumber(slip.medicalAllowance),
+                conveyance: toNumber(slip.conveyance),
+                specialAllowance: toNumber(slip.specialAllowance),
+                overtime: toNumber(slip.overtime),
+                bonus: toNumber(slip.bonus),
+                festivalBonus: toNumber(slip.festivalBonus),
+                arrears: toNumber(slip.arrears),
+                otherEarnings: toNumber(slip.otherEarnings),
+                grossSalary: toNumber(slip.grossSalary),
+                pfEmployee: toNumber(slip.pfEmployee),
+                pfEmployer: toNumber(slip.pfEmployer),
+                incomeTax: toNumber(slip.incomeTax),
+                loanDeduction: toNumber(slip.loanDeduction),
+                absentDeduction: toNumber(slip.absentDeduction),
+                lateDeduction: toNumber(slip.lateDeduction),
+                otherDeductions: toNumber(slip.otherDeductions),
+                totalDeductions: toNumber(slip.totalDeductions),
+                netSalary: toNumber(slip.netSalary),
+            })),
             pagination: {
                 page,
                 limit,

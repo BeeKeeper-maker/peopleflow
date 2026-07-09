@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import {
@@ -48,6 +48,7 @@ import {
     type FormCode,
     type RegisterResult,
 } from "@/lib/statutory-registers";
+import { useStatutoryReports } from "@/hooks/use-data";
 
 // ════════════════════════════════════════════════════════════════════════
 // Constants
@@ -94,56 +95,38 @@ export default function StatutoryRegistersPage() {
     const [selectedForm, setSelectedForm] = useState<FormCode | null>(null);
     const [month, setMonth] = useState<number>(now.getMonth() + 1);
     const [year, setYear] = useState<number>(now.getFullYear());
-    const [data, setData] = useState<RegisterResult | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const fetchForm = useCallback(
-        async (form: FormCode, m: number, y: number) => {
-            setLoading(true);
-            setError(null);
-            setData(null);
-            try {
-                const params = new URLSearchParams({ form });
-                if (DATE_SCOPED_FORMS.has(form)) {
-                    params.set("month", String(m));
-                    params.set("year", String(y));
-                }
-                const res = await fetch(`/api/reports/statutory?${params.toString()}`);
-                if (!res.ok) {
-                    const body = await res.json().catch(() => ({}));
-                    throw new Error(body.error || `Request failed (${res.status})`);
-                }
-                const json = (await res.json()) as RegisterResult;
-                setData(json);
-            } catch (e) {
-                setError(e instanceof Error ? e.message : "Failed to load register");
-            } finally {
-                setLoading(false);
-            }
-        },
-        [],
-    );
+    // ── TanStack Query: statutory register for the currently-selected form ──
+    // The query is only enabled when the user has opened the dialog (selectedForm !== null).
+    // The query key embeds form/month/year so switching any of those auto-refetches.
+    const {
+        data,
+        isLoading: loading,
+        isError,
+        error: queryError,
+        refetch,
+    } = useStatutoryReports(selectedForm, month, year, selectedForm !== null);
+
+    const errorMessage = isError
+        ? (queryError instanceof Error ? queryError.message : "Failed to load register")
+        : null;
 
     const handleOpen = (form: FormCode) => {
         setSelectedForm(form);
-        void fetchForm(form, month, year);
     };
 
     const handleClose = () => {
         setSelectedForm(null);
-        setData(null);
-        setError(null);
     };
 
     const handleRefresh = () => {
-        if (selectedForm) void fetchForm(selectedForm, month, year);
+        void refetch();
     };
 
     const handleMonthYearChange = (m: number, y: number) => {
         setMonth(m);
         setYear(y);
-        if (selectedForm) void fetchForm(selectedForm, m, y);
+        // The query auto-refetches because month/year are part of the query key.
     };
 
     const titleFor = (form: RegisterMeta): string => (isBn ? form.titleBn : form.titleEn);
@@ -311,8 +294,8 @@ export default function StatutoryRegistersPage() {
                     {/* Body */}
                     <RegisterBody
                         loading={loading}
-                        error={error}
-                        data={data}
+                        error={errorMessage}
+                        data={data ?? null}
                         emptyLabel={t("noData")}
                         isBn={isBn}
                     />

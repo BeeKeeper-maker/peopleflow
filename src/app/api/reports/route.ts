@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { toNumber } from "@/lib/payroll-engine";
 import { apiLogger } from "@/lib/logger";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -577,17 +578,46 @@ async function runPayrollReport(
     );
 
     return NextResponse.json({
-        data: slips,
+        // Phase 1 (Float → Decimal): convert Decimal slip fields and Decimal
+        // aggregate sums to JS numbers so JSON serialization produces numbers
+        // (the frontend payroll report summary expects numeric totals).
+        data: slips.map((slip) => ({
+            ...slip,
+            totalWorkingDays: toNumber(slip.totalWorkingDays),
+            presentDays: toNumber(slip.presentDays),
+            absentDays: toNumber(slip.absentDays),
+            leaveDays: toNumber(slip.leaveDays),
+            basicSalary: toNumber(slip.basicSalary),
+            houseRent: toNumber(slip.houseRent),
+            medicalAllowance: toNumber(slip.medicalAllowance),
+            conveyance: toNumber(slip.conveyance),
+            specialAllowance: toNumber(slip.specialAllowance),
+            overtime: toNumber(slip.overtime),
+            bonus: toNumber(slip.bonus),
+            festivalBonus: toNumber(slip.festivalBonus),
+            arrears: toNumber(slip.arrears),
+            otherEarnings: toNumber(slip.otherEarnings),
+            grossSalary: toNumber(slip.grossSalary),
+            pfEmployee: toNumber(slip.pfEmployee),
+            pfEmployer: toNumber(slip.pfEmployer),
+            incomeTax: toNumber(slip.incomeTax),
+            loanDeduction: toNumber(slip.loanDeduction),
+            absentDeduction: toNumber(slip.absentDeduction),
+            lateDeduction: toNumber(slip.lateDeduction),
+            otherDeductions: toNumber(slip.otherDeductions),
+            totalDeductions: toNumber(slip.totalDeductions),
+            netSalary: toNumber(slip.netSalary),
+        })),
         summary: {
             totalSlips: aggregates._count,
-            totalGross: aggregates._sum.grossSalary || 0,
-            totalDeductions: aggregates._sum.totalDeductions || 0,
-            totalNet: aggregates._sum.netSalary || 0,
-            totalPFEmployee: aggregates._sum.pfEmployee || 0,
-            totalPFEmployer: aggregates._sum.pfEmployer || 0,
-            totalIncomeTax: aggregates._sum.incomeTax || 0,
-            totalLoanDeduction: aggregates._sum.loanDeduction || 0,
-            totalFestivalBonus: aggregates._sum.festivalBonus || 0,
+            totalGross: toNumber(aggregates._sum.grossSalary),
+            totalDeductions: toNumber(aggregates._sum.totalDeductions),
+            totalNet: toNumber(aggregates._sum.netSalary),
+            totalPFEmployee: toNumber(aggregates._sum.pfEmployee),
+            totalPFEmployer: toNumber(aggregates._sum.pfEmployer),
+            totalIncomeTax: toNumber(aggregates._sum.incomeTax),
+            totalLoanDeduction: toNumber(aggregates._sum.loanDeduction),
+            totalFestivalBonus: toNumber(aggregates._sum.festivalBonus),
         },
         pagination: {
             page: pagination.page,

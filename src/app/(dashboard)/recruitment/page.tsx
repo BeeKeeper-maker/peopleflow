@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,8 @@ import {
     Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useJobPostings } from "@/hooks/use-data"
 
 interface JobPosting {
     id: string
@@ -63,30 +63,10 @@ const employmentTypeLabels: Record<string, string> = {
 }
 
 export default function RecruitmentPage() {
-    const { addToast } = useToast()
-    const [jobs, setJobs] = useState<JobPosting[]>([])
-    const [loading, setLoading] = useState(true)
+    const { data: jobsData = [], isLoading: loading } = useJobPostings()
+    const jobs = jobsData as unknown as JobPosting[]
     const [activeTab, setActiveTab] = useState("all")
     const t = useTranslations('Recruitment')
-
-    useEffect(() => {
-        fetchJobs()
-    }, [])
-
-    const fetchJobs = async () => {
-        try {
-            const res = await fetch("/api/recruitment/jobs")
-            if (res.ok) {
-                const response = await res.json()
-                // Handle both wrapped and raw responses
-                setJobs(response.data || response || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch data:", error); addToast({ title: "Failed to load data. Please refresh.", type: "error" })
-        } finally {
-            setLoading(false)
-        }
-    }
 
     const stats = {
         total: jobs.length,

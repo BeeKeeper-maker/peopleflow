@@ -115,6 +115,17 @@ ENCRYPTION_KEY=$(openssl rand -hex 32)
 PF_APP_DB_PASSWORD=$(openssl rand -hex 24)
 CRON_SECRET=$(openssl rand -hex 24)
 
+# Generate VAPID keys for web push (one-time — stored in .env, reused forever)
+# Uses the web-push package from node_modules; falls back to a clear error
+# if the package isn't installed yet (e.g. fresh clone before npm ci).
+if [ -d "node_modules/web-push" ]; then
+    VAPID_KEYS=$(node -e "const w = require('web-push'); const k = w.generateVAPIDKeys(); console.log(k.publicKey + '|' + k.privateKey)")
+    VAPID_PUBLIC_KEY=$(echo "$VAPID_KEYS" | cut -d'|' -f1)
+    VAPID_PRIVATE_KEY=$(echo "$VAPID_KEYS" | cut -d'|' -f2)
+else
+    error "node_modules/web-push not found. Run 'npm ci' before deploying so VAPID keys can be generated."
+fi
+
 # Check if .env already exists (preserve existing secrets)
 if [ -f ".env" ]; then
     log "  .env already exists — preserving secrets..."
@@ -155,6 +166,12 @@ CRON_SECRET=$CRON_SECRET
 NEXT_PUBLIC_APP_URL=https://$DOMAIN
 NODE_ENV=production
 
+# Web Push (VAPID) — generated once above, reused forever.
+# NEXT_PUBLIC_VAPID_PUBLIC_KEY is safe to expose to the browser; the private
+# key never leaves the server.
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
+
 # Platform Admin (change after first login)
 PLATFORM_ADMIN_EMAIL=admin@$DOMAIN
 PLATFORM_ADMIN_PASSWORD=$(openssl rand -base64 16)
@@ -178,6 +195,20 @@ STRIPE_WEBHOOK_SECRET=
 EOF
     chmod 600 .env
     log "  .env created with secure passwords ✓"
+fi
+
+# If .env already existed before this deploy, the freshly-generated VAPID keys
+# above may not have been written. Backfill them only when missing so existing
+# installations get push notifications on the next redeploy without losing
+# their current keys.
+if ! grep -q "^NEXT_PUBLIC_VAPID_PUBLIC_KEY=" .env 2>/dev/null; then
+    log "  Adding VAPID keys to existing .env (web push was not configured)..."
+    {
+        echo ""
+        echo "# Web Push (VAPID) — added by deploy-contabo.sh on $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        echo "NEXT_PUBLIC_VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY"
+        echo "VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY"
+    } >> .env
 fi
 
 # ── Step 6: Build and Start ──

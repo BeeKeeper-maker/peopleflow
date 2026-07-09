@@ -16,6 +16,7 @@
  */
 
 import type { TxClient } from "@/lib/prisma";
+import { toNumber } from "@/lib/payroll-engine";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Shared Types
@@ -551,11 +552,13 @@ export async function generateFormC(
         department: s.employee.department?.name ?? null,
         month: s.month,
         year: s.year,
-        totalWorkingDays: s.totalWorkingDays,
-        presentDays: s.presentDays,
-        grossSalary: s.grossSalary,
-        totalDeductions: s.totalDeductions,
-        netSalary: s.netSalary,
+        // Phase 1 (Float → Decimal): slip monetary + day-count fields are now
+        // Prisma.Decimal. FormCRow interface expects `number`. Coerce at read site.
+        totalWorkingDays: toNumber(s.totalWorkingDays),
+        presentDays: toNumber(s.presentDays),
+        grossSalary: toNumber(s.grossSalary),
+        totalDeductions: toNumber(s.totalDeductions),
+        netSalary: toNumber(s.netSalary),
         status: s.status,
         paymentDate: s.paymentDate ? s.paymentDate.toISOString() : null,
         paymentMode: s.paymentMode ?? null,
@@ -650,23 +653,26 @@ export async function generateFormD(
     });
 
     const rows: FormDRow[] = slips.map((s) => {
+        const lateDed = Number(s.lateDeduction);
+        const absentDed = Number(s.absentDeduction);
+        const advanceDed = Number(s.advanceDeduction);
+        const otherDed = Number(s.otherDeductions);
         const parts: string[] = [];
-        if (s.lateDeduction > 0) parts.push("Late arrival");
-        if (s.absentDeduction > 0) parts.push("Absence");
-        if (s.advanceDeduction > 0) parts.push("Advance recovery");
-        if (s.otherDeductions > 0) parts.push("Other fine");
-        const total =
-            s.lateDeduction + s.absentDeduction + s.advanceDeduction + s.otherDeductions;
+        if (lateDed > 0) parts.push("Late arrival");
+        if (absentDed > 0) parts.push("Absence");
+        if (advanceDed > 0) parts.push("Advance recovery");
+        if (otherDed > 0) parts.push("Other fine");
+        const total = lateDed + absentDed + advanceDed + otherDed;
         return {
             employeeCode: s.employee.employeeCode,
             fullName: `${s.employee.firstName} ${s.employee.lastName}`.trim(),
             department: s.employee.department?.name ?? null,
             month: s.month,
             year: s.year,
-            lateDeduction: s.lateDeduction,
-            absentDeduction: s.absentDeduction,
-            advanceDeduction: s.advanceDeduction,
-            otherDeductions: s.otherDeductions,
+            lateDeduction: lateDed,
+            absentDeduction: absentDed,
+            advanceDeduction: advanceDed,
+            otherDeductions: otherDed,
             totalFinesAndDeductions: total,
             cause: parts.join("; ") || "—",
             slipStatus: s.status,
@@ -869,7 +875,11 @@ export async function generateFormF(
 
     // Build per-employee OT pay + hourly rate lookup
     const slipByEmp = new Map<string, { overtime: number; basicSalary: number; totalWorkingDays: number }>();
-    slips.forEach((s) => slipByEmp.set(s.employeeId, s));
+    slips.forEach((s) => slipByEmp.set(s.employeeId, {
+        overtime: Number(s.overtime),
+        basicSalary: Number(s.basicSalary),
+        totalWorkingDays: Number(s.totalWorkingDays),
+    }));
 
     const rows: FormFRow[] = attendance.map((a) => {
         const slip = slipByEmp.get(a.employee.id);

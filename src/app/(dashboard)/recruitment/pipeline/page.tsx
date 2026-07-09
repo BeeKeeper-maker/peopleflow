@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { GitPullRequest, Mail, Phone, ChevronRight, UserPlus } from "lucide-react";
 import Link from "next/link";
+import {
+    useApplications,
+    useJobPostings,
+    queryKeys,
+} from "@/hooks/use-data";
 
 interface Application {
     id: string;
@@ -47,36 +53,20 @@ const STAGES = [
 export default function PipelinePage() {
     const { addToast } = useToast();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
-    const [applications, setApplications] = useState<Application[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [selectedJob, setSelectedJob] = useState<string>("all");
-    const [jobs, setJobs] = useState<Array<{ id: string; title: string }>>([]);
 
-    const fetchApplications = useCallback(async () => {
-        try {
-            const params = selectedJob !== "all" ? `?jobPostingId=${selectedJob}` : "";
-            const res = await fetch(`/api/recruitment/applications${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setApplications(data.data || []);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load pipeline", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedJob, addToast]);
+    // ── TanStack Query: applications (pipeline) + job postings (filter dropdown) ──
+    const { data: applicationsResponse, isLoading: loading } = useApplications(
+        selectedJob !== "all" ? { jobPostingId: selectedJob } : undefined,
+    );
+    const applications = (applicationsResponse?.data ?? []) as unknown as Application[];
+    const { data: jobsData = [] } = useJobPostings();
+    const jobs = (jobsData as unknown as Array<{ id: string; title: string }>);
 
-    useEffect(() => {
-        fetch("/api/recruitment/jobs")
-            .then((r) => r.json())
-            .then((data) => setJobs(data.data || data || []))
-            .catch(() => {});
-    }, []);
-
-    useEffect(() => {
-        fetchApplications();
-    }, [fetchApplications]);
+    const invalidateApplications = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.recruitment.applications.lists() });
+    };
 
     const moveStage = async (applicationId: string, newStage: string) => {
         try {
@@ -87,7 +77,7 @@ export default function PipelinePage() {
             });
             if (res.ok) {
                 addToast({ title: `Moved to ${newStage}`, type: "success" });
-                fetchApplications();
+                invalidateApplications();
             }
         } catch {
             addToast({ title: "Error", description: "Failed to move", type: "error" });
@@ -104,7 +94,7 @@ export default function PipelinePage() {
             });
             if (res.ok) {
                 addToast({ title: "Candidate rejected", type: "success" });
-                fetchApplications();
+                invalidateApplications();
             }
         } catch {
             addToast({ title: "Error", description: "Failed to reject", type: "error" });
@@ -126,7 +116,7 @@ export default function PipelinePage() {
                     description: data.message || `Employee ${data.onboardedEmployee?.employeeCode || ""} created`,
                     type: "success",
                 });
-                fetchApplications();
+                invalidateApplications();
             }
         } catch {
             addToast({ title: "Error", description: "Failed to onboard", type: "error" });

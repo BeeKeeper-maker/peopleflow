@@ -53,6 +53,7 @@ import {
     Navigation,
     ShieldOff,
     FileText,
+    Smartphone,
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
@@ -661,6 +662,10 @@ export function SettingsClient() {
                     <TabsTrigger value="delegations" className="gap-2">
                         <KeyRound className="h-4 w-4" />
                         {t('tabDelegations')}
+                    </TabsTrigger>
+                    <TabsTrigger value="disbursements" className="gap-2">
+                        <Smartphone className="h-4 w-4" />
+                        Disbursements
                     </TabsTrigger>
                 </TabsList>
 

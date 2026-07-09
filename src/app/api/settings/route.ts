@@ -3,6 +3,86 @@ import type { Prisma } from "@/generated/prisma"
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
 import { toPlainSettings } from "@/lib/settings-json";
+import { encrypt, decrypt, isEncrypted } from "@/lib/crypto";
+
+// ── bKash credential redaction ────────────────────────────────────
+// The disbursement engine reads encrypted credentials from
+// `Organization.settings.bkashConfig` directly via Prisma (server-side
+// only). When the settings API serializes the org for the client, we
+// must NEVER expose the secret fields (appSecret, password). We also
+// surface a `configured` flag and decrypt the non-secret identifiers
+// (appKey, username) so the settings UI can pre-fill them.
+function redactBkashConfig(raw: unknown): Record<string, unknown> | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const bkash = raw as Record<string, unknown>;
+    const hasAppKey = typeof bkash.appKey === "string" && bkash.appKey.length > 0;
+    const hasAppSecret = typeof bkash.appSecret === "string" && bkash.appSecret.length > 0;
+    const hasUsername = typeof bkash.username === "string" && bkash.username.length > 0;
+    const hasPassword = typeof bkash.password === "string" && bkash.password.length > 0;
+    const configured = hasAppKey && hasAppSecret && hasUsername && hasPassword;
+    if (!configured) return undefined;
+
+    // Decrypt non-secret identifiers for client display. Best-effort — if
+    // decryption fails (e.g. key rotation), return only the configured flag.
+    const safeDecrypt = (value: unknown): string | undefined => {
+        if (typeof value !== "string" || value.length === 0) return undefined;
+        try {
+            return isEncrypted(value) ? decrypt(value) : value;
+        } catch (err) {
+            apiLogger.warn({ err }, "Failed to decrypt bKash field for settings GET");
+            return undefined;
+        }
+    };
+
+    return {
+        configured: true,
+        sandbox: bkash.sandbox !== false,
+        appKey: safeDecrypt(bkash.appKey) ?? "",
+        username: safeDecrypt(bkash.username) ?? "",
+    };
+}
+
+/**
+ * Normalize inbound bKash config from a PATCH body.
+ * Encrypts each sensitive field (appKey, appSecret, username, password)
+ * individually with AES-256-GCM before persistence. Non-secret fields
+ * (sandbox, baseUrl) are stored as-is.
+ *
+ * Returns `null` when the input is missing/invalid — caller should skip
+ * the merge in that case.
+ */
+function buildEncryptedBkashConfig(input: unknown): Record<string, unknown> | null {
+    if (!input || typeof input !== "object") return null;
+    const body = input as Record<string, unknown>;
+
+    const appKey = typeof body.appKey === "string" ? body.appKey.trim() : "";
+    const appSecret = typeof body.appSecret === "string" ? body.appSecret.trim() : "";
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    const password = typeof body.password === "string" ? body.password.trim() : "";
+    const sandbox = body.sandbox !== false; // default to sandbox
+    const baseUrl = typeof body.baseUrl === "string" && body.baseUrl.length > 0
+        ? body.baseUrl
+        : (sandbox
+            ? "https://tokenized.sandbox.bka.sh/v1.2.0-beta"
+            : "https://tokenized.pay.bka.sh/v1.2.0-beta");
+
+    // All four credential fields must be present when saving. The UI is
+    // responsible for re-entering secrets on update (we never echo them
+    // back). Empty values are rejected so we never persist a half-written
+    // credential set that would break the disbursement engine's `getBkashConfig`.
+    if (!appKey || !appSecret || !username || !password) {
+        return null;
+    }
+
+    return {
+        appKey: encrypt(appKey),
+        appSecret: encrypt(appSecret),
+        username: encrypt(username),
+        password: encrypt(password),
+        sandbox,
+        baseUrl,
+    };
+}
 
 export async function GET() {
     try {
@@ -49,6 +129,17 @@ export async function GET() {
                 ? settings.documents
                 : {}
 
+        // Redact bKash secrets before exposing settings to the client.
+        // The disbursement engine reads encrypted credentials directly
+        // from the DB; the API response only carries a safe view.
+        const safeSettings: Record<string, unknown> = { ...settings };
+        const redactedBkash = redactBkashConfig(settings.bkashConfig);
+        if (redactedBkash) {
+            safeSettings.bkashConfig = redactedBkash;
+        } else {
+            delete safeSettings.bkashConfig;
+        }
+
         return NextResponse.json({
             organization: {
                 ...organization,
@@ -56,6 +147,7 @@ export async function GET() {
                 dateFormat: typeof settings.dateFormat === "string" ? settings.dateFormat : "DD/MM/YYYY",
                 workWeekStart: typeof settings.workWeekStart === "number" ? settings.workWeekStart : 0,
                 documents,
+                settings: safeSettings,
             },
         })
     } catch (error) {
@@ -110,6 +202,21 @@ export async function PATCH(req: NextRequest) {
                 signatureImageUrl: String(body.documents.signatureImageUrl || ""),
                 companySealUrl: String(body.documents.companySealUrl || ""),
                 footerNote: String(body.documents.footerNote || ""),
+            }
+        }
+
+        // bKash disbursement credentials — encrypt each sensitive field
+        // before persistence. The disbursement engine decrypts them
+        // server-side when calling the bKash API.
+        if (body.bkashConfig !== undefined) {
+            const encrypted = buildEncryptedBkashConfig(body.bkashConfig);
+            if (encrypted) {
+                nextSettings.bkashConfig = encrypted;
+            } else {
+                return NextResponse.json(
+                    { error: "Invalid bKash credentials — all four fields (appKey, appSecret, username, password) are required." },
+                    { status: 400 },
+                );
             }
         }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { toNumber } from "@/lib/payroll-engine";
 import { apiLogger } from "@/lib/logger";
 
 /**
@@ -152,18 +153,21 @@ export async function GET(
         // ── Payroll Summary ────────────────────────────────────────────
         const latestSlip = salarySlips[0] || null;
 
+        // Phase 1 (Float → Decimal): coerce Decimal slip monetary fields to JS numbers
+        // so JSON serialization produces numbers (the Employee Profile "Command Center"
+        // renders these as currency strings via `formatCurrency(amount: number)`).
         const payrollHistory = salarySlips.map((s) => ({
             month: s.month,
             year: s.year,
-            gross: s.grossSalary,
-            net: s.netSalary,
-            deductions: s.totalDeductions,
-            basic: s.basicSalary,
-            hra: s.houseRent,
-            medical: s.medicalAllowance,
-            conveyance: s.conveyance,
-            pf: s.pfEmployee,
-            tax: s.incomeTax,
+            gross: toNumber(s.grossSalary),
+            net: toNumber(s.netSalary),
+            deductions: toNumber(s.totalDeductions),
+            basic: toNumber(s.basicSalary),
+            hra: toNumber(s.houseRent),
+            medical: toNumber(s.medicalAllowance),
+            conveyance: toNumber(s.conveyance),
+            pf: toNumber(s.pfEmployee),
+            tax: toNumber(s.incomeTax),
             status: s.status,
         }));
 
@@ -188,15 +192,15 @@ export async function GET(
             },
             payroll: {
                 current: latestSlip ? {
-                    gross: latestSlip.grossSalary,
-                    net: latestSlip.netSalary,
-                    deductions: latestSlip.totalDeductions,
-                    basic: latestSlip.basicSalary,
-                    hra: latestSlip.houseRent,
-                    medical: latestSlip.medicalAllowance,
-                    conveyance: latestSlip.conveyance,
-                    pf: latestSlip.pfEmployee,
-                    tax: latestSlip.incomeTax,
+                    gross: toNumber(latestSlip.grossSalary),
+                    net: toNumber(latestSlip.netSalary),
+                    deductions: toNumber(latestSlip.totalDeductions),
+                    basic: toNumber(latestSlip.basicSalary),
+                    hra: toNumber(latestSlip.houseRent),
+                    medical: toNumber(latestSlip.medicalAllowance),
+                    conveyance: toNumber(latestSlip.conveyance),
+                    pf: toNumber(latestSlip.pfEmployee),
+                    tax: toNumber(latestSlip.incomeTax),
                     month: latestSlip.month,
                     year: latestSlip.year,
                 } : null,

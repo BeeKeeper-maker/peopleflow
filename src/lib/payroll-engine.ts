@@ -31,6 +31,41 @@ import { recordMonthlyContributions } from "@/lib/pf-ledger-engine";
 import { payrollLogger } from "@/lib/logger";
 
 // ============================================
+// Decimal → Number coercion helper (Phase 1: Float → Decimal migration)
+// ============================================
+
+/**
+ * Convert a Prisma Decimal value (or any value) to a JavaScript number.
+ *
+ * Why this exists:
+ *   SalarySlip monetary fields were migrated from Float → Decimal(18,2) for
+ *   BDT poisha precision. Prisma now returns `Prisma.Decimal` (decimal.js)
+ *   objects instead of native numbers for those columns. decimal.js does
+ *   NOT override the `+` operator (valueOf returns a string), so
+ *   `decimal + decimal` silently produces string concatenation like
+ *   "5000030000" instead of 80000. JSON.stringify also serializes Decimal
+ *   to a string, breaking API consumers that expect numbers.
+ *
+ * Strategy:
+ *   - Wrap every SalarySlip monetary/day-count field read with this helper.
+ *   - All payroll arithmetic stays in JS numbers — IEEE-754 doubles have
+ *     15+ significant digits, more than enough for BDT amounts at 2 dp.
+ *   - Decimal precision is preserved at the DB layer for storage accuracy.
+ *
+ * @param value Decimal | number | string | null | undefined
+ * @returns number (0 for null/undefined)
+ */
+export function toNumber(value: unknown): number {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") return value;
+    // Prisma.Decimal (decimal.js) — Number() calls valueOf() which returns
+    // a numeric string, then coerces to a number. Works for any numeric
+    // string ("50000", "50000.50", "-100.25") as well as Decimal objects.
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+// ============================================
 // Bangladesh Income Tax Slabs (FY 2024-25)
 // ============================================
 const TAX_SLABS = [

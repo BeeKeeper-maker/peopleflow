@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import {
     FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { useCandidates, queryKeys } from "@/hooks/use-data";
 
 interface Candidate {
     id: string;
@@ -50,31 +52,25 @@ interface Candidate {
 }
 
 export default function CandidatesPage() {
-    const { addToast } = useToast();
-    const [candidates, setCandidates] = useState<Candidate[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [showAddForm, setShowAddForm] = useState(false);
 
-    const fetchCandidates = useCallback(async () => {
-        try {
-            const params = search ? `?search=${encodeURIComponent(search)}` : "";
-            const res = await fetch(`/api/recruitment/candidates${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setCandidates(data.data || []);
-            }
-        } catch {
-            addToast({ title: "Error", description: "Failed to load candidates", type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [search, addToast]);
-
+    // Debounce search input — only fire the query 300ms after the user stops typing.
     useEffect(() => {
-        const timer = setTimeout(fetchCandidates, 300);
+        const timer = setTimeout(() => setDebouncedSearch(search), 300);
         return () => clearTimeout(timer);
-    }, [fetchCandidates]);
+    }, [search]);
+
+    const { data: candidatesData = [], isLoading: loading } = useCandidates(
+        debouncedSearch ? { search: debouncedSearch } : undefined,
+    );
+    const candidates = candidatesData as unknown as Candidate[];
+
+    const invalidateCandidates = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.recruitment.candidates.lists() });
+    };
 
     return (
         <div className="space-y-6">
@@ -204,7 +200,7 @@ export default function CandidatesPage() {
                     onClose={() => setShowAddForm(false)}
                     onSaved={() => {
                         setShowAddForm(false);
-                        fetchCandidates();
+                        invalidateCandidates();
                     }}
                 />
             )}

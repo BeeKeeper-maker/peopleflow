@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/prisma";
 import { createNotification, createBulkNotifications } from "@/lib/notifications";
 import { apiLogger } from "@/lib/logger";
+import type { PushSubscription as WebPushSubscription } from "@/lib/web-push";
 
 export interface SmartNotificationParams {
     userId: string;
@@ -172,11 +173,51 @@ export async function sendSmartNotification(
 
     // 3. Push — respect quiet hours
     if (channels.push && prefs?.pushSubscription && !inQuietHours) {
-        // Web push sending requires the web-push library (VAPID keys).
-        // For now, we log — the push worker will be added in a future pass.
-        apiLogger.debug({ userId, title }, "Push notification queued (pending push worker)");
-        result.push = true;
-        // TODO: integrate web-push library with VAPID keys
+        // Only attempt push delivery if VAPID keys are configured. The
+        // web-push helper gracefully returns false when VAPID is missing,
+        // but we skip the dynamic import + JSON coercion entirely when the
+        // public key is unset to keep cold paths free of overhead.
+        const vapidConfigured = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
+
+        if (vapidConfigured) {
+            // Non-blocking: push failures must never prevent the in-app
+            // notification (already persisted above) from being delivered.
+            // We `await` so the result flag is accurate, but catch + log.
+            try {
+                // Dynamic import keeps the web-push library out of the cold
+                // path when VAPID isn't configured (smaller worker boots).
+                const { sendPushNotification } = await import("@/lib/web-push");
+                // pushSubscription is stored as a Prisma Json? field —
+                // already a parsed object, not a stringified JSON.
+                const subscription = prefs.pushSubscription as unknown as WebPushSubscription;
+
+                if (subscription?.endpoint && subscription.keys?.p256dh && subscription.keys?.auth) {
+                    // Fire-and-forget within the request lifecycle; we still
+                    // await so the result flag reflects delivery, but a
+                    // rejection here is swallowed and logged.
+                    const delivered = await sendPushNotification(subscription, {
+                        title,
+                        body: message,
+                        url: link ?? "/notifications",
+                    });
+                    result.push = delivered;
+                } else {
+                    apiLogger.warn(
+                        { userId, title },
+                        "Push subscription shape invalid — skipping push",
+                    );
+                }
+            } catch (err) {
+                apiLogger.error({ err, userId }, "Failed to send push notification (non-fatal)");
+            }
+        } else {
+            // VAPID not configured — mark as skipped so callers know push
+            // wasn't actually delivered (the in-app record still went out).
+            apiLogger.debug(
+                { userId, title },
+                "Push skipped — VAPID keys not configured",
+            );
+        }
     }
 
     return result;

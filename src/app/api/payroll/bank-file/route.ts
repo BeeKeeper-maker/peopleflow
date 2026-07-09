@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
-import { generateBankFileCSV } from "@/lib/payroll-engine";
+import { generateBankFileCSV, toNumber } from "@/lib/payroll-engine";
 import { payrollLogger } from "@/lib/logger";
 
 /**
@@ -91,7 +91,10 @@ async function generateBankFile(ctx: AuthContext, month: number, year: number) {
         bankName: slip.employee.bankName || "",
         branchName: slip.employee.bankBranch || "",
         routingNumber: slip.employee.routingNumber || "",
-        amount: slip.netSalary,
+        // Phase 1 (Float → Decimal): slip.netSalary is now Prisma.Decimal.
+        // generateBankFileCSV sums entries with `+`, which would string-concat
+        // Decimal objects. Coerce to number here so the CSV total is correct.
+        amount: toNumber(slip.netSalary),
     }));
 
     const csvContent = generateBankFileCSV(entries, month, year);

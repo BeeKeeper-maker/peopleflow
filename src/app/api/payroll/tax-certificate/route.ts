@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
-import { calculateAnnualTax } from "@/lib/payroll-engine";
+import { calculateAnnualTax, toNumber } from "@/lib/payroll-engine";
 import { payrollLogger } from "@/lib/logger";
 
 /**
@@ -69,19 +69,22 @@ export async function POST(req: Request) {
             );
         }
 
-        // Calculate totals using reduce once for efficiency
+        // Calculate totals using reduce once for efficiency.
+        // Phase 1 (Float → Decimal): coerce each slip field to a JS number before
+        // summing. Without this, `acc.gross + s.grossSalary` would string-concatenate
+        // Decimal objects (decimal.js does not override `+`).
         const totals = salarySlips.reduce(
             (acc, s) => ({
-                gross: acc.gross + s.grossSalary,
-                basic: acc.basic + s.basicSalary,
-                houseRent: acc.houseRent + s.houseRent,
-                medical: acc.medical + s.medicalAllowance,
-                conveyance: acc.conveyance + s.conveyance,
-                overtime: acc.overtime + s.overtime,
-                bonus: acc.bonus + s.bonus,
-                pf: acc.pf + s.pfEmployee,
-                taxPaid: acc.taxPaid + s.incomeTax,
-                net: acc.net + s.netSalary,
+                gross: acc.gross + toNumber(s.grossSalary),
+                basic: acc.basic + toNumber(s.basicSalary),
+                houseRent: acc.houseRent + toNumber(s.houseRent),
+                medical: acc.medical + toNumber(s.medicalAllowance),
+                conveyance: acc.conveyance + toNumber(s.conveyance),
+                overtime: acc.overtime + toNumber(s.overtime),
+                bonus: acc.bonus + toNumber(s.bonus),
+                pf: acc.pf + toNumber(s.pfEmployee),
+                taxPaid: acc.taxPaid + toNumber(s.incomeTax),
+                net: acc.net + toNumber(s.netSalary),
             }),
             {
                 gross: 0, basic: 0, houseRent: 0, medical: 0,
@@ -132,10 +135,10 @@ export async function POST(req: Request) {
             totalNetPaid: totals.net,
             monthlyBreakdown: salarySlips.map(s => ({
                 month: s.month,
-                gross: s.grossSalary,
-                deductions: s.totalDeductions,
-                tax: s.incomeTax,
-                net: s.netSalary,
+                gross: toNumber(s.grossSalary),
+                deductions: toNumber(s.totalDeductions),
+                tax: toNumber(s.incomeTax),
+                net: toNumber(s.netSalary),
             })),
         });
     } catch (error) {

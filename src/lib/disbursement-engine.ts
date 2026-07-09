@@ -31,6 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { payrollLogger } from "@/lib/logger";
 import { createAuditLog } from "@/lib/audit-log";
 import { decrypt, isEncrypted } from "@/lib/crypto";
+import { toNumber } from "@/lib/payroll-engine";
 
 export type DisbursementChannel = "bank_transfer" | "bkash" | "nagad";
 export type DisbursementStatus = "pending" | "processing" | "success" | "failed" | "refunded";
@@ -301,7 +302,10 @@ export async function disburseSalary(params: {
         return { success: false, errorMessage: "Slip is locked. Unlock first." };
     }
 
-    const amount = slip.netSalary;
+    // Phase 1 (Float → Decimal): slip.netSalary is now Prisma.Decimal. The
+    // disbursement functions, SalaryDisbursement.amount (Float column), and the
+    // audit log all expect a native number. Coerce here once at the read site.
+    const amount = toNumber(slip.netSalary);
 
     // Create pending disbursement record
     const disbursement = await prisma.salaryDisbursement.create({
@@ -453,7 +457,7 @@ export async function batchDisburseSalary(params: {
             results.push({
                 slipId,
                 employeeName: `${slip.employee.firstName} ${slip.employee.lastName}`,
-                amount: slip.netSalary,
+                amount: toNumber(slip.netSalary),
                 channel,
                 success: true,
                 reference: "Already paid",
@@ -472,7 +476,7 @@ export async function batchDisburseSalary(params: {
         results.push({
             slipId,
             employeeName: `${slip.employee.firstName} ${slip.employee.lastName}`,
-            amount: slip.netSalary,
+            amount: toNumber(slip.netSalary),
             channel,
             success: result.success,
             reference: result.reference,

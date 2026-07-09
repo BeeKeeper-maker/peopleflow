@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -24,6 +24,7 @@ import {
     ScrollText,
 } from "lucide-react";
 import Link from "next/link";
+import { useSavedReports, queryKeys } from "@/hooks/use-data";
 
 interface SavedReport {
     id: string;
@@ -41,8 +42,13 @@ export default function ReportsListPage() {
     const { addToast } = useToast();
     const t = useTranslations("Reports");
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
-    const [reports, setReports] = useState<SavedReport[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
+    const { data: reportsData = [], isLoading: loading } = useSavedReports();
+    const reports = reportsData as unknown as SavedReport[];
+
+    const invalidateReports = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.reports.saved() });
+    };
 
     const dataSourceLabel = (key: string): string => {
         const map: Record<string, string> = {
@@ -56,24 +62,6 @@ export default function ReportsListPage() {
         return map[key] || key;
     };
 
-    const fetchReports = useCallback(async () => {
-        try {
-            const res = await fetch("/api/reports/custom");
-            if (res.ok) {
-                const data = await res.json();
-                setReports(data.data || []);
-            }
-        } catch {
-            addToast({ title: t("error"), description: t("failedLoadReports"), type: "error" });
-        } finally {
-            setLoading(false);
-        }
-    }, [addToast, t]);
-
-    useEffect(() => {
-        fetchReports();
-    }, [fetchReports]);
-
     const handleDelete = async (id: string, name: string) => {
         const ok = await confirm({
             title: `${t("delete")} "${name}"?`,
@@ -85,7 +73,7 @@ export default function ReportsListPage() {
         try {
             await fetch(`/api/reports/custom/${id}`, { method: "DELETE" });
             addToast({ title: t("reportDeleted"), type: "success" });
-            fetchReports();
+            invalidateReports();
         } catch {
             addToast({ title: t("error"), description: t("failedDelete"), type: "error" });
         }

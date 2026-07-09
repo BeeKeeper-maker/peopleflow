@@ -14,6 +14,7 @@
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import { api, ApiResponse, ApiError } from "@/lib/api-client";
 import { useToast } from "@/components/ui/toast";
+import type { RegisterResult, FormCode } from "@/lib/statutory-registers";
 
 // ============================================
 // Query Keys Factory
@@ -114,6 +115,33 @@ export const queryKeys = {
     access: {
         all: ["access"] as const,
         users: () => [...queryKeys.access.all, "users"] as const,
+    },
+    // Recruitment — job postings, candidates, and applications (pipeline)
+    recruitment: {
+        all: ["recruitment"] as const,
+        jobs: {
+            lists: () => [...queryKeys.recruitment.all, "jobs", "list"] as const,
+            list: (filters: Record<string, unknown>) => [...queryKeys.recruitment.jobs.lists(), filters] as const,
+            details: () => [...queryKeys.recruitment.all, "jobs", "detail"] as const,
+            detail: (id: string) => [...queryKeys.recruitment.jobs.details(), id] as const,
+        },
+        candidates: {
+            lists: () => [...queryKeys.recruitment.all, "candidates", "list"] as const,
+            list: (filters: Record<string, unknown>) => [...queryKeys.recruitment.candidates.lists(), filters] as const,
+        },
+        applications: {
+            lists: () => [...queryKeys.recruitment.all, "applications", "list"] as const,
+            list: (filters: Record<string, unknown>) => [...queryKeys.recruitment.applications.lists(), filters] as const,
+        },
+    },
+    // Reports — saved custom reports + statutory (BLA 2006) + attendance overview
+    reports: {
+        all: ["reports"] as const,
+        saved: () => [...queryKeys.reports.all, "saved"] as const,
+        statutory: (form: string | null, month: number, year: number) =>
+            [...queryKeys.reports.all, "statutory", form, month, year] as const,
+        attendance: (filters?: Record<string, unknown>) =>
+            [...queryKeys.reports.all, "attendance", filters] as const,
     },
 };
 
@@ -685,6 +713,11 @@ export interface SalarySlipRecord {
     status: string;
     isLocked?: boolean;
     isReversed?: boolean;
+    // Payment metadata — populated after a slip is marked paid or disbursed
+    // via bKash/Nagad/bank_transfer. Used by the payroll UI to decide whether
+    // to show the "Disburse via bKash" action.
+    paymentMode?: string | null;
+    transactionRef?: string | null;
     employee: {
         firstName: string;
         lastName: string;
@@ -2246,5 +2279,384 @@ export function useAccessUsers() {
             };
         },
         staleTime: 2 * 60 * 1000, // 2 minutes — access changes rarely
+    });
+}
+
+// ============================================
+// Recruitment Hooks
+// ============================================
+
+// ── a) Recruitment — job postings list ─────────────────────────────────────
+// /api/recruitment/jobs returns { data: [...] } via successResponse wrapper;
+// defensive handling for both wrapped and raw-array shapes.
+export interface JobPostingRecord {
+    id: string;
+    title: string;
+    description: string;
+    employmentType: string;
+    experience?: string | null;
+    location?: string | null;
+    isRemote: boolean;
+    status: string;
+    openings: number;
+    salaryMin?: number | null;
+    salaryMax?: number | null;
+    showSalary: boolean;
+    postedAt?: string | null;
+    closesAt?: string | null;
+    createdAt: string;
+    department?: { id: string; name: string } | null;
+    designation?: { id: string; name: string } | null;
+    _count: { applications: number };
+    [key: string]: unknown;
+}
+
+export function useJobPostings(filters?: {
+    status?: string;
+    departmentId?: string;
+}) {
+    return useQuery<JobPostingRecord[], ApiError>({
+        queryKey: queryKeys.recruitment.jobs.list(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.status) params.set("status", filters.status);
+            if (filters?.departmentId) params.set("departmentId", filters.departmentId);
+
+            const url = `/api/recruitment/jobs${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "JOBS_FETCH_ERROR"),
+                    String(err.error || "Failed to load job postings"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes — job postings change rarely
+    });
+}
+
+// ── b) Recruitment — single job posting ───────────────────────────────────
+// /api/recruitment/jobs/[id] returns the raw job object (NextResponse.json(job)).
+export interface JobPostingApplicationSummary {
+    id: string;
+    stage: string;
+    status: string;
+    appliedAt: string;
+    candidate: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+export interface JobPostingDetailRecord extends JobPostingRecord {
+    applications: JobPostingApplicationSummary[];
+    [key: string]: unknown;
+}
+
+export function useJobPosting(id: string) {
+    return useQuery<JobPostingDetailRecord, ApiError>({
+        queryKey: queryKeys.recruitment.jobs.detail(id),
+        queryFn: async () => {
+            const res = await fetch(`/api/recruitment/jobs/${id}`, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "JOB_FETCH_ERROR"),
+                    String(err.error || "Failed to load job posting"),
+                    res.status
+                );
+            }
+            return res.json();
+        },
+        enabled: !!id,
+        staleTime: 2 * 60 * 1000, // 2 minutes
+    });
+}
+
+// ── c) Recruitment — candidates list ──────────────────────────────────────
+// /api/recruitment/candidates returns { data: candidates, total: N }.
+export interface CandidateApplicationSummary {
+    id: string;
+    stage: string;
+    status: string;
+    jobPosting: {
+        id: string;
+        title: string;
+        department: { name: string } | null;
+    };
+    [key: string]: unknown;
+}
+
+export interface CandidateRecord {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    resumeUrl: string | null;
+    portfolioUrl: string | null;
+    linkedinUrl: string | null;
+    currentCompany: string | null;
+    currentTitle: string | null;
+    yearsOfExp: number | null;
+    expectedSalary: number | null;
+    noticePeriod: string | null;
+    skills: string | null;
+    education: string | null;
+    source: string | null;
+    notes: string | null;
+    applications: CandidateApplicationSummary[];
+    [key: string]: unknown;
+}
+
+export function useCandidates(filters?: {
+    search?: string;
+    source?: string;
+    limit?: number;
+}) {
+    return useQuery<CandidateRecord[], ApiError>({
+        queryKey: queryKeys.recruitment.candidates.list(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.search) params.set("search", filters.search);
+            if (filters?.source) params.set("source", filters.source);
+            if (filters?.limit) params.set("limit", String(filters.limit));
+
+            const url = `/api/recruitment/candidates${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "CANDIDATES_FETCH_ERROR"),
+                    String(err.error || "Failed to load candidates"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 60 * 1000, // 1 minute — candidate pool changes frequently
+    });
+}
+
+// ── d) Recruitment — applications (pipeline view) ─────────────────────────
+// /api/recruitment/applications returns { data, byStage, total }.
+export interface ApplicationCandidate {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    resumeUrl: string | null;
+    yearsOfExp: number | null;
+    currentTitle: string | null;
+    currentCompany: string | null;
+    [key: string]: unknown;
+}
+
+export interface ApplicationJobPosting {
+    id: string;
+    title: string;
+    department: { name: string } | null;
+    designation: { name: string } | null;
+    [key: string]: unknown;
+}
+
+export interface ApplicationRecord {
+    id: string;
+    stage: string;
+    status: string;
+    rating: number | null;
+    interviewDate: string | null;
+    offerSalary: number | null;
+    candidate: ApplicationCandidate;
+    jobPosting: ApplicationJobPosting;
+    [key: string]: unknown;
+}
+
+export interface ApplicationsResponse {
+    data: ApplicationRecord[];
+    byStage: Record<string, ApplicationRecord[]>;
+    total: number;
+}
+
+export function useApplications(filters?: {
+    jobPostingId?: string;
+    stage?: string;
+    status?: string;
+}) {
+    return useQuery<ApplicationsResponse, ApiError>({
+        queryKey: queryKeys.recruitment.applications.list(filters || {}),
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters?.jobPostingId) params.set("jobPostingId", filters.jobPostingId);
+            if (filters?.stage) params.set("stage", filters.stage);
+            if (filters?.status) params.set("status", filters.status);
+
+            const url = `/api/recruitment/applications${params.toString() ? `?${params.toString()}` : ""}`;
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "APPLICATIONS_FETCH_ERROR"),
+                    String(err.error || "Failed to load applications"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            const data: ApplicationRecord[] = Array.isArray(json) ? json : (json.data || []);
+            return {
+                data,
+                byStage: (json?.byStage ?? {}) as Record<string, ApplicationRecord[]>,
+                total: typeof json?.total === "number" ? json.total : data.length,
+            };
+        },
+        staleTime: 60 * 1000, // 1 minute — pipeline moves often
+    });
+}
+
+// ============================================
+// Reports Hooks
+// ============================================
+
+// ── e) Reports — saved custom reports ─────────────────────────────────────
+// /api/reports/custom returns { data: [...], total: N } (plus optional meta
+// when includeMeta=true — consumers needing meta should call the API directly).
+export interface SavedReportRecord {
+    id: string;
+    name: string;
+    description: string | null;
+    dataSource: string;
+    fields: string[];
+    filters: Record<string, unknown>;
+    groupBy: string | null;
+    chartType: string | null;
+    isShared: boolean;
+    createdBy: string;
+    organizationId: string;
+    createdAt: string;
+    updatedAt: string;
+    _count?: { schedules: number };
+    [key: string]: unknown;
+}
+
+export function useSavedReports() {
+    return useQuery<SavedReportRecord[], ApiError>({
+        queryKey: queryKeys.reports.saved(),
+        queryFn: async () => {
+            const res = await fetch("/api/reports/custom", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "SAVED_REPORTS_FETCH_ERROR"),
+                    String(err.error || "Failed to load saved reports"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — reports change rarely
+    });
+}
+
+// ── f) Reports — statutory (BLA 2006 forms) ───────────────────────────────
+// /api/reports/statutory?form=A&month=7&year=2026 returns the RegisterResult
+// directly (NextResponse.json(result)). The form parameter is required by the
+// API; the hook only fires the query when `form` is non-null and `enabled`
+// is true (used to gate the query until the user opens the dialog).
+export function useStatutoryReports(
+    form: FormCode | null,
+    month: number,
+    year: number,
+    enabled: boolean = true,
+) {
+    return useQuery<RegisterResult, ApiError>({
+        queryKey: queryKeys.reports.statutory(form, month, year),
+        queryFn: async () => {
+            const params = new URLSearchParams({ form: form as string });
+            params.set("month", String(month));
+            params.set("year", String(year));
+
+            const res = await fetch(`/api/reports/statutory?${params.toString()}`, {
+                credentials: "include",
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "STATUTORY_REPORT_FETCH_ERROR"),
+                    String(err.error || "Failed to load statutory register"),
+                    res.status
+                );
+            }
+            return res.json();
+        },
+        enabled: enabled && form !== null,
+        staleTime: 5 * 60 * 1000, // 5 minutes — registers don't change within a session
+    });
+}
+
+// ── g) Reports — attendance overview ──────────────────────────────────────
+// /api/reports/attendance returns { daily, monthly, offenders } directly.
+export interface AttendanceReportTrend {
+    date: string;
+    present: number;
+    late: number;
+    absent: number;
+    half_day: number;
+    [key: string]: number | string;
+}
+
+export interface AttendanceReportOffender {
+    employee: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        employeeCode: string;
+        photoUrl: string | null;
+        department: { name: string } | null;
+        [key: string]: unknown;
+    };
+    lateCount: number;
+    earlyLeaveCount: number;
+    totalLateMinutes: number;
+    [key: string]: unknown;
+}
+
+export interface AttendanceReportResponse {
+    daily: Record<string, number>;
+    monthly: AttendanceReportTrend[];
+    offenders: AttendanceReportOffender[];
+}
+
+export function useAttendanceReport(filters?: Record<string, unknown>) {
+    return useQuery<AttendanceReportResponse, ApiError>({
+        queryKey: queryKeys.reports.attendance(filters || {}),
+        queryFn: async () => {
+            const res = await fetch("/api/reports/attendance", { credentials: "include" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new ApiError(
+                    String(err.code || "ATTENDANCE_REPORT_FETCH_ERROR"),
+                    String(err.error || "Failed to load attendance report"),
+                    res.status
+                );
+            }
+            const json = await res.json();
+            return {
+                daily: (json?.daily ?? {}) as Record<string, number>,
+                monthly: Array.isArray(json?.monthly) ? json.monthly : [],
+                offenders: Array.isArray(json?.offenders) ? json.offenders : [],
+            };
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — reports change rarely
     });
 }

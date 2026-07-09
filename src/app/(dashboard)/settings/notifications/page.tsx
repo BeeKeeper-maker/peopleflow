@@ -98,10 +98,20 @@ export default function NotificationSettingsPage() {
 
         // Register with service worker
         try {
+            // 1. Fetch the VAPID public key from the server. Without this, the
+            //    subscription would be tied to no sender identity and the server
+            //    would be unable to deliver pushes.
+            const vapidRes = await fetch("/api/notifications/push/vapid-key");
+            if (!vapidRes.ok) {
+                addToast({ title: "Push not configured", description: "Web push is not enabled on the server. Ask an admin to set VAPID keys.", type: "error" });
+                return;
+            }
+            const { publicKey } = (await vapidRes.json()) as { publicKey: string };
+
             const reg = await navigator.serviceWorker.ready;
             const subscription = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
-                applicationServerKey: undefined, // Will be set when VAPID keys are configured
+                applicationServerKey: urlBase64ToUint8Array(publicKey),
             });
 
             const subJson = subscription.toJSON();
@@ -402,4 +412,30 @@ function CategoryToggle({
             {label}
         </button>
     );
+}
+
+/**
+ * Convert a VAPID public key (URL-safe base64) into the Uint8Array form
+ * expected by `pushManager.subscribe({ applicationServerKey })`.
+ *
+ * The VAPID key from the server is a base64url-encoded string. The Push API
+ * requires the raw bytes. Padding is added back before atob because browsers
+ * strip it from base64url values.
+ *
+ * The explicit `<ArrayBuffer>` type param (and `new ArrayBuffer(...)`) is
+ * needed so the returned view is `Uint8Array<ArrayBuffer>` rather than the
+ * default `Uint8Array<ArrayBufferLike>` — PushManager.subscribe's
+ * BufferSource parameter rejects the ArrayBufferLike shape because
+ * SharedArrayBuffer is not assignable to ArrayBuffer.
+ */
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const buffer = new ArrayBuffer(raw.length);
+    const output = new Uint8Array(buffer);
+    for (let i = 0; i < raw.length; ++i) {
+        output[i] = raw.charCodeAt(i);
+    }
+    return output;
 }

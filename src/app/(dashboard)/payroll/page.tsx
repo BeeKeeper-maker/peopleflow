@@ -32,6 +32,7 @@ import {
     Banknote,
     Lock,
     RotateCcw,
+    Smartphone,
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
@@ -227,6 +228,53 @@ export default function PayrollPage() {
             }
         } catch {
             addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    // ── bKash disbursement ──
+    // Calls the disbursement engine via POST /api/payroll/disburse. The
+    // engine loads encrypted credentials from Organization.settings,
+    // calls the bKash B2C API, and (on success) marks the slip as paid
+    // with paymentMode="bkash" + transactionRef=trnxID.
+    const handleDisburseBkash = async (slipId: string, employeeName: string) => {
+        const ok = await confirm({
+            title: "Disburse via bKash?",
+            description: `This will call the bKash API to send net salary to ${employeeName}'s bKash wallet. The transaction is irreversible.`,
+            confirmLabel: "Disburse",
+            variant: "default",
+        })
+        if (!ok) return
+
+        setSlipActionLoading(`${slipId}:disburse`)
+        try {
+            const res = await fetch("/api/payroll/disburse", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ slipIds: [slipId], channel: "bkash" }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.success) {
+                addToast({
+                    title: "Disbursed via bKash",
+                    description: data.reference ? `Transaction ID: ${data.reference}` : undefined,
+                    type: "success",
+                })
+                invalidatePayroll()
+            } else {
+                addToast({
+                    title: "Disbursement failed",
+                    description: typeof data.error === "string"
+                        ? data.error
+                        : typeof data.message === "string"
+                            ? data.message
+                            : "bKash API rejected the request.",
+                    type: "error",
+                })
+            }
+        } catch {
+            addToast({ title: "Network error during disbursement", type: "error" })
         } finally {
             setSlipActionLoading(null)
         }
@@ -643,6 +691,45 @@ export default function PayrollPage() {
                                                                     {slipActionLoading === `${slip.id}:pay` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
                                                                 </Button>
                                                             )}
+                                                            {/* Disburse via bKash — calls the bKash B2C API.
+                                                                Shown when the slip is eligible for digital disbursement
+                                                                (approved, or paid via a non-bKash channel) and not
+                                                                already locked/reversed. The disbursement engine accepts
+                                                                both "approved" and "paid" statuses; once a bKash
+                                                                disbursement succeeds it stamps paymentMode="bkash" and
+                                                                hides this action on subsequent renders. */}
+                                                            {(() => {
+                                                                const alreadyDisbursedViaBkash =
+                                                                    slip.status === "paid" &&
+                                                                    (slip.paymentMode === "bkash" || slip.paymentMode === "nagad");
+                                                                const eligible =
+                                                                    !slip.isReversed &&
+                                                                    !slip.isLocked &&
+                                                                    !alreadyDisbursedViaBkash &&
+                                                                    (slip.status === "approved" || slip.status === "paid");
+                                                                if (!eligible) return null;
+                                                                return (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 p-0 text-pink-400 hover:text-pink-300 hover:bg-pink-500/10"
+                                                                        onClick={() =>
+                                                                            handleDisburseBkash(
+                                                                                slip.id,
+                                                                                `${slip.employee.firstName} ${slip.employee.lastName}`,
+                                                                            )
+                                                                        }
+                                                                        disabled={slipActionLoading === `${slip.id}:disburse`}
+                                                                        title="Disburse via bKash"
+                                                                    >
+                                                                        {slipActionLoading === `${slip.id}:disburse` ? (
+                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                        ) : (
+                                                                            <Smartphone className="h-4 w-4" />
+                                                                        )}
+                                                                    </Button>
+                                                                );
+                                                            })()}
                                                             {/* Lock (paid → locked) */}
                                                             {slip.status === "paid" && !slip.isLocked && (
                                                                 <Button

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { toNumber } from "@/lib/payroll-engine";
 import { apiLogger } from "@/lib/logger";
 
 // Module-level constant — no re-allocation per request
@@ -195,8 +196,11 @@ export async function GET(req: Request) {
                 const y = d.getFullYear();
 
                 const monthSlips = allPayrolls.filter(s => s.month === m && s.year === y);
-                const totalGross = monthSlips.reduce((sum, s) => sum + s.grossSalary, 0);
-                const totalNet = monthSlips.reduce((sum, s) => sum + s.netSalary, 0);
+                // Phase 1 (Float → Decimal): slip.grossSalary / slip.netSalary are now
+                // Prisma.Decimal. `sum + s.grossSalary` would string-concatenate Decimal
+                // objects (decimal.js does not override `+`). Coerce to JS numbers.
+                const totalGross = monthSlips.reduce((sum, s) => sum + toNumber(s.grossSalary), 0);
+                const totalNet = monthSlips.reduce((sum, s) => sum + toNumber(s.netSalary), 0);
 
                 payrollCostTrend.push({
                     month: `${MONTH_NAMES[d.getMonth()]} ${y}`,

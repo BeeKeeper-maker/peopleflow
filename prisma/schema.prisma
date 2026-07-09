@@ -1087,40 +1087,40 @@ model SalarySlip {
   month Int // 1-12
   year  Int
 
-  // Working days
-  totalWorkingDays Float
-  presentDays      Float
-  absentDays       Float @default(0)
-  leaveDays        Float @default(0)
+  // Working days (Decimal(6,2) — max 9999.99 days; supports half-day workflows)
+  totalWorkingDays Decimal @db.Decimal(6,2)
+  presentDays      Decimal @db.Decimal(6,2)
+  absentDays       Decimal @default(0) @db.Decimal(6,2)
+  leaveDays        Decimal @default(0) @db.Decimal(6,2)
 
-  // Earnings
-  basicSalary      Float
-  houseRent        Float @default(0)
-  medicalAllowance Float @default(0)
-  conveyance       Float @default(0)
-  specialAllowance Float @default(0)
-  overtime         Float @default(0)
-  bonus            Float @default(0) // Legacy ad-hoc bonus
-  festivalBonus    Float @default(0) // Festival bonus (Eid, Durga Puja, etc.)
-  arrears          Float @default(0)
-  otherEarnings    Float @default(0)
-  grossSalary      Float
+  // Earnings (Decimal(18,2) — BDT precision; Float64 cannot represent poisha accurately)
+  basicSalary      Decimal @db.Decimal(18,2)
+  houseRent        Decimal @default(0) @db.Decimal(18,2)
+  medicalAllowance Decimal @default(0) @db.Decimal(18,2)
+  conveyance       Decimal @default(0) @db.Decimal(18,2)
+  specialAllowance Decimal @default(0) @db.Decimal(18,2)
+  overtime         Decimal @default(0) @db.Decimal(18,2)
+  bonus            Decimal @default(0) @db.Decimal(18,2) // Legacy ad-hoc bonus
+  festivalBonus    Decimal @default(0) @db.Decimal(18,2) // Festival bonus (Eid, Durga Puja, etc.)
+  arrears          Decimal @default(0) @db.Decimal(18,2)
+  otherEarnings    Decimal @default(0) @db.Decimal(18,2)
+  grossSalary      Decimal @db.Decimal(18,2)
 
   // Deductions
-  pfEmployee       Float @default(0)
-  incomeTax        Float @default(0)
-  loanDeduction    Float @default(0)
-  advanceDeduction Float @default(0)
-  absentDeduction  Float @default(0)
-  lateDeduction    Float @default(0)
-  otherDeductions  Float @default(0)
-  totalDeductions  Float
+  pfEmployee       Decimal @default(0) @db.Decimal(18,2)
+  incomeTax        Decimal @default(0) @db.Decimal(18,2)
+  loanDeduction    Decimal @default(0) @db.Decimal(18,2)
+  advanceDeduction Decimal @default(0) @db.Decimal(18,2)
+  absentDeduction  Decimal @default(0) @db.Decimal(18,2)
+  lateDeduction    Decimal @default(0) @db.Decimal(18,2)
+  otherDeductions  Decimal @default(0) @db.Decimal(18,2)
+  totalDeductions  Decimal @db.Decimal(18,2)
 
   // Employer contribution
-  pfEmployer Float @default(0)
+  pfEmployer Decimal @default(0) @db.Decimal(18,2)
 
   // Net
-  netSalary Float
+  netSalary Decimal @db.Decimal(18,2)
 
   status         String    @default("draft") // draft, approved, paid, locked
   paymentDate    DateTime?
