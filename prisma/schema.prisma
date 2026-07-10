@@ -18,15 +18,18 @@ datasource db {
 // ============================================
 
 model PlatformAdmin {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String    // bcrypt hash
-  name      String
-  role      String    @default("platform_admin") // platform_admin, platform_super
-  isActive  Boolean   @default(true)
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  email           String    @unique
+  password        String    // bcrypt hash
+  name            String
+  role            String    @default("platform_admin") // platform_admin, platform_super
+  isActive        Boolean   @default(true)
+  lastLogin       DateTime?
+  // 2FA fields (Phase 0.3 — Platform Admin 2FA)
+  twoFactorEnabled    Boolean  @default(false)
+  twoFactorSecret     String?  // TOTP secret (encrypted at rest in production)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   impersonationSessions ImpersonationSession[]
@@ -136,6 +139,7 @@ model Plan {
   maxBranches  Int @default(1)
   maxDevices   Int @default(0) // Biometric devices
   maxStorageMB Int @default(500) // File storage limit
+  maxCustomRoles Int @default(0) // 0=none, -1=unlimited (Starter=0, Growth=10, Enterprise=-1)
 
   // Feature Flags
   features Json @default("{}")
@@ -225,6 +229,29 @@ model Invoice {
   @@index([dueDate])
 }
 
+// ============================================
+// STRIPE WEBHOOK IDEMPOTENCY (DB-backed)
+// ============================================
+//
+// Stripe webhook idempotency previously relied solely on Redis. If Redis
+// evicted the key (memory pressure, restart), the same event could be
+// reprocessed. This table is the durable source of truth — the Redis
+// layer remains as a fast-path cache (10-min processing claim) but the
+// DB row is what prevents reprocessing after Redis eviction.
+//
+// Written via withPlatform() (RLS bypass) because Stripe webhooks are
+// cross-tenant — there is no organization context at webhook time.
+
+model StripeEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // Stripe event id (e.g. "evt_1Pabc...")
+  eventType   String   // e.g. "invoice.payment_succeeded"
+  processedAt DateTime @default(now())
+  status      String   @default("processed") // processed, failed (future)
+
+  @@index([eventType])
+}
+
 model UsageRecord {
   id         String   @id @default(cuid())
   metric     String   // "api_calls", "storage_mb", "active_employees"
@@ -274,6 +301,14 @@ model Organization {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // BD Compliance Fields
+  binNumber         String?  // Business Identification Number (NBR)
+  tinNumber         String?  // Tax Identification Number
+  vatNumber         String?  // VAT Registration Number
+  tradeLicenseNumber String? // Trade License (from City Corporation)
+  tradeLicenseExpiry DateTime? // Trade license expiry date
+  binExpiry          DateTime? // BIN registration expiry
+
   // SaaS Fields
   status          String    @default("active") // active, suspended, deactivated
   suspendedAt     DateTime?
@@ -290,6 +325,7 @@ model Organization {
   employees          Employee[]
   holidayLists       HolidayList[]
   leaveTypes         LeaveType[]
+  leaveEncashmentRequests LeaveEncashmentRequest[]
   salaryStructures   SalaryStructure[]
   announcements      Announcement[]
   auditLogs          AuditLog[]
@@ -324,6 +360,23 @@ model Organization {
   // Platform support
   supportIssues         PlatformSupportIssue[]
 
+  // RBAC v2
+  roles                 Role[]
+  userRoleAssignments   UserRoleAssignment[]
+
+  // Custom Reports
+  savedReports          SavedReport[]
+  scheduledReports      ScheduledReport[]
+
+  // Digital Disbursement
+  salaryDisbursements   SalaryDisbursement[]
+
+  // Custom Fields
+  customFields          CustomField[]
+
+  // Biometric Punch Ledger (raw punch storage)
+  biometricPunches      BiometricPunch[]
+
   @@index([status])
 }
 
@@ -344,6 +397,11 @@ model User {
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
   twoFactorSecret  String?
+  // 2FA recovery codes — bcrypt-hashed, shown ONCE at setup.
+  // User can use these to log in if they lose their authenticator device.
+  // Each code is single-use (removed from the array after use).
+  twoFactorRecoveryCodes String[] @default([])
+  twoFactorRecoveryCodesGeneratedAt DateTime?
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -353,8 +411,10 @@ model User {
   accounts         Account[]
   sessions         Session[]
   notifications    Notification[]
+  notificationPreference NotificationPreference?
   passwordHistory  PasswordHistory[]
   rbacPermissions  RBACPermission[]
+  roleAssignments  UserRoleAssignment[]
 }
 
 model Account {
@@ -443,7 +503,7 @@ model Department {
   code        String?
   description String?
   parentId    String?
-  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children    Department[] @relation("DepartmentHierarchy")
   managerId   String?
   isActive    Boolean      @default(true)
@@ -577,6 +637,8 @@ model Employee {
   firstName      String
   lastName       String
   bengaliName    String?
+  firstNameBn    String?  // Bengali first name (separate from bengaliName)
+  lastNameBn     String?  // Bengali last name
   email          String?
   phone          String?
   dateOfBirth    DateTime?
@@ -584,9 +646,18 @@ model Employee {
   bloodGroup     String?
   maritalStatus  String? // single, married, divorced, widowed
   nationality    String    @default("Bangladeshi")
+  religion       String?  // islam, hinduism, buddhism, christianity, other (festival bonus eligibility)
   nidNumber      String?
   passportNumber String?
   photoUrl       String?
+
+  // BD Family Info (needed for compliance + tax exemption)
+  fatherName     String?  // Father's name (BD HR standard)
+  fatherNameBn   String?  // Bengali
+  motherName     String?  // Mother's name
+  motherNameBn   String?  // Bengali
+  spouseName     String?  // Spouse name (for tax exemption)
+  childrenCount  Int?     // Number of children (maternity cap, tax)
 
   // Employment
   joiningDate      DateTime
@@ -604,10 +675,19 @@ model Employee {
   pfEnabled     Boolean @default(true)
   pfNumber      String?
 
+  // BD Mobile Banking (bKash/Nagad for digital payroll disbursement)
+  bkashNumber   String?  // bKash mobile number
+  nagadNumber   String?  // Nagad mobile number
+
   // Addresses (JSON strings)
   presentAddress   String?
   permanentAddress String?
   emergencyContact String?
+
+  // Tax exemption flags (BD Finance Act)
+  isSeniorCitizen     Boolean @default(false) // Age 65+ → higher tax threshold
+  isDisabled          Boolean @default(false) // Disability certificate → higher threshold
+  isFreedomFighter    Boolean @default(false) // Gazette-recognized → highest threshold
 
   // Biometric
   biometricUserId String?  // User ID on biometric device (maps device punch → employee)
@@ -626,19 +706,19 @@ model Employee {
   user   User?   @relation(fields: [userId], references: [id])
 
   departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
   designationId String?
-  designation   Designation? @relation(fields: [designationId], references: [id])
+  designation   Designation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
 
   branchId String?
-  branch   Branch? @relation(fields: [branchId], references: [id])
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   shiftId String?
-  shift   Shift?  @relation(fields: [shiftId], references: [id])
+  shift   Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   reportingManagerId String?
-  reportingManager   Employee?  @relation("ReportingHierarchy", fields: [reportingManagerId], references: [id])
+  reportingManager   Employee?  @relation("ReportingHierarchy", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reportees          Employee[] @relation("ReportingHierarchy")
 
   // Employee data relations
@@ -646,8 +726,10 @@ model Employee {
   attendances       Attendance[]
   leaveAllocations  LeaveAllocation[]
   leaveApplications LeaveApplication[]
+  leaveEncashmentRequests LeaveEncashmentRequest[]
   salaryAssignments SalaryStructureAssignment[]
   salarySlips       SalarySlip[]
+  salaryDisbursements SalaryDisbursement[]
   loans             Loan[]
 
   // Payroll v2
@@ -676,13 +758,23 @@ model Employee {
   documentRequests      DocumentRequest[] @relation("DocumentRequests")
   // email uniqueness handled at application level (optional field)
 
+  // Biometric Punch Ledger (raw punch storage)
+  biometricPunches      BiometricPunch[]
+
   @@unique([organizationId, employeeCode])
+  // Email must be unique per organization (nullable — partial unique index
+  // at the DB level via migration 20260708120000_schema_integrity_fixes).
+  @@unique([organizationId, email])
   // Performance indexes
   @@index([organizationId, employmentStatus])
   @@index([departmentId])
   @@index([designationId])
   @@index([reportingManagerId])
   @@index([deletedAt])
+  // Biometric punch lookup: every punch ingestion queries by
+  // (organizationId, biometricUserId). Without this index, each push
+  // scans all employees in the org linearly — slow for 5000+ employees.
+  @@index([organizationId, biometricUserId])
 }
 
 model EmployeeDocument {
@@ -708,14 +800,16 @@ model EmployeeDocument {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   @@index([employeeId])
   @@index([category])
   @@index([status])
   @@index([expiryDate])
   @@index([deletedAt])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -756,6 +850,7 @@ model LeaveType {
 
   allocations  LeaveAllocation[]
   applications LeaveApplication[]
+  encashmentRequests LeaveEncashmentRequest[]
 
   @@unique([organizationId, code])
 }
@@ -769,13 +864,78 @@ model LeaveAllocation {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   leaveTypeId String
   leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
 
+  encashmentRequests LeaveEncashmentRequest[]
+
+  @@index([organizationId])
   @@unique([employeeId, leaveTypeId, year])
+}
+
+// ============================================
+// Leave Encashment Requests
+// ============================================
+
+/**
+ * LeaveEncashmentRequest — employee request to convert unused leave into cash.
+ *
+ * Workflow:
+ *   pending → approved → paid (included in next payroll)
+ *   pending → rejected
+ *
+ * Calculation:
+ *   encashmentAmount = encashableDays × dailyBasicRate × (encashmentRate / 100)
+ *
+ * Where:
+ *   - encashableDays: min(requestedDays, allocation.allocatedDays - allocation.usedDays - carriedForward)
+ *   - dailyBasicRate: (grossSalary / 30) — uses gross, not basic, for fairness
+ *   - encashmentRate: from LeaveType.encashmentRate (default 100%)
+ *
+ * On approval:
+ *   - LeaveAllocation.usedDays is incremented by encashableDays
+ *   - The encashment amount is queued for inclusion in the next payroll run
+ *     (SalarySlip.otherEarnings or a dedicated encashment line)
+ */
+model LeaveEncashmentRequest {
+  id              String   @id @default(cuid())
+  status          String   @default("pending") // pending, approved, rejected, paid
+  requestedDays   Float    // Days the employee wants to encash
+  encashableDays  Float    // Actual days eligible (after balance check)
+  dailyBasicRate  Float    // (grossSalary / 30) at time of request
+  encashmentRate  Float    // % from LeaveType.encashmentRate
+  encashmentAmount Float   // final amount = encashableDays × dailyBasicRate × (rate/100)
+  reason          String?  // Employee's reason for encashment
+  rejectionReason String?
+  requestedAt     DateTime @default(now())
+  approvedAt      DateTime?
+  approvedById    String?  // Employee ID of approver (HR/manager)
+  paidAt          DateTime? // When included in payroll
+  payrollMonth    Int?     // Month paid in
+  payrollYear     Int?     // Year paid in
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  leaveTypeId String
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+
+  allocationId String?
+  allocation   LeaveAllocation? @relation(fields: [allocationId], references: [id], onDelete: SetNull)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([organizationId])
+  @@index([leaveTypeId])
 }
 
 model LeaveApplication {
@@ -793,6 +953,7 @@ model LeaveApplication {
   approvedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt      DateTime?
 
   // ── Maternity Leave Compliance (BLA 2006, Section 46-47) ──
   // Tracks pre-delivery (8 weeks) and post-delivery (8 weeks) split
@@ -803,11 +964,12 @@ model LeaveApplication {
   preDeliveryDays       Int?      // Days taken before delivery (max 56 = 8 weeks)
   postDeliveryDays      Int?      // Days taken after delivery (max 56 = 8 weeks)
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   leaveTypeId String
-  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id])
+  leaveType   LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
 
   approverId String?
   approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
@@ -817,6 +979,7 @@ model LeaveApplication {
   @@index([status])
   @@index([approverId])
   @@index([fromDate, toDate])
+  @@index([organizationId])
 }
 
 // ============================================
@@ -838,14 +1001,59 @@ model Attendance {
   notes             String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   @@unique([employeeId, date])
   // Performance indexes
   @@index([date])
   @@index([status])
+  @@index([organizationId])
+}
+
+// ============================================
+// Biometric Punch Ledger — Raw Punch Storage
+// ============================================
+// Industry-standard approach: store EVERY raw punch as a separate row.
+// This ensures no punch is ever lost, even when:
+//   - Punches arrive in separate sync batches (real-time sync)
+//   - The same punch is re-synced (idempotent via unique constraint)
+//   - Network interruptions cause partial batches
+//
+// Attendance.checkIn/checkOut are DERIVED from this ledger:
+//   checkIn  = MIN(BiometricPunch.punchTime) for (employee, shiftDate)
+//   checkOut = MAX(BiometricPunch.punchTime) for (employee, shiftDate)
+//
+// Break time is calculated from intermediate punches:
+//   For 4 punches [09:00, 13:00, 14:00, 18:00]:
+//     break = (14:00 - 13:00) = 60 min lunch break
+//     netWork = (18:00 - 09:00) - 60min = 8 hours
+
+model BiometricPunch {
+  id              String   @id @default(cuid())
+  employeeId      String
+  organizationId  String   // Denormalized for RLS
+  punchTime       DateTime // The actual punch timestamp (UTC)
+  shiftDate       DateTime // The business-local calendar date (start of day, UTC)
+  deviceUserId    String   // The biometric device's user ID
+  punchType       Int?     // 0=checkIn, 1=checkOut (ZKTeco convention), null=unknown
+  deviceId        String?  // Optional: which device recorded this punch
+  deviceSerial    String?  // Optional: device serial number for audit
+  source          String   @default("biometric") // biometric, manual, web
+  createdAt       DateTime @default(now())
+
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Prevent duplicate punch ingestion (idempotent re-sync)
+  @@unique([employeeId, punchTime])
+  @@index([employeeId, shiftDate])
+  @@index([shiftDate])
+  @@index([organizationId])
+  @@index([deviceId])
 }
 
 // ============================================
@@ -859,14 +1067,14 @@ model SalaryStructure {
   description String?
 
   // Earnings (percentages or fixed amounts)
-  basicPercentage  Float @default(50) // % of gross
-  houseRentPercent Float @default(50) // % of basic
-  medicalPercent   Float @default(10) // % of basic
-  conveyanceFixed  Float @default(0)
+  basicPercentage  Decimal @default(50) @db.Decimal(5,2) // % of gross
+  houseRentPercent Decimal @default(50) @db.Decimal(5,2) // % of basic
+  medicalPercent   Decimal @default(10) @db.Decimal(5,2) // % of basic
+  conveyanceFixed  Decimal @default(0) @db.Decimal(18,2)
 
   // Deductions
-  pfEmployeePercent Float @default(10) // % of basic
-  pfEmployerPercent Float @default(10)
+  pfEmployeePercent Decimal @default(10) @db.Decimal(5,2) // % of basic
+  pfEmployerPercent Decimal @default(10) @db.Decimal(5,2)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -882,21 +1090,24 @@ model SalaryStructure {
 
 model SalaryStructureAssignment {
   id            String    @id @default(cuid())
-  grossSalary   Float
+  grossSalary   Decimal   @db.Decimal(18,2)
   effectiveFrom DateTime
   effectiveTo   DateTime?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   salaryStructureId String
   salaryStructure   SalaryStructure @relation(fields: [salaryStructureId], references: [id])
 
   @@index([employeeId])
   @@index([isActive])
+  @@index([deletedAt])
 }
 
 model SalarySlip {
@@ -904,56 +1115,129 @@ model SalarySlip {
   month Int // 1-12
   year  Int
 
-  // Working days
-  totalWorkingDays Float
-  presentDays      Float
-  absentDays       Float @default(0)
-  leaveDays        Float @default(0)
+  // Working days (Decimal(6,2) — max 9999.99 days; supports half-day workflows)
+  totalWorkingDays Decimal @db.Decimal(6,2)
+  presentDays      Decimal @db.Decimal(6,2)
+  absentDays       Decimal @default(0) @db.Decimal(6,2)
+  leaveDays        Decimal @default(0) @db.Decimal(6,2)
 
-  // Earnings
-  basicSalary      Float
-  houseRent        Float @default(0)
-  medicalAllowance Float @default(0)
-  conveyance       Float @default(0)
-  specialAllowance Float @default(0)
-  overtime         Float @default(0)
-  bonus            Float @default(0) // Legacy ad-hoc bonus
-  festivalBonus    Float @default(0) // Festival bonus (Eid, Durga Puja, etc.)
-  arrears          Float @default(0)
-  otherEarnings    Float @default(0)
-  grossSalary      Float
+  // Earnings (Decimal(18,2) — BDT precision; Float64 cannot represent poisha accurately)
+  basicSalary      Decimal @db.Decimal(18,2)
+  houseRent        Decimal @default(0) @db.Decimal(18,2)
+  medicalAllowance Decimal @default(0) @db.Decimal(18,2)
+  conveyance       Decimal @default(0) @db.Decimal(18,2)
+  specialAllowance Decimal @default(0) @db.Decimal(18,2)
+  overtime         Decimal @default(0) @db.Decimal(18,2)
+  bonus            Decimal @default(0) @db.Decimal(18,2) // Legacy ad-hoc bonus
+  festivalBonus    Decimal @default(0) @db.Decimal(18,2) // Festival bonus (Eid, Durga Puja, etc.)
+  arrears          Decimal @default(0) @db.Decimal(18,2)
+  otherEarnings    Decimal @default(0) @db.Decimal(18,2)
+  grossSalary      Decimal @db.Decimal(18,2)
 
   // Deductions
-  pfEmployee       Float @default(0)
-  incomeTax        Float @default(0)
-  loanDeduction    Float @default(0)
-  advanceDeduction Float @default(0)
-  absentDeduction  Float @default(0)
-  lateDeduction    Float @default(0)
-  otherDeductions  Float @default(0)
-  totalDeductions  Float
+  pfEmployee       Decimal @default(0) @db.Decimal(18,2)
+  incomeTax        Decimal @default(0) @db.Decimal(18,2)
+  loanDeduction    Decimal @default(0) @db.Decimal(18,2)
+  advanceDeduction Decimal @default(0) @db.Decimal(18,2)
+  absentDeduction  Decimal @default(0) @db.Decimal(18,2)
+  lateDeduction    Decimal @default(0) @db.Decimal(18,2)
+  otherDeductions  Decimal @default(0) @db.Decimal(18,2)
+  totalDeductions  Decimal @db.Decimal(18,2)
 
   // Employer contribution
-  pfEmployer Float @default(0)
+  pfEmployer Decimal @default(0) @db.Decimal(18,2)
 
   // Net
-  netSalary Float
+  netSalary Decimal @db.Decimal(18,2)
 
-  status         String    @default("draft") // draft, approved, paid
+  status         String    @default("draft") // draft, approved, paid, locked
   paymentDate    DateTime?
   paymentMode    String? // bank_transfer, cash, cheque
   transactionRef String?
 
+  // Lock: once paid, a slip is locked and cannot be re-processed.
+  // Lock can only be removed via explicit unlock (with audit log).
+  isLocked        Boolean   @default(false)
+  lockedAt        DateTime?
+  lockedById      String?   // User ID who locked
+  lockedReason    String?
+
+  // Reversal: if a paid slip needs correction, it's reversed (not deleted).
+  // A new corrected slip is then re-processed.
+  isReversed      Boolean   @default(false)
+  reversedAt      DateTime?
+  reversedById    String?
+  reversedReason  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt      DateTime?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
+
+  disbursements SalaryDisbursement[]
 
   @@unique([employeeId, month, year])
   // Performance indexes
   @@index([month, year])
   @@index([status])
+}
+
+// ============================================
+// Digital Disbursement (bKash / Nagad / Bank)
+// ============================================
+
+/**
+ * SalaryDisbursement — tracks individual salary payment disbursements.
+ *
+ * Supports 3 channels:
+ *   - bank_transfer: Traditional bank EFT (existing bank file flow)
+ *   - bkash: bKash personal disbursement API (mobile wallet)
+ *   - nagad: Nagad disbursement API (mobile wallet)
+ *
+ * For bKash/Nagad, the disbursement is initiated via the provider's API.
+ * The status tracks: pending → processing → success / failed.
+ * A single salary slip can have multiple disbursement attempts (retries).
+ *
+ * bKash disbursement requires:
+ *   - Organization-level bKash credentials (stored encrypted)
+ *   - Employee's bKash account number (stored on Employee.bkashNumber)
+ *
+ * Nagad disbursement requires:
+ *   - Organization-level Nagad credentials
+ *   - Employee's Nagad account number
+ */
+model SalaryDisbursement {
+  id              String   @id @default(cuid())
+  amount          Decimal                        @db.Decimal(18,2) // Amount in BDT
+  channel         String                         // bank_transfer, bkash, nagad
+  status          String   @default("pending")   // pending, processing, success, failed, refunded
+  reference       String?                        // Provider transaction ID
+  providerResponse Json?                         // Full provider response (for audit)
+  errorMessage    String?
+  initiatedAt     DateTime @default(now())
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  salarySlipId    String
+  salarySlip      SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
+
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([salarySlipId])
+  @@index([employeeId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([channel])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -963,21 +1247,23 @@ model SalarySlip {
 model Loan {
   id              String    @id @default(cuid())
   type            String // salary_advance, emergency, personal, etc.
-  amount          Float
-  interestRate    Float     @default(0)
+  amount          Decimal  @db.Decimal(18,2)
+  interestRate    Decimal  @default(0) @db.Decimal(5,2)
   tenure          Int // months
-  emiAmount       Float
-  disbursedAmount Float     @default(0)
-  paidAmount      Float     @default(0)
-  remainingAmount Float
+  emiAmount       Decimal  @db.Decimal(18,2)
+  disbursedAmount Decimal  @default(0) @db.Decimal(18,2)
+  paidAmount      Decimal  @default(0) @db.Decimal(18,2)
+  remainingAmount Decimal  @db.Decimal(18,2)
   status          String    @default("pending") // pending, approved, rejected, disbursed, closed
   reason          String?
   approvedAt      DateTime?
   disbursedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt      DateTime?
 
   employeeId String
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   approverId String?
@@ -992,20 +1278,22 @@ model Loan {
 model LoanRepayment {
   id            String   @id @default(cuid())
   installmentNo Int
-  amount        Float
-  principalPart Float
-  interestPart  Float
+  amount        Decimal  @db.Decimal(18,2)
+  principalPart Decimal  @db.Decimal(18,2)
+  interestPart  Decimal  @db.Decimal(18,2)
   paidDate      DateTime
   method        String   @default("payroll") // payroll, bank_transfer, cash
   reference     String?  // Transaction reference number
   note          String?
   createdAt     DateTime @default(now())
+  deletedAt     DateTime?
 
   loanId String
   loan   Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@index([loanId])
   @@index([paidDate])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -1027,7 +1315,7 @@ model FestivalBonusConfig {
 
   // Calculation rules
   calculationBasis  String  @default("basic") // basic, gross
-  percentageOfBasis Float   @default(100)     // 50%, 100%, 200% of basic/gross
+  percentageOfBasis Decimal @default(100) @db.Decimal(5,2) // 50%, 100%, 200% of basic/gross
 
   // Eligibility rules
   minimumServiceDays  Int     @default(180)     // Must have worked N days to be eligible (6 months)
@@ -1057,10 +1345,10 @@ model FestivalBonusConfig {
  */
 model FestivalBonusPayment {
   id                String   @id @default(cuid())
-  amount            Float    // Calculated bonus amount
-  basisAmount       Float    // The basic/gross used for calculation
-  percentageApplied Float    // Actual % applied (may differ if pro-rated)
-  proRataFactor     Float    @default(1.0)  // 1.0 = full, 0.5 = half year, etc.
+  amount            Decimal  @db.Decimal(18,2) // Calculated bonus amount
+  basisAmount       Decimal  @db.Decimal(18,2) // The basic/gross used for calculation
+  percentageApplied Decimal  @db.Decimal(5,2)  // Actual % applied (may differ if pro-rated)
+  proRataFactor     Decimal  @default(1.0) @db.Decimal(5,4)  // 1.0 = full, 0.5 = half year, etc.
   isProRated        Boolean  @default(false)
   status            String   @default("pending") // pending, included_in_payroll, paid, cancelled
   payrollMonth      Int?     // Month this bonus was included in payroll
@@ -1068,8 +1356,10 @@ model FestivalBonusPayment {
   notes             String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
 
   employeeId String
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   bonusConfigId String
@@ -1079,6 +1369,7 @@ model FestivalBonusPayment {
   @@index([employeeId])
   @@index([bonusConfigId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 // ============================================
@@ -1133,7 +1424,7 @@ model LateDeductionTier {
 
   // Deduction per late in this tier
   deductionType  String @default("none") // none, half_day, full_day, fixed_amount, percentage_of_daily
-  deductionValue Float  @default(0)      // For fixed_amount: BDT value. For percentage_of_daily: % (e.g., 50 = half day)
+  deductionValue Decimal @default(0) @db.Decimal(18,2) // For fixed_amount: BDT value. For percentage_of_daily: % (e.g., 50 = half day)
 
   // Administrative action
   issueWarning  Boolean @default(false) // Generate a warning notification
@@ -1164,17 +1455,18 @@ model PFAccount {
   closingDate         DateTime?
 
   // Running balances (updated on each transaction)
-  employeeBalance     Float    @default(0) // Total employee contributions
-  employerBalance     Float    @default(0) // Total employer contributions
-  interestBalance     Float    @default(0) // Total interest accrued
-  totalBalance        Float    @default(0) // employee + employer + interest
+  employeeBalance     Decimal  @default(0) @db.Decimal(18,2) // Total employee contributions
+  employerBalance     Decimal  @default(0) @db.Decimal(18,2) // Total employer contributions
+  interestBalance     Decimal  @default(0) @db.Decimal(18,2) // Total interest accrued
+  totalBalance        Decimal  @default(0) @db.Decimal(18,2) // employee + employer + interest
 
   // Last interest calculation
   lastInterestDate    DateTime?
-  interestRate        Float    @default(12.0) // Annual interest rate (BD standard: 12%)
+  interestRate        Decimal  @default(12.0) @db.Decimal(5,2) // Annual interest rate (BD standard: 12%)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   employeeId String @unique // One PF account per employee
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1186,6 +1478,7 @@ model PFAccount {
 
   @@index([organizationId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 /**
@@ -1202,13 +1495,15 @@ model PFAccount {
 model PFTransaction {
   id              String   @id @default(cuid())
   transactionType String   // employee_contribution, employer_contribution, interest_credit, withdrawal, settlement, adjustment
-  amount          Float    // Positive for credits, negative for debits
-  runningBalance  Float    // Balance AFTER this transaction
+  amount          Decimal  @db.Decimal(18,2) // Positive for credits, negative for debits
+  runningBalance  Decimal  @db.Decimal(18,2) // Balance AFTER this transaction
   description     String   // "March 2025 Employee Contribution", "FY2024-25 Interest @12%"
   referenceMonth  Int?     // For contributions: month (1-12)
   referenceYear   Int?     // For contributions: year
   transactionDate DateTime @default(now())
   createdAt       DateTime @default(now())
+  deletedAt       DateTime?
+  organizationId String      // Denormalized for RLS (NOT NULL — backfill complete)
 
   pfAccountId String
   pfAccount   PFAccount @relation(fields: [pfAccountId], references: [id], onDelete: Cascade)
@@ -1217,6 +1512,128 @@ model PFTransaction {
   @@index([transactionType])
   @@index([transactionDate])
   @@index([referenceMonth, referenceYear])
+  @@index([deletedAt])
+}
+
+// ============================================
+// Custom Fields Builder
+// ============================================
+
+/**
+ * CustomField — admin-defined field that extends a standard entity.
+ *
+ * Entities supported: Employee (primary use case), Attendance, LeaveApplication.
+ *
+ * Field types:
+ *   text: single-line string
+ *   textarea: multi-line string
+ *   number: numeric value
+ *   date: date picker
+ *   select: dropdown with predefined options
+ *   boolean: yes/no toggle
+ *
+ * The value is stored in the entity's `customFields` JSONB column
+ * (e.g., Employee.customFields = { "blood_group": "O+", "emergency_contact": "..." }).
+ *
+ * This table defines the FIELD SCHEMA (label, type, options, required).
+ * The actual VALUES are stored per-entity in the JSONB column.
+ */
+model CustomField {
+  id              String   @id @default(cuid())
+  label           String                         // "Blood Group", "Emergency Contact"
+  key             String                         // "blood_group" — used in customFields JSONB
+  entityType      String                         // Employee, Attendance, LeaveApplication
+  fieldType       String                         // text, textarea, number, date, select, boolean
+  options         String[]                       // for select type: ["O+", "A+", "B+", "AB+", "O-", "A-", "B-", "AB-"]
+  isRequired      Boolean  @default(false)
+  isFilterable    Boolean  @default(false)       // show in report builder filters
+  isSearchable    Boolean  @default(false)       // include in global search
+  defaultValue    String?
+  description     String?
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entityType, key])
+  @@index([organizationId, entityType])
+  @@index([isActive])
+}
+
+// ============================================
+// Custom Reports & Saved Views
+// ============================================
+
+/**
+ * SavedReport — a user-defined custom report configuration.
+ *
+ * Users (HR/admin) can build custom reports by:
+ *   1. Selecting a data source (employees, attendance, payroll, leave, expenses)
+ *   2. Selecting fields to include
+ *   3. Applying filters (date range, department, status, etc.)
+ *   4. Choosing a format (table, bar chart, line chart, pie chart)
+ *   5. Saving the configuration for reuse
+ *
+ * The report is executed on-demand by POST /api/reports/custom/[id]/run
+ * or scheduled via ScheduledReport (email delivery).
+ */
+model SavedReport {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  dataSource      String   // employees, attendance, payroll, leave, expenses, loans
+  fields          String[] // selected field keys: ["firstName", "lastName", "department.name"]
+  filters         Json     @default("{}") // { "departmentId": "...", "status": "active", "dateFrom": "...", "dateTo": "..." }
+  groupBy         String?  // optional field to group by
+  chartType       String?  // table, bar, line, pie — null = table only
+  isShared        Boolean  @default(false) // shared with other admins in the org
+
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  schedules       ScheduledReport[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+  @@index([dataSource])
+}
+
+/**
+ * ScheduledReport — a saved report scheduled for automatic email delivery.
+ *
+ * Cron: daily at 9 AM BD time, weekly on Monday 9 AM, monthly on the 1st.
+ * The scheduled-report-worker picks up due schedules, runs the report,
+ * generates a PDF/CSV, and emails it to the recipients.
+ */
+model ScheduledReport {
+  id              String   @id @default(cuid())
+  frequency       String   // daily, weekly, monthly
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  recipients      String[] // user IDs to email
+  format          String   @default("pdf") // pdf, csv, xlsx
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  savedReportId   String
+  savedReport     SavedReport @relation(fields: [savedReportId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([nextRunAt])
+  @@index([organizationId])
+  @@index([savedReportId])
 }
 
 // ============================================
@@ -1251,10 +1668,11 @@ model Notification {
   id        String    @id @default(cuid())
   title     String
   message   String
-  type      String // leave_approval, payroll, announcement, reminder, etc.
+  type      String // leave_approval, payroll, announcement, reminder, alert, etc.
   link      String?
   isRead    Boolean   @default(false)
   readAt    DateTime?
+  deletedAt DateTime?
   createdAt DateTime  @default(now())
 
   userId String
@@ -1263,6 +1681,53 @@ model Notification {
   // Performance indexes
   @@index([userId, isRead])
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([deletedAt])
+}
+
+/**
+ * NotificationPreference — per-user control over notification channels.
+ *
+ * Each user can independently enable/disable:
+ *   - in_app: bell icon in the dashboard
+ *   - email: SMTP email
+ *   - push: web push notification (PWA service worker)
+ *
+ * Per category (leave, payroll, attendance, etc.), so a user can get
+ * email for payroll but only in-app for announcements.
+ *
+ * digestMode: if "instant" → each event fires immediately
+ *             if "daily" → events batched into one daily summary email
+ *             if "weekly" → events batched into one weekly summary
+ */
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Channel toggles (global defaults)
+  inAppEnabled    Boolean  @default(true)
+  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean  @default(false)
+
+  // Digest mode
+  digestMode      String   @default("instant") // instant, daily, weekly
+
+  // Quiet hours (no push/email during these hours, BD local time)
+  quietHoursStart String?  // "22:00" — null = no quiet hours
+  quietHoursEnd   String?  // "07:00"
+
+  // Per-category overrides (JSON: { "leave_approval": { "email": false }, ... })
+  // If a category is not in the map, use the global defaults above.
+  categoryOverrides Json?  @default("{}")
+
+  // Push subscription endpoint (for web push)
+  pushSubscription Json?   // { endpoint, keys: { p256dh, auth } }
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ============================================
@@ -1518,12 +1983,24 @@ model ExpenseCategory {
   name            String // Travel, Meals, Software, Office Supplies, etc.
   nameBn          String? // Bengali name
   description     String?
-  maxAmount       Float? // Maximum claimable amount per claim
-  monthlyLimit    Float? // Monthly limit per employee
+  maxAmount       Decimal? @db.Decimal(18,2) // Maximum claimable amount per claim
+  monthlyLimit    Decimal? @db.Decimal(18,2) // Monthly limit per employee
   requiresReceipt Boolean  @default(true)
   isActive        Boolean  @default(true)
   icon            String? // Icon name for UI
   color           String? // Color for UI
+
+  // Category type: standard, mileage, per_diem
+  // mileage: distance-based (e.g., fuel reimbursement per km)
+  // per_diem: daily allowance (e.g., travel allowance per day)
+  categoryType    String   @default("standard") // standard, mileage, per_diem
+
+  // For mileage categories: rate per km (in BDT)
+  mileageRate     Decimal? @db.Decimal(18,2) // e.g., 15.0 BDT per km
+
+  // For per-diem categories: daily rate (in BDT)
+  perDiemRate     Decimal? @db.Decimal(18,2) // e.g., 1500.0 BDT per day
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1542,9 +2019,30 @@ model ExpenseClaim {
   // Claim details
   title       String
   description String?
-  amount      Float
-  currency    String   @default("BDT")
+  amount      Decimal  @db.Decimal(18,2) // Original amount in the expense currency
+  currency    String   @default("BDT") // ISO 4217: BDT, USD, EUR, GBP, INR, etc.
   expenseDate DateTime // Date when expense occurred
+
+  // Multi-currency support
+  // exchangeRate: 1 unit of `currency` = exchangeRate units of BDT
+  // amountInBDT: amount × exchangeRate (computed at submission time)
+  // If currency is BDT, exchangeRate = 1 and amountInBDT = amount
+  exchangeRate  Decimal  @default(1.0) @db.Decimal(18,6)
+  amountInBDT   Decimal  @default(0) @db.Decimal(18,2) // Converted amount in BDT for payroll/reports
+
+  // Mileage tracking (for categoryType = "mileage")
+  distance      Float?   // Distance in km
+  distanceUnit  String?  // km, mile (default: km)
+  // amount = distance × category.mileageRate (computed)
+
+  // Per-diem tracking (for categoryType = "per_diem")
+  perDiemDays   Float?   // Number of days (can be fractional: 0.5 for half day)
+  perDiemRate   Decimal? @db.Decimal(18,2) // Daily rate (copied from category at submission time)
+  // amount = perDiemDays × perDiemRate (computed)
+
+  // Policy violation flag (set by policy engine)
+  policyViolation String? // null = no violation, or description of violation
+  policyViolationType String? // over_limit, missing_receipt, duplicate, out_of_policy
 
   // Receipt/proof
   receiptUrl  String?
@@ -1584,6 +2082,31 @@ model ExpenseClaim {
   @@index([categoryId])
   @@index([status])
   @@index([expenseDate])
+  @@index([currency])
+}
+
+/**
+ * ExchangeRate — cached currency exchange rates for expense conversion.
+ *
+ * Rates are fetched from an external API (e.g., exchangerate-api.com)
+ * daily by a cron job and cached here. The expense submission flow
+ * reads the latest rate for the claim's currency.
+ *
+ * baseCurrency: always "BDT" for PeopleFlow (Bangladesh-focused)
+ * quoteCurrency: the foreign currency (USD, EUR, etc.)
+ * rate: 1 quoteCurrency = rate BDT
+ */
+model ExchangeRate {
+  id              String   @id @default(cuid())
+  baseCurrency    String   @default("BDT")
+  quoteCurrency   String   // USD, EUR, GBP, INR, etc.
+  rate            Decimal  @db.Decimal(18,6) // 1 USD = rate BDT
+  fetchedAt       DateTime @default(now())
+  source          String?  // exchangerate-api, manual, etc.
+
+  @@unique([baseCurrency, quoteCurrency])
+  @@index([quoteCurrency])
+  @@index([fetchedAt])
 }
 
 // ============================================
@@ -1763,6 +2286,128 @@ model RBACPermission {
 }
 
 // ============================================
+// RBAC v2 — Custom Roles, Permission Catalog, Assignments
+// ============================================
+
+/**
+ * Role — a named set of permissions, either system-defined (5 built-in)
+ * or tenant-defined (custom roles created by the org admin).
+ *
+ * System roles (isSystem=true): super_admin, admin, hr_admin, manager, employee.
+ *   - Cannot be deleted.
+ *   - Permissions can be EXTENDED but not REMOVED (to preserve invariants).
+ *
+ * Custom roles (isSystem=false): fully editable by org admin.
+ *   - Subject to Plan.maxCustomRoles limit.
+ *
+ * Backward compatibility:
+ *   User.role (String) remains the "primary role slug" for fast lookup.
+ *   UserRoleAssignment is the source of truth for multi-role (future).
+ *   For now, single-role assignment via UserRoleAssignment mirrors User.role.
+ */
+model Role {
+  id              String   @id @default(cuid())
+  name            String                          // "Branch Manager", "Finance Officer"
+  slug            String                          // "branch_manager" — used in User.role
+  description     String?
+  isSystem        Boolean  @default(false)        // true for 5 built-in roles — cannot be deleted
+  isDefault       Boolean  @default(false)        // true for the role assigned to new users
+  dashboardConfig Json?                           // { widgets: [...] } — per-role dashboard
+  color           String?                         // UI badge color
+  sortOrder       Int      @default(0)            // display order in role list
+
+  // Null = global system role; else tenant-scoped custom role
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  rolePermissions RolePermission[]
+  userAssignments UserRoleAssignment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, slug])                // (null, "admin") and (orgId, "branch_manager") both valid
+  @@index([organizationId])
+  @@index([isSystem])
+}
+
+/**
+ * Permission — system-defined catalog of all available permissions.
+ * Not tenant-editable (admin can't create new permission keys).
+ * Seeded once during migration; new permissions added via future migrations.
+ */
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique                     // "payroll:process", "leave:approve"
+  module      String                              // "payroll", "leave", "attendance", ...
+  action      String                              // "view", "create", "edit", "delete", "approve", "process"
+  description String?
+  isDangerous Boolean @default(false)             // true for destructive: delete, payroll:process
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@index([action])
+}
+
+/**
+ * RolePermission — grants a Permission to a Role, with optional scope.
+ *
+ * Scope determines the data visibility for that permission:
+ *   global     → entire organization
+ *   department → only specified departmentIds
+ *   branch     → only specified branchIds
+ *   self       → only the user's own records
+ *   team       → only direct reportees (for manager-style roles)
+ */
+model RolePermission {
+  id              String   @id @default(cuid())
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId    String
+  permission      Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  scope           String   @default("global")     // global, department, branch, self, team
+  departmentIds   Json?                            // for scope=department: ["dept_1", "dept_2"]
+  branchIds       Json?                            // for scope=branch: ["branch_1"]
+
+  createdAt       DateTime @default(now())
+
+  @@unique([roleId, permissionId, scope])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+/**
+ * UserRoleAssignment — assigns a Role to a User.
+ *
+ * In v1 (current): each user has exactly ONE assignment mirroring User.role.
+ *   This exists to enable the future multi-role feature without a second migration.
+ *
+ * In v2 (future): a user can have MULTIPLE assignments. Effective permissions
+ *   = union of all assigned roles' permissions.
+ *
+ * expiresAt: optional time-bounded assignment (e.g., "acting manager for 2 weeks").
+ */
+model UserRoleAssignment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedBy      String?                           // User ID who assigned
+  assignedAt      DateTime @default(now())
+  expiresAt       DateTime?                         // optional time-bounded assignment
+
+  @@unique([userId, roleId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================
 // Document Requests (Employee Self-Service)
 // ============================================
 
@@ -1803,6 +2448,12 @@ model BiometricDevice {
   connectionMode  String    @default("sync_agent") // sync_agent, direct_cloud
   cloudProtocol   String?                         // adms, iclock, zkteco_push
   cloudStatus     String    @default("pending")   // pending, connected, warning, failed
+  // Per-device shared secret for direct-cloud auth (HMAC).
+  // When set, /iclock/* and /api/biometric-devices/adms-capture routes
+  // require an X-PeopleFlow-Signature header = HMAC-SHA256(body, secret).
+  // When null, the device is in "claim mode" — punches are captured to
+  // BiometricCloudEvent but NOT ingested until the admin assigns a secret.
+  cloudSecretHash String?                         // sha256(cloudSecret) — never store raw secret
   location        String?                         // Physical location description
   isActive        Boolean   @default(true)
   lastSyncAt      DateTime?                       // Last successful sync
@@ -1824,10 +2475,19 @@ model BiometricDevice {
   updatedAt DateTime @updatedAt
 
   branchId       String?
-  branch         Branch?      @relation(fields: [branchId], references: [id])
+  branch         Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // ── Sync Agent Link ──
+  // Links this device card to the SyncApiKey whose agent pushes data for it.
+  // The agent's push authenticates the API key; we then use this link to
+  // resolve the device card without relying on ip+port matching (which is
+  // fragile for private-LAN devices whose ip is rewritten to adms:SERIAL
+  // when connectionMode = direct_cloud).
+  syncApiKeyId   String?
+  syncApiKey     SyncApiKey? @relation(fields: [syncApiKeyId], references: [id], onDelete: SetNull)
 
   syncLogs    DeviceSyncLog[]
   healthLogs  DeviceHealthLog[]
@@ -1841,6 +2501,7 @@ model BiometricDevice {
   @@index([connectionMode])
   @@index([cloudStatus])
   @@index([lastSeenAt])
+  @@index([syncApiKeyId])
 }
 
 model BiometricCloudEvent {
@@ -1928,6 +2589,9 @@ model SyncApiKey {
 
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Back-relation to devices that use this key
+  biometricDevices BiometricDevice[]
 
   @@index([organizationId])
   @@index([key])

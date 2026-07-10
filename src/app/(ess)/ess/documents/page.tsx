@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 import {
     FileText,
     Download,
@@ -21,16 +23,7 @@ import {
     XCircle,
     RefreshCw,
 } from "lucide-react";
-
-interface DocumentRequest {
-    id: string;
-    type: string;
-    status: string;
-    documentUrl?: string;
-    rejectionNote?: string;
-    createdAt: string;
-    processedAt?: string;
-}
+import { useEssDocuments, type EssDocumentRequest as DocumentRequest } from "@/hooks/use-data";
 
 const labelMap = {
     offer_letter: "offerLetter",
@@ -64,33 +57,23 @@ const requestStatusConfig: Record<string, { color: string; icon: React.ElementTy
 
 export default function ESSDocumentsPage() {
     const t = useTranslations("ESSDocuments");
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
+    const queryClient = useQueryClient();
     const [generating, setGenerating] = useState<string | null>(null);
-    const [myRequests, setMyRequests] = useState<DocumentRequest[]>([]);
-    const [loadingRequests, setLoadingRequests] = useState(true);
-    const [profileMissing, setProfileMissing] = useState(false);
 
-    // Fetch previous document requests
-    useEffect(() => {
-        const fetchRequests = async () => {
-            try {
-                const res = await fetch("/api/ess/document-request");
-                if (res.ok) {
-                    const data = await res.json();
-                    setMyRequests(Array.isArray(data) ? data : []);
-                    setProfileMissing(false);
-                } else if (res.status === 404) {
-                    setProfileMissing(true);
-                }
-            } catch (err) {
-                console.error("Failed to fetch document requests:", err);
-            } finally {
-                setLoadingRequests(false);
-            }
-        };
+    // ── TanStack Query: my document requests ──
+    // The API returns 404 when no employee profile is linked to the user;
+    // we surface that as `profileMissing` to keep the original UX (a friendly
+    // banner instead of an error toast).
+    const { data: myRequests = [], isLoading: loadingRequests, error: requestsError } = useEssDocuments();
+    const profileMissing = (requestsError?.status === 404);
 
-        fetchRequests();
-    }, []);
+    const invalidateDocuments = () => {
+        queryClient.invalidateQueries({ queryKey: ["ess", "documents"] });
+    };
 
     const handleGenerate = async (docType: string) => {
         if (profileMissing) {
@@ -110,10 +93,10 @@ export default function ESSDocumentsPage() {
             if (res.ok) {
                 const data = await res.json();
 
-                // Add the new request to the list
-                if (data.request) {
-                    setMyRequests(prev => [data.request, ...prev]);
-                }
+                // Refresh the cached list from the server — the new request
+                // (with its possibly already-updated "ready" status) will be
+                // in the response.
+                invalidateDocuments();
 
                 if (data.html) {
                     addToast({ type: "success", title: t("requestSuccess") });
@@ -147,10 +130,12 @@ export default function ESSDocumentsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={FileText}
+                iconColor="primary"
+            />
 
             {/* Info banner */}
             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
@@ -252,7 +237,7 @@ export default function ESSDocumentsPage() {
                     </Card>
                 ) : (
                     <div className="space-y-2">
-                        {myRequests.map(req => {
+                        {(myRequests as DocumentRequest[]).map(req => {
                             const statusConf = requestStatusConfig[req.status] || requestStatusConfig.pending;
                             const StatusIcon = statusConf.icon;
                             const docLabelKey = isDocumentTypeValue(req.type) ? labelMap[req.type] : null;
@@ -268,7 +253,7 @@ export default function ESSDocumentsPage() {
                                                         {docLabelKey ? t(docLabelKey) : req.type}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {t("requestedOn")} {new Date(req.createdAt).toLocaleDateString()}
+                                                        {t("requestedOn")} {formatDate(req.createdAt)}
                                                     </p>
                                                 </div>
                                             </div>

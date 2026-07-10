@@ -97,7 +97,7 @@ export function LeaveTab({ data, loading }: LeaveTabProps) {
                     </div>
                     <div>
                         <p className="text-xs text-muted-foreground">Total Used</p>
-                        <p className="text-lg font-bold text-foreground">{data.totalUsed} <span className="text-sm font-normal text-muted-foreground">days</span></p>
+                        <p className="text-lg font-display font-bold text-foreground">{data.totalUsed} <span className="text-sm font-normal text-muted-foreground">days</span></p>
                     </div>
                 </div>
                 <div className="h-8 w-px bg-card-border" />
@@ -107,7 +107,7 @@ export function LeaveTab({ data, loading }: LeaveTabProps) {
                     </div>
                     <div>
                         <p className="text-xs text-muted-foreground">Total Remaining</p>
-                        <p className="text-lg font-bold text-emerald-400">{data.totalRemaining} <span className="text-sm font-normal text-muted-foreground">days</span></p>
+                        <p className="text-lg font-display font-bold text-emerald-400">{data.totalRemaining} <span className="text-sm font-normal text-muted-foreground">days</span></p>
                     </div>
                 </div>
             </div>

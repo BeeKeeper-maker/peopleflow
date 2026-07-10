@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { getPFAccountSummary, getPFStatement } from "@/lib/pf-ledger-engine";
-import { prisma } from "@/lib/prisma";
+
 import { payrollLogger } from "@/lib/logger";
 
 // GET /api/payroll/pf-ledger — Get PF account summary & transactions
@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
 
         // If no employeeId specified, get current user's employee
         if (!employeeId) {
-            const employee = await prisma.employee.findFirst({
+            const employee = await auth.withDB((db) => db.employee.findFirst({
                 where: { userId: auth.userId, organizationId: auth.organizationId },
                 select: { id: true },
-            });
+            }));
             if (!employee) {
                 return NextResponse.json({ data: { summary: null, transactions: [] } });
             }
@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
-        payrollLogger.error({ err: error }, "PF_LEDGER_GET_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "PF_LEDGER_GET_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to fetch PF data" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }

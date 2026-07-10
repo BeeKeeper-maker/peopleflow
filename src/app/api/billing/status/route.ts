@@ -8,49 +8,38 @@
  * - Subscription status
  * - Resource usage vs limits
  * - Billing history (recent invoices)
+ *
+ * SECURITY: All tenant-scoped reads go through `requireAuth()` + `auth.withDB()`
+ * so they are RLS-scoped to the caller's organization and protected by
+ * sessionVersion / isActive / org-status checks enforced in requireAuth().
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { getOrganizationStorageUsage } from "@/lib/storage-usage";
 
 export async function GET() {
-    const session = await auth();
-
-    if (!session?.user?.email) {
-        return NextResponse.json(
-            { error: "Authentication required" },
-            { status: 401 }
-        );
-    }
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const orgId = auth.organizationId;
 
-        if (!user?.organizationId) {
-            return NextResponse.json(
-                { error: "No organization found" },
-                { status: 400 }
-            );
-        }
-
-        const orgId = user.organizationId;
-
-        // Get subscription + plan + recent invoices
-        const subscription = await prisma.subscription.findUnique({
-            where: { organizationId: orgId },
-            include: {
-                plan: true,
-                invoices: {
-                    orderBy: { createdAt: "desc" },
-                    take: 10,
+        // Get subscription + plan + recent invoices (RLS-scoped)
+        const subscription = await auth.withDB((db) =>
+            db.subscription.findUnique({
+                where: { organizationId: orgId },
+                include: {
+                    plan: true,
+                    invoices: {
+                        orderBy: { createdAt: "desc" },
+                        take: 10,
+                    },
                 },
-            },
-        });
+            }),
+        );
 
         if (!subscription) {
             return NextResponse.json({
@@ -59,23 +48,32 @@ export async function GET() {
             });
         }
 
-        // Get current resource counts
-        const [employeeCount, userCount, branchCount] =
-            await prisma.$transaction([
-                prisma.employee.count({
+        // Get current resource counts (RLS-scoped)
+        const [employeeCount, userCount, branchCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.employee.count({
                     where: { organizationId: orgId },
                 }),
-                prisma.user.count({
+                db.user.count({
                     where: {
                         organizationId: orgId,
                         role: { in: ["admin", "hr_admin"] },
                         isActive: true,
                     },
                 }),
-                prisma.branch.count({
+                db.branch.count({
                     where: { organizationId: orgId },
                 }),
-            ]);
+            ]),
+        );
+
+        // Storage usage is computed from the file system (local) or S3 API
+        // (TODO) — not a DB count. The result is cached in-process for
+        // CACHE_TTL_MS (5 min) inside getOrganizationStorageUsage so a
+        // dashboard refresh doesn't trigger a full directory walk on every
+        // request. Returns bytes; convert to MB to match the plan-limit unit.
+        const storageUsedBytes = await getOrganizationStorageUsage(orgId);
+        const storageUsedMB = Math.ceil(storageUsedBytes / (1024 * 1024));
 
         const plan = subscription.plan;
         const effectiveSubscription = await getOrgSubscription(orgId);
@@ -104,7 +102,7 @@ export async function GET() {
                 unlimited: effectiveLimits.maxBranches === -1,
             },
             storage: {
-                current: 0, // TODO: Calculate from file storage
+                current: storageUsedMB,
                 limit: effectiveLimits.maxStorageMB,
                 unlimited: effectiveLimits.maxStorageMB === -1,
             },

@@ -51,7 +51,7 @@ export function LeaveBalanceCards() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-muted-text">--</div>
+                            <div className="text-2xl font-bold tabular-nums text-muted-text">--</div>
                         </CardContent>
                     </Card>
                 ))}
@@ -74,7 +74,7 @@ export function LeaveBalanceCards() {
                         <Calendar className="h-4 w-4 text-tertiary-foreground z-10" />
                     </CardHeader>
                     <CardContent className="z-10 relative">
-                        <div className="text-2xl font-bold text-foreground">
+                        <div className="text-2xl font-bold tabular-nums text-foreground">
                             {allocation.remainingDays}
                         </div>
                         <p className="text-xs text-tertiary-foreground mt-1">

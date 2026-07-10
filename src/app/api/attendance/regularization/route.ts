@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import type { Prisma } from "@/generated/prisma";
 import { attendanceLogger } from "@/lib/logger";
-
 
 type RegularizationStatus = "PENDING" | "APPROVED" | "REJECTED";
 type RegularizationMeta = {
@@ -70,16 +69,16 @@ export async function GET(req: Request) {
         // Build employee scope
         let employeeFilter: Record<string, unknown> = {};
         if (!isAdmin) {
-            const emp = await prisma.employee.findFirst({
+            const emp = await auth.withDB((db) => db.employee.findFirst({
                 where: { userId: ctx.userId, organizationId: ctx.organizationId },
                 select: { id: true },
-            });
+            }));
             if (!emp) return NextResponse.json({ requests: [] });
             employeeFilter = { employeeId: emp.id };
         }
 
         // Fetch attendance records with regularization notes
-        const records = await prisma.attendance.findMany({
+        const records = await auth.withDB((db) => db.attendance.findMany({
             where: {
                 employee: { organizationId: ctx.organizationId },
                 notes: { startsWith: "[REGULARIZATION]" },
@@ -98,7 +97,7 @@ export async function GET(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         const requests = records.map((r) => {
             const regData = parseRegularizationNotes(r.notes);
@@ -163,10 +162,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Reason is required (minimum 3 characters)" }, { status: 400 });
         }
 
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { userId: ctx.userId, organizationId: ctx.organizationId },
             select: { id: true },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json({ error: "Employee record not found" }, { status: 404 });
@@ -186,29 +185,30 @@ export async function POST(req: Request) {
         const notesStr = `[REGULARIZATION] ${JSON.stringify(regularizationData)}`;
 
         // Upsert: update existing attendance or create new
-        const existing = await prisma.attendance.findFirst({
+        const existing = await auth.withDB((db) => db.attendance.findFirst({
             where: { employeeId: employee.id, date: dateStart },
-        });
+        }));
 
         if (existing) {
             // Don't overwrite if already regularized/approved
             if (existing.notes?.includes('"status":"APPROVED"')) {
                 return NextResponse.json({ error: "This date has already been regularized" }, { status: 400 });
             }
-            await prisma.attendance.update({
+            await auth.withDB((db) => db.attendance.update({
                 where: { id: existing.id },
                 data: { notes: notesStr, source: "regularization" },
-            });
+            }));
         } else {
-            await prisma.attendance.create({
+            await auth.withDB((db) => db.attendance.create({
                 data: {
                     date: dateStart,
                     employeeId: employee.id,
+                    organizationId: ctx.organizationId,
                     status: "absent",
                     source: "regularization",
                     notes: notesStr,
                 },
-            });
+            }));
         }
 
         return NextResponse.json({

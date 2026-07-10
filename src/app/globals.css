@@ -218,8 +218,9 @@
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
-  --font-sans: "Inter", "Noto Sans Bengali", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sans: var(--font-inter), "Noto Sans Bengali", system-ui, sans-serif;
+  --font-display: var(--font-display), "Noto Sans Bengali", system-ui, sans-serif;
+  --font-mono: var(--font-mono), "Fira Code", monospace;
 }
 
 /* ─── Base Styles ─────────────────────────────────────────────────────────────── */
@@ -227,15 +228,22 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: "Inter", "Noto Sans Bengali", system-ui, sans-serif;
+  font-family: var(--font-sans), "Noto Sans Bengali", system-ui, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Headings use display font (Inter Tight) — matches marketing page */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 /* Background Pattern */

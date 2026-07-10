@@ -31,6 +31,41 @@ import { recordMonthlyContributions } from "@/lib/pf-ledger-engine";
 import { payrollLogger } from "@/lib/logger";
 
 // ============================================
+// Decimal → Number coercion helper (Phase 1: Float → Decimal migration)
+// ============================================
+
+/**
+ * Convert a Prisma Decimal value (or any value) to a JavaScript number.
+ *
+ * Why this exists:
+ *   SalarySlip monetary fields were migrated from Float → Decimal(18,2) for
+ *   BDT poisha precision. Prisma now returns `Prisma.Decimal` (decimal.js)
+ *   objects instead of native numbers for those columns. decimal.js does
+ *   NOT override the `+` operator (valueOf returns a string), so
+ *   `decimal + decimal` silently produces string concatenation like
+ *   "5000030000" instead of 80000. JSON.stringify also serializes Decimal
+ *   to a string, breaking API consumers that expect numbers.
+ *
+ * Strategy:
+ *   - Wrap every SalarySlip monetary/day-count field read with this helper.
+ *   - All payroll arithmetic stays in JS numbers — IEEE-754 doubles have
+ *     15+ significant digits, more than enough for BDT amounts at 2 dp.
+ *   - Decimal precision is preserved at the DB layer for storage accuracy.
+ *
+ * @param value Decimal | number | string | null | undefined
+ * @returns number (0 for null/undefined)
+ */
+export function toNumber(value: unknown): number {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") return value;
+    // Prisma.Decimal (decimal.js) — Number() calls valueOf() which returns
+    // a numeric string, then coerces to a number. Works for any numeric
+    // string ("50000", "50000.50", "-100.25") as well as Decimal objects.
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+// ============================================
 // Bangladesh Income Tax Slabs (FY 2024-25)
 // ============================================
 const TAX_SLABS = [
@@ -52,14 +87,71 @@ const TAX_SLABS_WOMEN = [
     { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
 ];
 
-const MINIMUM_TAX = 5000; // Minimum tax for Dhaka/Chittagong city corporation
+// Senior citizens (65+) get 50,000 higher threshold (same as women)
+const TAX_SLABS_SENIOR = TAX_SLABS_WOMEN;
+
+// Disabled persons get 100,000 higher threshold
+const TAX_SLABS_DISABLED = [
+    { upTo: 450000, rate: 0 },       // First 4,50,000 — Nil (100k more)
+    { upTo: 550000, rate: 0.05 },    // Next 1,00,000 — 5%
+    { upTo: 850000, rate: 0.10 },    // Next 3,00,000 — 10%
+    { upTo: 1250000, rate: 0.15 },   // Next 4,00,000 — 15%
+    { upTo: 1750000, rate: 0.20 },   // Next 5,00,000 — 20%
+    { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
+];
+
+// Gazette-recognized freedom fighters get 150,000 higher threshold
+const TAX_SLABS_FREEDOM_FIGHTER = [
+    { upTo: 500000, rate: 0 },       // First 5,00,000 — Nil (150k more)
+    { upTo: 600000, rate: 0.05 },    // Next 1,00,000 — 5%
+    { upTo: 900000, rate: 0.10 },    // Next 3,00,000 — 10%
+    { upTo: 1300000, rate: 0.15 },   // Next 4,00,000 — 15%
+    { upTo: 1800000, rate: 0.20 },   // Next 5,00,000 — 20%
+    { upTo: Infinity, rate: 0.25 },  // Remaining — 25%
+];
+
+// Tiered minimum tax by area (BD Finance Act 2024)
+const MINIMUM_TAX_DHAKA_CHITTAGONG = 5000;  // City corporations (Dhaka, Chittagong)
+const MINIMUM_TAX_OTHER_CITY = 4000;         // Other city corporations
+const MINIMUM_TAX_MUNICIPAL = 3000;          // Municipal areas
+
+// Tax-exempt allowance limits (BD Finance Act 2024)
+const TAX_EXEMPT_ALLOWANCES = {
+    conveyance: 30000,    // ৳30,000/year
+    medical: 120000,      // ৳1,20,000/year
+    houseRent: 300000,    // ৳3,00,000/year (50% of basic or 3L, whichever is lower)
+};
 
 // ============================================
-// Tax Calculation
+// Tax Calculation (with BD exemptions)
 // ============================================
 
-export function calculateAnnualTax(annualIncome: number, isWoman: boolean = false): number {
-    const slabs = isWoman ? TAX_SLABS_WOMEN : TAX_SLABS;
+export interface TaxExemptionFlags {
+    isWoman?: boolean;
+    isSenior?: boolean;        // Age 65+
+    isDisabled?: boolean;
+    isFreedomFighter?: boolean;
+    area?: "dhaka_chittagong" | "other_city" | "municipal" | "rural";
+}
+
+export function calculateAnnualTax(
+    annualIncome: number,
+    isWoman: boolean = false,
+    exemptions?: TaxExemptionFlags
+): number {
+    // Determine which slab to use based on exemptions
+    let slabs = TAX_SLABS;
+
+    if (exemptions?.isFreedomFighter) {
+        slabs = TAX_SLABS_FREEDOM_FIGHTER;
+    } else if (exemptions?.isDisabled) {
+        slabs = TAX_SLABS_DISABLED;
+    } else if (exemptions?.isSenior) {
+        slabs = TAX_SLABS_SENIOR;
+    } else if (isWoman || exemptions?.isWoman) {
+        slabs = TAX_SLABS_WOMEN;
+    }
+
     const taxFreeThreshold = slabs[0].upTo;
 
     let remainingIncome = annualIncome;
@@ -75,15 +167,28 @@ export function calculateAnnualTax(annualIncome: number, isWoman: boolean = fals
         previousUpTo = slab.upTo;
     }
 
-    if (annualIncome > taxFreeThreshold && totalTax < MINIMUM_TAX) {
-        totalTax = MINIMUM_TAX;
+    // Apply tiered minimum tax based on area
+    if (annualIncome > taxFreeThreshold) {
+        const area = exemptions?.area || "dhaka_chittagong";
+        let minTax = MINIMUM_TAX_DHAKA_CHITTAGONG;
+        if (area === "other_city") minTax = MINIMUM_TAX_OTHER_CITY;
+        else if (area === "municipal") minTax = MINIMUM_TAX_MUNICIPAL;
+        else if (area === "rural") minTax = 0; // No minimum tax in rural areas
+
+        if (minTax > 0 && totalTax < minTax) {
+            totalTax = minTax;
+        }
     }
 
     return Math.round(totalTax);
 }
 
-export function calculateMonthlyTax(annualIncome: number, isWoman: boolean = false): number {
-    return Math.round(calculateAnnualTax(annualIncome, isWoman) / 12);
+export function calculateMonthlyTax(
+    annualIncome: number,
+    isWoman: boolean = false,
+    exemptions?: TaxExemptionFlags
+): number {
+    return Math.round(calculateAnnualTax(annualIncome, isWoman, exemptions) / 12);
 }
 
 // ============================================
@@ -91,14 +196,53 @@ export function calculateMonthlyTax(annualIncome: number, isWoman: boolean = fal
 // ============================================
 
 /**
- * Overtime rate: 2x basic salary per hour (Section 108, Bangladesh Labor Act 2006)
+ * Maximum overtime per day: 2 hours (BLA 2006 Section 108)
+ * Maximum overtime per week: not explicitly limited, but total work
+ *   hours (including OT) must not exceed 10 hours/day, 60 hours/week.
+ * Overtime rate: 2x basic salary per hour (Section 108)
+ *
+ * Formula: (basic / (26 days × 8 hours)) × 2 × OT_hours
+ *        = (basic × OT_minutes) / 6240
  */
+const MAX_OT_HOURS_PER_DAY = 2;
+const MAX_OT_HOURS_PER_WEEK = 12; // Industry practice (not explicit in BLA)
+
 export function calculateOvertime(overtimeMinutes: number, monthlyBasicSalary: number): number {
     if (overtimeMinutes <= 0 || monthlyBasicSalary <= 0) return 0;
     // IEEE 754 FIX: multiply first, divide last to maximize integer precision.
     // Formula: (OT_minutes / 60) × (basic / (26 × 8)) × 2
     // Rewritten: (basic × 2 × OT_minutes) / (26 × 8 × 60) = (basic × OT_minutes) / 6240
     return Math.round((monthlyBasicSalary * 2 * overtimeMinutes) / (26 * 8 * 60));
+}
+
+/**
+ * Validate overtime against BLA 2006 limits.
+ * Returns warnings if OT exceeds legal limits.
+ */
+export function validateOvertime(
+    dailyOvertimeMinutes: number,
+    weeklyOvertimeMinutes: number
+): { warnings: string[]; isCompliant: boolean } {
+    const warnings: string[] = [];
+    const dailyOTHours = dailyOvertimeMinutes / 60;
+    const weeklyOTHours = weeklyOvertimeMinutes / 60;
+
+    if (dailyOTHours > MAX_OT_HOURS_PER_DAY) {
+        warnings.push(
+            `Daily overtime ${dailyOTHours.toFixed(1)} hours exceeds BLA limit of ${MAX_OT_HOURS_PER_DAY} hours/day (Section 108)`
+        );
+    }
+
+    if (weeklyOTHours > MAX_OT_HOURS_PER_WEEK) {
+        warnings.push(
+            `Weekly overtime ${weeklyOTHours.toFixed(1)} hours exceeds recommended limit of ${MAX_OT_HOURS_PER_WEEK} hours/week`
+        );
+    }
+
+    return {
+        warnings,
+        isCompliant: warnings.length === 0,
+    };
 }
 
 // ============================================
@@ -236,6 +380,7 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     const assignment = await prisma.salaryStructureAssignment.findFirst({
         where: {
             employeeId,
+            deletedAt: null,
             ...(includeInactiveAssignment ? {} : { isActive: true }),
             effectiveFrom: { lte: new Date(year, month - 1, 28) },
             OR: [
@@ -261,14 +406,14 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
     }
 
     const structure = assignment.salaryStructure;
-    const grossSalaryMonthly = assignment.grossSalary;
+    const grossSalaryMonthly = Number(assignment.grossSalary);
     const organizationId = assignment.employee?.organizationId || "";
 
     // Calculate salary components based on structure percentages
-    const basicSalary = Math.round(grossSalaryMonthly * (structure.basicPercentage / 100));
-    const houseRent = Math.round(basicSalary * (structure.houseRentPercent / 100));
-    const medicalAllowance = Math.round(basicSalary * (structure.medicalPercent / 100));
-    const conveyance = structure.conveyanceFixed;
+    const basicSalary = Math.round(grossSalaryMonthly * (Number(structure.basicPercentage) / 100));
+    const houseRent = Math.round(basicSalary * (Number(structure.houseRentPercent) / 100));
+    const medicalAllowance = Math.round(basicSalary * (Number(structure.medicalPercent) / 100));
+    const conveyance = Number(structure.conveyanceFixed);
     const specialAllowance = Math.max(0,
         grossSalaryMonthly - basicSalary - houseRent - medicalAllowance - conveyance
     );
@@ -332,16 +477,28 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
 
     // PF deduction
     const pfEmployee = assignment.employee?.pfEnabled
-        ? Math.round(basicSalary * (structure.pfEmployeePercent / 100))
+        ? Math.round(basicSalary * (Number(structure.pfEmployeePercent) / 100))
         : 0;
     const pfEmployer = assignment.employee?.pfEnabled
-        ? Math.round(basicSalary * (structure.pfEmployerPercent / 100))
+        ? Math.round(basicSalary * (Number(structure.pfEmployerPercent) / 100))
         : 0;
 
-    // Gender-aware tax
+    // Gender-aware tax with BD tax-exempt allowances (BD Finance Act 2024)
+    // Per the BD Finance Act, certain allowances are exempt from income tax
+    // up to annual caps: conveyance (৳30k), medical (৳1.2L), house rent (৳3L).
+    // Without this exemption, employees with these allowances are over-taxed.
     const annualGross = grossSalaryMonthly * 12;
     const annualPF = pfEmployee * 12;
-    const taxableIncome = annualGross - annualPF;
+
+    // Calculate tax-exempt portion of each allowance (monthly × 12, capped at annual exempt limit)
+    const annualConveyance = Math.min((conveyance || 0) * 12, TAX_EXEMPT_ALLOWANCES.conveyance);
+    const annualMedical = Math.min((medicalAllowance || 0) * 12, TAX_EXEMPT_ALLOWANCES.medical);
+    const annualHouseRent = Math.min((houseRent || 0) * 12, TAX_EXEMPT_ALLOWANCES.houseRent);
+
+    const totalExempt = annualConveyance + annualMedical + annualHouseRent;
+    // Guard against negative taxable income (e.g. when PF + exemptions exceed gross)
+    const taxableIncome = Math.max(0, annualGross - annualPF - totalExempt);
+
     const isWoman = assignment.employee?.gender === "female";
     const incomeTax = calculateMonthlyTax(taxableIncome, isWoman);
 
@@ -353,14 +510,81 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
             remainingAmount: { gt: 0 },
         },
     });
-    const loanDeduction = activeLoans.reduce((sum, loan) => sum + loan.emiAmount, 0);
 
     // Calculate totals
     const grossEarnings = basicSalary + houseRent + medicalAllowance + conveyance +
         specialAllowance + overtimeAmount + bonus + festivalBonus + arrears + otherEarnings;
 
-    const totalDeductions = pfEmployee + incomeTax + loanDeduction + absentDeduction +
+    // Aggregate all NON-loan deductions first so we can decide how much loan
+    // EMI the payroll can actually afford this cycle. Loan EMIs are the LAST
+    // deduction pulled out of net salary — if the employee's net is already 0
+    // (or near 0) after statutory deductions (PF, tax, absent, late, other),
+    // deducting the full EMI would push the payslip negative or leave the
+    // employee with BDT 0 take-home. The previous implementation deducted the
+    // full EMI unconditionally and then clamped net at 0 via `Math.max(0, …)`,
+    // which silently under-paid other priorities and lost the audit trail of
+    // "loan EMI was due but unaffordable this cycle".
+    //
+    // P17-BUGS-5 fix:
+    //   - Compute net BEFORE loan deductions.
+    //   - If net > 0, deduct loan EMIs up to the remaining net (per-loan, in
+    //     the order Prisma returned them — usually created-at asc).
+    //   - If net <= 0, deduct 0 and emit a warn-level audit log so HR can
+    //     manually handle the shortfall (e.g. defer the EMI, prorate next
+    //     cycle, or write off). The loan's `remainingAmount` is NOT mutated
+    //     here — that happens in the disbursement step keyed off this number.
+    const nonLoanDeductions = pfEmployee + incomeTax + absentDeduction +
         lateDeduction + otherDeductions;
+    const netBeforeLoan = Math.max(0, grossEarnings - nonLoanDeductions);
+
+    let loanDeduction = 0;
+    let loanDeductionCapped = false;
+    let loanDeductionDeferred = 0;
+    if (netBeforeLoan > 0 && activeLoans.length > 0) {
+        let remaining = netBeforeLoan;
+        for (const loan of activeLoans) {
+            const emi = Number(loan.emiAmount);
+            if (emi <= 0) continue;
+            if (remaining >= emi) {
+                loanDeduction += emi;
+                remaining -= emi;
+            } else {
+                // Cap this loan's deduction at whatever is left and flag the
+                // remainder as deferred so HR can see it in the audit log.
+                loanDeduction += remaining;
+                loanDeductionDeferred += emi - remaining;
+                loanDeductionCapped = true;
+                remaining = 0;
+            }
+        }
+    } else if (activeLoans.length > 0) {
+        // Net is 0 (or negative before clamp) — defer the entire EMI bundle.
+        loanDeductionDeferred = activeLoans.reduce(
+            (sum, loan) => sum + Number(loan.emiAmount),
+            0,
+        );
+        loanDeductionCapped = true;
+    }
+
+    if (loanDeductionCapped) {
+        payrollLogger.warn(
+            {
+                employeeId,
+                month,
+                year,
+                requestedEmiTotal: activeLoans.reduce(
+                    (sum, loan) => sum + Number(loan.emiAmount),
+                    0,
+                ),
+                deductedEmiTotal: loanDeduction,
+                deferredEmiTotal: loanDeductionDeferred,
+                netBeforeLoan,
+            },
+            "LOAN_DEDUCTION_CAPPED_AT_NET_SALARY — HR must handle the deferred EMI manually",
+        );
+    }
+
+    const totalDeductions = nonLoanDeductions + loanDeduction;
 
     // Payroll slips should never show a negative payable salary. If deductions exceed
     // earnings (e.g. no attendance data for a processed month), cap payable net at 0;

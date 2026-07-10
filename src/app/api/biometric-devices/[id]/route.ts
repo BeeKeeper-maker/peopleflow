@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { biometricLogger } from "@/lib/logger";
 
@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const device = await prisma.biometricDevice.findFirst({
+        const device = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
             include: {
                 branch: { select: { id: true, name: true, code: true } },
@@ -41,7 +41,7 @@ export async function GET(req: Request, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
         if (!device) {
             return new NextResponse("Device not found", { status: 404 });
@@ -49,8 +49,12 @@ export async function GET(req: Request, { params }: RouteParams) {
 
         return NextResponse.json(device);
     } catch (error) {
-        biometricLogger.error({ err: error }, "GET_DEVICE_DETAIL_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "GET_DEVICE_DETAIL_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -86,9 +90,9 @@ export async function PUT(req: Request, { params }: RouteParams) {
         } = body;
 
         // Verify device belongs to org
-        const existing = await prisma.biometricDevice.findFirst({
+        const existing = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
         if (!existing) {
             return new NextResponse("Device not found", { status: 404 });
         }
@@ -104,25 +108,25 @@ export async function PUT(req: Request, { params }: RouteParams) {
 
         // Check connection identity uniqueness if changed
         if (nextMode === "direct_cloud") {
-            const duplicate = await prisma.biometricDevice.findFirst({
+            const duplicate = await auth.withDB((db) => db.biometricDevice.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     serialNumber: cleanSerial,
                     id: { not: id },
                 },
-            });
+            }));
             if (duplicate) {
                 return NextResponse.json({ error: "Another device with this serial number already exists" }, { status: 409 });
             }
         } else if ((ip && ip !== existing.ip) || (port && port !== existing.port)) {
-            const duplicate = await prisma.biometricDevice.findFirst({
+            const duplicate = await auth.withDB((db) => db.biometricDevice.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     ip: nextIp,
                     port: nextPort,
                     id: { not: id },
                 },
-            });
+            }));
             if (duplicate) {
                 return NextResponse.json(
                     { error: "Another device with this IP and port already exists" },
@@ -131,7 +135,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
             }
         }
 
-        const updated = await prisma.biometricDevice.update({
+        const updated = await auth.withDB((db) => db.biometricDevice.update({
             where: { id },
             data: {
                 ...(name !== undefined && { name }),
@@ -152,12 +156,16 @@ export async function PUT(req: Request, { params }: RouteParams) {
             include: {
                 branch: { select: { id: true, name: true, code: true } },
             },
-        });
+        }));
 
         return NextResponse.json(updated);
     } catch (error) {
-        biometricLogger.error({ err: error }, "UPDATE_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "UPDATE_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -175,19 +183,23 @@ export async function DELETE(req: Request, { params }: RouteParams) {
     try {
         const { id } = await params;
 
-        const device = await prisma.biometricDevice.findFirst({
+        const device = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
         if (!device) {
             return new NextResponse("Device not found", { status: 404 });
         }
 
         // Cascade deletes sync logs too
-        await prisma.biometricDevice.delete({ where: { id } });
+        await auth.withDB((db) => db.biometricDevice.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        biometricLogger.error({ err: error }, "DELETE_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "DELETE_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

@@ -14,6 +14,10 @@ const categorySchema = z.object({
     isActive: z.boolean().default(true),
     icon: z.string().optional(),
     color: z.string().optional(),
+    // New fields
+    categoryType: z.enum(["standard", "mileage", "per_diem"]).default("standard"),
+    mileageRate: z.number().positive().optional(),
+    perDiemRate: z.number().positive().optional(),
 });
 
 // GET - List expense categories
@@ -75,6 +79,20 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
         const validatedData = categorySchema.parse(body);
+
+        // Validate type-specific fields
+        if (validatedData.categoryType === "mileage" && !validatedData.mileageRate) {
+            return NextResponse.json(
+                { error: "Mileage rate is required for mileage categories" },
+                { status: 400 },
+            );
+        }
+        if (validatedData.categoryType === "per_diem" && !validatedData.perDiemRate) {
+            return NextResponse.json(
+                { error: "Per-diem rate is required for per-diem categories" },
+                { status: 400 },
+            );
+        }
 
         const category = await prisma.expenseCategory.create({
             data: {

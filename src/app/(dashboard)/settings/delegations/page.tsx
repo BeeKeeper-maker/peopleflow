@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useDelegations, useEmployees, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +76,12 @@ interface Employee {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY_ISO = "2026-03-31" // Static for hydration safety
+// Dynamic today — computed on client side after hydration to avoid mismatch.
+// getStatus() already uses new Date() which is correct; this is only for
+// default form values where we need a date string.
+function getTodayISO(): string {
+    return new Date().toISOString().split("T")[0];
+}
 
 const permissionOptions = [
     { value: "approval:act", label: "Approval Authority", desc: "Leave, Expense, Loan", icon: FileCheck, color: "text-indigo-400" },
@@ -255,12 +262,14 @@ function DelegationCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DelegationsPage() {
-    const [delegated, setDelegated] = useState<Delegation[]>([])
-    const [received, setReceived] = useState<Delegation[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const queryClient = useQueryClient()
+    const { data: delegationsData, isLoading: isLoading } = useDelegations()
+    const delegated = useMemo<Delegation[]>(() => (delegationsData?.delegated ?? []) as unknown as Delegation[], [delegationsData])
+    const received = useMemo<Delegation[]>(() => (delegationsData?.received ?? []) as unknown as Delegation[], [delegationsData])
+    const { data: employeesResp } = useEmployees({ limit: 500 })
+    const employees = useMemo<Employee[]>(() => (employeesResp?.data ?? []) as unknown as Employee[], [employeesResp])
     const [showCreateDialog, setShowCreateDialog] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
-    const [employees, setEmployees] = useState<Employee[]>([])
     const [employeeSearch, setEmployeeSearch] = useState("")
     const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -272,42 +281,16 @@ export default function DelegationsPage() {
         targetEmployeeId: "",
         permission: "approval:act",
         scope: "global",
-        validFrom: TODAY_ISO,
+        validFrom: getTodayISO(),
         validUntil: "",
         reason: "",
     })
 
     useEffect(() => { setMounted(true) }, [])
 
-    const fetchDelegations = useCallback(async () => {
-        try {
-            const res = await fetch("/api/rbac/delegations")
-            if (res.ok) {
-                const json = await res.json()
-                setDelegated(json.data?.delegated || [])
-                setReceived(json.data?.received || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch delegations:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    const fetchEmployees = useCallback(async () => {
-        try {
-            const res = await fetch("/api/employees?limit=500")
-            if (res.ok) {
-                const json = await res.json()
-                setEmployees(json.data || [])
-            }
-        } catch { /* ignore */ }
-    }, [])
-
-    useEffect(() => {
-        fetchDelegations()
-        fetchEmployees()
-    }, [fetchDelegations, fetchEmployees])
+    const invalidateDelegations = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.rbac.delegations() })
+    }
 
     const handleCreate = async () => {
         if (!formData.targetEmployeeId || !formData.validUntil) {
@@ -326,10 +309,10 @@ export default function DelegationsPage() {
                 setShowCreateDialog(false)
                 setFormData({
                     targetEmployeeId: "", permission: "approval:act", scope: "global",
-                    validFrom: TODAY_ISO, validUntil: "", reason: "",
+                    validFrom: getTodayISO(), validUntil: "", reason: "",
                 })
                 setEmployeeSearch("")
-                fetchDelegations()
+                invalidateDelegations()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || "Failed to create delegation", type: "error" })
@@ -346,7 +329,7 @@ export default function DelegationsPage() {
             const res = await fetch(`/api/rbac/delegations?id=${id}`, { method: "DELETE" })
             if (res.ok) {
                 addToast({ title: "Delegation revoked successfully", type: "success" })
-                fetchDelegations()
+                invalidateDelegations()
             } else {
                 addToast({ title: "Failed to revoke", type: "error" })
             }
@@ -379,7 +362,7 @@ export default function DelegationsPage() {
                         <Fingerprint className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -410,7 +393,7 @@ export default function DelegationsPage() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-indigo-400 via-violet-400 to-purple-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -435,7 +418,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('delegated')}</p>
-                        <p className="text-2xl font-bold mt-1">{delegated.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{delegated.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('delegatedDesc')}</p>
                     </CardContent>
                 </Card>
@@ -455,7 +438,7 @@ export default function DelegationsPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeNow')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">{activeDelegations.length}</p>
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">{activeDelegations.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeNowDesc')}</p>
                     </CardContent>
                 </Card>
@@ -470,7 +453,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('received')}</p>
-                        <p className="text-2xl font-bold mt-1">{received.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{received.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('receivedDesc')}</p>
                     </CardContent>
                 </Card>
@@ -485,7 +468,7 @@ export default function DelegationsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('permissions')}</p>
-                        <p className="text-2xl font-bold mt-1">{activeReceived.length + activeDelegations.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{activeReceived.length + activeDelegations.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('permissionsDesc')}</p>
                     </CardContent>
                 </Card>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { Prisma } from "@/generated/prisma";
 import { attendanceLogger } from "@/lib/logger";
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
         if (dateFilter) where.date = dateFilter;
         if (source !== "all") where.source = source;
 
-        const rows = await prisma.attendance.findMany({
+        const rows = await auth.withDB((db) => db.attendance.findMany({
             where,
             include: {
                 employee: {
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
             },
             orderBy: [{ date: "desc" }, { checkIn: "desc" }],
             take: 5000,
-        });
+        }));
 
         const header = [
             "Date", "Employee Code", "Employee Name", "Department", "Designation", "Check In", "Check Out", "Status", "Source", "Late Minutes", "Early Leave Minutes", "Overtime Minutes", "Notes",
@@ -94,7 +94,11 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        attendanceLogger.error({ err: error }, "EXPORT_ATTENDANCE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "EXPORT_ATTENDANCE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

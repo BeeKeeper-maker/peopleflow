@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import type { Prisma } from "@/generated/prisma";
 import { biometricLogger } from "@/lib/logger";
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
         if (eventType !== "all") where.eventType = eventType;
         if (serial) where.serialNumber = { contains: serial, mode: "insensitive" };
 
-        const events = await prisma.biometricCloudEvent.findMany({
+        const events = await auth.withDB((db) => db.biometricCloudEvent.findMany({
             where,
             select: {
                 id: true,
@@ -54,11 +54,15 @@ export async function GET(req: Request) {
             },
             orderBy: { createdAt: "desc" },
             take: limit,
-        });
+        }));
 
         return NextResponse.json(events);
     } catch (error) {
-        biometricLogger.error({ err: error }, "GET_BIOMETRIC_EVENTS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "GET_BIOMETRIC_EVENTS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

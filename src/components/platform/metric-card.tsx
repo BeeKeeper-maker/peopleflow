@@ -97,7 +97,7 @@ export function MetricCard({
     return (
         <div
             ref={ref}
-            className={`relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-all duration-500 hover:border-white/[0.1] hover:bg-white/[0.04] ${
+            className={`relative overflow-hidden rounded-xl border border-border bg-hover/50 p-5 transition-all duration-500 hover:border-border hover:bg-hover ${
                 visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
             }`}
             style={{ transitionDelay: `${delay}ms` }}
@@ -107,7 +107,7 @@ export function MetricCard({
 
             <div className="relative">
                 <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         {title}
                     </span>
                     <div className={`w-9 h-9 rounded-lg ${colors.iconBg} flex items-center justify-center`}>
@@ -116,11 +116,11 @@ export function MetricCard({
                 </div>
 
                 <div className="flex items-baseline gap-1">
-                    {prefix && <span className="text-lg text-zinc-400 font-medium">{prefix}</span>}
-                    <span className="text-3xl font-bold text-white tabular-nums tracking-tight">
+                    {prefix && <span className="text-lg text-muted-foreground font-medium">{prefix}</span>}
+                    <span className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
                         {formattedValue}
                     </span>
-                    {suffix && <span className="text-sm text-zinc-500 font-medium ml-1">{suffix}</span>}
+                    {suffix && <span className="text-sm text-muted-foreground font-medium ml-1">{suffix}</span>}
                 </div>
 
                 {change !== undefined && (
@@ -135,7 +135,7 @@ export function MetricCard({
                             {change >= 0 ? "+" : ""}
                             {change}%
                         </span>
-                        <span className="text-xs text-zinc-600">
+                        <span className="text-xs text-muted-foreground">
                             {changeLabel || "vs last month"}
                         </span>
                     </div>

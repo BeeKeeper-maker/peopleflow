@@ -1,20 +1,25 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/approval-workflows — List workflows for the organization
-export async function GET() {
+export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Per-user rate limit (read op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
-        const workflows = await prisma.approvalWorkflow.findMany({
+        const workflows = await auth.withDB((db) => db.approvalWorkflow.findMany({
             where: { organizationId: auth.organizationId },
             orderBy: { entityType: "asc" },
-        });
+        }));
 
-        return NextResponse.json(workflows);
+        return applyRateLimitHeaders(NextResponse.json(workflows), rl.headers);
     } catch (error) {
         apiLogger.error({ err: error }, "Failed to fetch workflows:");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -31,6 +36,10 @@ export async function POST(req: Request) {
         return new NextResponse("Forbidden", { status: 403 });
     }
 
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
         const body = await req.json();
         const { entityType, name, steps, isActive } = body;
@@ -40,14 +49,14 @@ export async function POST(req: Request) {
         }
 
         // Check if a workflow already exists for this entity type
-        const existing = await prisma.approvalWorkflow.findUnique({
+        const existing = await auth.withDB((db) => db.approvalWorkflow.findUnique({
             where: {
                 organizationId_entityType: {
                     organizationId: auth.organizationId,
                     entityType,
                 },
             },
-        });
+        }));
 
         if (existing) {
             return NextResponse.json(
@@ -56,7 +65,7 @@ export async function POST(req: Request) {
             );
         }
 
-        const workflow = await prisma.approvalWorkflow.create({
+        const workflow = await auth.withDB((db) => db.approvalWorkflow.create({
             data: {
                 entityType,
                 name,
@@ -64,7 +73,7 @@ export async function POST(req: Request) {
                 isActive: isActive ?? true,
                 organizationId: auth.organizationId,
             },
-        });
+        }));
 
         return NextResponse.json(workflow, { status: 201 });
     } catch (error) {

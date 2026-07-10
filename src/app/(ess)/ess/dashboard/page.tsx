@@ -14,6 +14,7 @@ import {
     CheckCircle2,
     XCircle,
     AlertCircle,
+    RefreshCw,
     Loader2,
     LogOut,
 } from "lucide-react";
@@ -23,7 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toBengaliNumber } from "@/lib/i18n-utils";
 import { useInstallPrompt } from "@/components/pwa/register";
 
@@ -62,9 +63,16 @@ interface TodayAttendance {
 export default function ESSDashboardPage() {
     const { data: session } = useSession();
     const t = useTranslations('ESS');
+    const tDash = useTranslations('ESSDashboard');
+    const tShared = useTranslations('SharedComponents');
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatTime = (value: string) => new Intl.DateTimeFormat(dateLocale, { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value));
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
     const { canInstall, promptInstall } = useInstallPrompt();
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
     const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
     const [activities, setActivities] = useState<RecentActivity[]>([]);
@@ -94,31 +102,29 @@ export default function ESSDashboardPage() {
                     setLeaveBalances(data.data || data || []);
                 }
 
-                // Fetch today's attendance
+                // Fetch today's attendance — use employeeId filter for safety
                 const today = new Date().toISOString().split("T")[0];
                 const attendanceRes = await fetch(`/api/attendance?date=${today}`);
                 if (attendanceRes.ok) {
                     const data = await attendanceRes.json();
-                    const records = data.data || data || [];
+                    const records = Array.isArray(data) ? data : (data.data || []);
 
-                    // Check if current user has checked in today
-                    if (records.length > 0) {
-                        const myRecord = records[0];
+                    // Find THIS employee's record (not records[0] which could be anyone)
+                    // The API should already scope to the authenticated user for ESS,
+                    // but we verify by checking employeeId matches
+                    const currentEmployeeId = (session?.user as { employeeId?: string })?.employeeId;
+                    const myRecord = records.find((r: { employeeId?: string }) =>
+                        !r.employeeId || !currentEmployeeId || r.employeeId === currentEmployeeId
+                    ) || records[0];
+
+                    if (myRecord) {
                         setTodayStatus({
                             checkedIn: !!myRecord.checkIn,
                             checkInTime: myRecord.checkIn
-                                ? new Date(myRecord.checkIn).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true
-                                })
+                                ? formatTime(myRecord.checkIn)
                                 : undefined,
                             checkOutTime: myRecord.checkOut
-                                ? new Date(myRecord.checkOut).toLocaleTimeString("en-US", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true
-                                })
+                                ? formatTime(myRecord.checkOut)
                                 : undefined,
                         });
                     }
@@ -130,15 +136,23 @@ export default function ESSDashboardPage() {
                 const summaryRes = await fetch(`/api/attendance?startDate=${monthStartDate.toISOString().split("T")[0]}`);
                 if (summaryRes.ok) {
                     const data = await summaryRes.json();
-                    const records = data.data || data || [];
+                    const records = Array.isArray(data) ? data : (data.data || []);
 
-                    // Count statuses
+                    // Filter to only this employee's records (safety check)
+                    const currentEmployeeId = (session?.user as { employeeId?: string })?.employeeId;
+                    const myRecords = records.filter((r: { employeeId?: string }) =>
+                        !r.employeeId || !currentEmployeeId || r.employeeId === currentEmployeeId
+                    );
+
+                    // Count statuses — "late" is NOT a valid status (stored as present + lateMinutes > 0)
                     let present = 0, absent = 0, late = 0, onLeave = 0;
-                    records.forEach((record: { status: string }) => {
+                    myRecords.forEach((record: { status: string; lateMinutes?: number }) => {
                         switch (record.status) {
-                            case "present": present++; break;
+                            case "present":
+                                present++;
+                                if (record.lateMinutes && record.lateMinutes > 0) late++;
+                                break;
                             case "absent": absent++; break;
-                            case "late": late++; break;
                             case "on_leave": onLeave++; break;
                         }
                     });
@@ -161,6 +175,8 @@ export default function ESSDashboardPage() {
                 }
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
+                setFetchError(true);
+                addToast({ title: tDash("failedLoadData"), type: "error" });
             } finally {
                 setIsLoading(false);
             }
@@ -169,12 +185,19 @@ export default function ESSDashboardPage() {
         fetchData();
     }, []);
 
+    const retryFetch = () => {
+        setFetchError(false);
+        setIsLoading(true);
+        // Trigger re-fetch by reloading the page (simple, reliable approach)
+        window.location.reload();
+    };
+
     const handleInstallApp = async () => {
         const outcome = await promptInstall();
         if (outcome === "unavailable") {
             addToast({
-                title: "Install PeopleFlow",
-                description: "Use your browser menu and choose Add to Home Screen / Install App.",
+                title: tDash("installApp"),
+                description: tDash("installAppDesc"),
                 type: "info",
             });
         }
@@ -193,20 +216,21 @@ export default function ESSDashboardPage() {
                 const data = await res.json();
                 setTodayStatus({
                     checkedIn: true,
-                    checkInTime: new Date(data.checkIn).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                    }),
+                    checkInTime: formatTime(data.checkIn),
                 });
-                addToast({ title: "Checked in successfully!", type: "success" });
+                addToast({ title: tDash("checkedInSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || "Failed to check in", type: "error" });
+                // Don't expose raw server error to user — use safe fallback message
+                const safeMessage = res.status === 401 ? tShared("loginAgain") :
+                    res.status === 403 ? tShared("notAuthorized") :
+                    res.status >= 500 ? tShared("serverError") :
+                    errorText || tDash("checkedInFailed");
+                addToast({ title: safeMessage, type: "error" });
             }
         } catch (error) {
             console.error("Check-in error:", error);
-            addToast({ title: "An error occurred while checking in", type: "error" });
+            addToast({ title: tDash("checkedInError"), type: "error" });
         } finally {
             setIsCheckingIn(false);
         }
@@ -226,20 +250,21 @@ export default function ESSDashboardPage() {
                 setTodayStatus({
                     checkedIn: true,
                     checkInTime: todayStatus.checkInTime,
-                    checkOutTime: new Date(data.checkOut).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        hour12: true,
-                    }),
+                    checkOutTime: formatTime(data.checkOut),
                 });
-                addToast({ title: "Checked out successfully!", type: "success" });
+                addToast({ title: tDash("checkedOutSuccess"), type: "success" });
             } else {
                 const errorText = await res.text();
-                addToast({ title: errorText || "Failed to check out", type: "error" });
+                // Don't expose raw server error to user — use safe fallback message
+                const safeMessage = res.status === 401 ? tShared("loginAgain") :
+                    res.status === 403 ? tShared("notAuthorized") :
+                    res.status >= 500 ? tShared("serverError") :
+                    errorText || tDash("checkedOutFailed");
+                addToast({ title: safeMessage, type: "error" });
             }
         } catch (error) {
             console.error("Check-out error:", error);
-            addToast({ title: "An error occurred while checking out", type: "error" });
+            addToast({ title: tDash("checkedOutError"), type: "error" });
         } finally {
             setIsCheckingOut(false);
         }
@@ -254,6 +279,26 @@ export default function ESSDashboardPage() {
                     <Skeleton className="h-40" />
                     <Skeleton className="h-40" />
                 </div>
+            </div>
+        );
+    }
+
+    if (fetchError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 px-4">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
+                    <AlertCircle className="h-8 w-8 text-red-400" />
+                </div>
+                <h2 className="text-lg font-display font-semibold text-foreground mb-2">
+                    {tDash("failedLoadData")}
+                </h2>
+                <p className="text-sm text-muted-foreground text-center max-w-sm mb-6">
+                    We couldn&apos;t load your dashboard data. Please check your connection and try again.
+                </p>
+                <Button onClick={retryFetch} variant="default" size="default">
+                    <RefreshCw className="h-4 w-4" />
+                    Retry
+                </Button>
             </div>
         );
     }
@@ -283,7 +328,7 @@ export default function ESSDashboardPage() {
                 <div className="flex items-center gap-3 sm:gap-4">
                     <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-card-border">
                         <AvatarImage src={user?.image || undefined} />
-                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-xl">
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white text-xl">
                             {firstName[0]}
                         </AvatarFallback>
                     </Avatar>
@@ -301,12 +346,12 @@ export default function ESSDashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
                     {todayStatus.checkedIn ? (
                         <>
-                            <div className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20">
+                            <div className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                 <div className="flex items-center gap-2">
-                                    <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                                     <div>
-                                        <p className="text-sm font-medium text-green-400">{t('checkedIn')}</p>
-                                        <p className="text-xs text-green-400/60">{todayStatus.checkInTime}</p>
+                                        <p className="text-sm font-medium text-emerald-400">{t('checkedIn')}</p>
+                                        <p className="text-xs text-emerald-400/60">{todayStatus.checkInTime}</p>
                                     </div>
                                 </div>
                             </div>
@@ -364,11 +409,11 @@ export default function ESSDashboardPage() {
                     </Card>
                 </Link>
                 <Link href="/ess/payslips">
-                    <Card className="bg-linear-to-br from-green-500/10 to-green-600/5 border-green-500/20 hover:border-green-500/40 transition-all cursor-pointer group relative">
+                    <Card className="bg-linear-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer group relative">
                         <CardContent className="p-4">
-                            <Receipt className="h-8 w-8 text-green-400 mb-3" />
+                            <Receipt className="h-8 w-8 text-emerald-400 mb-3" />
                             <p className="text-sm font-medium text-foreground">{t('viewPayslips')}</p>
-                            <ArrowUpRight className="h-4 w-4 text-green-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4" />
+                            <ArrowUpRight className="h-4 w-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 right-4" />
                         </CardContent>
                     </Card>
                 </Link>
@@ -422,7 +467,7 @@ export default function ESSDashboardPage() {
                                     >
                                         <p className="text-sm text-muted-foreground">{leave.leaveType.name}</p>
                                         <div className="mt-2 flex items-end gap-2">
-                                            <span className="text-3xl font-bold text-foreground">
+                                            <span className="text-3xl font-display font-bold tabular-nums text-foreground">
                                                 {leave.remainingDays}
                                             </span>
                                             <span className="text-sm text-tertiary-foreground mb-1">
@@ -453,12 +498,12 @@ export default function ESSDashboardPage() {
                         <div className="space-y-4">
                             {attendance ? (
                                 <>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/10">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-                                            <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                                             <span className="text-foreground">{t('present')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-green-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-emerald-400">
                                             {attendance.present}
                                         </span>
                                     </div>
@@ -467,16 +512,16 @@ export default function ESSDashboardPage() {
                                             <XCircle className="h-5 w-5 text-red-400" />
                                             <span className="text-foreground">{t('absent')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-red-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-red-400">
                                             {attendance.absent}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
                                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-                                            <AlertCircle className="h-5 w-5 text-yellow-400" />
+                                            <AlertCircle className="h-5 w-5 text-amber-400" />
                                             <span className="text-foreground">{t('late')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-yellow-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-amber-400">
                                             {attendance.late}
                                         </span>
                                     </div>
@@ -485,7 +530,7 @@ export default function ESSDashboardPage() {
                                             <Calendar className="h-5 w-5 text-blue-400" />
                                             <span className="text-foreground">{t('onLeave')}</span>
                                         </div>
-                                        <span className="text-lg font-bold text-blue-400">
+                                        <span className="text-lg font-display font-bold tabular-nums text-blue-400">
                                             {attendance.onLeave}
                                         </span>
                                     </div>
@@ -522,16 +567,16 @@ export default function ESSDashboardPage() {
                                     <div className="flex items-center gap-4">
                                         <div
                                             className={`w-10 h-10 rounded-full flex items-center justify-center ${activity.type === "leave" || activity.type === "leave_approval"
-                                                ? "bg-blue-500/20"
+                                                ? "bg-blue-500/15"
                                                 : activity.type === "payroll"
-                                                    ? "bg-green-500/20"
-                                                    : "bg-purple-500/20"
+                                                    ? "bg-emerald-500/15"
+                                                    : "bg-purple-500/15"
                                                 }`}
                                         >
                                             {activity.type === "leave" || activity.type === "leave_approval" ? (
                                                 <Calendar className="h-5 w-5 text-blue-400" />
                                             ) : activity.type === "payroll" ? (
-                                                <Receipt className="h-5 w-5 text-green-400" />
+                                                <Receipt className="h-5 w-5 text-emerald-400" />
                                             ) : (
                                                 <Target className="h-5 w-5 text-purple-400" />
                                             )}
@@ -541,7 +586,7 @@ export default function ESSDashboardPage() {
                                                 {activity.message}
                                             </p>
                                             <p className="text-xs text-tertiary-foreground">
-                                                {new Date(activity.createdAt).toLocaleDateString()}
+                                                {formatDate(activity.createdAt)}
                                             </p>
                                         </div>
                                     </div>
@@ -549,8 +594,8 @@ export default function ESSDashboardPage() {
                                         <Badge
                                             className={
                                                 activity.status === "approved"
-                                                    ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                                    : "bg-red-500/20 text-red-400 border-red-500/30"
+                                                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                                                    : "bg-red-500/15 text-red-400 border-red-500/20"
                                             }
                                         >
                                             {activity.status}

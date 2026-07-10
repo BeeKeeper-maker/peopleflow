@@ -131,6 +131,8 @@ export function NotificationCenter() {
                     variant="ghost"
                     size="icon"
                     className="relative text-muted-foreground hover:text-foreground hover:bg-hover"
+                    title="Notifications"
+                    aria-label="Notifications"
                 >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (

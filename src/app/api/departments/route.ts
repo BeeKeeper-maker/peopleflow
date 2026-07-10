@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
   // Authenticate first
@@ -8,6 +9,10 @@ export async function GET(req: Request) {
   if (!isAuthenticated(auth)) {
     return auth; // Returns 401 Unauthorized
   }
+
+  // Per-user rate limit (read op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -33,10 +38,14 @@ export async function GET(req: Request) {
       }),
     );
 
-    return NextResponse.json(departments);
+    return applyRateLimitHeaders(NextResponse.json(departments), rl.headers);
   } catch (error) {
-    apiLogger.error({ err: error }, "GET_DEPARTMENTS_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "GET_DEPARTMENTS_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }
 
@@ -46,6 +55,10 @@ export async function POST(req: Request) {
   if (!isAuthenticated(auth)) {
     return auth; // Returns 401 Unauthorized
   }
+
+  // Per-user rate limit (write op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const json = await req.json();
@@ -86,7 +99,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json(department);
   } catch (error) {
-    apiLogger.error({ err: error }, "CREATE_DEPARTMENT_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "CREATE_DEPARTMENT_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }

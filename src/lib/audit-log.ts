@@ -17,7 +17,15 @@ export type AuditAction =
     | "view"
     | "approve"
     | "reject"
-    | "export";
+    | "export"
+    // ── Sensitive-action audit events (P11-AUDIT-LOG) ───────────────
+    // These are emitted alongside the generic CRUD actions above to
+    // surface high-risk operations (auth factor changes, role changes,
+    // PII decryption, credential rotation) in audit-log queries.
+    | "2fa.disabled"
+    | "role.changed"
+    | "pii.accessed"
+    | "bkash.credentials_updated";
 
 interface AuditLogEntry {
     action: AuditAction;
@@ -187,10 +195,15 @@ export async function logDelete(
 
 /**
  * Clean up old audit logs (keep for compliance period)
+ *
+ * BLA 2006 requires audit records to be kept for at least 3 years.
+ * Payroll records must be kept for 12 years (Section 23).
+ * Default: 3 years (1095 days) for general audit logs.
+ * Use 4380 days (12 years) for payroll-specific audit logs.
  */
 export async function cleanupOldAuditLogs(
     organizationId: string,
-    retentionDays: number = 365
+    retentionDays: number = 1095 // 3 years per BLA 2006 (was 365)
 ): Promise<number> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);

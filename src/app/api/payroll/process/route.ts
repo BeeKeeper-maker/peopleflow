@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
-import { calculateSalary } from "@/lib/payroll-engine";
+import { calculateSalary, toNumber } from "@/lib/payroll-engine";
 import { emit } from "@/lib/event-bus";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
 
@@ -10,6 +10,14 @@ const processPayrollSchema = z.object({
     month: z.number().min(1).max(12),
     year: z.number().min(2020).max(2100),
     employeeIds: z.array(z.string()).optional(), // If empty, process all
+    // ── Manual adjustments (applied to every processed slip) ──
+    // These let HR give an ad-hoc bonus, arrear, or deduction at process time.
+    // For per-employee adjustments, process each employee separately with
+    // a custom overrides object (future enhancement: overrides map).
+    bonus: z.number().min(0).optional(),
+    arrears: z.number().min(0).optional(),
+    otherEarnings: z.number().min(0).optional(),
+    otherDeductions: z.number().min(0).optional(),
 });
 
 // GET - List salary slips (paginated)
@@ -20,6 +28,10 @@ export async function GET(req: Request) {
         if (!isAuthenticated(auth)) {
             return auth;
         }
+
+        // Per-user rate limit
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const month = searchParams.get("month");
@@ -43,30 +55,62 @@ export async function GET(req: Request) {
         if (employeeId) where.employeeId = employeeId;
         if (status) where.status = status;
 
-        const [slips, totalCount] = await Promise.all([
-            prisma.salarySlip.findMany({
-                where,
-                include: {
-                    employee: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            employeeCode: true,
-                            designation: { select: { name: true } },
-                            department: { select: { name: true } },
+        const [slips, totalCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.salarySlip.findMany({
+                    where,
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                employeeCode: true,
+                                designation: { select: { name: true } },
+                                department: { select: { name: true } },
+                            },
                         },
                     },
-                },
-                orderBy: [{ year: "desc" }, { month: "desc" }],
-                skip,
-                take: limit,
-            }),
-            prisma.salarySlip.count({ where }),
-        ]);
+                    orderBy: [{ year: "desc" }, { month: "desc" }],
+                    skip,
+                    take: limit,
+                }),
+                db.salarySlip.count({ where }),
+            ]),
+        );
 
         return NextResponse.json({
-            data: slips,
+            data: slips.map((slip) => ({
+                ...slip,
+                // Phase 1 (Float → Decimal): convert Decimal fields back to numbers
+                // so JSON serialization produces numbers, not strings. The frontend
+                // (useSalarySlips hook + payroll page) expects numbers for arithmetic
+                // like `slips.reduce((sum, s) => sum + s.netSalary, 0)`.
+                totalWorkingDays: toNumber(slip.totalWorkingDays),
+                presentDays: toNumber(slip.presentDays),
+                absentDays: toNumber(slip.absentDays),
+                leaveDays: toNumber(slip.leaveDays),
+                basicSalary: toNumber(slip.basicSalary),
+                houseRent: toNumber(slip.houseRent),
+                medicalAllowance: toNumber(slip.medicalAllowance),
+                conveyance: toNumber(slip.conveyance),
+                specialAllowance: toNumber(slip.specialAllowance),
+                overtime: toNumber(slip.overtime),
+                bonus: toNumber(slip.bonus),
+                festivalBonus: toNumber(slip.festivalBonus),
+                arrears: toNumber(slip.arrears),
+                otherEarnings: toNumber(slip.otherEarnings),
+                grossSalary: toNumber(slip.grossSalary),
+                pfEmployee: toNumber(slip.pfEmployee),
+                pfEmployer: toNumber(slip.pfEmployer),
+                incomeTax: toNumber(slip.incomeTax),
+                loanDeduction: toNumber(slip.loanDeduction),
+                absentDeduction: toNumber(slip.absentDeduction),
+                lateDeduction: toNumber(slip.lateDeduction),
+                otherDeductions: toNumber(slip.otherDeductions),
+                totalDeductions: toNumber(slip.totalDeductions),
+                netSalary: toNumber(slip.netSalary),
+            })),
             pagination: {
                 page,
                 limit,
@@ -76,8 +120,12 @@ export async function GET(req: Request) {
             },
         });
     } catch (error) {
-        payrollLogger.error({ err: error }, "GET_SLIPS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "GET_SLIPS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -90,6 +138,11 @@ export async function POST(req: Request) {
             return auth;
         }
 
+        // Very strict per-user rate limit (3 runs / 10 min) — payroll
+        // processing is resource-intensive and not safe to run concurrently.
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.heavy, auth.userId);
+        if (!rl.allowed) return rl.response!;
+
         const body = await req.json();
         const validation = processPayrollSchema.safeParse(body);
 
@@ -97,7 +150,7 @@ export async function POST(req: Request) {
             return new NextResponse(validation.error.issues[0].message, { status: 400 });
         }
 
-        const { month, year, employeeIds } = validation.data;
+        const { month, year, employeeIds, bonus, arrears, otherEarnings, otherDeductions } = validation.data;
 
         const hasExplicitEmployeeSelection = !!employeeIds && employeeIds.length > 0;
 
@@ -128,41 +181,59 @@ export async function POST(req: Request) {
                 }),
         };
 
-        const employees = await prisma.employee.findMany({
-            where: whereClause,
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                user: { select: { id: true, email: true } },
-            },
-        });
+        const employees = await auth.withDB((db) =>
+            db.employee.findMany({
+                where: whereClause,
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    user: { select: { id: true, email: true } },
+                },
+            }),
+        );
 
         const allEmployeeIds = employees.map((e) => e.id);
 
         // ─── GATHER PHASE: Batch-fetch all data in 2 queries (not N) ───────
-        const [existingSlips, allActiveLoans] = await Promise.all([
-            // 1. Existing slips for this month/year — prevents per-employee findUnique
-            prisma.salarySlip.findMany({
-                where: {
-                    employeeId: { in: allEmployeeIds },
-                    month,
-                    year,
-                },
-                select: { employeeId: true },
-            }),
-            // 2. All active loans for all employees — prevents N+1 in the loop
-            prisma.loan.findMany({
-                where: {
-                    employeeId: { in: allEmployeeIds },
-                    status: "disbursed",
-                    remainingAmount: { gt: 0 },
-                },
-            }),
-        ]);
+        const [existingSlips, allActiveLoans] = await auth.withDB((db) =>
+            Promise.all([
+                // 1. Existing slips for this month/year — prevents per-employee findUnique
+                //    Include isLocked so we can skip locked slips (paid + locked = no re-process)
+                db.salarySlip.findMany({
+                    where: {
+                        employeeId: { in: allEmployeeIds },
+                        month,
+                        year,
+                    },
+                    select: { employeeId: true, isLocked: true, isReversed: true, status: true },
+                }),
+                // 2. All active loans for all employees — prevents N+1 in the loop
+                db.loan.findMany({
+                    where: {
+                        employeeId: { in: allEmployeeIds },
+                        status: "disbursed",
+                        remainingAmount: { gt: 0 },
+                    },
+                }),
+            ]),
+        );
 
         // ─── BUILD INDEXES: O(1) lookup per employee ───────────────────────
-        const existingSlipSet = new Set(existingSlips.map((s) => s.employeeId));
+        // A slip is "blocking" if it exists AND is not reversed AND (is locked OR not locked)
+        // i.e. any non-reversed existing slip blocks re-processing.
+        // Locked slips explicitly block with a clear error message.
+        const existingSlipMap = new Map<string, { isLocked: boolean; isReversed: boolean; status: string }>();
+        for (const s of existingSlips) {
+            existingSlipMap.set(s.employeeId, {
+                isLocked: s.isLocked,
+                isReversed: s.isReversed,
+                status: s.status,
+            });
+        }
+        const existingSlipSet = new Set(
+            existingSlips.filter((s) => !s.isReversed).map((s) => s.employeeId),
+        );
         const loansByEmployee = new Map<string, typeof allActiveLoans>();
         for (const loan of allActiveLoans) {
             if (!loansByEmployee.has(loan.employeeId)) {
@@ -188,12 +259,17 @@ export async function POST(req: Request) {
             const empName = `${employee.firstName} ${employee.lastName}`;
 
             // ─── MATCH PHASE: O(1) lookup from pre-built indexes ───────────
-            // Skip if slip already exists (from batch-fetched Set)
-            if (existingSlipSet.has(employee.id)) {
+            // Skip if a non-reversed slip already exists.
+            // Locked slips get a specific error message so HR knows to
+            // unlock (with audit) before re-processing.
+            const existingInfo = existingSlipMap.get(employee.id);
+            if (existingInfo && !existingInfo.isReversed) {
                 skipped.push({
                     employeeId: employee.id,
                     name: empName,
-                    error: "Slip already exists",
+                    error: existingInfo.isLocked
+                        ? `Slip is LOCKED (status: ${existingInfo.status}). Unlock it first to re-process.`
+                        : `Slip already exists (status: ${existingInfo.status}). Reverse it first to re-process.`,
                 });
                 continue;
             }
@@ -201,70 +277,144 @@ export async function POST(req: Request) {
             try {
                 // ✅ Use the centralized payroll engine v2
                 // This gives us: proper tax slabs, tiered late deduction,
-                // festival bonus auto-inclusion, PF ledger posting
+                // festival bonus auto-inclusion, PF ledger posting.
+                // Manual adjustments (bonus/arrears/other) are passed through
+                // so HR can give ad-hoc earnings/deductions at process time.
+                //
+                // ── Atomicity note ──────────────────────────────────────────
+                // `postPFContributions: false` defers PF ledger posting so we
+                // can post it AFTER the slip is successfully created. If slip
+                // creation fails we also roll back any festival bonus that
+                // `getFestivalBonusForPayroll()` marked as included_in_payroll
+                // (it marks bonuses inside calculateSalary() since it can't be
+                // cleanly split). This prevents the data inconsistency where
+                // PF is posted / festival bonus is marked but no salary slip
+                // exists for the period.
                 const salary = await calculateSalary({
                     employeeId: employee.id,
                     month,
                     year,
-                    postPFContributions: true,
+                    postPFContributions: false,
                     includeInactiveAssignment: hasExplicitEmployeeSelection,
+                    bonus: bonus ?? 0,
+                    arrears: arrears ?? 0,
+                    otherEarnings: otherEarnings ?? 0,
+                    otherDeductions: otherDeductions ?? 0,
                 });
 
                 // Get active loans from pre-built Map (O(1) instead of DB query)
                 const activeLoans = loansByEmployee.get(employee.id) || [];
 
-                // Atomic: create slip + update loan balances
-                await prisma.$transaction(async (tx) => {
-                    // Create salary slip with full v2 breakdown
-                    await tx.salarySlip.create({
-                        data: {
+                // Atomic: create slip + update loan balances + post PF (withDB wraps in transaction)
+                // If ANY of these fail, we roll back the festival bonus marking
+                // done inside calculateSalary() so bonuses remain "pending" for re-processing.
+                try {
+                    await auth.withDB(async (db) => {
+                        // Create salary slip with full v2 breakdown
+                        await db.salarySlip.create({
+                            data: {
+                                employeeId: employee.id,
+                                organizationId: auth.organizationId,
+                                month,
+                                year,
+                                totalWorkingDays: salary.totalWorkingDays,
+                                presentDays: salary.presentDays,
+                                absentDays: salary.absentDays,
+                                leaveDays: salary.leaveDays,
+                                basicSalary: salary.basicSalary,
+                                houseRent: salary.houseRent,
+                                medicalAllowance: salary.medicalAllowance,
+                                conveyance: salary.conveyance,
+                                specialAllowance: salary.specialAllowance,
+                                overtime: salary.overtime,
+                                bonus: salary.bonus,
+                                festivalBonus: salary.festivalBonus,
+                                arrears: salary.arrears,
+                                otherEarnings: salary.otherEarnings,
+                                grossSalary: salary.grossSalary,
+                                pfEmployee: salary.pfEmployee,
+                                pfEmployer: salary.pfEmployer,
+                                incomeTax: salary.incomeTax,
+                                loanDeduction: salary.loanDeduction,
+                                absentDeduction: salary.absentDeduction,
+                                lateDeduction: salary.lateDeduction,
+                                otherDeductions: salary.otherDeductions,
+                                totalDeductions: salary.totalDeductions,
+                                netSalary: salary.netSalary,
+                                status: "draft",
+                            },
+                        });
+
+                        // Update loan balances
+                        for (const loan of activeLoans) {
+                            const deductionAmount = Math.min(Number(loan.emiAmount), Number(loan.remainingAmount));
+                            const newPaid = Number(loan.paidAmount) + deductionAmount;
+                            const newRemaining = Number(loan.remainingAmount) - deductionAmount;
+
+                            await db.loan.update({
+                                where: { id: loan.id },
+                                data: {
+                                    paidAmount: newPaid,
+                                    remainingAmount: newRemaining,
+                                    status: newRemaining <= 0 ? "closed" : "disbursed",
+                                },
+                            });
+                        }
+                    });
+                } catch (slipError) {
+                    // ── Rollback: unmark festival bonuses that calculateSalary() marked ──
+                    // Without this, a failed slip creation would leave bonuses permanently
+                    // tagged as "included_in_payroll" with no actual payslip — they would
+                    // never be paid out and never be re-pickable by the next payroll run.
+                    if (salary.festivalBonus > 0) {
+                        try {
+                            await auth.withDB((db) =>
+                                db.festivalBonusPayment.updateMany({
+                                    where: {
+                                        employeeId: employee.id,
+                                        status: "included_in_payroll",
+                                        payrollMonth: month,
+                                        payrollYear: year,
+                                    },
+                                    data: {
+                                        status: "pending",
+                                        payrollMonth: null,
+                                        payrollYear: null,
+                                    },
+                                }),
+                            );
+                        } catch (rollbackError) {
+                            payrollLogger.error(
+                                { err: rollbackError, employeeId: employee.id, month, year },
+                                "FESTIVAL_BONUS_ROLLBACK_FAILED",
+                            );
+                        }
+                    }
+                    // Re-throw so the outer catch logs it as a skip
+                    throw slipError;
+                }
+
+                // ── Post PF contributions ONLY after slip is committed ──
+                // calculateSalary() returned the computed PF amounts but did NOT
+                // post them (we passed postPFContributions: false). Post now so
+                // PF is never recorded for a period without a salary slip.
+                if (salary.pfEmployee > 0) {
+                    try {
+                        const { recordMonthlyContributions } = await import("@/lib/pf-ledger-engine");
+                        await recordMonthlyContributions({
                             employeeId: employee.id,
                             month,
                             year,
-                            totalWorkingDays: salary.totalWorkingDays,
-                            presentDays: salary.presentDays,
-                            absentDays: salary.absentDays,
-                            leaveDays: salary.leaveDays,
-                            basicSalary: salary.basicSalary,
-                            houseRent: salary.houseRent,
-                            medicalAllowance: salary.medicalAllowance,
-                            conveyance: salary.conveyance,
-                            specialAllowance: salary.specialAllowance,
-                            overtime: salary.overtime,
-                            bonus: salary.bonus,
-                            festivalBonus: salary.festivalBonus,
-                            arrears: salary.arrears,
-                            otherEarnings: salary.otherEarnings,
-                            grossSalary: salary.grossSalary,
-                            pfEmployee: salary.pfEmployee,
-                            pfEmployer: salary.pfEmployer,
-                            incomeTax: salary.incomeTax,
-                            loanDeduction: salary.loanDeduction,
-                            absentDeduction: salary.absentDeduction,
-                            lateDeduction: salary.lateDeduction,
-                            otherDeductions: salary.otherDeductions,
-                            totalDeductions: salary.totalDeductions,
-                            netSalary: salary.netSalary,
-                            status: "draft",
-                        },
-                    });
-
-                    // Update loan balances
-                    for (const loan of activeLoans) {
-                        const deductionAmount = Math.min(loan.emiAmount, loan.remainingAmount);
-                        const newPaid = loan.paidAmount + deductionAmount;
-                        const newRemaining = loan.remainingAmount - deductionAmount;
-
-                        await tx.loan.update({
-                            where: { id: loan.id },
-                            data: {
-                                paidAmount: newPaid,
-                                remainingAmount: newRemaining,
-                                status: newRemaining <= 0 ? "closed" : "disbursed",
-                            },
+                            employeeAmount: salary.pfEmployee,
+                            employerAmount: salary.pfEmployer,
                         });
+                    } catch (pfError) {
+                        // PF posting failure should NOT block salary calculation
+                        // (slip is already created; PF has an idempotency guard
+                        // and can be re-posted from the PF ledger reconciliation tool).
+                        payrollLogger.error({ err: pfError, employeeId: employee.id }, "Failed to post PF contribution");
                     }
-                });
+                }
 
                 created.push({
                     employeeId: employee.id,
@@ -311,14 +461,21 @@ export async function POST(req: Request) {
             }).catch((err) => payrollLogger.error({ err: err }, "[EVENT_FAIL] payroll.processed:"));
         }
 
-        return NextResponse.json({
-            processed: created.length,
-            errorCount: skipped.length,
-            results: created,
-            errors: skipped,
-        });
+        return applyRateLimitHeaders(
+            NextResponse.json({
+                processed: created.length,
+                errorCount: skipped.length,
+                results: created,
+                errors: skipped,
+            }),
+            rl.headers,
+        );
     } catch (error) {
-        payrollLogger.error({ err: error }, "PROCESS_PAYROLL_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "PROCESS_PAYROLL_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

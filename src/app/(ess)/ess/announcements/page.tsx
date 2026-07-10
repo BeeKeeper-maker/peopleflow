@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 import {
     Megaphone,
     Clock,
@@ -17,27 +18,7 @@ import {
     User,
     Shield,
 } from "lucide-react";
-
-interface Author {
-    id: string;
-    firstName: string;
-    lastName: string;
-    photoUrl?: string;
-}
-
-interface Announcement {
-    id: string;
-    title: string;
-    content: string;
-    type: string;
-    priority: string;
-    isPinned: boolean;
-    isActive: boolean;
-    publishDate: string;
-    expiryDate?: string;
-    createdAt: string;
-    author?: Author | null;
-}
+import { useEssAnnouncements } from "@/hooks/use-data";
 
 // Maps to Prisma Announcement.type values
 const typeConfig: Record<string, { color: string; icon: React.ElementType }> = {
@@ -57,29 +38,13 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
 
 export default function ESSAnnouncementsPage() {
     const t = useTranslations("ESSAnnouncements");
-    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-    const [loading, setLoading] = useState(true);
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    // ── TanStack Query: announcements (active only) ──
+    const { data: announcements = [], isLoading: loading } = useEssAnnouncements();
     const [filter, setFilter] = useState<string>("all");
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        const fetchAnnouncements = async () => {
-            try {
-                const res = await fetch("/api/announcements?active=true");
-                if (res.ok) {
-                    const data = await res.json();
-                    const items = Array.isArray(data) ? data : (data.announcements || []);
-                    setAnnouncements(items);
-                }
-            } catch (err) {
-                console.error("Failed to fetch announcements:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAnnouncements();
-    }, []);
 
     const filtered = filter === "all"
         ? announcements
@@ -107,10 +72,12 @@ export default function ESSAnnouncementsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Megaphone}
+                iconColor="purple"
+            />
 
             {/* Filters */}
             <div className="flex flex-wrap gap-2">
@@ -183,7 +150,7 @@ export default function ESSAnnouncementsPage() {
                                                         {/* Posted date */}
                                                         <span className="flex items-center gap-1">
                                                             <Clock className="h-3 w-3" />
-                                                            {t("postedOn")} {new Date(announcement.publishDate || announcement.createdAt).toLocaleDateString()}
+                                                            {t("postedOn")} {formatDate(announcement.publishDate || announcement.createdAt)}
                                                         </span>
 
                                                         {/* Author — backed by schema relation */}

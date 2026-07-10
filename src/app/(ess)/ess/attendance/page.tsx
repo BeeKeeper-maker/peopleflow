@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
     Clock,
@@ -15,6 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
+
+import { useEssAttendance } from "@/hooks/use-data";
 
 interface AttendanceRecord {
     id: string;
@@ -44,10 +47,7 @@ export default function ESSAttendancePage() {
     const t = useTranslations("ESSAttendance");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
-    const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [records, setRecords] = useState<AttendanceRecord[]>([]);
-    const [stats, setStats] = useState<MonthlyStats | null>(null);
 
     const monthName = new Intl.DateTimeFormat(dateLocale, { month: "long", year: "numeric" }).format(currentMonth);
 
@@ -77,125 +77,108 @@ export default function ESSAttendancePage() {
         return locale.startsWith("bn") ? `${hours}ঘ ${mins}মি` : `${hours}h ${mins}m`;
     }, [locale]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const year = currentMonth.getFullYear();
-                const month = currentMonth.getMonth() + 1;
+    // ── TanStack Query: attendance records for the selected month ──
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const { data: rawRecords = [], isLoading } = useEssAttendance({ year, month });
 
-                // Fetch attendance records for the month
-                const res = await fetch(`/api/attendance?year=${year}&month=${month}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const rawRecords = data.data || data || [];
+    // ── Transform API data to UI format (fill in all days of the month) ──
+    // Memoized — recomputes only when the cached records or locale change.
+    const { records, stats } = useMemo(() => {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const today = new Date();
+        const transformedRecords: AttendanceRecord[] = [];
 
-                    // Transform API data to UI format
-                    const daysInMonth = new Date(year, month, 0).getDate();
-                    const today = new Date();
-                    const transformedRecords: AttendanceRecord[] = [];
+        // Create a map of existing records by date
+        const recordMap = new Map<string, AttendanceRecord>();
+        (rawRecords as Array<{
+            id: string;
+            date: string;
+            status?: string;
+            checkInTime?: string;
+            checkOutTime?: string;
+            totalMinutes?: number;
+            lateMinutes?: number;
+            earlyLeaveMinutes?: number;
+            overtimeMinutes?: number;
+        }>).forEach((r) => {
+            const dateStr = r.date.split("T")[0];
+            recordMap.set(dateStr, {
+                id: r.id,
+                date: dateStr,
+                dayOfWeek: new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(new Date(r.date)),
+                status: (r.status as AttendanceRecord["status"]) || "present",
+                checkIn: r.checkInTime ? formatTime(r.checkInTime) : undefined,
+                checkOut: r.checkOutTime ? formatTime(r.checkOutTime) : undefined,
+                workingHours: r.totalMinutes ? formatDuration(r.totalMinutes) : undefined,
+                lateMinutes: r.lateMinutes,
+                earlyLeaveMinutes: r.earlyLeaveMinutes,
+                overtime: r.overtimeMinutes ? formatDuration(r.overtimeMinutes) : undefined,
+            });
+        });
 
-                    // Create a map of existing records by date
-                    const recordMap = new Map<string, AttendanceRecord>();
-                    rawRecords.forEach((r: {
-                        id: string;
-                        date: string;
-                        status?: string;
-                        checkInTime?: string;
-                        checkOutTime?: string;
-                        totalMinutes?: number;
-                        lateMinutes?: number;
-                        earlyLeaveMinutes?: number;
-                        overtimeMinutes?: number;
-                    }) => {
-                        const dateStr = r.date.split("T")[0];
-                        recordMap.set(dateStr, {
-                            id: r.id,
-                            date: dateStr,
-                            dayOfWeek: new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(new Date(r.date)),
-                            status: (r.status as AttendanceRecord["status"]) || "present",
-                            checkIn: r.checkInTime ? formatTime(r.checkInTime) : undefined,
-                            checkOut: r.checkOutTime ? formatTime(r.checkOutTime) : undefined,
-                            workingHours: r.totalMinutes ? formatDuration(r.totalMinutes) : undefined,
-                            lateMinutes: r.lateMinutes,
-                            earlyLeaveMinutes: r.earlyLeaveMinutes,
-                            overtime: r.overtimeMinutes ? formatDuration(r.overtimeMinutes) : undefined,
-                        });
-                    });
+        // Fill in all days of the month
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month - 1, day);
+            const dateStr = formatLocalDateKey(date);
+            const dayOfWeek = new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(date);
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            const isFuture = startOfLocalDay(date) > startOfLocalDay(today);
+            const isToday = startOfLocalDay(date).getTime() === startOfLocalDay(today).getTime();
 
-                    // Fill in all days of the month
-                    for (let day = 1; day <= daysInMonth; day++) {
-                        const date = new Date(year, month - 1, day);
-                        const dateStr = formatLocalDateKey(date);
-                        const dayOfWeek = new Intl.DateTimeFormat(dateLocale, { weekday: "long" }).format(date);
-                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                        const isFuture = startOfLocalDay(date) > startOfLocalDay(today);
-                        const isToday = startOfLocalDay(date).getTime() === startOfLocalDay(today).getTime();
-
-                        if (recordMap.has(dateStr)) {
-                            transformedRecords.push(recordMap.get(dateStr)!);
-                        } else {
-                            transformedRecords.push({
-                                id: `placeholder-${dateStr}`,
-                                date: dateStr,
-                                dayOfWeek,
-                                status: isFuture ? "upcoming" : (isWeekend ? "weekend" : (isToday ? "not_marked" : "absent")),
-                            });
-                        }
-                    }
-
-                    setRecords(transformedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-
-                    // Calculate stats from records
-                    const presentCount = rawRecords.filter((r: { status?: string }) => r.status === "present").length;
-                    const absentCount = rawRecords.filter((r: { status?: string }) => r.status === "absent").length;
-                    const lateCount = rawRecords.filter((r: { status?: string }) => r.status === "late").length;
-                    const onLeaveCount = rawRecords.filter((r: { status?: string }) => r.status === "on_leave").length;
-                    const halfDayCount = rawRecords.filter((r: { status?: string }) => r.status === "half_day").length;
-
-                    const totalMinutes = rawRecords.reduce((acc: number, r: { totalMinutes?: number }) => acc + (r.totalMinutes || 0), 0);
-                    // Calculate average check-in from actual records
-                    const checkInTimes = rawRecords
-                        .filter((r: { checkInTime?: string }) => r.checkInTime)
-                        .map((r: { checkInTime: string }) => new Date(r.checkInTime));
-                    let avgCheckIn = t("notAvailable");
-                    if (checkInTimes.length > 0) {
-                        const avgMs = checkInTimes.reduce((sum: number, d: Date) => {
-                            const dayStart = new Date(d);
-                            dayStart.setHours(0, 0, 0, 0);
-                            return sum + (d.getTime() - dayStart.getTime());
-                        }, 0) / checkInTimes.length;
-                        const avgDate = new Date();
-                        avgDate.setHours(0, 0, 0, 0);
-                        avgDate.setMilliseconds(avgMs);
-                        avgCheckIn = formatTime(avgDate);
-                    }
-
-                    setStats({
-                        present: presentCount,
-                        absent: absentCount,
-                        halfDay: halfDayCount,
-                        onLeave: onLeaveCount,
-                        late: lateCount,
-                        earlyLeave: 0,
-                        totalWorkingHours: formatDuration(totalMinutes),
-                        averageCheckIn: avgCheckIn,
-                    });
-                } else {
-                    setRecords([]);
-                    setStats(null);
-                }
-            } catch (error) {
-                console.error("Error fetching attendance:", error);
-                setRecords([]);
-                setStats(null);
-            } finally {
-                setIsLoading(false);
+            if (recordMap.has(dateStr)) {
+                transformedRecords.push(recordMap.get(dateStr)!);
+            } else {
+                transformedRecords.push({
+                    id: `placeholder-${dateStr}`,
+                    date: dateStr,
+                    dayOfWeek,
+                    status: isFuture ? "upcoming" : (isWeekend ? "weekend" : (isToday ? "not_marked" : "absent")),
+                });
             }
+        }
+
+        transformedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // Calculate stats from raw API records
+        const presentCount = (rawRecords as Array<{ status?: string }>).filter((r) => r.status === "present").length;
+        const absentCount = (rawRecords as Array<{ status?: string }>).filter((r) => r.status === "absent").length;
+        const lateCount = (rawRecords as Array<{ status?: string }>).filter((r) => r.status === "late").length;
+        const onLeaveCount = (rawRecords as Array<{ status?: string }>).filter((r) => r.status === "on_leave").length;
+        const halfDayCount = (rawRecords as Array<{ status?: string }>).filter((r) => r.status === "half_day").length;
+
+        const totalMinutes = (rawRecords as Array<{ totalMinutes?: number }>).reduce((acc, r) => acc + (r.totalMinutes || 0), 0);
+        // Calculate average check-in from actual records
+        const checkInTimes = (rawRecords as Array<{ checkInTime?: string }>)
+            .filter((r) => r.checkInTime)
+            .map((r) => new Date(r.checkInTime as string));
+        let avgCheckIn = t("notAvailable");
+        if (checkInTimes.length > 0) {
+            const avgMs = checkInTimes.reduce((sum, d) => {
+                const dayStart = new Date(d);
+                dayStart.setHours(0, 0, 0, 0);
+                return sum + (d.getTime() - dayStart.getTime());
+            }, 0) / checkInTimes.length;
+            const avgDate = new Date();
+            avgDate.setHours(0, 0, 0, 0);
+            avgDate.setMilliseconds(avgMs);
+            avgCheckIn = formatTime(avgDate);
+        }
+
+        const computedStats: MonthlyStats = {
+            present: presentCount,
+            absent: absentCount,
+            halfDay: halfDayCount,
+            onLeave: onLeaveCount,
+            late: lateCount,
+            earlyLeave: 0,
+            totalWorkingHours: formatDuration(totalMinutes),
+            averageCheckIn: avgCheckIn,
         };
 
-        fetchData();
-    }, [currentMonth, dateLocale, formatDuration, formatTime, locale, t]);
+        return { records: transformedRecords, stats: computedStats };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rawRecords, year, month, dateLocale, formatTime, formatDuration]);
 
     const goToPreviousMonth = () => {
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -289,35 +272,35 @@ export default function ESSAttendancePage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-                    <p className="text-muted-foreground mt-1">
-                        {t("subtitle")}
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToPreviousMonth}
-                        className="border-card-border text-muted-foreground hover:text-foreground"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="px-4 py-2 bg-card rounded-lg text-foreground font-medium min-w-[160px] text-center">
-                        {monthName}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={goToNextMonth}
-                        className="border-card-border text-muted-foreground hover:text-foreground"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Clock}
+                iconColor="blue"
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={goToPreviousMonth}
+                            className="border-card-border text-muted-foreground hover:text-foreground"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="px-4 py-2 bg-card rounded-lg text-foreground font-medium min-w-[160px] text-center">
+                            {monthName}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={goToNextMonth}
+                            className="border-card-border text-muted-foreground hover:text-foreground"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* Stats Cards */}
             {stats && (
@@ -329,7 +312,7 @@ export default function ESSAttendancePage() {
                                     <CheckCircle2 className="h-5 w-5 text-green-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-foreground">{stats.present}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.present}</p>
                                     <p className="text-xs text-muted-foreground">{t("presentDays")}</p>
                                 </div>
                             </div>
@@ -342,7 +325,7 @@ export default function ESSAttendancePage() {
                                     <XCircle className="h-5 w-5 text-red-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-foreground">{stats.absent}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.absent}</p>
                                     <p className="text-xs text-muted-foreground">{t("absentDays")}</p>
                                 </div>
                             </div>
@@ -355,7 +338,7 @@ export default function ESSAttendancePage() {
                                     <AlertCircle className="h-5 w-5 text-yellow-400" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold text-foreground">{stats.late}</p>
+                                    <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.late}</p>
                                     <p className="text-xs text-muted-foreground">{t("lateArrivals")}</p>
                                 </div>
                             </div>
@@ -368,7 +351,7 @@ export default function ESSAttendancePage() {
                                     <Clock className="h-5 w-5 text-blue-400" />
                                 </div>
                                 <div>
-                                    <p className="text-lg font-bold text-foreground">{stats.totalWorkingHours}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-foreground">{stats.totalWorkingHours}</p>
                                     <p className="text-xs text-muted-foreground">{t("totalHours")}</p>
                                 </div>
                             </div>

@@ -1,18 +1,27 @@
 /**
- * CRON: Device Health Monitor
- * 
+ * CRON: Device Health Monitor + System Health Alerting
+ *
  * Endpoint: GET /api/cron/health-ping
- * Schedule: Every 5 minutes
- * 
- * Checks all active biometric devices (via SyncApiKey) for ones that
- * haven't synced within the expected interval. Emits device.offline
- * events to alert HR admins.
+ * Schedule: Every 5–15 minutes
+ *
+ * Two responsibilities:
+ *   1. Device health — scan SyncApiKeys for devices that haven't synced
+ *      within the threshold window; emit `device.offline` events.
+ *   2. System health — probe DB + Redis; if either is down, fire an
+ *      email + optional Slack/Discord webhook (with a 30-min cooldown).
+ *      Implemented in `@/lib/health-alert` so the alerting path can be
+ *      unit-tested independently of the cron runtime.
+ *
+ * Both responsibilities are non-fatal: an exception in one branch is
+ * logged and the cron still returns a structured JSON response so the
+ * scheduler doesn't crash on partial failures.
  */
 
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { emit } from "@/lib/event-bus";
 import { prisma } from "@/lib/prisma";
 import { cronLogger } from "@/lib/logger";
+import { checkHealthAndAlert } from "@/lib/health-alert";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -26,6 +35,29 @@ export async function GET(req: Request) {
     if (authError) return authError;
 
     const startTime = Date.now();
+
+    // ── System health (DB + Redis) with alerting ──
+    // Runs first so that even if the device scan below blows up, we have
+    // still probed core dependencies and (if needed) sent an alert.
+    let systemHealth: { healthy: boolean; failures: string[] } = {
+        healthy: true,
+        failures: [],
+    };
+    try {
+        systemHealth = await checkHealthAndAlert();
+    } catch (error) {
+        // checkHealthAndAlert is designed to never throw, but defend in depth
+        // so a regression cannot crash the device-scan half of this cron.
+        cronLogger.error({ err: error }, "[CRON] health-ping: checkHealthAndAlert threw");
+        systemHealth = {
+            healthy: false,
+            failures: [
+                `Health-check orchestrator: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`,
+            ],
+        };
+    }
 
     try {
         const thresholdTime = new Date(
@@ -90,22 +122,32 @@ export async function GET(req: Request) {
             },
         });
 
+        // Cron status: "success" only when both system + device checks are clean.
+        const hasDeviceIssues = staleDevices.length > 0;
+        const status: "success" | "partial" | "error" =
+            !systemHealth.healthy || hasDeviceIssues ? "partial" : "success";
+
         return cronResponse(
             {
                 job: "device-health-ping",
+                healthy: systemHealth.healthy,
+                failures: systemHealth.failures,
                 staleDevices: staleDevices.length,
                 alertsSent,
                 neverSyncedDevices: neverSynced,
                 thresholdMinutes: OFFLINE_THRESHOLD_MINUTES,
+                timestamp: new Date().toISOString(),
                 durationMs: Date.now() - startTime,
             },
-            staleDevices.length > 0 ? "partial" : "success"
+            status
         );
     } catch (error) {
         cronLogger.error({ err: error }, "[CRON] health-ping FATAL:");
         return cronResponse(
             {
                 job: "device-health-ping",
+                healthy: systemHealth.healthy,
+                failures: systemHealth.failures,
                 error: error instanceof Error ? error.message : "Unknown error",
                 durationMs: Date.now() - startTime,
             },

@@ -10,11 +10,16 @@
  *  2. Advances to the next approver in the chain (if configured)
  *  3. Notifies the escalated approver
  *  4. Logs the escalation in ApprovalStepLog
+ *
+ * RLS note (P0-BACKEND): Cross-tenant "find all overdue requests" uses
+ * `withPlatform()` (rls_bypass=true). Per-request work is executed inside
+ * `withTenant(request.organizationId, …)` so each organization's data stays
+ * isolated while still allowing the cron to process all tenants.
  */
 
 import { verifyCronAuth, cronResponse } from "@/lib/cron-auth";
 import { emit } from "@/lib/event-bus";
-import { prisma } from "@/lib/prisma";
+import { withPlatform, withTenant } from "@/lib/prisma";
 import { cronLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -30,37 +35,40 @@ export async function GET(req: Request) {
     try {
         const now = new Date();
 
-        // Find all in-progress approval requests that are past their due date
-        const overdueRequests = await prisma.approvalRequest.findMany({
-            where: {
-                status: "in_progress",
-                dueDate: { lt: now },
-            },
-            include: {
-                requester: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
-                        user: { select: { id: true } },
+        // Find all in-progress approval requests that are past their due date.
+        // Cross-tenant query → must use RLS bypass.
+        const overdueRequests = await withPlatform((db) =>
+            db.approvalRequest.findMany({
+                where: {
+                    status: "in_progress",
+                    dueDate: { lt: now },
+                },
+                include: {
+                    requester: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                            user: { select: { id: true } },
+                        },
+                    },
+                    organization: {
+                        select: { name: true },
+                    },
+                    steps: {
+                        where: { status: "pending" },
+                        orderBy: { stepNumber: "asc" },
+                        take: 1,
+                        select: {
+                            id: true,
+                            stepNumber: true,
+                            stepName: true,
+                            assignedToId: true,
+                            assignedRole: true,
+                        },
                     },
                 },
-                organization: {
-                    select: { name: true },
-                },
-                steps: {
-                    where: { status: "pending" },
-                    orderBy: { stepNumber: "asc" },
-                    take: 1,
-                    select: {
-                        id: true,
-                        stepNumber: true,
-                        stepName: true,
-                        assignedToId: true,
-                        assignedRole: true,
-                    },
-                },
-            },
-        });
+            }),
+        );
 
         let escalated = 0;
         let skipped = 0;
@@ -68,107 +76,116 @@ export async function GET(req: Request) {
 
         for (const request of overdueRequests) {
             try {
-                // Get current approver info via currentApproverId
-                let currentApproverName = "previous approver";
-                let escalateToId: string | null = null;
-                let escalateToName = "HR Admin";
+                // All per-request work is scoped to the request's organization.
+                const escalation = await withTenant(request.organizationId, async (db) => {
+                    // Get current approver info via currentApproverId
+                    let currentApproverName = "previous approver";
+                    let escalateToId: string | null = null;
+                    let escalateToName = "HR Admin";
 
-                if (request.currentApproverId) {
-                    const currentApprover = await prisma.employee.findUnique({
-                        where: { id: request.currentApproverId },
-                        select: {
-                            firstName: true,
-                            lastName: true,
-                            reportingManagerId: true,
-                        },
-                    });
+                    if (request.currentApproverId) {
+                        const currentApprover = await db.employee.findUnique({
+                            where: { id: request.currentApproverId },
+                            select: {
+                                firstName: true,
+                                lastName: true,
+                                reportingManagerId: true,
+                            },
+                        });
 
-                    if (currentApprover) {
-                        currentApproverName = `${currentApprover.firstName} ${currentApprover.lastName}`;
+                        if (currentApprover) {
+                            currentApproverName = `${currentApprover.firstName} ${currentApprover.lastName}`;
 
-                        // Find the skip-level manager for escalation
-                        if (currentApprover.reportingManagerId) {
-                            const skipLevelManager = await prisma.employee.findUnique({
-                                where: { id: currentApprover.reportingManagerId },
-                                select: {
-                                    id: true,
-                                    firstName: true,
-                                    lastName: true,
-                                    user: { select: { id: true } },
-                                },
-                            });
+                            // Find the skip-level manager for escalation
+                            if (currentApprover.reportingManagerId) {
+                                const skipLevelManager = await db.employee.findUnique({
+                                    where: { id: currentApprover.reportingManagerId },
+                                    select: {
+                                        id: true,
+                                        firstName: true,
+                                        lastName: true,
+                                        user: { select: { id: true } },
+                                    },
+                                });
 
-                            if (skipLevelManager?.user?.id) {
-                                escalateToId = skipLevelManager.user.id;
-                                escalateToName = `${skipLevelManager.firstName} ${skipLevelManager.lastName}`;
+                                if (skipLevelManager?.user?.id) {
+                                    escalateToId = skipLevelManager.user.id;
+                                    escalateToName = `${skipLevelManager.firstName} ${skipLevelManager.lastName}`;
+                                }
                             }
                         }
                     }
-                }
 
-                // If no skip-level manager, escalate to any HR admin in the org
-                if (!escalateToId) {
-                    const hrAdmin = await prisma.user.findFirst({
-                        where: {
-                            organizationId: request.organizationId,
-                            role: { in: ["admin", "hr_admin"] },
+                    // If no skip-level manager, escalate to any HR admin in the org
+                    if (!escalateToId) {
+                        const hrAdmin = await db.user.findFirst({
+                            where: {
+                                organizationId: request.organizationId,
+                                role: { in: ["admin", "hr_admin"] },
+                            },
+                            select: { id: true, name: true },
+                        });
+
+                        if (hrAdmin) {
+                            escalateToId = hrAdmin.id;
+                            escalateToName = hrAdmin.name || "HR Admin";
+                        }
+                    }
+
+                    if (!escalateToId) {
+                        return { escalated: false, escalateToId: null, escalateToName: "", currentApproverName };
+                    }
+
+                    // Get current pending step info
+                    const currentPendingStep = request.steps[0];
+                    const nextStepNumber = currentPendingStep
+                        ? currentPendingStep.stepNumber + 1
+                        : request.currentStep + 1;
+
+                    // Mark current step as escalated if it exists
+                    if (currentPendingStep) {
+                        await db.approvalStepLog.update({
+                            where: { id: currentPendingStep.id },
+                            data: {
+                                status: "escalated",
+                                notes: `Auto-escalated: SLA breached (due: ${request.dueDate?.toISOString()}). Escalated from ${currentApproverName} to ${escalateToName}.`,
+                                actedAt: now,
+                            },
+                        });
+                    }
+
+                    // Update the request's current step
+                    await db.approvalRequest.update({
+                        where: { id: request.id },
+                        data: {
+                            currentStep: nextStepNumber,
                         },
-                        select: { id: true, name: true },
                     });
 
-                    if (hrAdmin) {
-                        escalateToId = hrAdmin.id;
-                        escalateToName = hrAdmin.name || "HR Admin";
-                    }
-                }
+                    return { escalated: true, escalateToId, escalateToName, currentApproverName };
+                });
 
-                if (!escalateToId) {
+                if (!escalation.escalated || !escalation.escalateToId) {
                     skipped++;
                     continue;
                 }
 
-                // Get current pending step info
-                const currentPendingStep = request.steps[0];
-                const nextStepNumber = currentPendingStep
-                    ? currentPendingStep.stepNumber + 1
-                    : request.currentStep + 1;
-
-                // Mark current step as escalated if it exists
-                if (currentPendingStep) {
-                    await prisma.approvalStepLog.update({
-                        where: { id: currentPendingStep.id },
-                        data: {
-                            status: "escalated",
-                            notes: `Auto-escalated: SLA breached (due: ${request.dueDate?.toISOString()}). Escalated from ${currentApproverName} to ${escalateToName}.`,
-                            actedAt: now,
-                        },
-                    });
-                }
-
-                // Update the request's current step
-                await prisma.approvalRequest.update({
-                    where: { id: request.id },
-                    data: {
-                        currentStep: nextStepNumber,
-                    },
-                });
-
-                // Notify the escalated approver
+                // Notify the escalated approver (events are platform-level, not DB-scoped)
                 await emit("approval.escalated", {
-                    userId: escalateToId,
-                    approverName: escalateToName,
+                    userId: escalation.escalateToId,
+                    approverName: escalation.escalateToName,
                     entityType: request.entityType,
                     entityDescription: `${request.entityType} request from ${request.requester.firstName} ${request.requester.lastName}`,
-                    originalApprover: currentApproverName,
+                    originalApprover: escalation.currentApproverName,
                 });
 
                 // Also notify the requester that their request was escalated
                 if (request.requester.user?.id) {
                     await emit("approval.assigned", {
                         userId: request.requester.user.id,
-                        approverName: escalateToName,
+                        approverName: escalation.escalateToName,
                         entityType: request.entityType,
-                        entityDescription: `Your ${request.entityType} request has been escalated to ${escalateToName} due to SLA breach.`,
+                        entityDescription: `Your ${request.entityType} request has been escalated to ${escalation.escalateToName} due to SLA breach.`,
                         requesterName: `${request.requester.firstName} ${request.requester.lastName}`,
                     });
                 }

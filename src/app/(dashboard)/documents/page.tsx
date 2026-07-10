@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +58,7 @@ const templateStyles: Record<string, { color: string; bgColor: string }> = {
     noc_letter: { color: "text-indigo-400", bgColor: "bg-indigo-500/20" },
 };
 
-const fieldLabels: Record<string, string> = {
+const fieldLabelsEn: Record<string, string> = {
     refNumber: "Reference number",
     referenceNumber: "Reference number",
     signatoryName: "Signatory name",
@@ -74,9 +74,26 @@ const fieldLabels: Record<string, string> = {
     terminationDate: "Termination date",
     terminationReason: "Termination reason",
 };
+const fieldLabelsBn: Record<string, string> = {
+    refNumber: "রেফারেন্স নম্বর",
+    referenceNumber: "রেফারেন্স নম্বর",
+    signatoryName: "স্বাক্ষরকারীর নাম",
+    signatoryDesignation: "স্বাক্ষরকারীর পদবি",
+    signatureImageUrl: "স্বাক্ষর ছবি URL",
+    orgAddress: "প্রতিষ্ঠানের ঠিকানা",
+    lastWorkingDate: "শেষ কর্মদিবস",
+    previousSalary: "পূর্ববর্তী বেতন",
+    newSalary: "নতুন বেতন",
+    effectiveDate: "কার্যকর তারিখ",
+    warningReason: "সতর্কতার কারণ",
+    warningDetails: "সতর্কতার বিস্তারিত",
+    terminationDate: "চাকরি শেষের তারিখ",
+    terminationReason: "চাকরি শেষের কারণ",
+};
 
-function getFieldLabel(field: string) {
-    return fieldLabels[field] || field.replace(/([A-Z])/g, " $1").trim();
+function getFieldLabel(field: string, locale: string = "en") {
+    const labels = locale.startsWith("bn") ? fieldLabelsBn : fieldLabelsEn;
+    return labels[field] || field.replace(/([A-Z])/g, " $1").trim();
 }
 
 function getInputType(field: string) {
@@ -101,6 +118,8 @@ export default function DocumentsPage() {
 function DocumentsPageContent() {
     const { addToast } = useToast();
     const t = useTranslations('Documents');
+    const tShared = useTranslations("SharedComponents");
+    const locale = useLocale();
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
     const [loading, setLoading] = useState(true);
@@ -145,7 +164,7 @@ function DocumentsPageContent() {
 
     const handleGenerate = async () => {
         if (!selectedType || !selectedEmployee) {
-            addToast({ title: "Missing fields", description: "Please select a document type and employee.", type: "error" });
+            addToast({ title: tShared("missingFields"), description: tShared("selectDocTypeAndEmployee"), type: "error" });
             return;
         }
 
@@ -170,10 +189,10 @@ function DocumentsPageContent() {
             const data = await res.json();
             setGeneratedHTML(data.html);
             setStep(3);
-            addToast({ title: "Document Generated", description: `${selectedTypeInfo?.label} created successfully.`, type: "success" });
+            addToast({ title: t("documentGenerated"), description: `${selectedTypeInfo?.label} ${t("createdSuccessfully")}`, type: "success" });
         } catch (error) {
-            const message = error instanceof Error ? error.message : "Something went wrong";
-            addToast({ title: "Generation Failed", description: message, type: "error" });
+            const message = error instanceof Error ? error.message : tShared("common.somethingWentWrong");
+            addToast({ title: t("generationFailed"), description: message, type: "error" });
         } finally {
             setGenerating(false);
         }
@@ -206,7 +225,7 @@ function DocumentsPageContent() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     {step > 1 && (
@@ -224,8 +243,8 @@ function DocumentsPageContent() {
                             <FileCheck className="h-5 w-5" />
                         </div>
                         <div>
-                            <h2 className="font-semibold text-foreground">HR Letter Generator</h2>
-                            <p className="text-sm text-muted-foreground">Generate official letters and certificates from employee data.</p>
+                            <h2 className="font-semibold text-foreground">{t("hrLetterGenerator")}</h2>
+                            <p className="text-sm text-muted-foreground">{t("hrLetterDesc")}</p>
                         </div>
                     </div>
                 </div>
@@ -330,11 +349,11 @@ function DocumentsPageContent() {
                             <Button
                                 onClick={() => {
                                     if (!selectedEmployee) {
-                                        addToast({ title: "Select Employee", description: "Please select an employee first.", type: "error" });
+                                        addToast({ title: t("selectEmployee"), description: tShared("selectEmployeeFirst"), type: "error" });
                                         return;
                                     }
                                     if (!selectedType) {
-                                        addToast({ title: "Select Template", description: "Please select a document type.", type: "error" });
+                                        addToast({ title: t("selectTemplate"), description: tShared("selectDocTypeFirst"), type: "error" });
                                         return;
                                     }
                                     setStep(2);
@@ -355,10 +374,10 @@ function DocumentsPageContent() {
                             <CardHeader>
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <FileCheck className="h-5 w-5 text-blue-400" />
-                                    Customize: {selectedTypeInfo.label}
+                                    {t('customize')}: {selectedTypeInfo.label}
                                 </CardTitle>
                                 <CardDescription>
-                                    Fill in any additional fields. Employee data is auto-populated.
+                                    {t("fillInFields")}
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -366,7 +385,7 @@ function DocumentsPageContent() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         {selectedTypeInfo.requiredFields.map((field) => (
                                             <div key={field} className="space-y-2">
-                                                <Label className="capitalize">{getFieldLabel(field)}</Label>
+                                                <Label className="capitalize">{getFieldLabel(field, locale)}</Label>
                                                 <Input
                                                     type={getInputType(field)}
                                                     value={customData[field] || ""}
@@ -379,13 +398,13 @@ function DocumentsPageContent() {
                                 ) : (
                                     <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <FileCheck className="h-5 w-5 text-emerald-400" />
-                                        <p className="text-sm text-emerald-400">All required data will be auto-populated from the employee record. No additional customization needed.</p>
+                                        <p className="text-sm text-emerald-400">{t("autoPopulated")}</p>
                                     </div>
                                 )}
 
                                 {/* Common optional fields */}
                                 <div className="mt-6 pt-6 border-t border-card-border">
-                                    <h4 className="text-sm font-medium text-foreground mb-4">Optional Overrides</h4>
+                                    <h4 className="text-sm font-medium text-foreground mb-4">{t("optionalOverrides")}</h4>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label>{t('issueDate')}</Label>
@@ -404,7 +423,7 @@ function DocumentsPageContent() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Signatory name</Label>
+                                            <Label>{t("signatoryName")}</Label>
                                             <Input
                                                 value={customData.signatoryName || ""}
                                                 onChange={(e) => setCustomData({ ...customData, signatoryName: e.target.value })}
@@ -412,7 +431,7 @@ function DocumentsPageContent() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Signatory designation</Label>
+                                            <Label>{t("signatoryDesignation")}</Label>
                                             <Input
                                                 value={customData.signatoryDesignation || ""}
                                                 onChange={(e) => setCustomData({ ...customData, signatoryDesignation: e.target.value })}
@@ -420,14 +439,14 @@ function DocumentsPageContent() {
                                             />
                                         </div>
                                         <div className="space-y-2 sm:col-span-2">
-                                            <Label>Signature image URL</Label>
+                                            <Label>{t("signatureImageUrl")}</Label>
                                             <Input
                                                 type="url"
                                                 value={customData.signatureImageUrl || ""}
                                                 onChange={(e) => setCustomData({ ...customData, signatureImageUrl: e.target.value })}
                                                 placeholder="https://.../authorized-signature.png"
                                             />
-                                            <p className="text-xs text-muted-foreground">Optional. Use a transparent PNG signature/stamp URL for official letters.</p>
+                                            <p className="text-xs text-muted-foreground">{t("signatureHint")}</p>
                                         </div>
                                     </div>
                                 </div>

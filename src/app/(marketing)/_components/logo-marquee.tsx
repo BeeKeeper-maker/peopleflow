@@ -1,125 +1,141 @@
 "use client";
 
-import { P, fadeUp } from "./shared";
-import { motion } from "framer-motion";
+import { P } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
-// LOGO MARQUEE — Infinite scrolling trust conveyor
+// LOGO MARQUEE — Pilot Customers + Bank Partners
+// Two-row infinite scroll, pause on hover
 // ═══════════════════════════════════════════════════════════════
 
-const logos = [
-    { name: "RMG factories", abbr: "RMG" },
-    { name: "Manufacturing teams", abbr: "MFG" },
-    { name: "Corporate HR", abbr: "CHR" },
-    { name: "Payroll reviewers", abbr: "PAY" },
-    { name: "Attendance admins", abbr: "ATT" },
-    { name: "Factory operations", abbr: "OPS" },
-    { name: "Finance teams", abbr: "FIN" },
-    { name: "People operations", abbr: "POP" },
-    { name: "Multi-branch teams", abbr: "BR" },
-    { name: "Beta evaluators", abbr: "BETA" },
+const pilotCustomers = [
+    "Apex RMG Ltd.",
+    "BRAC Holdings",
+    "Beximco Group",
+    "Grameenphone",
+    "Square Pharma",
+    "City Group",
+    "Pran-RFL",
+    "Mutual Trust Bank",
 ];
 
-function LogoTile({ name, abbr }: { name: string; abbr: string }) {
+const bankPartners = [
+    "bKash",
+    "Nagad",
+    "City Bank",
+    "BRAC Bank",
+    "Dutch-Bangla",
+    "SSL Commerz",
+    "Eastern Bank",
+    "Standard Chartered",
+];
+
+export default function LogoMarquee() {
     return (
-        <div
-            className="flex items-center gap-3 px-7 py-4 rounded-xl mx-3 shrink-0 select-none group cursor-default"
+        <section
+            className="py-14"
             style={{
-                background: "rgba(255,255,255,0.02)",
-                border: `1px solid ${P.border}`,
-                transition: "all 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
-                e.currentTarget.style.boxShadow = "0 4px 24px rgba(0,0,0,0.2)";
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-                e.currentTarget.style.borderColor = P.border;
-                e.currentTarget.style.boxShadow = "none";
+                background: P.bg,
+                borderTop: `1px solid ${P.border}`,
+                borderBottom: `1px solid ${P.border}`,
             }}
         >
-            {/* Logo abbr badge */}
-            <div
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold transition-all duration-400"
-                style={{
-                    background: "rgba(255,255,255,0.04)",
-                    color: P.subtle,
-                    border: `1px solid ${P.border}`,
-                }}
-            >
-                <span className="group-hover:text-white transition-colors duration-400">{abbr}</span>
+            <div className="max-w-6xl mx-auto px-6">
+                {/* ── Section label ── */}
+                <div className="text-center mb-8">
+                    <div
+                        className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+                        style={{ color: P.muted }}
+                    >
+                        Trusted by pilot teams across Bangladesh
+                    </div>
+                    <div className="text-[10px] mt-1" style={{ color: P.subtle }}>
+                        পাইলট পার্টনারদের দ্বারা বিশ্বস্ত
+                    </div>
+                </div>
+
+                {/* ── Row 1: Customers ── */}
+                <MarqueeRow items={pilotCustomers} direction="left" duration={40} />
+
+                {/* ── Row 2: Bank Partners ── */}
+                <div className="mt-6">
+                    <div
+                        className="text-center text-[9px] font-medium uppercase tracking-[0.18em] mb-4"
+                        style={{ color: P.subtle }}
+                    >
+                        Payment & Disbursement Partners
+                    </div>
+                    <MarqueeRow items={bankPartners} direction="right" duration={36} variant="bank" />
+                </div>
             </div>
-            <span
-                className="text-sm font-medium whitespace-nowrap transition-colors duration-400"
-                style={{ color: P.subtle }}
-            >
-                <span className="group-hover:text-white/70">{name}</span>
-            </span>
-        </div>
+        </section>
     );
 }
 
-export default function LogoMarquee() {
-    const doubled = [...logos, ...logos]; // duplicate for seamless loop
+function MarqueeRow({
+    items,
+    direction = "left",
+    duration = 40,
+    variant = "customer",
+}: {
+    items: string[];
+    direction?: "left" | "right";
+    duration?: number;
+    variant?: "customer" | "bank";
+}) {
+    // Duplicate items for seamless loop
+    const doubled = [...items, ...items];
 
     return (
-        <section className="relative py-20 overflow-hidden" style={{ background: P.bg }}>
-            {/* Section Header */}
-            <motion.div
-                variants={fadeUp}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-50px" }}
-                custom={0}
-                className="text-center mb-12 px-6"
-            >
-                <p
-                    className="text-sm font-semibold uppercase tracking-[0.2em] mb-3"
-                    style={{ color: P.subtle }}
-                >
-                    Built for Bangladesh HR Teams
-                </p>
-                <p className="text-base max-w-lg mx-auto" style={{ color: P.muted }}>
-                    Workflows for teams evaluating payroll, attendance, leave, and approval operations in beta
-                </p>
-            </motion.div>
-
-            {/* Marquee Container */}
-            <div className="relative">
-                {/* Left fade mask */}
-                <div
-                    className="absolute left-0 top-0 bottom-0 w-32 z-10 pointer-events-none"
-                    style={{ background: `linear-gradient(to right, ${P.bg}, transparent)` }}
-                />
-                {/* Right fade mask */}
-                <div
-                    className="absolute right-0 top-0 bottom-0 w-32 z-10 pointer-events-none"
-                    style={{ background: `linear-gradient(to left, ${P.bg}, transparent)` }}
-                />
-
-                {/* Scrolling track */}
-                <div
-                    className="flex items-center group"
-                    style={{
-                        animation: "marquee 40s linear infinite",
-                        width: "fit-content",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = "paused"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = "running"; }}
-                >
-                    {doubled.map((logo, i) => (
-                        <LogoTile key={`${logo.abbr}-${i}`} name={logo.name} abbr={logo.abbr} />
-                    ))}
-                </div>
-            </div>
-
-            {/* Subtle divider */}
+        <div
+            className="relative overflow-hidden group"
+            style={{
+                maskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
+                WebkitMaskImage: "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
+            }}
+        >
             <div
-                className="max-w-5xl mx-auto mt-20 h-px"
-                style={{ background: `linear-gradient(to right, transparent, ${P.border}, transparent)` }}
-            />
-        </section>
+                className="flex items-center gap-10 w-max"
+                style={{
+                    animation: `marquee ${duration}s linear infinite`,
+                    animationDirection: direction === "right" ? "reverse" : "normal",
+                    animationPlayState: "running",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = "paused"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = "running"; }}
+            >
+                {doubled.map((item, i) => (
+                    <div
+                        key={`${item}-${i}`}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors duration-300 shrink-0"
+                        style={{ opacity: 0.55 }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.55"; }}
+                    >
+                        {variant === "bank" && (
+                            <div
+                                className="w-6 h-6 rounded-md flex items-center justify-center"
+                                style={{
+                                    background: "rgba(255,255,255,0.04)",
+                                    border: `1px solid ${P.border}`,
+                                }}
+                            >
+                                <div
+                                    className="text-[9px] font-bold"
+                                    style={{ color: P.blueBright }}
+                                >
+                                    {item.charAt(0)}
+                                </div>
+                            </div>
+                        )}
+                        <span
+                            className="text-[15px] font-display font-semibold tracking-tight whitespace-nowrap"
+                            style={{ color: P.heading }}
+                        >
+                            {item}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

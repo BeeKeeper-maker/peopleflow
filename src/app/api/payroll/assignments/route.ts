@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import * as z from "zod";
 import { payrollLogger } from "@/lib/logger";
@@ -26,6 +26,7 @@ export async function GET(req: Request) {
             employee: {
                 organizationId: auth.organizationId,
             },
+            deletedAt: null,
         };
 
         if (employeeId) {
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
             where.isActive = true;
         }
 
-        const assignments = await prisma.salaryStructureAssignment.findMany({
+        const assignments = await auth.withDB((db) => db.salaryStructureAssignment.findMany({
             where,
             include: {
                 employee: {
@@ -63,19 +64,19 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { effectiveFrom: "desc" },
-        });
+        }));
 
         // Calculate salary breakdown for each assignment
         const assignmentsWithBreakdown = assignments.map((a) => {
-            const gross = a.grossSalary;
+            const gross = Number(a.grossSalary);
             const structure = a.salaryStructure;
 
-            const basic = (gross * structure.basicPercentage) / 100;
-            const houseRent = (basic * structure.houseRentPercent) / 100;
-            const medical = (basic * structure.medicalPercent) / 100;
-            const conveyance = structure.conveyanceFixed;
-            const pfEmployee = (basic * structure.pfEmployeePercent) / 100;
-            const pfEmployer = (basic * structure.pfEmployerPercent) / 100;
+            const basic = (gross * Number(structure.basicPercentage)) / 100;
+            const houseRent = (basic * Number(structure.houseRentPercent)) / 100;
+            const medical = (basic * Number(structure.medicalPercent)) / 100;
+            const conveyance = Number(structure.conveyanceFixed);
+            const pfEmployee = (basic * Number(structure.pfEmployeePercent)) / 100;
+            const pfEmployer = (basic * Number(structure.pfEmployerPercent)) / 100;
 
             return {
                 ...a,
@@ -95,8 +96,12 @@ export async function GET(req: Request) {
 
         return NextResponse.json(assignmentsWithBreakdown);
     } catch (error) {
-        payrollLogger.error({ err: error }, "GET_ASSIGNMENTS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "GET_ASSIGNMENTS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -116,25 +121,25 @@ export async function POST(req: Request) {
         const { employeeId, salaryStructureId, grossSalary, effectiveFrom, effectiveTo } = validation.data;
 
         // Verify employee belongs to organization
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: employeeId, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!employee) {
             return new NextResponse("Employee not found", { status: 404 });
         }
 
         // Verify salary structure belongs to organization
-        const structure = await prisma.salaryStructure.findFirst({
+        const structure = await auth.withDB((db) => db.salaryStructure.findFirst({
             where: { id: salaryStructureId, organizationId: auth.organizationId },
-        });
+        }));
 
         if (!structure) {
             return new NextResponse("Salary structure not found", { status: 404 });
         }
 
         // Deactivate previous active assignments for this employee
-        await prisma.salaryStructureAssignment.updateMany({
+        await auth.withDB((db) => db.salaryStructureAssignment.updateMany({
             where: {
                 employeeId,
                 isActive: true,
@@ -143,12 +148,13 @@ export async function POST(req: Request) {
                 isActive: false,
                 effectiveTo: new Date(effectiveFrom.getTime() - 86400000), // Previous day
             },
-        });
+        }));
 
         // Create new assignment
-        const assignment = await prisma.salaryStructureAssignment.create({
+        const assignment = await auth.withDB((db) => db.salaryStructureAssignment.create({
             data: {
                 employeeId,
+                organizationId: auth.organizationId,
                 salaryStructureId,
                 grossSalary,
                 effectiveFrom,
@@ -168,11 +174,15 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         return NextResponse.json(assignment);
     } catch (error) {
-        payrollLogger.error({ err: error }, "CREATE_ASSIGNMENT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "CREATE_ASSIGNMENT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

@@ -5,7 +5,7 @@ import {
     listFestivalBonusConfigs,
     getFestivalBonusSummary,
 } from "@/lib/festival-bonus-engine";
-import { prisma } from "@/lib/prisma";
+
 import { payrollLogger } from "@/lib/logger";
 
 // GET /api/payroll/festival-bonus — List all bonus configs for the org
@@ -21,8 +21,12 @@ export async function GET(req: NextRequest) {
         );
         return NextResponse.json({ data: configs });
     } catch (error) {
-        payrollLogger.error({ err: error }, "FESTIVAL_BONUS_LIST_ERROR");
-        return NextResponse.json({ error: "Failed to fetch festival bonus configs" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "FESTIVAL_BONUS_LIST_ERROR");
+        return NextResponse.json(
+            { error: "Failed to fetch festival bonus configs", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Otherwise, create a new config
-        const config = await prisma.festivalBonusConfig.create({
+        const config = await auth.withDB((db) => db.festivalBonusConfig.create({
             data: {
                 organizationId: auth.organizationId,
                 name: body.name,
@@ -57,13 +61,14 @@ export async function POST(req: NextRequest) {
                 includeContractual: body.includeContractual ?? false,
                 status: "draft",
             },
-        });
+        }));
 
         return NextResponse.json({ data: config }, { status: 201 });
     } catch (error) {
-        payrollLogger.error({ err: error }, "FESTIVAL_BONUS_CREATE_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "FESTIVAL_BONUS_CREATE_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to create bonus config" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }

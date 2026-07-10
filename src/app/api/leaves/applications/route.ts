@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { format } from "date-fns";
 import {
     calculateWorkingDays,
@@ -32,6 +33,10 @@ export async function GET(req: Request) {
         return auth; // Returns 401 Unauthorized
     }
 
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
         const { searchParams } = new URL(req.url);
         const employeeId = searchParams.get("employeeId");
@@ -43,10 +48,10 @@ export async function GET(req: Request) {
         const skip = (page - 1) * limit;
 
         // Get user details for role check
-        const user = await prisma.user.findUnique({
+        const user = await auth.withDB((db) => db.user.findUnique({
             where: { id: auth.userId },
             include: { employee: true },
-        });
+        }));
 
         const where: Record<string, unknown> = {
             employee: {
@@ -57,14 +62,14 @@ export async function GET(req: Request) {
         // If filtering by employee
         if (employeeId) {
             if (user?.role === "manager") {
-                const reportee = await prisma.employee.findFirst({
+                const reportee = await auth.withDB((db) => db.employee.findFirst({
                     where: {
                         id: employeeId,
                         organizationId: auth.organizationId,
                         reportingManagerId: user.employee?.id,
                     },
                     select: { id: true },
-                });
+                }));
                 if (!reportee) return leaveError("Employee not found", 404);
             }
             where.employeeId = employeeId;
@@ -100,40 +105,42 @@ export async function GET(req: Request) {
             }
         }
 
-        const [applications, total] = await Promise.all([
-            prisma.leaveApplication.findMany({
-                where,
-                include: {
-                    leaveType: true,
-                    employee: {
-                        select: {
-                            id: true,
-                            firstName: true,
-                            lastName: true,
-                            photoUrl: true,
-                            reportingManagerId: true,
-                            reportingManager: {
-                                select: {
-                                    id: true,
-                                    firstName: true,
-                                    lastName: true,
-                                    employeeCode: true,
+        const [applications, total] = await auth.withDB((db) =>
+            Promise.all([
+                db.leaveApplication.findMany({
+                    where,
+                    include: {
+                        leaveType: true,
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                photoUrl: true,
+                                reportingManagerId: true,
+                                reportingManager: {
+                                    select: {
+                                        id: true,
+                                        firstName: true,
+                                        lastName: true,
+                                        employeeCode: true,
+                                    }
+                                },
+                                designation: {
+                                    select: { name: true }
                                 }
-                            },
-                            designation: {
-                                select: { name: true }
                             }
-                        }
+                        },
                     },
-                },
-                orderBy: { createdAt: "desc" },
-                skip,
-                take: limit,
-            }),
-            prisma.leaveApplication.count({ where }),
-        ]);
+                    orderBy: { createdAt: "desc" },
+                    skip,
+                    take: limit,
+                }),
+                db.leaveApplication.count({ where }),
+            ]),
+        );
 
-        const approvalRequests = await prisma.approvalRequest.findMany({
+        const approvalRequests = await auth.withDB((db) => db.approvalRequest.findMany({
             where: {
                 organizationId: auth.organizationId,
                 entityType: "leave",
@@ -142,7 +149,7 @@ export async function GET(req: Request) {
             include: {
                 steps: { orderBy: { stepNumber: "asc" } },
             },
-        });
+        }));
 
         const approvalEmployeeIds = new Set<string>();
         approvalRequests.forEach((request) => {
@@ -154,7 +161,7 @@ export async function GET(req: Request) {
         });
 
         const approvalEmployees = approvalEmployeeIds.size
-            ? await prisma.employee.findMany({
+            ? await auth.withDB((db) => db.employee.findMany({
                 where: {
                     organizationId: auth.organizationId,
                     id: { in: Array.from(approvalEmployeeIds) },
@@ -166,7 +173,7 @@ export async function GET(req: Request) {
                     employeeCode: true,
                     user: { select: { role: true, isActive: true } },
                 },
-            })
+            }))
             : [];
 
         const employeeById = new Map(approvalEmployees.map((employee) => [employee.id, employee]));
@@ -231,18 +238,22 @@ export async function GET(req: Request) {
             };
         });
 
-        return NextResponse.json({
-            data,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-            },
-        });
+        return applyRateLimitHeaders(
+            NextResponse.json({
+                data,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit),
+                },
+            }),
+            rl.headers,
+        );
     } catch (error) {
-        leaveLogger.error({ err: error }, "GET_LEAVE_APPLICATIONS_ERROR");
-        return leaveError("Internal Error", 500);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "GET_LEAVE_APPLICATIONS_ERROR");
+        return leaveError("Internal server error", 500, { errorId });
     }
 }
 
@@ -253,9 +264,13 @@ export async function POST(req: Request) {
         return auth; // Returns 401 Unauthorized
     }
 
+    // Per-user rate limit (write op: leave application + approval workflow)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
         // Get employee profile with organization settings
-        const user = await prisma.user.findUnique({
+        const user = await auth.withDB((db) => db.user.findUnique({
             where: { id: auth.userId },
             include: {
                 employee: {
@@ -266,11 +281,11 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         let employee = user?.employee;
         if (!employee && user?.email) {
-            employee = await prisma.employee.findFirst({
+            employee = await auth.withDB((db) => db.employee.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     email: user.email,
@@ -281,7 +296,7 @@ export async function POST(req: Request) {
                         select: { settings: true },
                     },
                 },
-            });
+            }));
         }
 
         if (!employee) {
@@ -320,12 +335,12 @@ export async function POST(req: Request) {
         }
 
         // ── Validation 2: Fetch Leave Type ──
-        const leaveType = await prisma.leaveType.findFirst({
+        const leaveType = await auth.withDB((db) => db.leaveType.findFirst({
             where: {
                 id: leaveTypeId,
                 organizationId: auth.organizationId,
             },
-        });
+        }));
 
         if (!leaveType) {
             return leaveError("Leave type not found", 404);
@@ -430,7 +445,7 @@ export async function POST(req: Request) {
 
         // ── Check or Create Allocation ──
         const currentYear = new Date().getFullYear();
-        let allocation = await prisma.leaveAllocation.findUnique({
+        let allocation = await auth.withDB((db) => db.leaveAllocation.findUnique({
             where: {
                 employeeId_leaveTypeId_year: {
                     employeeId: employee.id,
@@ -438,20 +453,21 @@ export async function POST(req: Request) {
                     year: currentYear,
                 },
             },
-        });
+        }));
 
         if (!allocation) {
             // Lazy initialization of allocation
-            allocation = await prisma.leaveAllocation.create({
+            allocation = await auth.withDB((db) => db.leaveAllocation.create({
                 data: {
                     employeeId: employee.id,
+                    organizationId: auth.organizationId,
                     leaveTypeId: leaveTypeId,
                     year: currentYear,
                     allocatedDays: leaveType.annualAllocation,
                     usedDays: 0,
                     carriedForward: 0,
                 },
-            });
+            }));
         }
 
         // ── Check Balance ──
@@ -461,9 +477,10 @@ export async function POST(req: Request) {
         }
 
         // ── Create Application (with maternity data if applicable) ──
-        const application = await prisma.leaveApplication.create({
+        const application = await auth.withDB((db) => db.leaveApplication.create({
             data: {
                 employeeId: employee.id,
+                organizationId: auth.organizationId,
                 leaveTypeId,
                 fromDate: start,
                 toDate: end,
@@ -481,9 +498,12 @@ export async function POST(req: Request) {
                     select: { firstName: true, lastName: true },
                 },
             },
-        });
+        }));
 
         // ── ✅ NEW: Create Stateful Approval Request ──
+        // CRITICAL: If approval request creation fails, we MUST roll back the leave
+        // application. Otherwise the leave exists in "pending" status but can never
+        // be approved — the employee's leave balance is consumed forever.
         try {
             await createApprovalRequest({
                 entityType: "leave",
@@ -494,8 +514,20 @@ export async function POST(req: Request) {
                 priority: isMaternityLeave ? "high" : "normal",
             });
         } catch (approvalError) {
-            // Log but don't block — approval request creation failure shouldn't prevent submission
             leaveLogger.error({ err: approvalError }, "APPROVAL_REQUEST_CREATION_ERROR");
+
+            // Roll back: delete the leave application so balance is not consumed
+            try {
+                await prisma.leaveApplication.delete({ where: { id: application.id } });
+                leaveLogger.info({ leaveApplicationId: application.id }, "Rolled back leave application after approval request failure");
+            } catch (rollbackError) {
+                leaveLogger.error({ err: rollbackError, leaveApplicationId: application.id }, "FAILED_TO_ROLLBACK_LEAVE_APPLICATION");
+            }
+
+            return NextResponse.json(
+                { error: "Failed to create approval workflow. Leave application not submitted. Please try again or contact HR." },
+                { status: 500 }
+            );
         }
 
         // ── Notify admin/HR users about new leave request ──
@@ -533,7 +565,8 @@ export async function POST(req: Request) {
 
         return NextResponse.json(application);
     } catch (error) {
-        leaveLogger.error({ err: error }, "CREATE_LEAVE_APPLICATION_ERROR");
-        return leaveError("Internal Error", 500);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "CREATE_LEAVE_APPLICATION_ERROR");
+        return leaveError("Internal server error", 500, { errorId });
     }
 }

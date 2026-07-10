@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,8 @@ import {
     Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useJobPostings } from "@/hooks/use-data"
 
 interface JobPosting {
     id: string
@@ -55,38 +55,11 @@ const statusColors: Record<string, string> = {
     closed: "bg-red-500/20 text-red-400",
 }
 
-const employmentTypeLabels: Record<string, string> = {
-    full_time: "Full Time",
-    part_time: "Part Time",
-    contract: "Contract",
-    internship: "Internship",
-}
-
 export default function RecruitmentPage() {
-    const { addToast } = useToast()
-    const [jobs, setJobs] = useState<JobPosting[]>([])
-    const [loading, setLoading] = useState(true)
+    const { data: jobsData = [], isLoading: loading } = useJobPostings()
+    const jobs = jobsData as unknown as JobPosting[]
     const [activeTab, setActiveTab] = useState("all")
     const t = useTranslations('Recruitment')
-
-    useEffect(() => {
-        fetchJobs()
-    }, [])
-
-    const fetchJobs = async () => {
-        try {
-            const res = await fetch("/api/recruitment/jobs")
-            if (res.ok) {
-                const response = await res.json()
-                // Handle both wrapped and raw responses
-                setJobs(response.data || response || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch jobs", error)
-        } finally {
-            setLoading(false)
-        }
-    }
 
     const stats = {
         total: jobs.length,
@@ -104,7 +77,7 @@ export default function RecruitmentPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <Link href="/recruitment/jobs/new">
@@ -122,10 +95,10 @@ export default function RecruitmentPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('totalJobs')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.total}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-blue-500 to-indigo-600">
-                                <Briefcase className="h-5 w-5 text-foreground" />
+                                <Briefcase className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -136,10 +109,10 @@ export default function RecruitmentPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('openPositions')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.open}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.open}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-green-500 to-emerald-600">
-                                <CheckCircle2 className="h-5 w-5 text-foreground" />
+                                <CheckCircle2 className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -150,10 +123,10 @@ export default function RecruitmentPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('totalApplications')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.totalApplications}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.totalApplications}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-purple-500 to-pink-600">
-                                <Users className="h-5 w-5 text-foreground" />
+                                <Users className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -164,10 +137,10 @@ export default function RecruitmentPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('totalOpenings')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.positions}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.positions}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-amber-500 to-orange-600">
-                                <UserPlus className="h-5 w-5 text-foreground" />
+                                <UserPlus className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -221,6 +194,22 @@ export default function RecruitmentPage() {
 
 function JobCard({ job }: { job: JobPosting }) {
     const t = useTranslations('Recruitment')
+
+    const employmentTypeLabel = (employmentType: string): string => {
+        switch (employmentType) {
+            case "full_time":
+                return t('fullTime')
+            case "part_time":
+                return t('partTime')
+            case "contract":
+                return t('contract')
+            case "internship":
+                return t('internship')
+            default:
+                return employmentType
+        }
+    }
+
     return (
         <Card className="bg-card border-card-border hover:border-border-hover transition-all group">
             <CardContent className="p-6">
@@ -231,7 +220,7 @@ function JobCard({ job }: { job: JobPosting }) {
                                 {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                             </Badge>
                             <Badge variant="outline" className="border-border-hover">
-                                {employmentTypeLabels[job.employmentType] || job.employmentType}
+                                {employmentTypeLabel(job.employmentType)}
                             </Badge>
                         </div>
 

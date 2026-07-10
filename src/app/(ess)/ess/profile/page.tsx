@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
     User,
@@ -26,75 +27,24 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-
-interface EmployeeProfile {
-    id: string;
-    employeeCode: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    personalEmail?: string;
-    dateOfBirth?: string;
-    gender?: string;
-    bloodGroup?: string;
-    maritalStatus?: string;
-    nationality?: string;
-    nidNumber?: string;
-    photoUrl?: string;
-
-    department?: { name: string };
-    designation?: { name: string };
-    joiningDate?: string;
-    employmentType?: string;
-    reportingManager?: { firstName: string; lastName: string };
-    shift?: { name: string };
-    branch?: { name: string };
-
-    presentAddress?: string;
-    permanentAddress?: string;
-    emergencyContactName?: string;
-    emergencyContactPhone?: string;
-    emergencyContactRelation?: string;
-
-    bankName?: string;
-    bankAccountNumber?: string;
-    bankRoutingNumber?: string;
-}
+import { useEssProfile, type EssEmployeeProfile as EmployeeProfile } from "@/hooks/use-data";
 
 export default function ESSProfilePage() {
     const t = useTranslations("ESSProfile");
     const { data: session } = useSession();
     const { addToast } = useToast();
-    const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
+    // ── TanStack Query: current employee's profile ──
+    const { data: profile = null, isLoading } = useEssProfile();
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [profile, setProfile] = useState<EmployeeProfile | null>(null);
     const [editedProfile, setEditedProfile] = useState<Partial<EmployeeProfile>>({});
 
     const user = session?.user;
 
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const res = await fetch("/api/employees/me");
-                if (res.ok) {
-                    const json = await res.json();
-                    // API now returns { data: { employee: {...}, ... } }
-                    const profileData = json.data?.employee || json.data || json;
-                    setProfile(profileData);
-                } else {
-                    console.error("Failed to fetch profile");
-                }
-            } catch (error) {
-                console.error("Error fetching profile:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchProfile();
-    }, []);
+    const invalidateProfile = () => {
+        queryClient.invalidateQueries({ queryKey: ["ess", "profile"] });
+    };
 
     const handleEditToggle = () => {
         if (isEditing) {
@@ -125,7 +75,13 @@ export default function ESSProfilePage() {
                 const json = await res.json();
                 // PATCH returns { data: employee } (flat employee object)
                 const updatedProfile = json.data?.employee || json.data || json;
-                setProfile(updatedProfile);
+                // Optimistically update the cache so the UI reflects the
+                // saved changes instantly, then invalidate so the server
+                // remains the source of truth.
+                if (updatedProfile) {
+                    queryClient.setQueryData(["ess", "profile"], updatedProfile);
+                }
+                invalidateProfile();
                 setIsEditing(false);
                 setEditedProfile({});
                 addToast({ title: t("updateSuccess"), type: "success" });
@@ -170,12 +126,12 @@ export default function ESSProfilePage() {
                 <div className="flex items-center gap-6">
                     <Avatar className="h-24 w-24 border-4 border-card-border">
                         <AvatarImage src={profile.photoUrl || user?.image || undefined} />
-                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-3xl">
+                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white text-3xl">
                             {profile.firstName?.[0]}{profile.lastName?.[0]}
                         </AvatarFallback>
                     </Avatar>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">
                             {profile.firstName} {profile.lastName}
                         </h1>
                         <p className="text-muted-foreground">{profile.designation?.name || t("notProvided")}</p>
@@ -333,7 +289,7 @@ export default function ESSProfilePage() {
                             <CardHeader>
                                 <CardTitle className="text-foreground flex items-center gap-2">
                                     <Phone className="h-5 w-5 text-purple-400" />
-                                    {t("personalInfo")}
+                                    {t("contactInfo")}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>

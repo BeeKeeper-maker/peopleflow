@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
   const auth = await requireAuth();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (read op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -30,10 +35,14 @@ export async function GET(req: Request) {
       }),
     );
 
-    return NextResponse.json(designations);
+    return applyRateLimitHeaders(NextResponse.json(designations), rl.headers);
   } catch (error) {
-    apiLogger.error({ err: error }, "GET_DESIGNATIONS_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "GET_DESIGNATIONS_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }
 
@@ -44,6 +53,10 @@ export async function POST(req: Request) {
     if (!isAuthenticated(auth)) {
       return auth;
     }
+
+    // Per-user rate limit (write op)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     const json = await req.json();
     const { name, code, ...rest } = json;
@@ -83,7 +96,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json(designation);
   } catch (error) {
-    apiLogger.error({ err: error }, "CREATE_DESIGNATION_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "CREATE_DESIGNATION_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }

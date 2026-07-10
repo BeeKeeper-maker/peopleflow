@@ -168,7 +168,7 @@ export default function SetupReadinessPage() {
                 <div className="flex items-end justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Readiness score</p>
-                    <p className="text-4xl font-bold text-foreground">{payload.summary.score}%</p>
+                    <p className="text-4xl font-bold tabular-nums text-foreground">{payload.summary.score}%</p>
                   </div>
                   <Badge className={payload.summary.attention === 0 ? statusStyles.ready : statusStyles.attention}>
                     {payload.summary.attention === 0 ? "Handover ready" : `${payload.summary.attention} gap(s)`}

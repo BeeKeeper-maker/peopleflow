@@ -177,31 +177,124 @@ class LocalStorageProvider implements StorageProvider {
 }
 
 // ============================================
-// S3/R2 Storage Provider (Placeholder)
+// S3/R2 Storage Provider (Production-ready)
 // ============================================
 
 class S3StorageProvider implements StorageProvider {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    constructor(_config: StorageConfig) {
-        // Initialize S3 client here when needed
-        // This is a placeholder for future S3/R2 implementation
+    private config: StorageConfig;
+    private s3Client: any = null;
+
+    constructor(config: StorageConfig) {
+        this.config = config;
+
+        // Lazy-load AWS SDK — only when S3 is actually used
+        // This prevents import errors if @aws-sdk/client-s3 isn't installed
+        try {
+            const { S3Client } = require("@aws-sdk/client-s3");
+            this.s3Client = new S3Client({
+                region: config.region || "auto",
+                endpoint: config.endpoint || undefined,
+                credentials: {
+                    accessKeyId: config.accessKeyId || "",
+                    secretAccessKey: config.secretAccessKey || "",
+                },
+                forcePathStyle: !!config.endpoint, // Required for MinIO/R2
+            });
+            storageLogger.info({ bucket: config.bucket, endpoint: config.endpoint }, "S3 storage provider initialized");
+        } catch (err) {
+            storageLogger.warn({ err }, "AWS SDK not installed — S3 storage unavailable. Install @aws-sdk/client-s3 to enable.");
+        }
     }
 
     async upload(buffer: Buffer, filename: string, folder: string): Promise<string> {
-        // TODO: Implement S3 upload when needed
-        // Using AWS SDK v3:
-        // const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-        throw new Error(`S3 upload not implemented yet. Would upload ${filename} to ${folder} (${buffer.length} bytes)`);
+        if (!this.s3Client) {
+            throw new Error("S3 client not initialized. Install @aws-sdk/client-s3 and configure S3 credentials.");
+        }
+
+        const { PutObjectCommand } = require("@aws-sdk/client-s3");
+        const key = `${folder}/${filename}`;
+        const bucket = this.config.bucket!;
+
+        const command = new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: buffer,
+            ContentType: this.getContentType(filename),
+        });
+
+        await this.s3Client.send(command);
+
+        // Return URL: use publicUrl if set, otherwise construct from endpoint/bucket
+        if (this.config.publicUrl) {
+            return `${this.config.publicUrl}/${key}`;
+        }
+        if (this.config.endpoint) {
+            return `${this.config.endpoint}/${bucket}/${key}`;
+        }
+        return `https://${bucket}.s3.${this.config.region || "us-east-1"}.amazonaws.com/${key}`;
     }
 
-    async delete(_path: string): Promise<void> {
-        // TODO: Implement S3 delete
-        throw new Error("S3 delete not implemented yet");
+    async delete(filePath: string): Promise<void> {
+        if (!this.s3Client) return;
+
+        const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
+        // Extract key from full URL or use as-is
+        const key = filePath.startsWith("http") ? this.extractKeyFromUrl(filePath) : filePath;
+
+        const command = new DeleteObjectCommand({
+            Bucket: this.config.bucket!,
+            Key: key,
+        });
+
+        await this.s3Client.send(command);
+        storageLogger.info({ key }, "S3 file deleted");
     }
 
-    async getSignedUrl(_path: string, _expiresIn: number): Promise<string> {
-        // TODO: Implement signed URL generation
-        throw new Error("S3 signed URL not implemented yet");
+    async getSignedUrl(filePath: string, expiresIn: number): Promise<string> {
+        if (!this.s3Client) {
+            throw new Error("S3 client not initialized");
+        }
+
+        const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+        const { GetObjectCommand } = require("@aws-sdk/client-s3");
+        const key = filePath.startsWith("http") ? this.extractKeyFromUrl(filePath) : filePath;
+
+        const command = new GetObjectCommand({
+            Bucket: this.config.bucket!,
+            Key: key,
+        });
+
+        return getSignedUrl(this.s3Client, command, { expiresIn });
+    }
+
+    private extractKeyFromUrl(url: string): string {
+        // Remove protocol and domain, keep just the key
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split("/").filter(Boolean);
+        // If first part is bucket name, skip it
+        if (pathParts[0] === this.config.bucket) {
+            return pathParts.slice(1).join("/");
+        }
+        return pathParts.join("/");
+    }
+
+    private getContentType(filename: string): string {
+        const ext = filename.split(".").pop()?.toLowerCase() || "";
+        const types: Record<string, string> = {
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            gif: "image/gif",
+            webp: "image/webp",
+            pdf: "application/pdf",
+            doc: "application/msword",
+            docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            xls: "application/vnd.ms-excel",
+            xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            csv: "text/csv",
+            txt: "text/plain",
+        };
+        return types[ext] || "application/octet-stream";
     }
 }
 
@@ -369,11 +462,14 @@ export function getStorageService(): FileStorageService {
         storageInstance = new FileStorageService({
             provider,
             basePath: process.env.STORAGE_LOCAL_PATH || path.join(process.cwd(), "uploads"),
-            bucket: process.env.STORAGE_S3_BUCKET,
-            region: process.env.STORAGE_S3_REGION,
-            accessKeyId: process.env.STORAGE_S3_ACCESS_KEY,
-            secretAccessKey: process.env.STORAGE_S3_SECRET_KEY,
-            endpoint: process.env.STORAGE_S3_ENDPOINT,
+            // S3_* are the canonical env var names (also wired in docker-compose.yml
+            // and .env.example). STORAGE_S3_* is the legacy alias kept for backward
+            // compatibility with existing deployments that haven't migrated yet.
+            bucket: process.env.S3_BUCKET || process.env.STORAGE_S3_BUCKET,
+            region: process.env.S3_REGION || process.env.STORAGE_S3_REGION,
+            accessKeyId: process.env.S3_ACCESS_KEY || process.env.STORAGE_S3_ACCESS_KEY,
+            secretAccessKey: process.env.S3_SECRET_KEY || process.env.STORAGE_S3_SECRET_KEY,
+            endpoint: process.env.S3_ENDPOINT || process.env.STORAGE_S3_ENDPOINT,
             publicUrl: process.env.STORAGE_PUBLIC_URL || "/api/uploads",
         });
     }

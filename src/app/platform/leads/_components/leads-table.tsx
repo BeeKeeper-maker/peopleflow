@@ -92,7 +92,7 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                     <p className="text-sm font-medium flex-1">{toast.message}</p>
                     <button
                         onClick={() => onDismiss(toast.id)}
-                        className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white/80 transition-colors shrink-0"
+                        className="p-1 rounded-md hover:bg-hover text-foreground/40 hover:text-foreground/80 transition-colors shrink-0"
                     >
                         <X className="w-3.5 h-3.5" />
                     </button>
@@ -153,7 +153,7 @@ function DeleteConfirmModal({
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-sm rounded-2xl bg-[#141419] border border-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)] animate-[modalPop_0.2s_ease-out] overflow-hidden">
+            <div className="relative w-full max-w-sm rounded-2xl bg-card border border-border shadow-[0_24px_80px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)] animate-[modalPop_0.2s_ease-out] overflow-hidden">
                 {/* Danger Glow */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-gradient-to-b from-red-500/15 to-transparent rounded-full blur-2xl pointer-events-none" />
 
@@ -167,10 +167,10 @@ function DeleteConfirmModal({
 
                     {/* Text */}
                     <div className="text-center space-y-2">
-                        <h3 className="text-lg font-bold text-white">Delete Lead</h3>
-                        <p className="text-sm text-zinc-400 leading-relaxed">
-                            Permanently delete <span className="text-white font-medium">{lead.name}</span> from{" "}
-                            <span className="text-zinc-300">{lead.companyName}</span>? This action cannot be undone.
+                        <h3 className="text-lg font-bold text-foreground">Delete Lead</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            Permanently delete <span className="text-foreground font-medium">{lead.name}</span> from{" "}
+                            <span className="text-foreground">{lead.companyName}</span>? This action cannot be undone.
                         </p>
                     </div>
 
@@ -179,9 +179,9 @@ function DeleteConfirmModal({
                         <button
                             onClick={onCancel}
                             disabled={isPending}
-                            className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]
-                                       text-sm text-zinc-400 font-medium
-                                       hover:bg-white/[0.07] hover:text-white
+                            className="flex-1 px-4 py-2.5 rounded-xl bg-hover border border-border
+                                       text-sm text-muted-foreground font-medium
+                                       hover:bg-hover hover:text-foreground
                                        disabled:opacity-40 disabled:cursor-not-allowed
                                        transition-all duration-200"
                         >
@@ -191,7 +191,7 @@ function DeleteConfirmModal({
                             onClick={onConfirm}
                             disabled={isPending}
                             className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 border border-red-500/30
-                                       text-sm text-white font-semibold
+                                       text-sm text-foreground font-semibold
                                        hover:bg-red-500 hover:shadow-[0_0_20px_-3px_rgba(239,68,68,0.5)]
                                        disabled:opacity-50 disabled:cursor-wait
                                        active:scale-[0.98] transition-all duration-200"
@@ -361,11 +361,11 @@ function StatusBadge({
             {isOpen && (
                 <div
                     className="absolute top-full left-0 mt-1.5 w-48 py-1.5 z-[200]
-                               rounded-xl border border-white/[0.08] bg-[#141419]
+                               rounded-xl border border-border bg-card
                                shadow-[0_8px_32px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.05)]
                                animate-fade-in"
                 >
-                    <p className="px-3 py-1.5 text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
+                    <p className="px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                         Update Status
                     </p>
                     {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
@@ -376,7 +376,7 @@ function StatusBadge({
                                 w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-all duration-150
                                 ${key === lead.status
                                     ? `${cfg.bg} ${cfg.text} font-medium`
-                                    : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-hover"
                                 }
                             `}
                         >
@@ -428,19 +428,19 @@ function LeadDetailDrawer({
             />
             {/* Panel */}
             <div
-                className="relative w-full max-w-md bg-[#0E0E16] border-l border-white/[0.06] h-full overflow-y-auto
+                className="relative w-full max-w-md bg-card border-l border-border h-full overflow-y-auto
                            animate-slide-in-right"
                 style={{
                     animation: "slideInRight 0.25s ease-out",
                 }}
             >
                 {/* Header */}
-                <div className="sticky top-0 z-10 bg-[#0E0E16]/95 backdrop-blur-md border-b border-white/[0.06] px-6 py-4">
+                <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-md border-b border-border px-6 py-4">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-white">Lead Details</h2>
+                        <h2 className="text-lg font-semibold text-foreground">Lead Details</h2>
                         <button
                             onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-zinc-500 hover:text-white transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-hover text-muted-foreground hover:text-foreground transition-colors"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -456,14 +456,14 @@ function LeadDetailDrawer({
                             </span>
                         </div>
                         <div>
-                            <h3 className="text-white font-semibold text-lg">{lead.name}</h3>
-                            <p className="text-sm text-zinc-500">{lead.companyName}</p>
+                            <h3 className="text-foreground font-semibold text-lg">{lead.name}</h3>
+                            <p className="text-sm text-muted-foreground">{lead.companyName}</p>
                         </div>
                     </div>
 
                     {/* Status */}
                     <div className="flex items-center gap-3">
-                        <span className="text-xs text-zinc-600">Pipeline Status</span>
+                        <span className="text-xs text-muted-foreground">Pipeline Status</span>
                         <StatusBadge
                             lead={lead}
                             isOpen={drawerDropdownOpen}
@@ -473,18 +473,18 @@ function LeadDetailDrawer({
                     </div>
 
                     {/* Contact Info */}
-                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                        <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Contact</h4>
+                    <div className="rounded-xl border border-border bg-hover/50 p-4 space-y-3">
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contact</h4>
                         <div className="flex items-center gap-3 text-sm">
-                            <Mail className="w-4 h-4 text-zinc-600" />
+                            <Mail className="w-4 h-4 text-muted-foreground" />
                             <a href={`mailto:${lead.email}`} className="text-indigo-400 hover:text-indigo-300 transition-colors">
                                 {lead.email}
                             </a>
                         </div>
                         {lead.phone && (
                             <div className="flex items-center gap-3 text-sm">
-                                <Phone className="w-4 h-4 text-zinc-600" />
-                                <a href={`tel:${lead.phone}`} className="text-zinc-300 hover:text-white transition-colors">
+                                <Phone className="w-4 h-4 text-muted-foreground" />
+                                <a href={`tel:${lead.phone}`} className="text-foreground hover:text-foreground transition-colors">
                                     {lead.phone}
                                 </a>
                             </div>
@@ -492,49 +492,49 @@ function LeadDetailDrawer({
                     </div>
 
                     {/* Company Info */}
-                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                        <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Company</h4>
+                    <div className="rounded-xl border border-border bg-hover/50 p-4 space-y-3">
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</h4>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Sector</p>
-                                <p className="text-sm text-zinc-300 mt-0.5">{SECTOR_LABELS[lead.sector] || lead.sector}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sector</p>
+                                <p className="text-sm text-foreground mt-0.5">{SECTOR_LABELS[lead.sector] || lead.sector}</p>
                             </div>
                             <div>
-                                <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Size</p>
-                                <p className="text-sm text-zinc-300 mt-0.5">{SIZE_LABELS[lead.companySize] || lead.companySize} employees</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Size</p>
+                                <p className="text-sm text-foreground mt-0.5">{SIZE_LABELS[lead.companySize] || lead.companySize} employees</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Message */}
                     {lead.message && (
-                        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
-                            <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Message</h4>
-                            <p className="text-sm text-zinc-300 leading-relaxed">{lead.message}</p>
+                        <div className="rounded-xl border border-border bg-hover/50 p-4 space-y-2">
+                            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Message</h4>
+                            <p className="text-sm text-foreground leading-relaxed">{lead.message}</p>
                         </div>
                     )}
 
                     {/* Source & UTM */}
-                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-                        <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Acquisition</h4>
+                    <div className="rounded-xl border border-border bg-hover/50 p-4 space-y-3">
+                        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Acquisition</h4>
                         <div className="flex items-center gap-3 text-sm">
-                            <Globe className="w-4 h-4 text-zinc-600" />
-                            <span className="text-zinc-300">{lead.source}</span>
+                            <Globe className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-foreground">{lead.source}</span>
                         </div>
                         {(lead.utmSource || lead.utmMedium || lead.utmCampaign) && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
                                 {lead.utmSource && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/50">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-hover text-muted-foreground border border-border">
                                         src: {lead.utmSource}
                                     </span>
                                 )}
                                 {lead.utmMedium && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/50">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-hover text-muted-foreground border border-border">
                                         med: {lead.utmMedium}
                                     </span>
                                 )}
                                 {lead.utmCampaign && (
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/50">
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-hover text-muted-foreground border border-border">
                                         cmp: {lead.utmCampaign}
                                     </span>
                                 )}
@@ -543,7 +543,7 @@ function LeadDetailDrawer({
                     </div>
 
                     {/* Timestamps */}
-                    <div className="flex items-center gap-2 text-xs text-zinc-600">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Clock className="w-3.5 h-3.5" />
                         <span>Created {new Date(lead.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
@@ -588,12 +588,12 @@ function SortableHeader({
     const isActive = currentSort === field;
 
     return (
-        <th className="px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02]">
+        <th className="px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50">
             <button
                 onClick={() => onSort(field)}
                 className={`
                     flex items-center gap-1.5 transition-colors duration-150
-                    ${isActive ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"}
+                    ${isActive ? "text-indigo-400" : "text-muted-foreground hover:text-foreground"}
                 `}
             >
                 {icon}
@@ -718,22 +718,22 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 {/* Search */}
                 <div className="relative flex-1 w-full sm:max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
                         placeholder="Search leads by name, email, company..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]
-                                   text-sm text-white placeholder-zinc-600
-                                   focus:outline-none focus:border-indigo-500/40 focus:bg-white/[0.05]
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-hover border border-border
+                                   text-sm text-foreground placeholder-muted-foreground
+                                   focus:outline-none focus:border-indigo-500/40 focus:bg-hover
                                    transition-all duration-200"
                     />
                 </div>
 
                 {/* Filters */}
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-zinc-600">
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Filter className="w-3.5 h-3.5" />
                     </div>
 
@@ -741,8 +741,8 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]
-                                   text-xs text-zinc-400 focus:outline-none focus:border-indigo-500/40
+                        className="px-3 py-2 rounded-lg bg-hover border border-border
+                                   text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all duration-200 cursor-pointer appearance-none
                                    bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2371717A%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]
                                    bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-7"
@@ -759,8 +759,8 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                     <select
                         value={sectorFilter}
                         onChange={(e) => setSectorFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]
-                                   text-xs text-zinc-400 focus:outline-none focus:border-indigo-500/40
+                        className="px-3 py-2 rounded-lg bg-hover border border-border
+                                   text-xs text-muted-foreground focus:outline-none focus:border-indigo-500/40
                                    transition-all duration-200 cursor-pointer appearance-none
                                    bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2371717A%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]
                                    bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-7"
@@ -775,17 +775,17 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                 </div>
 
                 {/* Result Count */}
-                <span className="text-xs text-zinc-600 tabular-nums ml-auto">
+                <span className="text-xs text-muted-foreground tabular-nums ml-auto">
                     {sortedLeads.length} of {pagination.totalCount} leads
                 </span>
             </div>
 
             {/* Table */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.015]">
+            <div className="rounded-xl border border-border bg-hover/30">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="border-b border-white/[0.06]">
+                            <tr className="border-b border-border">
                                 <SortableHeader
                                     label="Date"
                                     field="createdAt"
@@ -809,16 +809,16 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                     onSort={handleSort}
                                     icon={<Building2 className="w-3 h-3" />}
                                 />
-                                <th className="px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02]">
+                                <th className="px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50">
                                     <span className="flex items-center gap-1.5">
                                         <Users className="w-3 h-3" />
                                         Size
                                     </span>
                                 </th>
-                                <th className="px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02]">
+                                <th className="px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50">
                                     Sector
                                 </th>
-                                <th className="px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02]">
+                                <th className="px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50">
                                     Contact
                                 </th>
                                 <SortableHeader
@@ -829,10 +829,10 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                     onSort={handleSort}
                                     icon={<Sparkles className="w-3 h-3" />}
                                 />
-                                <th className="px-4 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02]">
+                                <th className="px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50">
                                     Source
                                 </th>
-                                <th className="px-3 py-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-white/[0.02] w-10">
+                                <th className="px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-hover/50 w-10">
                                 </th>
                             </tr>
                         </thead>
@@ -840,12 +840,12 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                             {sortedLeads.length === 0 ? (
                                 <tr>
                                     <td colSpan={9} className="px-4 py-16 text-center">
-                                        <div className="flex flex-col items-center gap-3 text-zinc-600">
-                                            <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center">
+                                        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                                            <div className="w-12 h-12 rounded-2xl bg-hover border border-border flex items-center justify-center">
                                                 <Search className="w-5 h-5" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium text-zinc-500">No leads found</p>
+                                                <p className="text-sm font-medium text-muted-foreground">No leads found</p>
                                                 <p className="text-xs mt-0.5">
                                                     {searchQuery || statusFilter !== "all" || sectorFilter !== "all"
                                                         ? "Try adjusting your filters"
@@ -871,13 +871,13 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                     >
                                         {/* Date */}
                                         <td className="px-4 py-3.5">
-                                            <div className="text-xs text-zinc-400 tabular-nums">
+                                            <div className="text-xs text-muted-foreground tabular-nums">
                                                 {new Date(lead.createdAt).toLocaleDateString("en-US", {
                                                     month: "short",
                                                     day: "numeric",
                                                 })}
                                             </div>
-                                            <div className="text-[10px] text-zinc-600 tabular-nums mt-0.5">
+                                            <div className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
                                                 {new Date(lead.createdAt).toLocaleTimeString("en-US", {
                                                     hour: "2-digit",
                                                     minute: "2-digit",
@@ -892,7 +892,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                                     {lead.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-sm text-white font-medium truncate group-hover:text-indigo-300 transition-colors">
+                                                    <p className="text-sm text-foreground font-medium truncate group-hover:text-indigo-300 transition-colors">
                                                         {lead.name}
                                                     </p>
                                                 </div>
@@ -901,22 +901,22 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
 
                                         {/* Company */}
                                         <td className="px-4 py-3.5">
-                                            <p className="text-sm text-zinc-300 truncate max-w-[180px]">
+                                            <p className="text-sm text-foreground truncate max-w-[180px]">
                                                 {lead.companyName}
                                             </p>
                                         </td>
 
                                         {/* Size */}
                                         <td className="px-4 py-3.5">
-                                            <span className="inline-flex items-center gap-1 text-xs text-zinc-400 bg-white/[0.03] px-2 py-0.5 rounded-md border border-white/[0.04]">
-                                                <Users className="w-3 h-3 text-zinc-600" />
+                                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-hover px-2 py-0.5 rounded-md border border-border">
+                                                <Users className="w-3 h-3 text-muted-foreground" />
                                                 {SIZE_LABELS[lead.companySize] || lead.companySize}
                                             </span>
                                         </td>
 
                                         {/* Sector */}
                                         <td className="px-4 py-3.5">
-                                            <span className="text-xs text-zinc-400">
+                                            <span className="text-xs text-muted-foreground">
                                                 {SECTOR_LABELS[lead.sector] || lead.sector}
                                             </span>
                                         </td>
@@ -926,7 +926,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                             <div className="flex items-center gap-2">
                                                 <a
                                                     href={`mailto:${lead.email}`}
-                                                    className="p-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-all duration-200"
+                                                    className="p-1.5 rounded-md bg-hover border border-border text-muted-foreground hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-all duration-200"
                                                     title={lead.email}
                                                 >
                                                     <Mail className="w-3.5 h-3.5" />
@@ -934,7 +934,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                                 {lead.phone && (
                                                     <a
                                                         href={`tel:${lead.phone}`}
-                                                        className="p-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/10 transition-all duration-200"
+                                                        className="p-1.5 rounded-md bg-hover border border-border text-muted-foreground hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/10 transition-all duration-200"
                                                         title={lead.phone}
                                                     >
                                                         <Phone className="w-3.5 h-3.5" />
@@ -942,7 +942,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                                 )}
                                                 {lead.message && (
                                                     <div
-                                                        className="p-1.5 rounded-md bg-white/[0.03] border border-white/[0.06] text-zinc-600"
+                                                        className="p-1.5 rounded-md bg-hover border border-border text-muted-foreground"
                                                         title="Has message"
                                                     >
                                                         <MessageSquare className="w-3.5 h-3.5" />
@@ -963,7 +963,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
 
                                         {/* Source */}
                                         <td className="px-4 py-3.5">
-                                            <span className="text-[10px] text-zinc-600 bg-white/[0.03] px-2 py-0.5 rounded-full border border-white/[0.04]">
+                                            <span className="text-[10px] text-muted-foreground bg-hover px-2 py-0.5 rounded-full border border-border">
                                                 {lead.source}
                                             </span>
                                         </td>
@@ -972,7 +972,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                         <td className="px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 onClick={() => setDeleteTarget(lead)}
-                                                className="p-1.5 rounded-md text-zinc-700 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                                className="p-1.5 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
                                                 title="Delete lead"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -989,9 +989,9 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
             {/* ── Pagination Controls ──────────────────────────────── */}
             {pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between pt-2">
-                    <p className="text-xs text-zinc-600 tabular-nums">
+                    <p className="text-xs text-muted-foreground tabular-nums">
                         Page {pagination.page} of {pagination.totalPages}
-                        <span className="mx-1.5 text-zinc-700">·</span>
+                        <span className="mx-1.5 text-muted-foreground">·</span>
                         {pagination.totalCount} total leads
                     </p>
                     <div className="flex items-center gap-1.5">
@@ -999,10 +999,10 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                             onClick={() => navigatePage(pagination.page - 1)}
                             disabled={pagination.page <= 1}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg
-                                       bg-white/[0.03] border border-white/[0.06]
-                                       text-xs text-zinc-400 font-medium
-                                       hover:bg-white/[0.06] hover:text-white
-                                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white/[0.03] disabled:hover:text-zinc-400
+                                       bg-hover border border-border
+                                       text-xs text-muted-foreground font-medium
+                                       hover:bg-hover hover:text-foreground
+                                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-hover disabled:hover:text-muted-foreground
                                        transition-all duration-200"
                         >
                             <ChevronLeft className="w-3.5 h-3.5" />
@@ -1020,7 +1020,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                 .map((p, idx, arr) => (
                                     <span key={p} className="contents">
                                         {idx > 0 && arr[idx - 1] !== p - 1 && (
-                                            <span className="px-1 text-zinc-700 text-xs">…</span>
+                                            <span className="px-1 text-muted-foreground text-xs">…</span>
                                         )}
                                         <button
                                             onClick={() => navigatePage(p)}
@@ -1029,7 +1029,7 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                                                 transition-all duration-200
                                                 ${p === pagination.page
                                                     ? "bg-indigo-600/20 border border-indigo-500/30 text-indigo-400"
-                                                    : "bg-white/[0.02] border border-white/[0.04] text-zinc-500 hover:text-white hover:bg-white/[0.06]"
+                                                    : "bg-hover/50 border border-border text-muted-foreground hover:text-foreground hover:bg-hover"
                                                 }
                                             `}
                                         >
@@ -1043,10 +1043,10 @@ export function LeadsCRMTable({ leads: serverLeads, pagination }: LeadsCRMTableP
                             onClick={() => navigatePage(pagination.page + 1)}
                             disabled={pagination.page >= pagination.totalPages}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg
-                                       bg-white/[0.03] border border-white/[0.06]
-                                       text-xs text-zinc-400 font-medium
-                                       hover:bg-white/[0.06] hover:text-white
-                                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-white/[0.03] disabled:hover:text-zinc-400
+                                       bg-hover border border-border
+                                       text-xs text-muted-foreground font-medium
+                                       hover:bg-hover hover:text-foreground
+                                       disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-hover disabled:hover:text-muted-foreground
                                        transition-all duration-200"
                         >
                             Next

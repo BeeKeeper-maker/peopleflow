@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AttendanceDashboardCard } from "@/components/attendance/attendance-dashboard-card";
 import { AttendanceHistory } from "@/components/attendance/attendance-history";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLocale, useTranslations } from "next-intl";
+import { useRegularizationRequests, type RegularizationRequestRecord } from "@/hooks/use-data";
 import {
     Clock,
     CheckCircle2,
@@ -30,25 +32,7 @@ import {
 // Types
 // ════════════════════════════════════════════════════════════════════════
 
-interface RegularizationRequest {
-    id: string;
-    date: string;
-    reason: string;
-    requestedCheckIn?: string;
-    requestedCheckOut?: string;
-    status: "pending" | "approved" | "rejected";
-    createdAt: string;
-    employee: {
-        firstName: string;
-        lastName: string;
-        employeeCode: string;
-        department?: { name: string };
-    };
-    approvedBy?: {
-        firstName: string;
-        lastName: string;
-    };
-}
+type RegularizationRequest = RegularizationRequestRecord;
 
 const statusConfig = {
     pending: { labelKey: "pendingLabel", color: "bg-amber-500/20 text-amber-400", icon: Clock },
@@ -66,13 +50,22 @@ export default function AttendancePage() {
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
     const formatRegularizationDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
     const { addToast } = useToast();
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState("dashboard");
-    const [requests, setRequests] = useState<RegularizationRequest[]>([]);
-    const [loadingReqs, setLoadingReqs] = useState(false);
     const [processing, setProcessing] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [regularizationStatusFilter, setRegularizationStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
     const [regularizationSearch, setRegularizationSearch] = useState("");
+
+    // ── TanStack Query: regularization requests (lazy — only when tab is active) ──
+    const { data: requests = [], isLoading: loadingReqs, isFetching: fetchingReqs, refetch } = useRegularizationRequests(
+        regularizationStatusFilter,
+        activeTab === "regularization",
+    );
+
+    const invalidateRegularization = () => {
+        queryClient.invalidateQueries({ queryKey: ["attendance", "regularization"] });
+    };
 
     // New request form
     const [formDate, setFormDate] = useState("");
@@ -80,27 +73,6 @@ export default function AttendancePage() {
     const [formCheckOut, setFormCheckOut] = useState("");
     const [formReason, setFormReason] = useState("");
     const [submitting, setSubmitting] = useState(false);
-
-    const fetchRequests = useCallback(async () => {
-        setLoadingReqs(true);
-        try {
-            const params = new URLSearchParams();
-            if (regularizationStatusFilter !== "all") params.set("status", regularizationStatusFilter);
-            const res = await fetch(`/api/attendance/regularization${params.toString() ? `?${params.toString()}` : ""}`);
-            if (res.ok) {
-                const data = await res.json();
-                setRequests(data.requests || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch regularization requests:", error);
-        } finally {
-            setLoadingReqs(false);
-        }
-    }, [regularizationStatusFilter]);
-
-    useEffect(() => {
-        if (activeTab === "regularization") fetchRequests();
-    }, [activeTab, fetchRequests]);
 
     const handleAction = async (id: string, action: "approve" | "reject") => {
         setProcessing(id);
@@ -112,7 +84,7 @@ export default function AttendancePage() {
             });
             if (res.ok) {
                 addToast({ title: action === "approve" ? t("requestApproved") : t("requestRejected"), description: action === "approve" ? t("approvedDesc") : t("rejectedDesc"), type: "success" });
-                fetchRequests();
+                invalidateRegularization();
             } else {
                 const err = await res.json();
                 addToast({ title: t("networkError"), description: err.error || t("networkError"), type: "error" });
@@ -163,7 +135,7 @@ export default function AttendancePage() {
                 setFormCheckIn("");
                 setFormCheckOut("");
                 setFormReason("");
-                fetchRequests();
+                invalidateRegularization();
             } else {
                 const err = await res.json();
                 addToast({ title: t("networkError"), description: err.error || t("networkError"), type: "error" });
@@ -178,9 +150,17 @@ export default function AttendancePage() {
     const pendingCount = requests.filter(r => r.status === "pending").length;
 
     return (
-        <div className="flex-1 space-y-6 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <h2 className="text-3xl font-bold tracking-tight text-foreground">{t('title')}</h2>
+        <div className="flex-1 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/15 ring-1 ring-blue-500/20">
+                        <Clock className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                    </div>
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -218,8 +198,8 @@ export default function AttendancePage() {
                             <p className="text-sm text-muted-foreground">{t("regularizationSubtitle")}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" className="gap-2" onClick={fetchRequests} disabled={loadingReqs}>
-                                <RefreshCw className={`h-4 w-4 ${loadingReqs ? "animate-spin" : ""}`} />
+                            <Button variant="outline" className="gap-2" onClick={() => refetch()} disabled={fetchingReqs}>
+                                <RefreshCw className={`h-4 w-4 ${fetchingReqs ? "animate-spin" : ""}`} />
                                 {t("refresh")}
                             </Button>
                             <Button className="gap-2" onClick={() => setShowForm(!showForm)}>
@@ -299,7 +279,7 @@ export default function AttendancePage() {
                                             <s.icon className={`h-5 w-5 ${s.textColor}`} />
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-bold text-foreground">{s.value}</p>
+                                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">{s.value}</p>
                                             <p className="text-xs text-muted-foreground">{s.label}</p>
                                         </div>
                                     </div>

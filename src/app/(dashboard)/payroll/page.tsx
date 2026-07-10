@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,54 +29,17 @@ import {
     Shield,
     ArrowRight,
     Timer,
+    Banknote,
+    Lock,
+    RotateCcw,
+    Smartphone,
 } from "lucide-react"
 import { SalaryAssignmentForm } from "@/components/payroll/salary-assignment-form"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { exportToExcel, formatPayrollExport } from "@/lib/export"
 import { useTranslations } from "next-intl"
-
-interface Assignment {
-    id: string
-    grossSalary: number
-    effectiveFrom: string
-    isActive: boolean
-    employee: {
-        id: string
-        firstName: string
-        lastName: string
-        employeeCode: string
-        designation?: { name: string }
-    }
-    salaryStructure: {
-        id: string
-        name: string
-    }
-    breakdown: {
-        basic: number
-        houseRent: number
-        medical: number
-        conveyance: number
-        totalEarnings: number
-        pfEmployee: number
-        netSalary: number
-    }
-}
-
-interface SalarySlip {
-    id: string
-    month: number
-    year: number
-    grossSalary: number
-    netSalary: number
-    totalDeductions: number
-    status: string
-    employee: {
-        firstName: string
-        lastName: string
-        employeeCode: string
-        department?: { name: string }
-    }
-}
+import { usePayrollAssignments, useSalarySlips } from "@/hooks/use-data"
 
 const months = [
     "January", "February", "March", "April", "May", "June",
@@ -84,11 +48,10 @@ const months = [
 
 export default function PayrollPage() {
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const t = useTranslations('Payroll')
+    const queryClient = useQueryClient()
     const [activeTab, setActiveTab] = useState("overview")
-    const [assignments, setAssignments] = useState<Assignment[]>([])
-    const [slips, setSlips] = useState<SalarySlip[]>([])
-    const [loading, setLoading] = useState(true)
     const [processing, setProcessing] = useState(false)
     const [showAssignmentForm, setShowAssignmentForm] = useState(false)
 
@@ -96,32 +59,14 @@ export default function PayrollPage() {
     const [processMonth, setProcessMonth] = useState(new Date().getMonth() + 1)
     const [processYear, setProcessYear] = useState(new Date().getFullYear())
 
-    const fetchData = async () => {
-        try {
-            setLoading(true)
-            const [assignmentsRes, slipsRes] = await Promise.all([
-                fetch("/api/payroll/assignments?active=true"),
-                fetch(`/api/payroll/process?month=${processMonth}&year=${processYear}`)
-            ])
+    // ── TanStack Query: assignments + slips ──
+    const { data: assignments = [], isLoading: assignmentsLoading } = usePayrollAssignments(true)
+    const { data: slips = [], isLoading: slipsLoading } = useSalarySlips(processMonth, processYear)
+    const loading = assignmentsLoading || slipsLoading
 
-            if (assignmentsRes.ok) {
-                const assignmentsData = await assignmentsRes.json()
-                setAssignments(Array.isArray(assignmentsData) ? assignmentsData : assignmentsData.data || [])
-            }
-            if (slipsRes.ok) {
-                const slipsData = await slipsRes.json()
-                setSlips(Array.isArray(slipsData) ? slipsData : slipsData.data || slipsData.slips || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch payroll data", error)
-        } finally {
-            setLoading(false)
-        }
+    const invalidatePayroll = () => {
+        queryClient.invalidateQueries({ queryKey: ["payroll"] })
     }
-
-    useEffect(() => {
-        fetchData()
-    }, [processMonth, processYear])
 
     const handleProcessPayroll = async () => {
         try {
@@ -140,7 +85,7 @@ export default function PayrollPage() {
                     description: `${result.processed} slips created, ${result.errors} errors`,
                     type: result.errors > 0 ? "warning" : "success",
                 })
-                fetchData()
+                invalidatePayroll()
             } else {
                 throw new Error(result.error || t("payrollFailed"))
             }
@@ -160,6 +105,180 @@ export default function PayrollPage() {
     const totalDeductions = slips.reduce((sum, s) => sum + s.totalDeductions, 0)
     const pendingCount = slips.filter(s => s.status === "draft").length
     const paidCount = slips.filter(s => s.status === "paid").length
+
+    // ── Slip workflow actions ──
+    const [slipActionLoading, setSlipActionLoading] = useState<string | null>(null)
+
+    const handleSlipAction = async (slipId: string, action: "approve" | "pay" | "lock" | "reverse" | "download") => {
+        setSlipActionLoading(`${slipId}:${action}`)
+        try {
+            if (action === "download") {
+                // Download payslip PDF
+                const res = await fetch(`/api/payroll/slips/${slipId}/download`)
+                if (res.ok) {
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `payslip-${slipId}.pdf`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                } else {
+                    addToast({ title: "Download failed", type: "error" })
+                }
+            } else if (action === "lock") {
+                const reason = prompt("Enter a reason for locking this slip:")
+                if (!reason) return
+                const res = await fetch(`/api/payroll/slips/${slipId}/lock`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason }),
+                })
+                if (res.ok) {
+                    addToast({ title: "Slip locked", type: "success" })
+                    invalidatePayroll()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || "Lock failed", type: "error" })
+                }
+            } else if (action === "reverse") {
+                const reason = prompt("Enter a reason for reversing this slip:")
+                if (!reason) return
+                const res = await fetch(`/api/payroll/slips/${slipId}/reverse`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason }),
+                })
+                if (res.ok) {
+                    addToast({ title: "Slip reversed — you can re-process now", type: "success" })
+                    invalidatePayroll()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || "Reverse failed", type: "error" })
+                }
+            } else {
+                // approve or pay
+                const body = action === "pay" ? { paymentMode: "bank_transfer" } : {}
+                const res = await fetch(`/api/payroll/slips/${slipId}/${action}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                })
+                if (res.ok) {
+                    const data = await res.json()
+                    addToast({ title: data.message || `Slip ${action}d`, type: "success" })
+                    invalidatePayroll()
+                } else {
+                    const err = await res.json().catch(() => ({}))
+                    addToast({ title: err.error || `${action} failed`, type: "error" })
+                }
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    const handleBulkApprove = async () => {
+        const draftSlips = slips.filter(s => s.status === "draft")
+        if (draftSlips.length === 0) {
+            addToast({ title: "No draft slips to approve", type: "info" })
+            return
+        }
+        const _ok = await confirm({ title: `Approve ${draftSlips.length} draft slip(s)?`, description: `All draft slips for ${months[processMonth - 1]} ${processYear} will be approved.`, confirmLabel: "Approve All", variant: "default" }); if (!_ok) return
+
+        setSlipActionLoading("bulk-approve")
+        try {
+            const res = await fetch("/api/payroll/slips/bulk-approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ month: processMonth, year: processYear }),
+            })
+            if (res.ok) {
+                const data = await res.json()
+                addToast({ title: `${data.approved} slip(s) approved`, type: "success" })
+                invalidatePayroll()
+            } else {
+                addToast({ title: "Bulk approve failed", type: "error" })
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    const handleGenerateBankFile = async () => {
+        setSlipActionLoading("bank-file")
+        try {
+            const res = await fetch(`/api/payroll/bank-file?month=${processMonth}&year=${processYear}`)
+            if (res.ok) {
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = `bank-file-${processYear}-${processMonth}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+                addToast({ title: "Bank file generated", type: "success" })
+            } else {
+                const err = await res.json().catch(() => ({}))
+                addToast({ title: err.error || "Bank file generation failed", type: "error" })
+            }
+        } catch {
+            addToast({ title: "Network error", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
+
+    // ── bKash disbursement ──
+    // Calls the disbursement engine via POST /api/payroll/disburse. The
+    // engine loads encrypted credentials from Organization.settings,
+    // calls the bKash B2C API, and (on success) marks the slip as paid
+    // with paymentMode="bkash" + transactionRef=trnxID.
+    const handleDisburseBkash = async (slipId: string, employeeName: string) => {
+        const ok = await confirm({
+            title: "Disburse via bKash?",
+            description: `This will call the bKash API to send net salary to ${employeeName}'s bKash wallet. The transaction is irreversible.`,
+            confirmLabel: "Disburse",
+            variant: "default",
+        })
+        if (!ok) return
+
+        setSlipActionLoading(`${slipId}:disburse`)
+        try {
+            const res = await fetch("/api/payroll/disburse", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ slipIds: [slipId], channel: "bkash" }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.success) {
+                addToast({
+                    title: "Disbursed via bKash",
+                    description: data.reference ? `Transaction ID: ${data.reference}` : undefined,
+                    type: "success",
+                })
+                invalidatePayroll()
+            } else {
+                addToast({
+                    title: "Disbursement failed",
+                    description: typeof data.error === "string"
+                        ? data.error
+                        : typeof data.message === "string"
+                            ? data.message
+                            : "bKash API rejected the request.",
+                    type: "error",
+                })
+            }
+        } catch {
+            addToast({ title: "Network error during disbursement", type: "error" })
+        } finally {
+            setSlipActionLoading(null)
+        }
+    }
 
     const stats = [
         {
@@ -196,9 +315,14 @@ export default function PayrollPage() {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
-                    <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 ring-1 ring-emerald-500/20">
+                        <DollarSign className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t('title')}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
+                    </div>
                 </div>
                 <div className="flex gap-3">
                     <Button
@@ -210,7 +334,7 @@ export default function PayrollPage() {
                         {t('assignSalary')}
                     </Button>
                     <Button
-                        className="bg-emerald-600 hover:bg-emerald-700"
+                        className="bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-600/20"
                         onClick={handleProcessPayroll}
                         disabled={processing}
                     >
@@ -233,11 +357,11 @@ export default function PayrollPage() {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-muted-foreground">{stat.title}</p>
-                                    <h3 className="text-2xl font-bold text-foreground mt-1">{stat.value}</h3>
+                                    <h3 className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">{stat.value}</h3>
                                     <p className="text-xs text-tertiary-foreground mt-1">{stat.description}</p>
                                 </div>
-                                <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color}`}>
-                                    <stat.icon className="h-6 w-6 text-foreground" />
+                                <div className={`p-3 rounded-xl bg-linear-to-r ${stat.color} shadow-sm`}>
+                                    <stat.icon className="h-6 w-6 text-white" />
                                 </div>
                             </div>
                         </CardContent>
@@ -291,7 +415,7 @@ export default function PayrollPage() {
                                         className="w-32 bg-hover border-card-border text-foreground"
                                     />
                                 </div>
-                                <Button onClick={fetchData} variant="outline" className="border-card-border">
+                                <Button onClick={() => invalidatePayroll()} variant="outline" className="border-card-border">
                                     {t('loadData')}
                                 </Button>
                             </div>
@@ -325,19 +449,19 @@ export default function PayrollPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                                             <p className="text-emerald-400 text-sm">{t('totalGross')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">
                                                 ৳{slips.reduce((s, sl) => s + sl.grossSalary, 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
                                             <p className="text-red-400 text-sm">{t('totalDeductions')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">
                                                 ৳{totalDeductions.toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
                                             <p className="text-blue-400 text-sm">{t('netPayable')}</p>
-                                            <p className="text-2xl font-bold text-foreground">
+                                            <p className="text-2xl font-display font-bold text-foreground tabular-nums">
                                                 ৳{totalPayroll.toLocaleString()}
                                             </p>
                                         </div>
@@ -439,23 +563,41 @@ export default function PayrollPage() {
                                 </CardTitle>
                                 <CardDescription className="text-muted-foreground">
                                     {slips.length} {t('slipsGenerated')}
+                                    {pendingCount > 0 && (
+                                        <span className="ml-2 text-amber-400">
+                                            ({pendingCount} draft awaiting approval)
+                                        </span>
+                                    )}
                                 </CardDescription>
                             </div>
-                            <Button
-                                variant="outline"
-                                className="border-card-border"
-                                disabled={slips.length === 0}
-                                onClick={() => {
-                                    const formatted = formatPayrollExport(slips)
-                                    exportToExcel(formatted, {
-                                        filename: `Salary_Slips_${months[processMonth - 1]}_${processYear}`,
-                                        sheetName: "Salary Slips",
-                                    })
-                                }}
-                            >
-                                <Download className="h-4 w-4 mr-2" />
-                                {t('exportAll')}
-                            </Button>
+                            <div className="flex gap-2">
+                                {pendingCount > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                                        onClick={handleBulkApprove}
+                                        disabled={slipActionLoading === "bulk-approve"}
+                                    >
+                                        {slipActionLoading === "bulk-approve" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                                        Bulk Approve ({pendingCount})
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    className="border-card-border"
+                                    disabled={slips.length === 0}
+                                    onClick={() => {
+                                        const formatted = formatPayrollExport(slips)
+                                        exportToExcel(formatted, {
+                                            filename: `Salary_Slips_${months[processMonth - 1]}_${processYear}`,
+                                            sheetName: "Salary Slips",
+                                        })
+                                    }}
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    {t('exportAll')}
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             {slips.length === 0 ? (
@@ -506,12 +648,115 @@ export default function PayrollPage() {
                                                             }
                                                         >
                                                             {slip.status}
+                                                            {slip.isLocked && " 🔒"}
+                                                            {slip.isReversed && " ↩"}
                                                         </Badge>
                                                     </td>
                                                     <td className="py-4">
-                                                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground">
-                                                            <Download className="h-4 w-4" />
-                                                        </Button>
+                                                        <div className="flex gap-1">
+                                                            {/* Download PDF */}
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                                                onClick={() => handleSlipAction(slip.id, "download")}
+                                                                disabled={slipActionLoading === `${slip.id}:download`}
+                                                                title="Download PDF"
+                                                            >
+                                                                {slipActionLoading === `${slip.id}:download` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                            </Button>
+                                                            {/* Approve (draft → approved) */}
+                                                            {slip.status === "draft" && !slip.isReversed && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "approve")}
+                                                                    disabled={slipActionLoading === `${slip.id}:approve`}
+                                                                    title="Approve"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:approve` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Pay (approved → paid) */}
+                                                            {(slip.status === "approved" || slip.status === "draft") && !slip.isReversed && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "pay")}
+                                                                    disabled={slipActionLoading === `${slip.id}:pay`}
+                                                                    title="Mark as Paid"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:pay` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Disburse via bKash — calls the bKash B2C API.
+                                                                Shown when the slip is eligible for digital disbursement
+                                                                (approved, or paid via a non-bKash channel) and not
+                                                                already locked/reversed. The disbursement engine accepts
+                                                                both "approved" and "paid" statuses; once a bKash
+                                                                disbursement succeeds it stamps paymentMode="bkash" and
+                                                                hides this action on subsequent renders. */}
+                                                            {(() => {
+                                                                const alreadyDisbursedViaBkash =
+                                                                    slip.status === "paid" &&
+                                                                    (slip.paymentMode === "bkash" || slip.paymentMode === "nagad");
+                                                                const eligible =
+                                                                    !slip.isReversed &&
+                                                                    !slip.isLocked &&
+                                                                    !alreadyDisbursedViaBkash &&
+                                                                    (slip.status === "approved" || slip.status === "paid");
+                                                                if (!eligible) return null;
+                                                                return (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 p-0 text-pink-400 hover:text-pink-300 hover:bg-pink-500/10"
+                                                                        onClick={() =>
+                                                                            handleDisburseBkash(
+                                                                                slip.id,
+                                                                                `${slip.employee.firstName} ${slip.employee.lastName}`,
+                                                                            )
+                                                                        }
+                                                                        disabled={slipActionLoading === `${slip.id}:disburse`}
+                                                                        title="Disburse via bKash"
+                                                                    >
+                                                                        {slipActionLoading === `${slip.id}:disburse` ? (
+                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                        ) : (
+                                                                            <Smartphone className="h-4 w-4" />
+                                                                        )}
+                                                                    </Button>
+                                                                );
+                                                            })()}
+                                                            {/* Lock (paid → locked) */}
+                                                            {slip.status === "paid" && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "lock")}
+                                                                    disabled={slipActionLoading === `${slip.id}:lock`}
+                                                                    title="Lock"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:lock` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                            {/* Reverse (for correction) */}
+                                                            {(slip.status === "paid" || slip.status === "approved") && !slip.isReversed && !slip.isLocked && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                                    onClick={() => handleSlipAction(slip.id, "reverse")}
+                                                                    disabled={slipActionLoading === `${slip.id}:reverse`}
+                                                                    title="Reverse for correction"
+                                                                >
+                                                                    {slipActionLoading === `${slip.id}:reverse` ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -564,17 +809,17 @@ export default function PayrollPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                                         <p className="text-sm text-indigo-400">{t("totalTaxableIncome")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("basedOnAnnualSalary")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                         <p className="text-sm text-amber-400">{t("taxDeductedTDS")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("monthlyDeductionsSum")}</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <p className="text-sm text-emerald-400">{t("investmentRebate")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">৳0</p>
                                         <p className="text-xs text-muted-foreground mt-1">{t("underSection78")}</p>
                                     </div>
                                 </div>
@@ -636,8 +881,12 @@ export default function PayrollPage() {
                                             <option>EFT (Individual)</option>
                                         </select>
                                     </div>
-                                    <Button className="bg-cyan-600 hover:bg-cyan-700 gap-2">
-                                        <Download className="h-4 w-4" />
+                                    <Button
+                                        className="bg-cyan-600 hover:bg-cyan-700 gap-2"
+                                        onClick={handleGenerateBankFile}
+                                        disabled={slipActionLoading === "bank-file" || slips.length === 0}
+                                    >
+                                        {slipActionLoading === "bank-file" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                                         {t("generateFile")}
                                     </Button>
                                 </div>
@@ -652,7 +901,7 @@ export default function PayrollPage() {
                                     ].map((item, i) => (
                                         <div key={i} className={`p-4 rounded-xl border ${item.bgColor}`}>
                                             <p className={`text-sm ${item.textColor}`}>{item.label}</p>
-                                            <p className="text-xl font-bold text-foreground mt-1">{item.value}</p>
+                                            <p className="text-xl font-display font-bold text-foreground mt-1">{item.value}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -723,15 +972,15 @@ export default function PayrollPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
                                         <p className="text-sm text-amber-400">{t("pendingRequests")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                                         <p className="text-sm text-emerald-400">{t("processedThisYear")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">0</p>
                                     </div>
                                     <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
                                         <p className="text-sm text-purple-400">{t("totalPayout")}</p>
-                                        <p className="text-2xl font-bold text-foreground mt-1">৳0</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">৳0</p>
                                     </div>
                                 </div>
 
@@ -830,7 +1079,7 @@ export default function PayrollPage() {
             <SalaryAssignmentForm
                 open={showAssignmentForm}
                 onOpenChange={setShowAssignmentForm}
-                onSuccess={fetchData}
+                onSuccess={() => invalidatePayroll()}
             />
         </div>
     )

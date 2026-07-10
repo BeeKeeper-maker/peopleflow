@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import {
     ShieldCheck,
     AlertTriangle,
@@ -57,6 +58,13 @@ const severityConfig = {
     medium: { label: "Medium", color: "bg-amber-500/20 text-amber-400", borderColor: "border-amber-500/30" },
     low: { label: "Low", color: "bg-blue-500/20 text-blue-400", borderColor: "border-blue-500/30" },
 };
+// Bengali labels (used when locale is bn)
+const severityLabelsBn: Record<string, string> = {
+    critical: "সংকটজনক",
+    high: "উচ্চ",
+    medium: "মাঝারি",
+    low: "নিম্ন",
+};
 
 const statusIcons = {
     pass: CheckCircle2,
@@ -74,7 +82,7 @@ const statusColors = {
 // Compliance Score Ring
 // ════════════════════════════════════════════════════════════════════════
 
-function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
+function ScoreRing({ score, size = 180, label, sublabel }: { score: number; size?: number; label: string; sublabel: string }) {
     const radius = 70;
     const circumference = 2 * Math.PI * radius;
     const fill = (score / 100) * circumference;
@@ -112,8 +120,8 @@ function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
             />
             {/* Score text */}
             <text x="90" y="80" textAnchor="middle" className="fill-foreground text-[32px] font-bold">{score}%</text>
-            <text x="90" y="103" textAnchor="middle" className="fill-muted-foreground text-[12px]">Compliance</text>
-            <text x="90" y="118" textAnchor="middle" className="fill-muted-foreground text-[10px]">Score</text>
+            <text x="90" y="103" textAnchor="middle" className="fill-muted-foreground text-[12px]">{label}</text>
+            <text x="90" y="118" textAnchor="middle" className="fill-muted-foreground text-[10px]">{sublabel}</text>
         </svg>
     );
 }
@@ -126,6 +134,7 @@ export default function CompliancePage() {
     const t = useTranslations('Compliance');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [fetchError, setFetchError] = useState(false);
     const [checks, setChecks] = useState<ComplianceCheck[]>([]);
     const [overallScore, setOverallScore] = useState(0);
 
@@ -135,6 +144,7 @@ export default function CompliancePage() {
 
     const runComplianceCheck = async () => {
         setRefreshing(true);
+        setFetchError(false);
         try {
             const res = await fetch("/api/reports?type=compliance");
             if (res.ok) {
@@ -142,12 +152,12 @@ export default function CompliancePage() {
                 setChecks(data.checks || []);
                 setOverallScore(data.score || 0);
             } else {
-                console.error("Compliance API returned:", res.status);
+                setFetchError(true);
                 setChecks([]);
                 setOverallScore(0);
             }
         } catch (error) {
-            console.error("Compliance check failed:", error);
+            setFetchError(true);
             setChecks([]);
             setOverallScore(0);
         } finally {
@@ -196,44 +206,58 @@ export default function CompliancePage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                        <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2">
                             <ShieldCheck className="h-7 w-7 text-emerald-400" />
                             {t('title')}
                         </h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
-                    <Button
-                        variant="outline"
-                        onClick={runComplianceCheck}
-                        disabled={refreshing}
-                        className="gap-2"
-                    >
-                        {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        {t('recheck')}
-                    </Button>
+                    <div className="flex gap-2">
+                        <a href="/reports/statutory">
+                            <Button variant="outline" className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                Statutory Registers
+                            </Button>
+                        </a>
+                        <Button
+                            variant="outline"
+                            onClick={runComplianceCheck}
+                            disabled={refreshing}
+                            className="gap-2"
+                        >
+                            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            {t('recheck')}
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Score + Summary */}
+                {/* Error State */}
+                {fetchError && !loading && (
+                    <ErrorState
+                        title="Failed to load compliance data"
+                        message="We couldn't run the compliance checks. Please try again."
+                        onRetry={runComplianceCheck}
+                    />
+                )}
+
+                {/* Main Content — only show when not loading and not error */}
+                {!loading && !fetchError && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Overall Score */}
                     <Card>
                         <CardContent className="p-6 flex flex-col items-center justify-center">
-                            {loading ? (
-                                <Skeleton className="h-[180px] w-[180px] rounded-full" />
-                            ) : (
-                                <ScoreRing score={overallScore} />
-                            )}
+                                <ScoreRing score={overallScore} label={t('complianceLabel')} sublabel={t('scoreLabel')} />
                             <div className="flex gap-4 mt-4">
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-emerald-400">{passedChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-emerald-400">{passedChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Passed</p>
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-amber-400">{warningChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-amber-400">{warningChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Warnings</p>
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-lg font-bold text-red-400">{failedChecks.length}</p>
+                                    <p className="text-lg font-display font-bold tabular-nums text-red-400">{failedChecks.length}</p>
                                     <p className="text-xs text-muted-foreground">Failed</p>
                                 </div>
                             </div>
@@ -243,7 +267,7 @@ export default function CompliancePage() {
                     {/* Category Breakdown */}
                     <Card className="lg:col-span-2">
                         <CardHeader>
-                            <CardTitle className="text-base">Category Breakdown</CardTitle>
+                            <CardTitle className="text-base">{t('categoryBreakdown')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             {loading ? (
@@ -279,7 +303,7 @@ export default function CompliancePage() {
                                                         />
                                                     </div>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        {cat.passed}/{cat.total} checks passed
+                                                        {cat.passed}/{cat.total} {t('checksPassed')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -290,6 +314,7 @@ export default function CompliancePage() {
                         </CardContent>
                     </Card>
                 </div>
+                )}
 
                 {/* Violations / Issues */}
                 {(failedChecks.length > 0 || warningChecks.length > 0) && (
@@ -297,10 +322,10 @@ export default function CompliancePage() {
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5 text-amber-400" />
-                                Issues Requiring Attention
+                                {t('issuesRequiringAttention')}
                             </CardTitle>
                             <CardDescription>
-                                {failedChecks.length} violations and {warningChecks.length} warnings detected
+                                {failedChecks.length} + {warningChecks.length} {t('violationsAndWarnings')}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -321,7 +346,7 @@ export default function CompliancePage() {
                                                         <Badge className={`${sev.color} text-[10px]`}>{sev.label}</Badge>
                                                         {check.affectedCount > 0 && (
                                                             <Badge variant="default" className="text-[10px]">
-                                                                {check.affectedCount} affected
+                                                                {check.affectedCount} {t('affected')}
                                                             </Badge>
                                                         )}
                                                     </div>
@@ -346,7 +371,7 @@ export default function CompliancePage() {
                     <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                            Passing Checks ({passedChecks.length})
+                            {t('passingChecks')} ({passedChecks.length})
                         </CardTitle>
                     </CardHeader>
                     <CardContent>

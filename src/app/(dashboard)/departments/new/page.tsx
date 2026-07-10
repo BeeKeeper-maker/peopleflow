@@ -13,12 +13,12 @@ export default function NewDepartmentPage() {
         <div className="space-y-6 max-w-2xl mx-auto">
             <div className="flex items-center gap-4">
                 <Link href="/departments">
-                    <Button variant="ghost" size="icon" className="h-10 w-10 text-foreground hover:text-foreground hover:bg-hover">
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-foreground hover:text-foreground hover:bg-hover" title="Back" aria-label="Back">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("createTitle")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("createTitle")}</h1>
                     <p className="text-muted-foreground">{t("createSubtitle")}</p>
                 </div>
             </div>

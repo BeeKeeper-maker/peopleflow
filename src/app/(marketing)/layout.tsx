@@ -1,4 +1,32 @@
 import type { Metadata } from "next";
+import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
+
+// ═══════════════════════════════════════════════════════════════
+// FONTS — Dark Refinement typography stack
+//   Inter        → body
+//   Inter Tight  → display headings (tight tracking)
+//   JetBrains Mono → stats, code, numbers
+// ═══════════════════════════════════════════════════════════════
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "PeopleFlow | Enterprise HR, Engineered for Bangladesh",
@@ -65,11 +93,34 @@ export default function MarketingLayout({
 }) {
   return (
     <>
+      <style jsx global>{`
+        :root {
+          --font-sans: ${inter.style.fontFamily};
+          --font-display: ${interTight.style.fontFamily};
+          --font-mono: ${jetbrainsMono.style.fontFamily};
+        }
+        html, body {
+          font-family: var(--font-sans), system-ui, sans-serif;
+          background: #0A0A0F;
+          color: #F5F5F7;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+        .font-display {
+          font-family: var(--font-display), system-ui, sans-serif;
+        }
+        .font-mono {
+          font-family: var(--font-mono), ui-monospace, monospace;
+        }
+      `}</style>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {children}
+      <div className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable}`}>
+        {children}
+      </div>
     </>
   );
 }

@@ -35,6 +35,7 @@ export const MARITAL_STATUS_OPTIONS = ["single", "married", "divorced", "widowed
 export const EMPLOYMENT_TYPE_OPTIONS = ["permanent", "contractual", "intern", "probation"] as const;
 export const EMPLOYMENT_STATUS_OPTIONS = ["active", "resigned", "terminated", "retired"] as const;
 export const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] as const;
+export const RELIGION_OPTIONS = ["islam", "hinduism", "buddhism", "christianity", "other"] as const;
 
 // ─── The Schema ─────────────────────────────────────────────────────────────
 
@@ -43,14 +44,23 @@ export const employeeSchema = z.object({
     firstName: z.string().min(2, "First name must be at least 2 characters"),
     lastName: z.string().min(2, "Last name must be at least 2 characters"),
     bengaliName: z.preprocess(sanitize, z.string().optional()),
+    firstNameBn: z.preprocess(sanitize, z.string().optional()),
+    lastNameBn: z.preprocess(sanitize, z.string().optional()),
     email: z.preprocess(sanitize, z.string().email("Invalid email address").optional()),
-    phone: z.preprocess(sanitize, z.string().optional()),
+    phone: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^(\+?880|0)?1[3-9]\d{8}$/.test(val.replace(/[\s-]/g, "")),
+        "Phone must be a valid Bangladesh number (e.g., 01712345678 or +8801712345678)"
+    )),
     dateOfBirth: z.preprocess(toDateOrUndefined, z.date().optional()),
     gender: z.preprocess(sanitize, z.enum(GENDER_OPTIONS).optional()),
     bloodGroup: z.preprocess(sanitize, z.enum(BLOOD_GROUP_OPTIONS).optional()),
     maritalStatus: z.preprocess(sanitize, z.enum(MARITAL_STATUS_OPTIONS).optional()),
     nationality: z.preprocess(sanitize, z.string().default("Bangladeshi")),
-    nidNumber: z.preprocess(sanitize, z.string().optional()),
+    religion: z.preprocess(sanitize, z.enum(RELIGION_OPTIONS).optional()),
+    nidNumber: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^\d{10}$|^\d{13}$|^\d{17}$/.test(val.replace(/\s/g, "")),
+        "NID must be 10, 13, or 17 digits (Bangladesh NID format)"
+    )),
     passportNumber: z.preprocess(sanitize, z.string().optional()),
     photoUrl: z.preprocess(
         sanitize,
@@ -59,6 +69,17 @@ export const employeeSchema = z.object({
             .refine((value) => !value || value.startsWith("/api/uploads/"), {
                 message: "Profile photo must be uploaded through PeopleFlow",
             })
+    ),
+
+    // ── BD Family Information ───────────────────────────────────────────────
+    fatherName: z.preprocess(sanitize, z.string().optional()),
+    fatherNameBn: z.preprocess(sanitize, z.string().optional()),
+    motherName: z.preprocess(sanitize, z.string().optional()),
+    motherNameBn: z.preprocess(sanitize, z.string().optional()),
+    spouseName: z.preprocess(sanitize, z.string().optional()),
+    childrenCount: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined) ? undefined : Number(val),
+        z.number().int().min(0, "Children count cannot be negative").optional()
     ),
 
     // ── Employment Details ──────────────────────────────────────────────────
@@ -92,6 +113,21 @@ export const employeeSchema = z.object({
     tinNumber: z.preprocess(sanitize, z.string().optional()),
     pfNumber: z.preprocess(sanitize, z.string().optional()),
 
+    // ── BD Mobile Banking (digital payroll disbursement) ─────────────────────
+    bkashNumber: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^(\+?880|0)?1[3-9]\d{8}$/.test(val.replace(/[\s-]/g, "")),
+        "bKash number must be a valid Bangladesh mobile number (e.g., 01712345678)"
+    )),
+    nagadNumber: z.preprocess(sanitize, z.string().optional().refine(
+        (val) => !val || /^(\+?880|0)?1[3-9]\d{8}$/.test(val.replace(/[\s-]/g, "")),
+        "Nagad number must be a valid Bangladesh mobile number (e.g., 01712345678)"
+    )),
+
+    // ── BD Tax Exemption Flags (Finance Act) ────────────────────────────────
+    isSeniorCitizen: z.boolean().default(false),
+    isDisabled: z.boolean().default(false),
+    isFreedomFighter: z.boolean().default(false),
+
     // ── Address & Emergency ─────────────────────────────────────────────────
     presentAddress: z.preprocess(sanitize, z.string().optional()),
     permanentAddress: z.preprocess(sanitize, z.string().optional()),
@@ -117,6 +153,8 @@ export interface EmployeeFormValues {
     firstName: string;
     lastName: string;
     bengaliName: string;
+    firstNameBn: string;
+    lastNameBn: string;
     email: string;
     phone: string;
     dateOfBirth: string;
@@ -124,9 +162,17 @@ export interface EmployeeFormValues {
     bloodGroup: string;
     maritalStatus: string;
     nationality: string;
+    religion: string;
     nidNumber: string;
     passportNumber: string;
     photoUrl: string;
+
+    fatherName: string;
+    fatherNameBn: string;
+    motherName: string;
+    motherNameBn: string;
+    spouseName: string;
+    childrenCount: number | string;
 
     employeeCode: string;
     departmentId: string;
@@ -147,6 +193,12 @@ export interface EmployeeFormValues {
     routingNumber: string;
     tinNumber: string;
     pfNumber: string;
+    bkashNumber: string;
+    nagadNumber: string;
+
+    isSeniorCitizen: boolean;
+    isDisabled: boolean;
+    isFreedomFighter: boolean;
 
     presentAddress: string;
     permanentAddress: string;
@@ -161,6 +213,8 @@ export const DEFAULT_EMPLOYEE_VALUES: EmployeeFormValues = {
     firstName: "",
     lastName: "",
     bengaliName: "",
+    firstNameBn: "",
+    lastNameBn: "",
     email: "",
     phone: "",
     dateOfBirth: "",
@@ -168,9 +222,17 @@ export const DEFAULT_EMPLOYEE_VALUES: EmployeeFormValues = {
     bloodGroup: "",
     maritalStatus: "",
     nationality: "Bangladeshi",
+    religion: "",
     nidNumber: "",
     passportNumber: "",
     photoUrl: "",
+
+    fatherName: "",
+    fatherNameBn: "",
+    motherName: "",
+    motherNameBn: "",
+    spouseName: "",
+    childrenCount: "",
 
     employeeCode: "",
     departmentId: "",
@@ -191,6 +253,12 @@ export const DEFAULT_EMPLOYEE_VALUES: EmployeeFormValues = {
     routingNumber: "",
     tinNumber: "",
     pfNumber: "",
+    bkashNumber: "",
+    nagadNumber: "",
+
+    isSeniorCitizen: false,
+    isDisabled: false,
+    isFreedomFighter: false,
 
     presentAddress: "",
     permanentAddress: "",
@@ -214,6 +282,8 @@ export function toPrismaEmployeeData(data: EmployeeData) {
         firstName: data.firstName,
         lastName: data.lastName,
         bengaliName: data.bengaliName ?? null,
+        firstNameBn: data.firstNameBn ?? null,
+        lastNameBn: data.lastNameBn ?? null,
         email: data.email ?? null,
         phone: data.phone ?? null,
         dateOfBirth: data.dateOfBirth ?? null,
@@ -221,9 +291,17 @@ export function toPrismaEmployeeData(data: EmployeeData) {
         bloodGroup: data.bloodGroup ?? null,
         maritalStatus: data.maritalStatus ?? null,
         nationality: data.nationality,
+        religion: data.religion ?? null,
         nidNumber: data.nidNumber ?? null,
         passportNumber: data.passportNumber ?? null,
         photoUrl: data.photoUrl ?? null,
+
+        fatherName: data.fatherName ?? null,
+        fatherNameBn: data.fatherNameBn ?? null,
+        motherName: data.motherName ?? null,
+        motherNameBn: data.motherNameBn ?? null,
+        spouseName: data.spouseName ?? null,
+        childrenCount: data.childrenCount ?? null,
 
         employeeCode: data.employeeCode,
         departmentId: data.departmentId,
@@ -242,6 +320,17 @@ export function toPrismaEmployeeData(data: EmployeeData) {
         routingNumber: data.routingNumber ?? null,
         tinNumber: data.tinNumber ?? null,
         pfNumber: data.pfNumber ?? null,
+
+        // NOTE: bkashNumber / nagadNumber are returned as plaintext here.
+        // PII encryption (AES-256-GCM with "enc:" prefix) is applied at
+        // the API route layer via `encryptPII(...)` from `@/lib/pii` so
+        // the validation/mapper layer stays a pure data transformer.
+        bkashNumber: data.bkashNumber ?? null,
+        nagadNumber: data.nagadNumber ?? null,
+
+        isSeniorCitizen: data.isSeniorCitizen,
+        isDisabled: data.isDisabled,
+        isFreedomFighter: data.isFreedomFighter,
 
         presentAddress: data.presentAddress ?? null,
         permanentAddress: data.permanentAddress ?? null,

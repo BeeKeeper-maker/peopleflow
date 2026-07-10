@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
+import { toNumber } from "@/lib/payroll-engine";
 import { apiLogger } from "@/lib/logger";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -94,70 +94,73 @@ async function runComplianceEngine(ctx: AuthContext) {
         salaryAssignments,
         shifts,
         recentAttendance,
-    ] = await Promise.all([
-        prisma.employee.findMany({
-            where: { organizationId: orgId, employmentStatus: "active" },
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                employeeCode: true,
-                joiningDate: true,
-                confirmationDate: true,
-                employmentType: true,
-                gender: true,
-                shiftId: true,
-                pfEnabled: true,
-            },
-        }),
-        prisma.leaveType.findMany({
-            where: { organizationId: orgId, isActive: true },
-            select: { id: true, code: true, name: true, annualAllocation: true },
-        }),
-        prisma.leaveAllocation.findMany({
-            where: {
-                employee: { organizationId: orgId, employmentStatus: "active" },
-                year: currentYear,
-            },
-            select: { employeeId: true, allocatedDays: true, leaveTypeId: true },
-        }),
-        prisma.salaryStructureAssignment.findMany({
-            where: {
-                employee: { organizationId: orgId, employmentStatus: "active" },
-                isActive: true,
-            },
-            select: {
-                employeeId: true,
-                grossSalary: true,
-                salaryStructure: {
-                    select: { pfEmployeePercent: true, pfEmployerPercent: true },
+    ] = await ctx.withDB((db) =>
+        Promise.all([
+            db.employee.findMany({
+                where: { organizationId: orgId, employmentStatus: "active" },
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    employeeCode: true,
+                    joiningDate: true,
+                    confirmationDate: true,
+                    employmentType: true,
+                    gender: true,
+                    shiftId: true,
+                    pfEnabled: true,
                 },
-            },
-        }),
-        prisma.shift.findMany({
-            where: { organizationId: orgId, isActive: true },
-            select: { id: true, fullDayHours: true, startTime: true, endTime: true },
-        }),
-        // Last 30 days of attendance for working hours checks (capped)
-        prisma.attendance.findMany({
-            where: {
-                employee: { organizationId: orgId },
-                date: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
-                status: "present",
-                checkIn: { not: null },
-                checkOut: { not: null },
-            },
-            select: {
-                employeeId: true,
-                checkIn: true,
-                checkOut: true,
-                overtimeMinutes: true,
-                lateMinutes: true,
-            },
-            orderBy: { date: "desc" },
-            take: COMPLIANCE_ATTENDANCE_CAP,
-        }),
-    ]);
+            }),
+            db.leaveType.findMany({
+                where: { organizationId: orgId, isActive: true },
+                select: { id: true, code: true, name: true, annualAllocation: true },
+            }),
+            db.leaveAllocation.findMany({
+                where: {
+                    employee: { organizationId: orgId, employmentStatus: "active" },
+                    year: currentYear,
+                },
+                select: { employeeId: true, allocatedDays: true, leaveTypeId: true },
+            }),
+            db.salaryStructureAssignment.findMany({
+                where: {
+                    employee: { organizationId: orgId, employmentStatus: "active" },
+                    isActive: true,
+                    deletedAt: null,
+                },
+                select: {
+                    employeeId: true,
+                    grossSalary: true,
+                    salaryStructure: {
+                        select: { pfEmployeePercent: true, pfEmployerPercent: true },
+                    },
+                },
+            }),
+            db.shift.findMany({
+                where: { organizationId: orgId, isActive: true },
+                select: { id: true, fullDayHours: true, startTime: true, endTime: true },
+            }),
+            // Last 30 days of attendance for working hours checks (capped)
+            db.attendance.findMany({
+                where: {
+                    employee: { organizationId: orgId },
+                    date: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+                    status: "present",
+                    checkIn: { not: null },
+                    checkOut: { not: null },
+                },
+                select: {
+                    employeeId: true,
+                    checkIn: true,
+                    checkOut: true,
+                    overtimeMinutes: true,
+                    lateMinutes: true,
+                },
+                orderBy: { date: "desc" },
+                take: COMPLIANCE_ATTENDANCE_CAP,
+            }),
+        ]),
+    );
 
     const totalEmployees = activeEmployees.length;
 
@@ -170,11 +173,11 @@ async function runComplianceEngine(ctx: AuthContext) {
     }
 
     // ═══ CHECK 1: Minimum Wage Compliance (BLA Section 141-149) ═══
-    // Bangladesh gazette minimum wage: BDT 8,000/month for garments, varies by sector
-    // We use a reasonable baseline of BDT 8,000
-    const MIN_WAGE_BDT = 8000;
+    // Bangladesh gazette minimum wage (2023 revision): BDT 12,500/month for RMG
+    // General minimum: BDT 10,000/month (compliance.ts MINIMUM_WAGES.general)
+    const MIN_WAGE_BDT = 10000; // General minimum (use rmg: 12500 for RMG sector)
     const empSalaryMap = new Map<string, number>();
-    salaryAssignments.forEach((sa) => empSalaryMap.set(sa.employeeId, sa.grossSalary));
+    salaryAssignments.forEach((sa) => empSalaryMap.set(sa.employeeId, Number(sa.grossSalary)));
 
     const belowMinWage = activeEmployees.filter((e) => {
         const salary = empSalaryMap.get(e.id);
@@ -471,34 +474,36 @@ async function runAttendanceReport(
     if (status) where.status = status;
 
     // Parallel: fetch paginated data + total count
-    const [records, totalCount] = await Promise.all([
-        prisma.attendance.findMany({
-            where,
-            select: {
-                id: true,
-                date: true,
-                status: true,
-                checkIn: true,
-                checkOut: true,
-                overtimeMinutes: true,
-                lateMinutes: true,
-                earlyLeaveMinutes: true,
-                employee: {
-                    select: {
-                        id: true,
-                        employeeCode: true,
-                        firstName: true,
-                        lastName: true,
-                        department: { select: { name: true } },
+    const [records, totalCount] = await ctx.withDB((db) =>
+        Promise.all([
+            db.attendance.findMany({
+                where,
+                select: {
+                    id: true,
+                    date: true,
+                    status: true,
+                    checkIn: true,
+                    checkOut: true,
+                    overtimeMinutes: true,
+                    lateMinutes: true,
+                    earlyLeaveMinutes: true,
+                    employee: {
+                        select: {
+                            id: true,
+                            employeeCode: true,
+                            firstName: true,
+                            lastName: true,
+                            department: { select: { name: true } },
+                        },
                     },
                 },
-            },
-            orderBy: [{ date: "desc" }, { employee: { firstName: "asc" } }],
-            skip: pagination.skip,
-            take: pagination.limit,
-        }),
-        prisma.attendance.count({ where }),
-    ]);
+                orderBy: [{ date: "desc" }, { employee: { firstName: "asc" } }],
+                skip: pagination.skip,
+                take: pagination.limit,
+            }),
+            db.attendance.count({ where }),
+        ]),
+    );
 
     return NextResponse.json({
         data: records,
@@ -534,55 +539,86 @@ async function runPayrollReport(
     };
     if (payrollStatus) where.status = payrollStatus;
 
-    const [slips, totalCount, aggregates] = await Promise.all([
-        prisma.salarySlip.findMany({
-            where,
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        employeeCode: true,
-                        firstName: true,
-                        lastName: true,
-                        department: { select: { name: true } },
-                        designation: { select: { name: true } },
+    const [slips, totalCount, aggregates] = await ctx.withDB((db) =>
+        Promise.all([
+            db.salarySlip.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            id: true,
+                            employeeCode: true,
+                            firstName: true,
+                            lastName: true,
+                            department: { select: { name: true } },
+                            designation: { select: { name: true } },
+                        },
                     },
                 },
-            },
-            orderBy: { employee: { firstName: "asc" } },
-            skip: pagination.skip,
-            take: pagination.limit,
-        }),
-        prisma.salarySlip.count({ where }),
-        // Aggregate totals for the summary header
-        prisma.salarySlip.aggregate({
-            where,
-            _sum: {
-                grossSalary: true,
-                totalDeductions: true,
-                netSalary: true,
-                pfEmployee: true,
-                pfEmployer: true,
-                incomeTax: true,
-                loanDeduction: true,
-                festivalBonus: true,
-            },
-            _count: true,
-        }),
-    ]);
+                orderBy: { employee: { firstName: "asc" } },
+                skip: pagination.skip,
+                take: pagination.limit,
+            }),
+            db.salarySlip.count({ where }),
+            // Aggregate totals for the summary header
+            db.salarySlip.aggregate({
+                where,
+                _sum: {
+                    grossSalary: true,
+                    totalDeductions: true,
+                    netSalary: true,
+                    pfEmployee: true,
+                    pfEmployer: true,
+                    incomeTax: true,
+                    loanDeduction: true,
+                    festivalBonus: true,
+                },
+                _count: true,
+            }),
+        ]),
+    );
 
     return NextResponse.json({
-        data: slips,
+        // Phase 1 (Float → Decimal): convert Decimal slip fields and Decimal
+        // aggregate sums to JS numbers so JSON serialization produces numbers
+        // (the frontend payroll report summary expects numeric totals).
+        data: slips.map((slip) => ({
+            ...slip,
+            totalWorkingDays: toNumber(slip.totalWorkingDays),
+            presentDays: toNumber(slip.presentDays),
+            absentDays: toNumber(slip.absentDays),
+            leaveDays: toNumber(slip.leaveDays),
+            basicSalary: toNumber(slip.basicSalary),
+            houseRent: toNumber(slip.houseRent),
+            medicalAllowance: toNumber(slip.medicalAllowance),
+            conveyance: toNumber(slip.conveyance),
+            specialAllowance: toNumber(slip.specialAllowance),
+            overtime: toNumber(slip.overtime),
+            bonus: toNumber(slip.bonus),
+            festivalBonus: toNumber(slip.festivalBonus),
+            arrears: toNumber(slip.arrears),
+            otherEarnings: toNumber(slip.otherEarnings),
+            grossSalary: toNumber(slip.grossSalary),
+            pfEmployee: toNumber(slip.pfEmployee),
+            pfEmployer: toNumber(slip.pfEmployer),
+            incomeTax: toNumber(slip.incomeTax),
+            loanDeduction: toNumber(slip.loanDeduction),
+            absentDeduction: toNumber(slip.absentDeduction),
+            lateDeduction: toNumber(slip.lateDeduction),
+            otherDeductions: toNumber(slip.otherDeductions),
+            totalDeductions: toNumber(slip.totalDeductions),
+            netSalary: toNumber(slip.netSalary),
+        })),
         summary: {
             totalSlips: aggregates._count,
-            totalGross: aggregates._sum.grossSalary || 0,
-            totalDeductions: aggregates._sum.totalDeductions || 0,
-            totalNet: aggregates._sum.netSalary || 0,
-            totalPFEmployee: aggregates._sum.pfEmployee || 0,
-            totalPFEmployer: aggregates._sum.pfEmployer || 0,
-            totalIncomeTax: aggregates._sum.incomeTax || 0,
-            totalLoanDeduction: aggregates._sum.loanDeduction || 0,
-            totalFestivalBonus: aggregates._sum.festivalBonus || 0,
+            totalGross: toNumber(aggregates._sum.grossSalary),
+            totalDeductions: toNumber(aggregates._sum.totalDeductions),
+            totalNet: toNumber(aggregates._sum.netSalary),
+            totalPFEmployee: toNumber(aggregates._sum.pfEmployee),
+            totalPFEmployer: toNumber(aggregates._sum.pfEmployer),
+            totalIncomeTax: toNumber(aggregates._sum.incomeTax),
+            totalLoanDeduction: toNumber(aggregates._sum.loanDeduction),
+            totalFestivalBonus: toNumber(aggregates._sum.festivalBonus),
         },
         pagination: {
             page: pagination.page,

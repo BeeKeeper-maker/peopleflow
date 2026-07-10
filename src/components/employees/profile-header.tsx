@@ -85,13 +85,13 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
 
                     {/* Actions */}
                     <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:justify-end">
-                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover">
+                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover" title="Message" aria-label="Message">
                             <MessageSquare className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover">
+                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover" title="Email" aria-label="Email">
                             <Mail className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover">
+                        <Button variant="outline" size="icon" className="bg-hover border-card-border hover:bg-hover" title="Call" aria-label="Call">
                             <Phone className="h-4 w-4" />
                         </Button>
                         <Link href={`/employees/${employee.id}/edit`}>
@@ -100,7 +100,7 @@ export function ProfileHeader({ employee }: ProfileHeaderProps) {
                                 {t("editProfile")}
                             </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="More options" aria-label="More options">
                             <MoreVertical className="h-4 w-4" />
                         </Button>
                     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -52,9 +53,11 @@ import {
     Navigation,
     ShieldOff,
     FileText,
+    Smartphone,
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useSettings, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -68,6 +71,13 @@ interface OrganizationSettings {
     currency: string
     dateFormat: string
     workWeekStart: number
+    // BD Compliance fields (Phase 2.2)
+    binNumber: string | null
+    tinNumber: string | null
+    vatNumber: string | null
+    tradeLicenseNumber: string | null
+    tradeLicenseExpiry: string | null  // stored as YYYY-MM-DD for <input type="date">
+    binExpiry: string | null             // stored as YYYY-MM-DD for <input type="date">
 }
 
 interface DocumentSettings {
@@ -133,6 +143,8 @@ export function SettingsClient() {
     const searchParams = useSearchParams()
     const t = useTranslations('Settings')
     const { addToast } = useToast()
+    const queryClient = useQueryClient()
+    const { data: settingsData } = useSettings()
     const [saving, setSaving] = useState(false)
     const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "organization")
     const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -156,6 +168,13 @@ export function SettingsClient() {
         currency: "BDT",
         dateFormat: "DD/MM/YYYY",
         workWeekStart: 0,
+        // BD Compliance fields (Phase 2.2)
+        binNumber: null,
+        tinNumber: null,
+        vatNumber: null,
+        tradeLicenseNumber: null,
+        tradeLicenseExpiry: null,
+        binExpiry: null,
     })
 
     const [notifications, setNotifications] = useState<NotificationSettings>({
@@ -203,21 +222,34 @@ export function SettingsClient() {
     const [savingGeo, setSavingGeo] = useState(false)
     const [geoLoaded, setGeoLoaded] = useState(false)
 
-    const fetchSettings = async () => {
-        try {
-            const res = await fetch("/api/settings")
-            if (res.ok) {
-                const data = await res.json()
-                if (data.organization) {
-                    setOrgSettings(prev => ({ ...prev, ...data.organization }))
-                    if (data.organization.documents) {
-                        setDocumentSettings(prev => ({ ...prev, ...data.organization.documents }))
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Failed to fetch settings:", error)
+    // Hydrate form state from the TanStack Query cache. The settings page is
+    // a heavily form-driven page, so we keep the local orgSettings/documentSettings
+    // state as the source of truth for inputs and just sync from the cached
+    // /api/settings response whenever it changes (initial load + post-mutation
+    // refetch). This satisfies the "keep UI unchanged" requirement while still
+    // routing reads + invalidations through TanStack Query.
+    useEffect(() => {
+        if (!settingsData?.organization) return
+        const org = settingsData.organization
+        const toDateInput = (value: unknown): string | null => {
+            if (!value || typeof value !== "string") return null
+            return value.slice(0, 10) || null
         }
+        setOrgSettings(prev => ({
+            ...prev,
+            ...org,
+            tradeLicenseExpiry: toDateInput(org.tradeLicenseExpiry),
+            binExpiry: toDateInput(org.binExpiry),
+        }))
+        if (org.documents) {
+            setDocumentSettings(prev => ({ ...prev, ...org.documents }))
+        }
+    }, [settingsData])
+
+    // Trigger an immediate refetch of the cached settings query (used by
+    // mutation handlers below to keep the form in sync with the server).
+    const invalidateSettings = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.settings.org() })
     }
 
     const fetchBilling = async () => {
@@ -276,9 +308,8 @@ export function SettingsClient() {
     }
 
 
-    useEffect(() => {
-        fetchSettings()
-    }, [])
+    // The settings query (useSettings) drives initial load and post-mutation
+    // refetches — no manual fetch on mount is needed.
 
     // Keep direct tab links (for example /settings?tab=billing) in sync with UI state.
     useEffect(() => {
@@ -408,6 +439,7 @@ export function SettingsClient() {
                 if (res.ok) {
                     setOrgSettings(prev => ({ ...prev, logoUrl: base64 }))
                     addToast({ title: t('toastLogoSuccess'), type: 'success' })
+                    invalidateSettings()
                 } else {
                     addToast({ title: t('toastLogoFail'), type: 'error' })
                 }
@@ -438,10 +470,19 @@ export function SettingsClient() {
                     currency: orgSettings.currency,
                     dateFormat: orgSettings.dateFormat,
                     workWeekStart: orgSettings.workWeekStart,
+                    // BD Compliance fields (Phase 2.2)
+                    binNumber: orgSettings.binNumber,
+                    tinNumber: orgSettings.tinNumber,
+                    vatNumber: orgSettings.vatNumber,
+                    tradeLicenseNumber: orgSettings.tradeLicenseNumber,
+                    tradeLicenseExpiry: orgSettings.tradeLicenseExpiry || null,
+                    binExpiry: orgSettings.binExpiry || null,
                 }),
             })
-            if (res.ok) addToast({ title: t('toastSettingsSaved'), type: 'success' })
-            else addToast({ title: t('toastSettingsFail'), type: 'error' })
+            if (res.ok) {
+                addToast({ title: t('toastSettingsSaved'), type: 'success' })
+                invalidateSettings()
+            } else addToast({ title: t('toastSettingsFail'), type: 'error' })
         } catch {
             addToast({ title: t('toastSettingsFail'), type: 'error' })
         } finally { setSaving(false) }
@@ -485,8 +526,10 @@ export function SettingsClient() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ documents: documentSettings }),
             })
-            if (res.ok) addToast({ title: "Official document system saved", type: 'success' })
-            else addToast({ title: "Failed to save document settings", type: 'error' })
+            if (res.ok) {
+                addToast({ title: "Official document system saved", type: 'success' })
+                invalidateSettings()
+            } else addToast({ title: "Failed to save document settings", type: 'error' })
         } catch {
             addToast({ title: "Failed to save document settings", type: 'error' })
         } finally { setSaving(false) }
@@ -581,7 +624,7 @@ export function SettingsClient() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
                 <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
             </div>
 
@@ -620,6 +663,10 @@ export function SettingsClient() {
                         <KeyRound className="h-4 w-4" />
                         {t('tabDelegations')}
                     </TabsTrigger>
+                    <TabsTrigger value="disbursements" className="gap-2">
+                        <Smartphone className="h-4 w-4" />
+                        Disbursements
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* ════════════════ Organization Tab ════════════════ */}
@@ -635,7 +682,7 @@ export function SettingsClient() {
                                     {orgSettings.logoUrl ? (
                                         <AvatarImage src={orgSettings.logoUrl} />
                                     ) : (
-                                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 rounded-xl text-2xl text-foreground">
+                                        <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 rounded-xl text-2xl text-white">
                                             {orgSettings.name?.charAt(0) || "O"}
                                         </AvatarFallback>
                                     )}
@@ -684,6 +731,74 @@ export function SettingsClient() {
                                 <div className="space-y-2">
                                     <Label className="text-foreground">{t('fiscalYearStart')}</Label>
                                     <Input type="number" min={1} max={12} value={orgSettings.fiscalYearStart} onChange={(e) => setOrgSettings({ ...orgSettings, fiscalYearStart: parseInt(e.target.value) })} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-card border-card-border">
+                        <CardHeader>
+                            <CardTitle className="text-foreground flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-blue-400" />
+                                {t('bdComplianceTitle')}
+                            </CardTitle>
+                            <CardDescription className="text-muted-foreground">{t('bdComplianceDesc')}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('binNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.binNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, binNumber: e.target.value || null })}
+                                        placeholder="0000000000000"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tinNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.tinNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tinNumber: e.target.value || null })}
+                                        placeholder="XXXXXXXXXXXXXXX"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('vatNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.vatNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, vatNumber: e.target.value || null })}
+                                        placeholder="BDXXXXXXXX"
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tradeLicenseNumber')}</Label>
+                                    <Input
+                                        value={orgSettings.tradeLicenseNumber || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tradeLicenseNumber: e.target.value || null })}
+                                        placeholder={t('tradeLicenseNumberPlaceholder')}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('tradeLicenseExpiry')}</Label>
+                                    <Input
+                                        type="date"
+                                        value={orgSettings.tradeLicenseExpiry || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, tradeLicenseExpiry: e.target.value || null })}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-foreground">{t('binExpiry')}</Label>
+                                    <Input
+                                        type="date"
+                                        value={orgSettings.binExpiry || ""}
+                                        onChange={(e) => setOrgSettings({ ...orgSettings, binExpiry: e.target.value || null })}
+                                        className="bg-background border-border text-foreground placeholder:text-muted-foreground"
+                                    />
                                 </div>
                             </div>
                         </CardContent>

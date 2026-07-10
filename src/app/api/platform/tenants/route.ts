@@ -73,6 +73,15 @@ export async function GET(request: NextRequest) {
                             branches: true,
                         },
                     },
+                    users: {
+                        select: {
+                            lastLogin: true,
+                        },
+                        orderBy: {
+                            lastLogin: "desc",
+                        },
+                        take: 1,
+                    },
                 },
                 orderBy: { [sortBy]: sortOrder },
                 skip: (page - 1) * limit,
@@ -82,34 +91,50 @@ export async function GET(request: NextRequest) {
         ]);
 
         // Transform for response
-        const tenants = organizations.map((org) => ({
-            id: org.id,
-            name: org.name,
-            slug: org.slug,
-            status: org.status,
-            suspendedAt: org.suspendedAt,
-            suspendedReason: org.suspendedReason,
-            onboardedAt: org.onboardedAt,
-            trialEndsAt: org.trialEndsAt,
-            createdAt: org.createdAt,
-            // Subscription info
-            subscription: org.subscription
-                ? {
-                      id: org.subscription.id,
-                      status: org.subscription.status,
-                      billingCycle: org.subscription.billingCycle,
-                      currentPeriodEnd: org.subscription.currentPeriodEnd,
-                      cancelAtPeriodEnd: org.subscription.cancelAtPeriodEnd,
-                      plan: org.subscription.plan,
-                  }
-                : null,
-            // Resource counts
-            counts: {
-                employees: org._count.employees,
-                users: org._count.users,
-                branches: org._count.branches,
-            },
-        }));
+        const tenants = organizations.map((org) => {
+            // Determine last active time from most recent user login
+            const lastActiveAt = org.users[0]?.lastLogin || null;
+
+            // Determine onboarding status
+            const employeeCount = org._count.employees;
+            const userCount = org._count.users;
+            const branchCount = org._count.branches;
+            let onboardingStatus: "not_started" | "in_progress" | "active" = "not_started";
+            if (employeeCount > 0 && userCount > 0) {
+                onboardingStatus = employeeCount >= 5 && branchCount >= 1 ? "active" : "in_progress";
+            }
+
+            return {
+                id: org.id,
+                name: org.name,
+                slug: org.slug,
+                status: org.status,
+                suspendedAt: org.suspendedAt,
+                suspendedReason: org.suspendedReason,
+                onboardedAt: org.onboardedAt,
+                trialEndsAt: org.trialEndsAt,
+                createdAt: org.createdAt,
+                lastActiveAt, // NEW: last user login time
+                onboardingStatus, // NEW: not_started | in_progress | active
+                // Subscription info
+                subscription: org.subscription
+                    ? {
+                          id: org.subscription.id,
+                          status: org.subscription.status,
+                          billingCycle: org.subscription.billingCycle,
+                          currentPeriodEnd: org.subscription.currentPeriodEnd,
+                          cancelAtPeriodEnd: org.subscription.cancelAtPeriodEnd,
+                          plan: org.subscription.plan,
+                      }
+                    : null,
+                // Resource counts
+                counts: {
+                    employees: org._count.employees,
+                    users: org._count.users,
+                    branches: org._count.branches,
+                },
+            };
+        });
 
         return NextResponse.json({
             tenants,

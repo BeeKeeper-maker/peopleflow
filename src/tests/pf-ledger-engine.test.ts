@@ -51,7 +51,7 @@ describe("PF Account — Creation & Idempotency", () => {
     beforeEach(() => { vi.clearAllMocks(); });
 
     it("returns existing account ID if already exists", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({ id: "pf-existing" } as never);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({ id: "pf-existing" } as never);
 
         const result = await ensurePFAccount("emp-001", "org-001");
         expect(result).toBe("pf-existing");
@@ -59,7 +59,7 @@ describe("PF Account — Creation & Idempotency", () => {
     });
 
     it("creates new account when none exists", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
         vi.mocked(prisma.employee.findUnique).mockResolvedValue({
             pfNumber: "PF-2026-001",
             pfEnabled: true,
@@ -79,7 +79,7 @@ describe("PF Account — Creation & Idempotency", () => {
     });
 
     it("throws when employee not found", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
         vi.mocked(prisma.employee.findUnique).mockResolvedValue(null);
 
         await expect(ensurePFAccount("ghost", "org-001"))
@@ -87,7 +87,7 @@ describe("PF Account — Creation & Idempotency", () => {
     });
 
     it("throws when PF not enabled for employee", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
         vi.mocked(prisma.employee.findUnique).mockResolvedValue({
             pfNumber: null, pfEnabled: false, joiningDate: new Date(),
         } as never);
@@ -110,7 +110,7 @@ describe("PF Monthly Contributions — Double-Entry", () => {
         vi.mocked(prisma.employee.findUnique).mockResolvedValue({ organizationId: "org-001" } as never);
 
         // Account exists
-        vi.mocked(prisma.pFAccount.findUnique)
+        vi.mocked(prisma.pFAccount.findFirst)
             .mockResolvedValueOnce({ id: "pf-acc-001" } as never)  // ensurePFAccount
             .mockResolvedValueOnce({                                 // balance lookup
                 employeeBalance: 24_000,
@@ -200,7 +200,7 @@ describe("PF Interest Calculation", () => {
     beforeEach(() => { vi.clearAllMocks(); });
 
     it("calculates 12% annual interest on (employee + employer) balance", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({ ...MOCK_ACCOUNT } as never);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({ ...MOCK_ACCOUNT } as never);
 
         const txMock = {
             pFTransaction: { create: vi.fn().mockResolvedValue({}) },
@@ -224,7 +224,7 @@ describe("PF Interest Calculation", () => {
     });
 
     it("returns zero interest for zero-balance account", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT,
             employeeBalance: 0,
             employerBalance: 0,
@@ -240,14 +240,14 @@ describe("PF Interest Calculation", () => {
     });
 
     it("throws for non-existent account", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
 
         await expect(calculateAndCreditInterest("ghost", "2025-26"))
             .rejects.toThrow("PF Account ghost not found");
     });
 
     it("throws for inactive account", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT, status: "settled",
         } as never);
 
@@ -257,7 +257,7 @@ describe("PF Interest Calculation", () => {
 
     it("interest is always an integer (no fractional paisa)", async () => {
         // Use a balance that would produce a non-integer with naive calculation
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT,
             employeeBalance: 33_333,
             employerBalance: 33_333,
@@ -305,7 +305,7 @@ describe("PF Settlement — Zero-Sum Proof", () => {
     beforeEach(() => { vi.clearAllMocks(); });
 
     it("settlement amount equals total balance exactly", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({ ...MOCK_ACCOUNT } as never);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({ ...MOCK_ACCOUNT } as never);
 
         const txMock = {
             pFTransaction: { create: vi.fn().mockResolvedValue({}) },
@@ -350,14 +350,14 @@ describe("PF Settlement — Zero-Sum Proof", () => {
     });
 
     it("throws when no PF account exists", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
 
         await expect(settlePFAccount("ghost"))
             .rejects.toThrow("No PF account found");
     });
 
     it("throws when account is already settled", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT, status: "settled",
         } as never);
 
@@ -366,7 +366,7 @@ describe("PF Settlement — Zero-Sum Proof", () => {
     });
 
     it("settlement with zero balance works", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT,
             employeeBalance: 0, employerBalance: 0, interestBalance: 0, totalBalance: 0,
         } as never);
@@ -454,13 +454,13 @@ describe("PF Account Summary & Statement", () => {
     beforeEach(() => { vi.clearAllMocks(); });
 
     it("returns null for non-existent account", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
         const result = await getPFAccountSummary("ghost");
         expect(result).toBeNull();
     });
 
     it("returns formatted summary with all fields", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT,
             _count: { transactions: 24 },
         } as never);
@@ -473,13 +473,13 @@ describe("PF Account Summary & Statement", () => {
     });
 
     it("returns empty statement for non-existent account", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue(null);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue(null);
         const result = await getPFStatement("ghost");
         expect(result).toEqual([]);
     });
 
     it("returns transactions with correct fields", async () => {
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({ id: "pf-acc-001" } as never);
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({ id: "pf-acc-001" } as never);
         vi.mocked(prisma.pFTransaction.findMany).mockResolvedValue([
             {
                 id: "txn-1",
@@ -511,7 +511,7 @@ describe("PF Batch Interest — creditInterestForOrganization", () => {
             { id: "pf-2" },
         ] as never);
 
-        vi.mocked(prisma.pFAccount.findUnique).mockResolvedValue({
+        vi.mocked(prisma.pFAccount.findFirst).mockResolvedValue({
             ...MOCK_ACCOUNT,
             employeeBalance: 50_000,
             employerBalance: 50_000,
@@ -541,7 +541,7 @@ describe("PF Batch Interest — creditInterestForOrganization", () => {
         ] as never);
 
         let callNum = 0;
-        vi.mocked(prisma.pFAccount.findUnique).mockImplementation((async () => {
+        vi.mocked(prisma.pFAccount.findFirst).mockImplementation((async () => {
             callNum++;
             if (callNum <= 2) {
                 return {

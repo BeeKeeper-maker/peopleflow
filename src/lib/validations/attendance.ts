@@ -20,11 +20,16 @@ export const checkOutSchema = z.object({
 export const manualAttendanceSchema = z.object({
     employeeId: z.string().min(1, "Employee is required"),
     date: z.coerce.date(),
-    checkIn: z.string().regex(timeRegex, "Invalid time format (HH:MM)"),
+    checkIn: z.string().regex(timeRegex, "Invalid time format (HH:MM)").optional(),
     checkOut: z.string().regex(timeRegex, "Invalid time format (HH:MM)").optional(),
-    status: z.enum(["present", "absent", "late", "half_day", "on_leave"]),
-    notes: z.string().optional(),
-});
+    // NOTE: "late" is NOT a valid status — late employees are stored as
+    // status="present" with lateMinutes > 0. See schema.prisma Attendance model.
+    status: z.enum(["present", "absent", "half_day", "on_leave", "holiday", "weekend"]),
+    notes: z.string().max(500).optional(),
+}).refine(
+    (data) => data.checkOut ? !!data.checkIn : true,
+    { message: "checkIn is required when checkOut is provided", path: ["checkIn"] },
+);
 
 export const attendanceReportQuerySchema = z.object({
     startDate: z.coerce.date(),

@@ -136,7 +136,7 @@ export default function NewExpenseClaimPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -159,7 +159,7 @@ export default function NewExpenseClaimPage() {
                             {items.map((item, index) => (
                                 <div key={item.id} className="p-4 rounded-xl bg-hover border border-card-border space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-muted-foreground">Item #{index + 1}</span>
+                                        <span className="text-sm font-medium text-muted-foreground">{t("itemNumber", { number: index + 1 })}</span>
                                         {items.length > 1 && (
                                             <Button
                                                 variant="outline"
@@ -228,7 +228,7 @@ export default function NewExpenseClaimPage() {
                                                 step="0.01"
                                                 value={item.amount || ""}
                                                 onChange={(e) => updateItem(item.id, "amount", parseFloat(e.target.value) || 0)}
-                                                placeholder="0.00"
+                                                placeholder={t("amountPlaceholder")}
                                             />
                                         </div>
                                     </div>
@@ -263,7 +263,7 @@ export default function NewExpenseClaimPage() {
                                 </div>
                                 <div>
                                     <p className="text-sm text-muted-foreground">{t("totalAmount")}</p>
-                                    <p className="text-2xl font-bold text-foreground">৳{total.toLocaleString()}</p>
+                                    <p className="text-2xl font-display font-bold tabular-nums text-foreground">৳{total.toLocaleString()}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 w-full sm:w-auto">

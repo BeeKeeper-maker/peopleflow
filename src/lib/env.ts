@@ -30,6 +30,16 @@ const serverSchema = z.object({
         .refine(
             (url) => url.startsWith("postgresql://") || url.startsWith("postgres://"),
             "DATABASE_URL must use postgresql:// or postgres:// protocol"
+        )
+        .refine(
+            (url) => {
+                // In production, prevent connecting as superuser (bypasses RLS)
+                if (process.env.NODE_ENV === "production") {
+                    return !url.includes(":peopleflow@") || url.includes(":peopleflow_app@");
+                }
+                return true;
+            },
+            "DATABASE_URL must use peopleflow_app role (NOSUPERUSER) in production, not peopleflow (SUPERUSER) — RLS would be bypassed"
         ),
 
     // ── Redis ──
@@ -86,10 +96,30 @@ const serverSchema = z.object({
     SENTRY_AUTH_TOKEN: z.string().optional(),
 
     // ── CRON Authentication ──
-    CRON_SECRET: z
-        .string()
-        .min(16, "CRON_SECRET must be at least 16 characters")
-        .optional(),
+    // Required in production (min 16 characters). Optional in development
+    // ONLY when ALLOW_INSECURE_CRON=1 is explicitly set (default-deny).
+    // The refine() enforces production presence so a missing CRON_SECRET
+    // crashes the boot instead of silently leaving /api/cron/* endpoints
+    // either unprotected (503 in cron-auth.ts) or, worse, misconfigured.
+    // In development, the refine() blocks missing CRON_SECRET unless the
+    // operator has explicitly opted in via ALLOW_INSECURE_CRON=1.
+    CRON_SECRET: z.string().refine(
+        (val) => {
+            if (process.env.NODE_ENV === "production") {
+                return val && val.length >= 16;
+            }
+            // dev / test: allow empty only with explicit opt-in
+            if (!val) {
+                return process.env.ALLOW_INSECURE_CRON === "1";
+            }
+            return val.length >= 16;
+        },
+        "CRON_SECRET is required (min 16 characters). In development, set ALLOW_INSECURE_CRON=1 to allow without a secret."
+    ).optional(),
+
+    // Explicit opt-in for running cron endpoints without CRON_SECRET in
+    // development. Default empty (denied). See src/lib/cron-auth.ts.
+    ALLOW_INSECURE_CRON: z.string().optional(),
 
     // ── Email (optional — graceful degradation) ──
     SMTP_HOST: z.string().optional(),

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { attendanceLogger } from "@/lib/logger";
 
 function buildDateFilter(searchParams: URLSearchParams) {
@@ -59,6 +60,10 @@ export async function GET(req: Request) {
         return auth;
     }
 
+    // Per-user rate limit (potentially large date-range reads)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
         const { searchParams } = new URL(req.url);
         const limit = Math.min(1000, Math.max(1, parseInt(searchParams.get("limit") || "100", 10)));
@@ -90,24 +95,24 @@ export async function GET(req: Request) {
                 employeeWhere.reportingManagerId = auth.employeeId;
             }
 
-            const employee = await prisma.employee.findFirst({
+            const employee = await auth.withDB((db) => db.employee.findFirst({
                 where: employeeWhere,
                 select: { id: true },
-            });
+            }));
             if (!employee) {
                 return new NextResponse("Employee not found", { status: 404 });
             }
             where.employeeId = employee.id;
         } else if (auth.role === "manager") {
             if (!auth.employeeId) return NextResponse.json([]);
-            const reportees = await prisma.employee.findMany({
+            const reportees = await auth.withDB((db) => db.employee.findMany({
                 where: {
                     organizationId: auth.organizationId,
                     reportingManagerId: auth.employeeId,
                     deletedAt: null,
                 },
                 select: { id: true },
-            });
+            }));
 
             if (reportees.length === 0) return NextResponse.json([]);
             where.employeeId = { in: reportees.map((employee) => employee.id) };
@@ -116,7 +121,7 @@ export async function GET(req: Request) {
             where.employeeId = auth.employeeId;
         }
 
-        const attendances = await prisma.attendance.findMany({
+        const attendances = await auth.withDB((db) => db.attendance.findMany({
             where,
             include: {
                 employee: {
@@ -134,12 +139,19 @@ export async function GET(req: Request) {
                 date: "desc",
             },
             take: limit,
-        });
+        }));
 
-        return NextResponse.json(attendances.map(toAttendanceDto));
+        return applyRateLimitHeaders(
+            NextResponse.json(attendances.map(toAttendanceDto)),
+            rl.headers,
+        );
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "GET_ATTENDANCE_HISTORY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "GET_ATTENDANCE_HISTORY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

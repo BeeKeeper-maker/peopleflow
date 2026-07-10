@@ -1,6 +1,22 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
 
+// ── Environment Variable Validation ──────────────────────────────
+// Validates all env vars at build time. Crashes in production if
+// required vars are missing. See src/lib/env.ts for details.
+// Skip during CI builds where env vars may not be set.
+if (process.env.SKIP_ENV_VALIDATION !== "true") {
+  try {
+    require("./src/lib/env");
+  } catch (e) {
+    // Only fail in production; dev can proceed with defaults
+    if (process.env.NODE_ENV === "production") {
+      console.error(e);
+      throw e;
+    }
+  }
+}
+
 const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
@@ -10,10 +26,12 @@ const nextConfig: NextConfig = {
   // Optimize production builds
   reactStrictMode: true,
 
-  // Local CI/QA still runs `npx tsc --noEmit`. Skipping Next's duplicate
-  // production type gate keeps VPS/Coolify Docker builds from timing out.
+  // TypeScript errors are NO LONGER ignored in production builds.
+  // The local `npx tsc --noEmit` gate plus this production gate together
+  // ensure type safety is enforced before any deploy. If a build fails
+  // here, fix the type error rather than re-enabling ignoreBuildErrors.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
   // Enable experimental features for performance
@@ -115,29 +133,30 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
           },
           // ── Content Security Policy ──
-          // Next.js requires 'unsafe-inline' for styles and 'unsafe-eval'
-          // for certain dev features. In production, this is tightened.
+          // Production: removes 'unsafe-eval' (only needed for Next.js dev mode)
+          // 'unsafe-inline' remains for scripts due to Next.js hydration requirements
+          // (nonce-based CSP would require middleware — future enhancement)
           {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Scripts: self + inline (Next.js hydration) + eval (Next.js dev)
-              // In production, consider nonce-based CSP via middleware
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              // Scripts: self + inline (Next.js hydration needs unsafe-inline)
+              // 'unsafe-eval' only in development (removed in production for security)
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
               // Styles: self + inline (Tailwind/CSS-in-JS)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Images: self + data URIs + HTTPS (avatars, uploads)
               "img-src 'self' data: https: blob:",
               // Fonts: self + Google Fonts CDN
               "font-src 'self' data: https://fonts.gstatic.com",
-              // API connections: self + Stripe + Sentry
-              "connect-src 'self' https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io",
+              // API connections: self + Stripe + Sentry + bKash
+              "connect-src 'self' https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://tokenized.pay.bka.sh https://*.pay.bka.sh",
               // Block all iframing
               "frame-ancestors 'none'",
               // Restrict base URI
               "base-uri 'self'",
               // Restrict form submissions
-              "form-action 'self'",
+              "form-action 'self' https://checkout.stripe.com",
               // Workers: self (for Service Worker / PWA)
               "worker-src 'self' blob:",
               // Object/embed: none

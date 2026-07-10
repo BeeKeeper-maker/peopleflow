@@ -165,6 +165,11 @@ export async function createImpersonationSession(params: {
  * Validate an impersonation token and return the target user data.
  * The token is consumed on first use (single-use).
  *
+ * SECURITY: After validating the token, the session is immediately marked
+ * as `consumed`. Any subsequent presentation of the same token is rejected.
+ * This prevents token replay via browser history, server logs, or referrer
+ * headers (the token is passed in the URL query string).
+ *
  * Returns the target user's info for creating a tenant JWT.
  */
 export async function validateImpersonationToken(token: string): Promise<{
@@ -180,16 +185,30 @@ export async function validateImpersonationToken(token: string): Promise<{
     platformAdminId?: string;
     error?: string;
 }> {
-    // Find active, non-expired session
+    // Find session by token (regardless of status, then check below).
+    // We do NOT filter by status here so we can detect replay attempts
+    // against already-consumed tokens and return a specific error.
     const session = await prisma.impersonationSession.findFirst({
-        where: {
-            token,
-            status: "active",
-            expiresAt: { gt: new Date() },
-        },
+        where: { token },
     });
 
     if (!session) {
+        return {
+            valid: false,
+            error: "Invalid or expired impersonation token.",
+        };
+    }
+
+    // Reject already-consumed tokens (replay attempt)
+    if (session.status === "consumed") {
+        return {
+            valid: false,
+            error: "This impersonation token has already been used.",
+        };
+    }
+
+    // Reject sessions that are not active or have expired
+    if (session.status !== "active" || session.expiresAt <= new Date()) {
         return {
             valid: false,
             error: "Invalid or expired impersonation token.",
@@ -207,6 +226,14 @@ export async function validateImpersonationToken(token: string): Promise<{
             error: "Target user no longer exists or has no organization.",
         };
     }
+
+    // Mark token as consumed (single-use). This MUST happen before returning
+    // the session to prevent a race condition where two concurrent requests
+    // presenting the same token both succeed.
+    await prisma.impersonationSession.update({
+        where: { id: session.id },
+        data: { status: "consumed" },
+    });
 
     return {
         valid: true,

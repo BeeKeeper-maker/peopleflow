@@ -25,6 +25,7 @@ import {
     Eye,
     Loader2,
     Calendar,
+    DollarSign,
 } from "lucide-react";
 
 // ════════════════════════════════════════════════════════════════════════
@@ -34,13 +35,18 @@ import {
 interface ExpenseClaim {
     id: string;
     amount: number;
+    amountInBDT?: number;
+    currency?: string;
+    title?: string;
     description: string;
     category: string | { name?: string };
     status: "submitted" | "pending" | "approved" | "rejected" | "reimbursed" | "draft";
-    date: string;
+    date?: string;
+    expenseDate?: string;
     createdAt: string;
     receiptUrl?: string;
     notes?: string;
+    policyViolation?: string;
     employee: {
         id: string;
         firstName: string;
@@ -60,15 +66,15 @@ interface ExpenseStats {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Status Config
+// Status Config (colors + icons only — labels are i18n in component)
 // ════════════════════════════════════════════════════════════════════════
 
-const statusConfig = {
-    draft: { label: "Draft", color: "bg-slate-500/20 text-slate-400", icon: Receipt },
-    pending: { label: "Pending", color: "bg-amber-500/20 text-amber-400", icon: Clock },
-    approved: { label: "Approved", color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
-    rejected: { label: "Rejected", color: "bg-red-500/20 text-red-400", icon: XCircle },
-    reimbursed: { label: "Reimbursed", color: "bg-blue-500/20 text-blue-400", icon: Banknote },
+const statusColors = {
+    draft: { color: "bg-slate-500/20 text-slate-400", icon: Receipt },
+    pending: { color: "bg-amber-500/20 text-amber-400", icon: Clock },
+    approved: { color: "bg-emerald-500/20 text-emerald-400", icon: CheckCircle2 },
+    rejected: { color: "bg-red-500/20 text-red-400", icon: XCircle },
+    reimbursed: { color: "bg-blue-500/20 text-blue-400", icon: Banknote },
 };
 
 // ════════════════════════════════════════════════════════════════════════
@@ -78,6 +84,15 @@ const statusConfig = {
 export default function ExpensesPage() {
     const { addToast } = useToast();
     const t = useTranslations('Expenses');
+
+    const statusConfig: Record<string, { label: string; color: string; icon: typeof Receipt }> = {
+        draft: { label: t("statusDraft"), color: statusColors.draft.color, icon: statusColors.draft.icon },
+        pending: { label: t("statusPending"), color: statusColors.pending.color, icon: statusColors.pending.icon },
+        approved: { label: t("statusApproved"), color: statusColors.approved.color, icon: statusColors.approved.icon },
+        rejected: { label: t("statusRejected"), color: statusColors.rejected.color, icon: statusColors.rejected.icon },
+        reimbursed: { label: t("statusReimbursed"), color: statusColors.reimbursed.color, icon: statusColors.reimbursed.icon },
+    };
+
     const [loading, setLoading] = useState(true);
     const [claims, setClaims] = useState<ExpenseClaim[]>([]);
     const [stats, setStats] = useState<ExpenseStats | null>(null);
@@ -114,7 +129,7 @@ export default function ExpensesPage() {
         }
     };
 
-    const handleAction = async (claimId: string, action: "approve" | "reject") => {
+    const handleAction = async (claimId: string, action: "approve" | "reject" | "reimburse") => {
         setProcessing(claimId);
         try {
             const res = await fetch(`/api/expenses/claims/${claimId}`, {
@@ -124,7 +139,7 @@ export default function ExpensesPage() {
             });
 
             if (res.ok) {
-                addToast({ title: `Claim ${action}d`, description: `The expense claim has been ${action}d.`, type: "success" });
+                addToast({ title: t("claimActiond", { action }), description: t("claimActiondDesc", { action }), type: "success" });
                 fetchClaims();
             } else {
                 const err = await res.json();
@@ -165,7 +180,7 @@ export default function ExpensesPage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                         <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                     </div>
                     <Link href="/expenses/new">
@@ -198,7 +213,7 @@ export default function ExpensesPage() {
                                     <div className="flex items-start justify-between">
                                         <div>
                                             <p className="text-sm text-muted-foreground">{s.label}</p>
-                                            <p className="text-3xl font-bold text-foreground mt-2">{s.value}</p>
+                                            <p className="text-3xl font-display font-bold text-foreground mt-2">{s.value}</p>
                                             {s.sub && <p className="text-xs text-amber-400 mt-1">{s.sub}</p>}
                                         </div>
                                         <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br ${s.color} shadow-lg ${s.glow}`}>
@@ -297,7 +312,7 @@ export default function ExpensesPage() {
                                                     <Badge variant="default" className="text-[10px]">{typeof claim.category === "string" ? claim.category : claim.category?.name || "—"}</Badge>
                                                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                         <Calendar className="h-3 w-3" />
-                                                        {new Date(claim.date).toLocaleDateString()}
+                                                        {new Date(claim.expenseDate || claim.date || claim.createdAt).toLocaleDateString()}
                                                     </span>
                                                 </div>
                                             </div>
@@ -305,15 +320,18 @@ export default function ExpensesPage() {
                                             {/* Amount + Status */}
                                             <div className="flex items-center gap-4 shrink-0">
                                                 <div className="text-right">
-                                                    <p className="text-sm font-bold text-foreground">{formatCurrency(claim.amount)}</p>
+                                                    <p className="text-sm font-bold tabular-nums text-foreground">{formatCurrency(claim.amountInBDT || claim.amount)}</p>
+                                                    {claim.currency && claim.currency !== "BDT" && (
+                                                        <p className="text-[10px] text-muted-foreground">{claim.currency} {claim.amount} → ৳{claim.amountInBDT}</p>
+                                                    )}
                                                     <Badge className={`${config.color} text-[10px] mt-1`}>
                                                         <StatusIcon className="h-3 w-3 mr-1" />
                                                         {config.label}
                                                     </Badge>
                                                 </div>
 
-                                                {/* Actions */}
-                                                {claim.status === "pending" && (
+                                                {/* Actions — show for "submitted" (the actual API status) and legacy "pending" */}
+                                                {(claim.status === "pending" || claim.status === "submitted") && (
                                                     <div className="flex gap-1.5">
                                                         <Button
                                                             size="sm"
@@ -334,6 +352,19 @@ export default function ExpensesPage() {
                                                             <XCircle className="h-4 w-4" />
                                                         </Button>
                                                     </div>
+                                                )}
+                                                {/* Reimburse action for approved claims */}
+                                                {claim.status === "approved" && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 px-3 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                                        onClick={() => handleAction(claim.id, "reimburse")}
+                                                        disabled={processing === claim.id}
+                                                    >
+                                                        {processing === claim.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4 mr-1" />}
+                                                        Reimburse
+                                                    </Button>
                                                 )}
                                             </div>
                                         </div>

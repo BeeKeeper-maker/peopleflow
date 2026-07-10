@@ -110,7 +110,7 @@ export default function PerformancePage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <Link href="/performance/goals/new">
@@ -128,10 +128,10 @@ export default function PerformancePage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('totalGoals')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.total}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.total}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-purple-500 to-pink-600">
-                                <Target className="h-5 w-5 text-foreground" />
+                                <Target className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -142,10 +142,10 @@ export default function PerformancePage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('inProgress')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.inProgress}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.inProgress}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-blue-500 to-indigo-600">
-                                <TrendingUp className="h-5 w-5 text-foreground" />
+                                <TrendingUp className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -156,10 +156,10 @@ export default function PerformancePage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('completed')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.completed}</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.completed}</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-emerald-500 to-green-600">
-                                <CheckCircle2 className="h-5 w-5 text-foreground" />
+                                <CheckCircle2 className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -170,10 +170,10 @@ export default function PerformancePage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">{t('avgProgress')}</p>
-                                <h3 className="text-2xl font-bold text-foreground">{stats.avgProgress}%</h3>
+                                <h3 className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.avgProgress}%</h3>
                             </div>
                             <div className="p-3 rounded-xl bg-linear-to-r from-amber-500 to-orange-600">
-                                <BarChart3 className="h-5 w-5 text-foreground" />
+                                <BarChart3 className="h-5 w-5 text-white" />
                             </div>
                         </div>
                     </CardContent>

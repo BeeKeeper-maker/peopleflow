@@ -919,3 +919,115 @@ Git Push (main) → GitHub → Coolify Webhook → Docker Build → Deploy → H
   - `npx tsc --noEmit` → passed.
   - `npm run build` → passed.
   - `npm run test:e2e:prod` against production server on port 3100 → **45/45 passed**.
+
+## P17-BUGS-1-8 — Senior-Agent Bug-Fix Sweep (May 8, 2026)
+
+A senior-engineer review (task `P17-BUGS-1-8`) flagged 8 critical bugs across the platform. All 8 were verified against the live code and fixed in a single commit (`efe12bd`). All 474 existing tests continued to pass; 4 new regression tests were added (478/478 green).
+
+### Bug-by-bug summary
+
+1. **Platform Plans API — `maxCustomRoles` missing** (`src/app/api/platform/plans/route.ts`)
+   - The `Plan` model in `prisma/schema.prisma` already had `maxCustomRoles Int @default(0)` (added during P3-RBAC-V2), but the platform plans API was silently dropping it on POST create and PATCH update because the field was not in the destructured body / whitelisted update fields.
+   - Fix: added `maxCustomRoles = 0` to the POST body destructure + create call, and `"maxCustomRoles"` to the PATCH allowed-fields list.
+
+2. **Billing Plans API — RLS bypass via `auth()` + raw `prisma`** (`src/app/api/billing/plans/route.ts`)
+   - The route used `auth()` + raw `prisma.*` calls, bypassing the `requireAuth()` + `auth.withDB()` RLS pattern used by every other tenant-scoped route. A mis-issued session could leak cross-tenant subscription data.
+   - Fix: rewrote the GET handler to use `requireAuth()` + `auth.withDB()` (single Promise.all for plan + subscription). The billing/checkout and billing/status routes were already RLS-compliant — only the plans route was affected.
+
+3. **CI/CD workflow couldn't be pushed** (`.github/workflows/ci.yml`)
+   - The file historically could not be pushed because the deploy PAT lacked the `workflow` scope. The local file did not exist either.
+   - Fix: created `.github/workflows/ci.yml` with the 4 standard quality gates (tsc / eslint / vitest / next build) on push + PR to `masterpiece-v2`, with concurrency cancellation. The push to `origin/masterpiece-v2` succeeded — the PAT now has the `workflow` scope and CI is live.
+
+4. **Buddy punching checks missing `organizationId` filter** (`src/app/api/attendance/check-in/route.ts`)
+   - Both the IP-based and device-fingerprint buddy-punch queries scanned the entire `Attendance` table without an org filter. Two different SaaS customers sharing a public IP (e.g. same co-working space) would falsely trigger buddy-punch warnings against each other.
+   - Fix: added `organizationId: auth.organizationId` to both WHERE clauses so the signal is only meaningful within a single tenant's workforce.
+
+5. **Payroll deducts loan EMI even when net salary is 0** (`src/lib/payroll-engine.ts`)
+   - The previous implementation computed `loanDeduction = Σ emiAmount` unconditionally, summed it into `totalDeductions`, then clamped `netSalary` at 0 via `Math.max(0, …)`. This silently under-paid other priorities (PF, tax) and lost the audit trail of "loan EMI was due but unaffordable this cycle".
+   - Fix: compute `netBeforeLoan = max(0, grossEarnings − nonLoanDeductions)` first, then deduct each loan EMI up to the remaining net (per-loan, in order). If net is 0 before any loan, defer the entire EMI bundle. A warn-level log (`LOAN_DEDUCTION_CAPPED_AT_NET_SALARY`) flags the deferred amount for HR to handle manually.
+
+6. **Stripe webhook race condition on same-subscription concurrent events** (`src/app/api/webhooks/stripe/route.ts`)
+   - The 3-layer idempotency envelope (DB ledger + Redis claim + DB insert) only protected against duplicate deliveries of the SAME event id. DIFFERENT events targeting the same subscription (e.g. `invoice.payment_succeeded` + `customer.subscription.updated` arriving within milliseconds) could race on `prisma.subscription.update`, causing lost updates or P2034 write conflicts.
+   - Fix: added a per-subscription Redis lock (`stripe:sub:${subId}`, 30s TTL, 2s retry-then-give-up). If the lock cannot be acquired, the event-id claim is released and a 503 is returned so Stripe retries after the other worker finishes. The StripeEvent row is NOT persisted in that case.
+
+7. **Stripe payment retry-success ignored** (`src/app/api/webhooks/stripe/route.ts`)
+   - When a payment fails first then succeeds on retry, Stripe sends a NEW `invoice.payment_succeeded` event for the SAME `stripeInvoiceId`. The previous handler saw the existing invoice row (status `failed`) and returned early, leaving the invoice stuck at `failed` forever and the subscription's `currentPeriodEnd` never extended.
+   - Fix: `handlePaymentSucceeded` now checks `existingInvoice.status === "failed"` and, if so, UPDATE the row to `paid` (clearing `failureReason`, setting `paidAt`, refreshing `amount` from `invoice.amount_paid`) + extend the subscription period in a single `$transaction`. The org is also restored to active in case the failed-payment grace cascade had suspended it.
+
+8. **bKash disbursement — unrounded amount + random `merchantInvoiceNumber`** (`src/lib/disbursement-engine.ts`)
+   - The amount was sent as `String(amount)` without rounding — bKash rejects amounts with >2 decimal places (e.g. 1234.56789 → 4001). The `merchantInvoiceNumber` was `PF-${Date.now()}-${Math.floor(Math.random() * 10000)}` which made it impossible to match a bKash transaction back to a salary slip for reconciliation.
+   - Fix: amount is now rounded to 2 dp (`Math.round(amount * 100) / 100`) before the API call. The `merchantInvoiceNumber` is now deterministic: `PF-${salarySlipId}-${disbursementId}` — slipId is searchable in the bKash merchant portal, and the disbursementId ensures uniqueness per attempt so a failed-then-retried disbursement is not rejected as a duplicate.
+
+### Test deltas
+
+- `src/tests/stripe-webhook.test.ts`: +2 tests (retry-success on failed invoice, subscription-lock contention).
+- `src/tests/payroll-integration.test.ts`: +2 tests (loan EMI cap when net is low, loan EMI fully deferred when net is 0).
+- `src/tests/setup.ts`: added `invoice.update` to the prisma mock for the new retry-success path.
+
+### Quality gates
+
+- `npx tsc --noEmit` → **0 errors**.
+- `npx vitest run` → **478/478 passed** (was 474, +4 new regression tests).
+- `npx eslint` on all 9 changed files → **0 errors** (6 pre-existing warnings only).
+
+### Git
+
+- Branch: `masterpiece-v2`
+- Commit: `efe12bd` — `P17-BUGS-1-8: Fix Plans API maxCustomRoles, Billing RLS, Buddy Punch org filter, Payroll zero-salary loan, Stripe race/retry, bKash rounding/merchantID`
+- Pushed to `origin/masterpiece-v2` — **success** (the `workflow` PAT scope is now in place; `.github/workflows/ci.yml` is live on the remote).
+
+---
+
+## P17-BUGS-9-16 — Senior-Agent Bug-Fix Sweep, Round 2 (Jul 10, 2026)
+
+A second senior-engineer review (task `P17-BUGS-9-16`) flagged 8 more bugs (9 through 16) across the RBAC, recruitment, and public-careers subsystems. All 8 were verified against the live code and fixed in a single commit (`32eff8b`). The 478-test baseline held; 27 new regression tests were added (505/505 green).
+
+### Bug-by-bug summary
+
+9. **bKash merchantInvoiceNumber — already fixed in bug 8** (`src/lib/disbursement-engine.ts`)
+   - Verified at fix time: `merchantInvoiceNumber = \`PF-${salarySlipId}-${disbursementId}\`` is already in place from commit `efe12bd`. No further action.
+
+10. **RBAC permission cache only clears on the local node** (`src/lib/rbac-v2.ts`)
+    - The in-process `permissionCache` Map had a 60s TTL, but `invalidatePermissionCache(userId)` only deleted the local entry. On multi-worker/multi-container deployments a stale cache on worker B kept serving old permissions for up to 60s after a role change on worker A.
+    - Fix: TTL reduced 60s → 30s. `invalidatePermissionCache` is now `async` and additionally deletes a Redis marker key `rbac:perms:${userId}` (set on cache populate via `cacheSet`). On every cache read, if Redis is reachable but the marker is missing, the local entry is treated as stale and discarded. When Redis is disabled (tests), the local cache is trusted as before. All 4 call sites updated to `await` or fire-and-forget `.catch()`.
+
+11. **Role update can delete system core roles' permissions** (`src/app/api/rbac/roles/[id]/route.ts`)
+    - The PATCH handler allowed replacing the entire `RolePermission` set on system roles (admin / hr_admin / manager / employee / super_admin), so a malicious or careless admin could strip critical invariants (e.g. "admin can always view employees") and lock the tenant out of recovery paths.
+    - Fix: PATCH now rejects with 403 `SYSTEM_ROLE_PERMISSIONS_LOCKED` when `permissions` is supplied AND `role.isSystem === true`. Cosmetic edits (name / description / color) on system roles remain permitted. Custom roles (`isSystem=false`) are fully editable.
+
+12. **Empty array `[]` for departmentIds treated as "all departments"** (`src/lib/rbac-v2.ts`)
+    - The scope check used `if (!perm.departmentIds || perm.departmentIds.length === 0) return true;` — so an explicit `[]` (intended to mean "scoped, but to no departments") was treated as global scope, accidentally granting org-wide access.
+    - Fix: scope semantics now distinguish `undefined`/`null` (all departments → allow) from `[]` (explicitly no departments → deny) from `[id1, id2]` (scoped to listed). Same logic mirrored for `branchIds`/branch scope.
+
+13. **Career portal — fake CV overwrites real candidate** (`src/app/api/public/careers/[orgSlug]/jobs/[jobId]/route.ts` POST)
+    - The apply endpoint updated the existing candidate's `resumeUrl`/`portfolioUrl`/etc. BEFORE checking for an existing application. An attacker could submit a fake application using a victim's email + a fake resume URL and the victim's real resume would be overwritten, even though the application was ultimately rejected with 409.
+    - Fix: the duplicate-application check is now moved BEFORE any candidate mutation. If a candidate with this email has already applied to this job, the route short-circuits with 409 `ALREADY_APPLIED` and touches nothing. Otherwise the existing create/update candidate + create application flow runs as before.
+
+14. **Career portal — closed/expired jobs still visible** (`src/app/api/public/careers/[orgSlug]/jobs/route.ts` + `[jobId]/route.ts`)
+    - The public listing and detail endpoints only filtered by `status: "open"`. A job whose `closesAt` had passed but whose status hadn't been manually flipped to `"closed"` was still listed / returned.
+    - Fix: added `OR: [{ closesAt: null }, { closesAt: { gte: now } }]` to the WHERE clauses of all three public careers routes (list, detail, apply). Expired jobs now return 404 from the detail/apply routes and disappear from the listing.
+
+15. **Resume parsing — invalid JSON causes 500** (`src/app/api/recruitment/parse-resume/route.ts`)
+    - `await req.json()` could throw a `SyntaxError` on a malformed body, which fell through to the generic 500 handler — looking like a server bug rather than a client error. Same issue existed in the careers POST apply route.
+    - Fix: JSON parsing is now wrapped in try/catch in both routes; malformed bodies return 400 `Invalid JSON body`.
+
+16. **Career portal public APIs — no rate limiting or pagination**
+    - 16a. **Rate limiting**: added IP-based `rateLimit` calls to all three careers public routes. GET list + GET detail: 30 req/min. POST apply: tighter 10 req/min (writes rows + triggers notification emails). `X-RateLimit-*` headers forwarded on success responses via `applyRateLimitHeaders`.
+    - 16b. **Pagination**: the listing route now accepts `?page=&limit=` (default 10, clamped to [1, 50]) and runs `findMany` + `count` in parallel via `Promise.all`. Response shape extended to `{ data, jobs (back-compat alias), total, pagination: { page, limit, total, totalPages } }`. Existing clients reading the old `jobs` field continue to work.
+
+### Test deltas
+
+- `src/tests/p17-bugs-9-16.test.ts` (new, 23 tests): covers bugs 10/12/13/14/15/16. Mocks `@/lib/prisma` (jobPosting/candidate/application/role/rolePermission/userRoleAssignment/rBACPermission/permission), `@/lib/rate-limit`, `@/lib/audit-log`, `@/lib/logger`. Uses `vi.hoisted()` for the prisma mock object so the `vi.mock` factory can reference it.
+- `src/tests/p17-bugs-11-system-roles.test.ts` (new, 4 tests): covers bug 11. Mocks `@/lib/rbac-v2` (requirePermission + invalidatePermissionCache) and exercises the PATCH handler directly with system / custom / missing roles.
+
+### Quality gates
+
+- `npx tsc --noEmit` → **0 errors**.
+- `npx vitest run` → **505/505 passed** (was 478, +27 new regression tests across 2 new files).
+- `npx eslint` on the 8 changed files → **0 errors** (0 warnings).
+
+### Git
+
+- Branch: `masterpiece-v2`
+- Commit: `32eff8b` — `P17-BUGS-9-16: Fix RBAC cache TTL, system role protection, empty array scope, career portal email/closesAt/resume/rate-limit/pagination`
+- Pushed to `origin/masterpiece-v2` — **success** (push confirmed `99cc0d0..32eff8b`).

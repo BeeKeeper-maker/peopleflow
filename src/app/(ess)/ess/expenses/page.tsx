@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
     Receipt,
     Plus,
@@ -10,31 +10,16 @@ import {
     CheckCircle2,
     XCircle,
     DollarSign,
-    Calendar,
     Eye,
-    Trash2,
     FileText,
-    Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatCurrency } from "@/lib/utils";
-
-interface ExpenseClaim {
-    id: string;
-    claimNumber: string;
-    title: string;
-    category: string | { name?: string };
-    amount: number;
-    date: string;
-    expenseDate?: string;
-    status: "draft" | "submitted" | "pending" | "approved" | "rejected" | "reimbursed";
-    description?: string;
-    receiptUrl?: string;
-    createdAt: string;
-}
+import { useEssExpenses } from "@/hooks/use-data";
 
 interface ExpenseStats {
     pending: number;
@@ -45,48 +30,27 @@ interface ExpenseStats {
 
 export default function ESSExpensesPage() {
     const t = useTranslations("ESSExpenses");
-    const [isLoading, setIsLoading] = useState(true);
-    const [claims, setClaims] = useState<ExpenseClaim[]>([]);
-    const [stats, setStats] = useState<ExpenseStats>({
-        pending: 0,
-        approved: 0,
-        reimbursed: 0,
-        totalReimbursed: 0,
-    });
+    const locale = useLocale();
+    const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
+    const formatDate = (value: string) => new Intl.DateTimeFormat(dateLocale, { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+    // ── TanStack Query: my expense claims ──
+    const { data: claims = [], isLoading } = useEssExpenses();
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await fetch("/api/expenses/claims");
-                if (res.ok) {
-                    const data = await res.json();
-                    const expenseClaims = Array.isArray(data) ? data : data.data || data.claims || [];
-                    setClaims(expenseClaims);
-
-                    // Calculate stats
-                    const pendingCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "submitted" || c.status === "pending").length;
-                    const approvedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "approved").length;
-                    const reimbursedCount = expenseClaims.filter((c: ExpenseClaim) => c.status === "reimbursed").length;
-                    const totalReimbursedAmount = expenseClaims
-                        .filter((c: ExpenseClaim) => c.status === "reimbursed")
-                        .reduce((sum: number, c: ExpenseClaim) => sum + c.amount, 0);
-
-                    setStats({
-                        pending: pendingCount,
-                        approved: approvedCount,
-                        reimbursed: reimbursedCount,
-                        totalReimbursed: totalReimbursedAmount,
-                    });
-                }
-            } catch (error) {
-                console.error("Error fetching expenses:", error);
-            } finally {
-                setIsLoading(false);
-            }
+    // ── Derived stats (memoized — pure function of cached data) ──
+    const stats: ExpenseStats = useMemo(() => {
+        const pendingCount = claims.filter((c) => c.status === "submitted" || c.status === "pending").length;
+        const approvedCount = claims.filter((c) => c.status === "approved").length;
+        const reimbursedCount = claims.filter((c) => c.status === "reimbursed").length;
+        const totalReimbursedAmount = claims
+            .filter((c) => c.status === "reimbursed")
+            .reduce((sum, c) => sum + c.amount, 0);
+        return {
+            pending: pendingCount,
+            approved: approvedCount,
+            reimbursed: reimbursedCount,
+            totalReimbursed: totalReimbursedAmount,
         };
-
-        fetchData();
-    }, []);
+    }, [claims]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -148,18 +112,20 @@ export default function ESSExpensesPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-                    <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-                </div>
-                <Link href="/ess/expenses/new">
-                    <Button className="bg-blue-600 hover:bg-blue-500">
-                        <Plus className="h-4 w-4 mr-2" />
-                        {t("newExpenseClaim")}
-                    </Button>
-                </Link>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={DollarSign}
+                iconColor="amber"
+                actions={
+                    <Link href="/ess/expenses/new">
+                        <Button className="bg-blue-600 hover:bg-blue-500">
+                            <Plus className="h-4 w-4 mr-2" />
+                            {t("newExpenseClaim")}
+                        </Button>
+                    </Link>
+                }
+            />
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -170,7 +136,7 @@ export default function ESSExpensesPage() {
                                 <Clock className="h-5 w-5 text-yellow-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.pending}</p>
                                 <p className="text-xs text-muted-foreground">{t("pendingStat")}</p>
                             </div>
                         </div>
@@ -183,7 +149,7 @@ export default function ESSExpensesPage() {
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-foreground">{stats.approved}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.approved}</p>
                                 <p className="text-xs text-muted-foreground">{t("approvedStat")}</p>
                             </div>
                         </div>
@@ -196,7 +162,7 @@ export default function ESSExpensesPage() {
                                 <DollarSign className="h-5 w-5 text-blue-400" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-foreground">{stats.reimbursed}</p>
+                                <p className="text-2xl font-display font-bold text-foreground tabular-nums">{stats.reimbursed}</p>
                                 <p className="text-xs text-muted-foreground">{t("reimbursedStat")}</p>
                             </div>
                         </div>
@@ -209,7 +175,7 @@ export default function ESSExpensesPage() {
                                 <Receipt className="h-5 w-5 text-purple-400" />
                             </div>
                             <div>
-                                <p className="text-lg font-bold text-foreground">{formatCurrency(stats.totalReimbursed)}</p>
+                                <p className="text-lg font-display font-bold tabular-nums text-foreground">{formatCurrency(stats.totalReimbursed)}</p>
                                 <p className="text-xs text-muted-foreground">{t("totalReimbursed")}</p>
                             </div>
                         </div>
@@ -267,7 +233,7 @@ export default function ESSExpensesPage() {
                                                 {typeof claim.category === "string" ? claim.category : claim.category?.name || "—"}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-muted-foreground">
-                                                {new Date(claim.expenseDate || claim.date).toLocaleDateString()}
+                                                {formatDate(claim.expenseDate || claim.date)}
                                             </td>
                                             <td className="px-4 py-3 text-sm font-medium text-foreground">
                                                 {formatCurrency(claim.amount)}
@@ -277,9 +243,15 @@ export default function ESSExpensesPage() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-1">
-                                                    <Button size="sm" variant="ghost" className="text-blue-400 h-8 w-8 p-0">
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
+                                                    {claim.receiptUrl ? (
+                                                        <a href={claim.receiptUrl} target="_blank" rel="noopener noreferrer">
+                                                            <Button size="sm" variant="ghost" className="text-blue-400 h-8 w-8 p-0" aria-label="View receipt">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

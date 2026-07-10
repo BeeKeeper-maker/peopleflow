@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { payrollLogger } from "@/lib/logger";
@@ -32,22 +32,26 @@ export async function PUT(
             return new NextResponse(validation.error.issues[0].message, { status: 400 });
         }
 
-        const existing = await prisma.salaryStructure.findFirst({
+        const existing = await auth.withDB((db) => db.salaryStructure.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
         if (!existing) {
             return new NextResponse("Salary structure not found", { status: 404 });
         }
 
-        const structure = await prisma.salaryStructure.update({
+        const structure = await auth.withDB((db) => db.salaryStructure.update({
             where: { id },
             data: validation.data,
-        });
+        }));
 
         return NextResponse.json(structure);
     } catch (error) {
-        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_PUT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "SALARY_STRUCTURE_PUT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -62,17 +66,17 @@ export async function DELETE(
 
         const { id } = params;
 
-        const structure = await prisma.salaryStructure.findFirst({
+        const structure = await auth.withDB((db) => db.salaryStructure.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
         if (!structure) {
             return new NextResponse("Salary structure not found", { status: 404 });
         }
 
         // Check if assigned to any employees
-        const assignmentCount = await prisma.salaryStructureAssignment.count({
+        const assignmentCount = await auth.withDB((db) => db.salaryStructureAssignment.count({
             where: { salaryStructureId: id },
-        });
+        }));
 
         if (assignmentCount > 0) {
             return new NextResponse(
@@ -81,13 +85,17 @@ export async function DELETE(
             );
         }
 
-        await prisma.salaryStructure.delete({
+        await auth.withDB((db) => db.salaryStructure.delete({
             where: { id },
-        });
+        }));
 
         return new NextResponse(null, { status: 200 });
     } catch (error) {
-        payrollLogger.error({ err: error }, "SALARY_STRUCTURE_DELETE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payrollLogger.error({ err: error, errorId }, "SALARY_STRUCTURE_DELETE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

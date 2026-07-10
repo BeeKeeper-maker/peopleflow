@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
-    Users, Mail, Phone, ChevronRight,
-    Calendar, Target, CheckCircle2, XCircle, Clock, Loader2,
+    Users, Mail, Phone,
+    Calendar, CheckCircle2, XCircle, Clock,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,50 +14,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useTranslations } from "next-intl";
 
-interface TeamMember {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    designation?: { name: string };
-    department?: { name: string };
-    photoUrl?: string;
-    joiningDate?: string;
-    status?: string;
-}
+import { useManagerTeam, useManagerAttendance } from "@/hooks/use-data";
 
 export default function ManagerTeamPage() {
     const t = useTranslations("ManagerTeam");
-    const [isLoading, setIsLoading] = useState(true);
-    const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [attendanceToday, setAttendanceToday] = useState<Record<string, string>>({});
+    const today = new Date().toISOString().split("T")[0];
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const employeesRes = await fetch("/api/manager/team");
-                if (employeesRes.ok) {
-                    const data = await employeesRes.json();
-                    setTeamMembers(data.data || data || []);
-                }
-                const today = new Date().toISOString().split("T")[0];
-                const attendanceRes = await fetch(`/api/attendance?date=${today}`);
-                if (attendanceRes.ok) {
-                    const data = await attendanceRes.json();
-                    const records = data.data || data || [];
-                    const statusMap: Record<string, string> = {};
-                    records.forEach((r: { employeeId: string; status: string }) => {
-                        statusMap[r.employeeId] = r.status || "present";
-                    });
-                    setAttendanceToday(statusMap);
-                }
-            } catch (error) { console.error("Error fetching team:", error); }
-            finally { setIsLoading(false); }
-        };
-        fetchData();
-    }, []);
+    // ── TanStack Query: team + today's attendance ──
+    const { data: teamMembers = [], isLoading: teamLoading } = useManagerTeam();
+    const { data: attendanceRecords = [], isLoading: attendanceLoading } = useManagerAttendance({ date: today });
+
+    const isLoading = teamLoading || attendanceLoading;
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const attendanceToday = useMemo(() => {
+        const statusMap: Record<string, string> = {};
+        attendanceRecords.forEach((r) => {
+            statusMap[r.employeeId] = r.status || "present";
+        });
+        return statusMap;
+    }, [attendanceRecords]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -87,7 +63,7 @@ export default function ManagerTeamPage() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("teamMembersCount", { count: teamMembers.length })}</p>
                 </div>
                 <Input
@@ -99,10 +75,10 @@ export default function ManagerTeamPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-foreground">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-green-400">{presentCount}</p><p className="text-sm text-muted-foreground">{t("presentToday")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-blue-400">{onLeaveCount}</p><p className="text-sm text-muted-foreground">{t("onLeave")}</p></CardContent></Card>
-                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-bold text-yellow-400">{lateCount}</p><p className="text-sm text-muted-foreground">{t("lateToday")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-foreground tabular-nums">{teamMembers.length}</p><p className="text-sm text-muted-foreground">{t("totalMembers")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-green-400">{presentCount}</p><p className="text-sm text-muted-foreground">{t("presentToday")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-blue-400">{onLeaveCount}</p><p className="text-sm text-muted-foreground">{t("onLeave")}</p></CardContent></Card>
+                <Card className="bg-card border-card-border"><CardContent className="p-4"><p className="text-2xl font-display font-bold text-yellow-400">{lateCount}</p><p className="text-sm text-muted-foreground">{t("lateToday")}</p></CardContent></Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -111,7 +87,7 @@ export default function ManagerTeamPage() {
                         <CardContent className="p-6">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-4">
-                                    <Avatar className="h-12 w-12"><AvatarImage src={member.photoUrl} /><AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground">{member.firstName[0]}</AvatarFallback></Avatar>
+                                    <Avatar className="h-12 w-12"><AvatarImage src={member.photoUrl || undefined} /><AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white">{member.firstName[0]}</AvatarFallback></Avatar>
                                     <div>
                                         <h3 className="font-medium text-foreground">{member.firstName} {member.lastName}</h3>
                                         <p className="text-sm text-muted-foreground">{member.designation?.name || t("noDesignation")}</p>

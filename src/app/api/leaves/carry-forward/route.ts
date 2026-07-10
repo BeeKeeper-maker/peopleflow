@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { leaveLogger } from "@/lib/logger";
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
         }
 
         // Get all allocations for the source year in this organization
-        const allocations = await prisma.leaveAllocation.findMany({
+        const allocations = await auth.withDB((db) => db.leaveAllocation.findMany({
             where: {
                 year: fromYear,
                 employee: {
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
                     },
                 },
             },
-        });
+        }));
 
         if (allocations.length === 0) {
             return NextResponse.json({
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
             }
 
             // Upsert allocation for the target year
-            await prisma.leaveAllocation.upsert({
+            await auth.withDB((db) => db.leaveAllocation.upsert({
                 where: {
                     employeeId_leaveTypeId_year: {
                         employeeId: allocation.employee.id,
@@ -111,6 +111,7 @@ export async function POST(req: Request) {
                 },
                 create: {
                     employeeId: allocation.employee.id,
+                    organizationId: auth.organizationId,
                     leaveTypeId: allocation.leaveType.id,
                     year: toYear,
                     allocatedDays: allocation.leaveType.annualAllocation,
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
                 update: {
                     carriedForward: carryForwardDays,
                 },
-            });
+            }));
 
             results.push({
                 employee: `${allocation.employee.firstName} ${allocation.employee.lastName}`,
@@ -140,7 +141,11 @@ export async function POST(req: Request) {
             details: results,
         });
     } catch (error) {
-        leaveLogger.error({ err: error }, "CARRY_FORWARD_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        leaveLogger.error({ err: error, errorId }, "CARRY_FORWARD_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

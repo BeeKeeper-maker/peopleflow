@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -20,12 +19,14 @@ export async function POST(
         const { id } = await params;
 
         // Verify the holiday list belongs to this org
-        const holidayList = await prisma.holidayList.findFirst({
-            where: {
-                id,
-                organizationId: auth.organizationId,
-            },
-        });
+        const holidayList = await auth.withDB((db) =>
+            db.holidayList.findFirst({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+            }),
+        );
 
         if (!holidayList) {
             return NextResponse.json(
@@ -38,15 +39,17 @@ export async function POST(
 
         // Handle bulk import
         if (json.bulk && Array.isArray(json.bulk)) {
-            const holidays = await prisma.holiday.createMany({
-                data: json.bulk.map((h: { name: string; nameBn?: string; date: string; type?: string; description?: string }) => ({
-                    name: h.name,
-                    nameBn: h.nameBn || null,
-                    date: new Date(h.date),
-                    description: h.type || h.description || null,
-                    holidayListId: id,
-                })),
-            });
+            const holidays = await auth.withDB((db) =>
+                db.holiday.createMany({
+                    data: json.bulk.map((h: { name: string; nameBn?: string; date: string; type?: string; description?: string }) => ({
+                        name: h.name,
+                        nameBn: h.nameBn || null,
+                        date: new Date(h.date),
+                        description: h.type || h.description || null,
+                        holidayListId: id,
+                    })),
+                }),
+            );
 
             return NextResponse.json({ count: holidays.count });
         }
@@ -61,20 +64,26 @@ export async function POST(
             );
         }
 
-        const holiday = await prisma.holiday.create({
-            data: {
-                name,
-                nameBn: nameBn || null,
-                date: new Date(date),
-                description: type || description || null,
-                holidayListId: id,
-            },
-        });
+        const holiday = await auth.withDB((db) =>
+            db.holiday.create({
+                data: {
+                    name,
+                    nameBn: nameBn || null,
+                    date: new Date(date),
+                    description: type || description || null,
+                    holidayListId: id,
+                },
+            }),
+        );
 
         return NextResponse.json(holiday);
     } catch (error) {
-        apiLogger.error({ err: error }, "ADD_HOLIDAY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "ADD_HOLIDAY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -96,9 +105,11 @@ export async function PUT(
         const json = await req.json();
 
         // Verify the holiday list belongs to this org
-        const ownerCheck = await prisma.holidayList.findFirst({
-            where: { id, organizationId: auth.organizationId },
-        });
+        const ownerCheck = await auth.withDB((db) =>
+            db.holidayList.findFirst({
+                where: { id, organizationId: auth.organizationId },
+            }),
+        );
         if (!ownerCheck) {
             return NextResponse.json({ error: "Holiday list not found" }, { status: 404 });
         }
@@ -106,38 +117,48 @@ export async function PUT(
         // If holidayId is present, update a specific holiday
         if (json.holidayId) {
             // Verify the holiday belongs to this list
-            const holidayCheck = await prisma.holiday.findFirst({
-                where: { id: json.holidayId, holidayListId: id },
-            });
+            const holidayCheck = await auth.withDB((db) =>
+                db.holiday.findFirst({
+                    where: { id: json.holidayId, holidayListId: id },
+                }),
+            );
             if (!holidayCheck) {
                 return NextResponse.json({ error: "Holiday not found" }, { status: 404 });
             }
 
-            const holiday = await prisma.holiday.update({
-                where: { id: json.holidayId },
-                data: {
-                    name: json.name,
-                    nameBn: json.nameBn || null,
-                    date: json.date ? new Date(json.date) : undefined,
-                    description: json.type || json.description || null,
-                },
-            });
+            const holiday = await auth.withDB((db) =>
+                db.holiday.update({
+                    where: { id: json.holidayId },
+                    data: {
+                        name: json.name,
+                        nameBn: json.nameBn || null,
+                        date: json.date ? new Date(json.date) : undefined,
+                        description: json.type || json.description || null,
+                    },
+                }),
+            );
             return NextResponse.json(holiday);
         }
 
         // Otherwise update the holiday list itself
-        const holidayList = await prisma.holidayList.update({
-            where: { id },
-            data: {
-                name: json.name,
-                isActive: json.isActive,
-            },
-        });
+        const holidayList = await auth.withDB((db) =>
+            db.holidayList.update({
+                where: { id },
+                data: {
+                    name: json.name,
+                    isActive: json.isActive,
+                },
+            }),
+        );
 
         return NextResponse.json(holidayList);
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_HOLIDAY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_HOLIDAY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -161,28 +182,32 @@ export async function DELETE(
 
         if (holidayId) {
             // Verify the holiday belongs to a list owned by this org
-            const holiday = await prisma.holiday.findFirst({
-                where: {
-                    id: holidayId,
-                    holidayList: { organizationId: auth.organizationId },
-                },
-            });
+            const holiday = await auth.withDB((db) =>
+                db.holiday.findFirst({
+                    where: {
+                        id: holidayId,
+                        holidayList: { organizationId: auth.organizationId },
+                    },
+                }),
+            );
             if (!holiday) {
                 return NextResponse.json({ error: "Holiday not found" }, { status: 404 });
             }
 
-            await prisma.holiday.delete({ where: { id: holidayId } });
+            await auth.withDB((db) => db.holiday.delete({ where: { id: holidayId } }));
             return NextResponse.json({ success: true });
         }
 
         // Delete the entire holiday list (cascade deletes holidays)
         // First verify it belongs to this org
-        const holidayList = await prisma.holidayList.findFirst({
-            where: {
-                id,
-                organizationId: auth.organizationId,
-            },
-        });
+        const holidayList = await auth.withDB((db) =>
+            db.holidayList.findFirst({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+            }),
+        );
 
         if (!holidayList) {
             return NextResponse.json(
@@ -191,13 +216,15 @@ export async function DELETE(
             );
         }
 
-        await prisma.holidayList.delete({
-            where: { id },
-        });
+        await auth.withDB((db) => db.holidayList.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_HOLIDAY_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_HOLIDAY_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

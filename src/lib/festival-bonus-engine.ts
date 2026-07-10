@@ -140,6 +140,7 @@ export async function generateFestivalBonus(
     const today = new Date();
     const paymentsToCreate: Array<{
         employeeId: string;
+        organizationId: string;
         bonusConfigId: string;
         amount: number;
         basisAmount: number;
@@ -211,8 +212,8 @@ export async function generateFestivalBonus(
 
         // ── Calculate Bonus Amount ──
         const structure = assignment.salaryStructure;
-        const grossSalary = assignment.grossSalary;
-        const basicSalary = Math.round(grossSalary * (structure.basicPercentage / 100));
+        const grossSalary = Number(assignment.grossSalary);
+        const basicSalary = Math.round(grossSalary * (Number(structure.basicPercentage) / 100));
 
         // Determine basis amount
         const basisAmount = config.calculationBasis === "gross" ? grossSalary : basicSalary;
@@ -228,11 +229,12 @@ export async function generateFestivalBonus(
             isProRated = true;
         }
 
-        const effectivePercentage = config.percentageOfBasis * proRataFactor;
+        const effectivePercentage = Number(config.percentageOfBasis) * proRataFactor;
         const amount = Math.round(basisAmount * (effectivePercentage / 100));
 
         paymentsToCreate.push({
             employeeId: emp.id,
+            organizationId: config.organizationId,
             bonusConfigId: config.id,
             amount,
             basisAmount,
@@ -290,6 +292,7 @@ export async function getFestivalBonusForPayroll(
         where: {
             employeeId,
             status: "pending",
+            deletedAt: null,
         },
     });
 
@@ -298,7 +301,7 @@ export async function getFestivalBonusForPayroll(
     let totalBonus = 0;
 
     for (const bonus of pendingBonuses) {
-        totalBonus += bonus.amount;
+        totalBonus += Number(bonus.amount);
 
         // Mark as included in this payroll cycle
         await prisma.festivalBonusPayment.update({
@@ -336,7 +339,7 @@ export async function getFestivalBonusSummary(
 
     if (!config) return null;
 
-    const totalAmount = config.payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalAmount = config.payments.reduce((sum, p) => sum + Number(p.amount), 0);
     const pendingCount = config.payments.filter((p) => p.status === "pending").length;
     const paidCount = config.payments.filter(
         (p) => p.status === "included_in_payroll" || p.status === "paid"
@@ -375,7 +378,7 @@ export async function listFestivalBonusConfigs(
     });
 
     return configs.map((config) => {
-        const totalAmount = config.payments.reduce((sum, p) => sum + p.amount, 0);
+        const totalAmount = config.payments.reduce((sum, p) => sum + Number(p.amount), 0);
         const pendingCount = config.payments.filter((p) => p.status === "pending").length;
         const paidCount = config.payments.filter(
             (p) => p.status === "included_in_payroll" || p.status === "paid"

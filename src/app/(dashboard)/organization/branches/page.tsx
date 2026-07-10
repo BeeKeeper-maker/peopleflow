@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Loader2, Building, Trash2, Pencil, MapPin, Phone, Mail, Users, Navigation, Shield, ShieldOff, CheckCircle2, Settings2, Crown, ArrowUpRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface Branch {
     id: string
@@ -31,8 +32,10 @@ interface GeoFenceConfig {
 
 export default function BranchesPage() {
     const t = useTranslations('Branches')
+    const tShared = useTranslations("SharedComponents")
     const router = useRouter()
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [branches, setBranches] = useState<Branch[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -123,11 +126,11 @@ export default function BranchesPage() {
             } else {
                 const err = await res.json()
                 if (err.upgradeRequired) {
-                    setPlanLimit({ message: err.error || "Your current plan cannot add more branches.", current: err.current, limit: err.limit })
+                    setPlanLimit({ message: err.error || t('planLimitFallback'), current: err.current, limit: err.limit })
                 }
                 addToast({
                     title: err.error || (editingBranch ? t('updateFailed') : t('createFailed')),
-                    description: err.upgradeRequired ? "Open billing to choose a plan with a higher branch limit." : undefined,
+                    description: err.upgradeRequired ? tShared("upgradePlanHint") : undefined,
                     type: err.upgradeRequired ? "warning" : "error",
                     duration: err.upgradeRequired ? 9000 : undefined,
                 })
@@ -137,7 +140,7 @@ export default function BranchesPage() {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const _ok = await confirm({ title: t('confirmDelete'), description: tShared('confirmDeleteDescription'), confirmLabel: tShared('delete'), variant: 'destructive' }); if (!_ok) return
         try {
             const res = await fetch(`/api/branches/${id}`, { method: "DELETE" })
             if (res.ok) {
@@ -150,7 +153,7 @@ export default function BranchesPage() {
     // ── GPS: Use My Current Location ──────────────────────────────
     const handleUseMyLocation = async () => {
         if (!("geolocation" in navigator)) {
-            addToast({ title: "আপনার ব্রাউজারে GPS সাপোর্ট নেই", type: "error" })
+            addToast({ title: tShared("geoLocationUnsupported"), type: "error" })
             return
         }
         setFetchingLocation(true)
@@ -166,13 +169,13 @@ export default function BranchesPage() {
                 latitude: pos.coords.latitude.toFixed(6),
                 longitude: pos.coords.longitude.toFixed(6),
             }))
-            addToast({ title: "✅ আপনার অবস্থান সফলভাবে নেওয়া হয়েছে!", type: "success" })
+            addToast({ title: tShared("locationCaptured"), type: "success" })
         } catch (e: unknown) {
             const err = e as GeolocationPositionError
             if (err?.code === 1) {
-                addToast({ title: "📍 Location permission দিতে হবে। Browser-এ allow করুন।", type: "error" })
+                addToast({ title: tShared("locationPermissionDenied"), type: "error" })
             } else {
-                addToast({ title: "📍 Location নেওয়া যায়নি। আবার চেষ্টা করুন।", type: "error" })
+                addToast({ title: tShared("locationCaptureFailed"), type: "error" })
             }
         } finally {
             setFetchingLocation(false)
@@ -195,13 +198,13 @@ export default function BranchesPage() {
                 setGeoConfig(prev => ({ ...prev, geoFenceEnabled: !prev.geoFenceEnabled }))
                 addToast({
                     title: !geoConfig.geoFenceEnabled
-                        ? "✅ GPS Attendance চালু হয়েছে"
-                        : "GPS Attendance বন্ধ করা হয়েছে",
+                        ? tShared("gpsAttendanceEnabled")
+                        : tShared("gpsAttendanceDisabled"),
                     type: "success"
                 })
             }
         } catch {
-            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSavingGeo(false)
         }
@@ -220,10 +223,10 @@ export default function BranchesPage() {
             })
             if (res.ok) {
                 setGeoConfig(prev => ({ ...prev, geoFenceEnforcement: mode }))
-                addToast({ title: `মোড পরিবর্তন: ${mode === "strict" ? "Strict (অফিসের বাইরে block)" : "Soft (warning দিবে)"}`, type: "success" })
+                addToast({ title: tShared("geoFenceModeChanged", { mode: mode === "strict" ? tShared("enforcementStrict") : tShared("enforcementSoft") }), type: "success" })
             }
         } catch {
-            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSavingGeo(false)
         }
@@ -245,7 +248,7 @@ export default function BranchesPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <Button onClick={openCreate} className="gap-2 bg-blue-600 hover:bg-blue-700 text-foreground">
@@ -261,10 +264,10 @@ export default function BranchesPage() {
                             <Crown className="h-5 w-5 text-amber-400" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-semibold text-foreground">Branch limit reached</h3>
+                            <h3 className="text-sm font-semibold text-foreground">{tShared('branchLimitReached')}</h3>
                             <p className="text-sm text-muted-foreground mt-0.5">{planLimit.message}</p>
                             {typeof planLimit.current === "number" && typeof planLimit.limit === "number" && (
-                                <p className="text-xs text-amber-300 mt-1">Current usage: {planLimit.current}/{planLimit.limit} branches</p>
+                                <p className="text-xs text-amber-300 mt-1">{tShared('currentBranchUsage', { current: planLimit.current, limit: planLimit.limit })}</p>
                             )}
                         </div>
                     </div>
@@ -272,7 +275,7 @@ export default function BranchesPage() {
                         onClick={() => router.push("/billing/upgrade?source=branch-limit")}
                         className="gap-2 bg-amber-500 hover:bg-amber-600 text-black shrink-0"
                     >
-                        Upgrade plan <ArrowUpRight className="h-4 w-4" />
+                        {tShared('upgradePlan')} <ArrowUpRight className="h-4 w-4" />
                     </Button>
                 </div>
             )}
@@ -289,12 +292,12 @@ export default function BranchesPage() {
                         </div>
                         <div>
                             <h3 className="text-sm font-semibold text-foreground">
-                                GPS Attendance Verification
+                                {tShared('gpsAttendanceVerification')}
                             </h3>
                             <p className="text-xs text-muted-foreground">
                                 {geoConfig.geoFenceEnabled
-                                    ? `চালু আছে • ${gpsConfiguredCount}/${branches.length} ব্রাঞ্চে GPS সেট করা হয়েছে`
-                                    : "বন্ধ আছে • কর্মীরা যেকোনো জায়গা থেকে check-in করতে পারবে"
+                                    ? tShared('gpsStatusEnabled', { configured: gpsConfiguredCount, total: branches.length })
+                                    : tShared('gpsStatusDisabled')
                                 }
                             </p>
                         </div>
@@ -312,7 +315,7 @@ export default function BranchesPage() {
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    Soft
+                                    {tShared('enforcementSoft')}
                                 </button>
                                 <button
                                     onClick={() => handleChangeEnforcement("strict")}
@@ -324,7 +327,7 @@ export default function BranchesPage() {
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    Strict
+                                    {tShared('enforcementStrict')}
                                 </button>
                             </div>
                         )}
@@ -349,7 +352,7 @@ export default function BranchesPage() {
                     <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
                         <p className="text-xs text-amber-400 flex items-center gap-1.5">
                             <Settings2 className="h-3.5 w-3.5 shrink-0" />
-                            {branches.length - gpsConfiguredCount}টি ব্রাঞ্চে GPS location সেট করা হয়নি। Edit বাটনে ক্লিক করে &quot;📍 আমার অবস্থান ব্যবহার করুন&quot; বাটন চাপুন।
+                            {tShared('gpsMissingHint', { count: branches.length - gpsConfiguredCount })}
                         </p>
                     </div>
                 )}
@@ -432,23 +435,23 @@ export default function BranchesPage() {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 text-xs text-emerald-400">
                                             <CheckCircle2 className="h-3.5 w-3.5" />
-                                            <span>GPS সেট করা হয়েছে</span>
+                                            <span>{tShared('gpsSetConfigured')}</span>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground font-mono">
-                                            {branch.geoFenceRadius || 200}m radius
+                                            {tShared('radiusMeters', { radius: branch.geoFenceRadius || 200 })}
                                         </span>
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-1.5 text-xs text-amber-400">
                                             <Navigation className="h-3.5 w-3.5" />
-                                            <span>GPS সেট করা হয়নি</span>
+                                            <span>{tShared('gpsNotSet')}</span>
                                         </div>
                                         <button
                                             onClick={() => openEdit(branch)}
                                             className="text-[10px] text-blue-400 hover:text-blue-300 underline"
                                         >
-                                            সেট করুন →
+                                            {tShared('setUpNow')}
                                         </button>
                                     </div>
                                 )}
@@ -512,7 +515,7 @@ export default function BranchesPage() {
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
                                         <Navigation className="h-4 w-4 text-blue-400" />
-                                        <span className="text-sm font-medium text-foreground">Office Location (GPS)</span>
+                                        <span className="text-sm font-medium text-foreground">{tShared('officeLocationGps')}</span>
                                     </div>
                                     <Button
                                         type="button"
@@ -527,29 +530,29 @@ export default function BranchesPage() {
                                         ) : (
                                             <MapPin className="h-3 w-3" />
                                         )}
-                                        {fetchingLocation ? "নিচ্ছে..." : "📍 আমার অবস্থান ব্যবহার করুন"}
+                                        {fetchingLocation ? tShared('fetchingLocation') : tShared('useMyLocation')}
                                     </Button>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground mb-3">
-                                    অফিসে বসে থাকা অবস্থায় &quot;আমার অবস্থান ব্যবহার করুন&quot; চাপুন। এটি আপনার অফিসের GPS coordinate সেভ করবে, যাতে কর্মীদের attendance location verify করা যায়।
+                                    {tShared('gpsCaptureHint')}
                                 </p>
                                 <div className="grid grid-cols-5 gap-3">
                                     <div className="col-span-2">
-                                        <label className="text-xs text-muted-foreground block mb-1">Latitude</label>
+                                        <label className="text-xs text-muted-foreground block mb-1">{tShared('latitude')}</label>
                                         <input type="text" value={form.latitude} onChange={e => setForm(p => ({ ...p, latitude: e.target.value }))}
-                                            placeholder="23.8103"
+                                            placeholder={tShared('latitudePlaceholder')}
                                             className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
                                     </div>
                                     <div className="col-span-2">
-                                        <label className="text-xs text-muted-foreground block mb-1">Longitude</label>
+                                        <label className="text-xs text-muted-foreground block mb-1">{tShared('longitude')}</label>
                                         <input type="text" value={form.longitude} onChange={e => setForm(p => ({ ...p, longitude: e.target.value }))}
-                                            placeholder="90.4125"
+                                            placeholder={tShared('longitudePlaceholder')}
                                             className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
                                     </div>
                                     <div>
-                                        <label className="text-xs text-muted-foreground block mb-1">Radius (m)</label>
+                                        <label className="text-xs text-muted-foreground block mb-1">{tShared('radiusLabel')}</label>
                                         <input type="number" value={form.geoFenceRadius} onChange={e => setForm(p => ({ ...p, geoFenceRadius: e.target.value }))}
-                                            placeholder="200"
+                                            placeholder={tShared('radiusPlaceholder')}
                                             min="50" max="5000"
                                             className="w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground font-mono" />
                                     </div>
@@ -557,7 +560,7 @@ export default function BranchesPage() {
                                 {form.latitude && form.longitude && (
                                     <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400">
                                         <CheckCircle2 className="h-3 w-3" />
-                                        <span>Location সেট করা হয়েছে — কর্মীরা {form.geoFenceRadius}m এর মধ্যে থেকে check-in করতে পারবে</span>
+                                        <span>{tShared('locationSetHint', { radius: form.geoFenceRadius })}</span>
                                     </div>
                                 )}
                             </div>

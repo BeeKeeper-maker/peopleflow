@@ -174,7 +174,7 @@ const defaultActionConfig = {
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════
 
-function getRelativeTime(dateStr: string): string {
+function getRelativeTime(dateStr: string, tFn?: (key: string) => string): string {
     const now = new Date()
     const date = new Date(dateStr)
     const diffMs = now.getTime() - date.getTime()
@@ -183,10 +183,11 @@ function getRelativeTime(dateStr: string): string {
     const diffHr = Math.floor(diffMin / 60)
     const diffDay = Math.floor(diffHr / 24)
 
-    if (diffSec < 60) return "just now"
-    if (diffMin < 60) return `${diffMin}m ago`
-    if (diffHr < 24) return `${diffHr}h ago`
-    if (diffDay < 7) return `${diffDay}d ago`
+    const t = tFn || ((k: string) => k)
+    if (diffSec < 60) return t("justNow")
+    if (diffMin < 60) return `${diffMin} ${t('mAgo')}`
+    if (diffHr < 24) return `${diffHr} ${t('hAgo')}`
+    if (diffDay < 7) return `${diffDay} ${t('dAgo')}`
     return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })
 }
 
@@ -209,14 +210,15 @@ function parseDeviceInfo(userAgent: string | null): { browser: string; os: strin
     return { browser, os }
 }
 
-function buildDescription(log: AuditLogEntry): string {
+function buildDescription(log: AuditLogEntry, tFn?: (key: string) => string): string {
+    const t = tFn || ((k: string) => k)
     const actor = log.performedBy?.name || log.performedBy?.email || "System"
     const entity = log.entityType.replace(/([A-Z])/g, " $1").trim()
     const actionMap: Record<string, string> = {
-        create: "created",
-        update: "updated",
-        delete: "deleted",
-        login: "logged in",
+        create: t("actionCreated"),
+        update: t("actionUpdated"),
+        delete: t("actionDeleted"),
+        login: t("actionLogin"),
         approve: "approved",
         reject: "rejected",
         view: "viewed",
@@ -436,7 +438,7 @@ export default function AuditLogsPage() {
                         <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-slate-200 via-zinc-300 to-slate-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-slate-200 via-zinc-300 to-slate-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -470,7 +472,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalLogs')}</p>
-                        <p className="text-2xl font-bold mt-1">{stats.total.toLocaleString()}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{stats.total.toLocaleString()}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalLogsDesc')}</p>
                     </CardContent>
                 </Card>
@@ -490,7 +492,7 @@ export default function AuditLogsPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('today')}</p>
-                        <p className="text-2xl font-bold text-blue-400 mt-1">{stats.todayCount}</p>
+                        <p className="text-2xl font-display font-bold text-blue-400 mt-1">{stats.todayCount}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('todayDesc')}</p>
                     </CardContent>
                 </Card>
@@ -505,7 +507,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('critical')}</p>
-                        <p className="text-2xl font-bold text-amber-400 mt-1">{stats.criticalCount}</p>
+                        <p className="text-2xl font-display font-bold text-amber-400 mt-1">{stats.criticalCount}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('criticalDesc')}</p>
                     </CardContent>
                 </Card>
@@ -520,7 +522,7 @@ export default function AuditLogsPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeUsers')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">{stats.activeUsers}</p>
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">{stats.activeUsers}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeUsersDesc')}</p>
                     </CardContent>
                 </Card>
@@ -559,7 +561,7 @@ export default function AuditLogsPage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm text-foreground truncate">
-                                                    {buildDescription(log)}
+                                                    {buildDescription(log, t)}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <Badge className={`${config.bgClass} ${config.textClass} text-[9px] uppercase border-0 px-1.5 py-0`}>
@@ -709,7 +711,7 @@ export default function AuditLogsPage() {
                                         {/* Description */}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium text-foreground truncate">
-                                                {buildDescription(log)}
+                                                {buildDescription(log, t)}
                                             </p>
                                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                 <Badge className={`${config.bgClass} ${config.textClass} text-[9px] uppercase border-0 px-1.5 py-0`}>
@@ -807,7 +809,7 @@ export default function AuditLogsPage() {
                             {t('logDetail')}
                         </DialogTitle>
                         <DialogDescription>
-                            {selectedLog && buildDescription(selectedLog)}
+                            {selectedLog && buildDescription(selectedLog, t)}
                         </DialogDescription>
                     </DialogHeader>
 

@@ -1,39 +1,69 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { createGoalSchema } from "@/lib/validations/goal";
 import { errorResponse, successResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
-// GET - List goals
+/**
+ * GET - List goals.
+ *
+ * Role scoping:
+ *   - super_admin / admin / hr_admin → all goals in the org
+ *   - manager → own goals + their reportees' goals
+ *   - employee → only their own goals
+ *
+ * SECURITY: All DB access goes through `requireAuth()` + `auth.withDB()` so the
+ * query is RLS-scoped to the caller's org and protected by sessionVersion /
+ * isActive / org-status checks enforced in requireAuth().
+ */
 export async function GET(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { employee: true },
-        });
-
-        if (!user?.organizationId) {
-            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
-        }
+        // Per-user rate limit (read op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const status = searchParams.get("status");
         const employeeId = searchParams.get("employeeId");
         const myGoals = searchParams.get("my") === "true";
 
-        const where: Record<string, unknown> = { organizationId: user.organizationId };
+        const where: Record<string, unknown> = { organizationId: auth.organizationId };
 
         if (status) where.status = status;
         if (employeeId) where.employeeId = employeeId;
-        if (myGoals && user.employee) where.employeeId = user.employee.id;
+        if (myGoals && auth.employeeId) where.employeeId = auth.employeeId;
 
-        const goals = await prisma.goal.findMany({
+        // Role-based scoping: unless the caller is filtering by `my=true` or
+        // explicitly to a single employee they are allowed to see, restrict the
+        // list to the caller's permission envelope.
+        if (!myGoals && !employeeId) {
+            if (auth.role === "employee") {
+                // Employees see only their own goals.
+                if (auth.employeeId) {
+                    where.employeeId = auth.employeeId;
+                } else {
+                    // No linked employee profile → return empty.
+                    return successResponse([]);
+                }
+            } else if (auth.role === "manager" && auth.employeeId) {
+                // Managers see own goals + their reportees' goals.
+                const reportees = await auth.withDB((db) =>
+                    db.employee.findMany({
+                        where: { reportingManagerId: auth.employeeId, deletedAt: null },
+                        select: { id: true },
+                    }),
+                );
+                const reporteeIds = reportees.map((r) => r.id);
+                reporteeIds.push(auth.employeeId);
+                where.employeeId = { in: reporteeIds };
+            }
+            // super_admin / admin / hr_admin → no extra filter; see all org goals.
+        }
+
+        const goals = await auth.withDB((db) => db.goal.findMany({
             where,
             include: {
                 employee: {
@@ -43,31 +73,34 @@ export async function GET(req: Request) {
                 reviewCycle: { select: { id: true, name: true } },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
-        return successResponse(goals);
+        return applyRateLimitHeaders(successResponse(goals), rl.headers);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_GOALS_ERROR");
-        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Failed to fetch goals");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_GOALS_ERROR");
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Internal server error", { details: { errorId } });
     }
 }
 
-// POST - Create a new goal
+/**
+ * POST - Create a new goal.
+ *
+ * Role scoping:
+ *   - employee → may only create goals for themselves
+ *   - manager → may create goals for themselves or their reportees
+ *   - super_admin / admin / hr_admin → may create goals for anyone in the org
+ *
+ * SECURITY: All DB access goes through `requireAuth()` + `auth.withDB()`.
+ */
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { employee: true },
-        });
-
-        if (!user?.organizationId) {
-            return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
-        }
+        // Per-user rate limit (write op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         // Parse and validate request body
         const json = await req.json();
@@ -84,9 +117,41 @@ export async function POST(req: Request) {
         const body = validationResult.data;
 
         // Default to current user's employee if not specified
-        const targetEmployeeId = body.employeeId || user.employee?.id || null;
+        const targetEmployeeId = body.employeeId || auth.employeeId || null;
 
-        const goal = await prisma.goal.create({
+        // Enforce role scoping on the target employee.
+        if (targetEmployeeId && targetEmployeeId !== auth.employeeId) {
+            const isElevated = ["super_admin", "admin", "hr_admin"].includes(auth.role);
+            if (!isElevated) {
+                if (auth.role === "manager" && auth.employeeId) {
+                    // Verify the target is a direct reportee.
+                    const reportee = await auth.withDB((db) =>
+                        db.employee.findFirst({
+                            where: {
+                                id: targetEmployeeId,
+                                reportingManagerId: auth.employeeId,
+                                organizationId: auth.organizationId,
+                                deletedAt: null,
+                            },
+                            select: { id: true },
+                        }),
+                    );
+                    if (!reportee) {
+                        return errorResponse(
+                            ErrorCodes.FORBIDDEN,
+                            "Managers can only create goals for themselves or their direct reportees",
+                        );
+                    }
+                } else {
+                    return errorResponse(
+                        ErrorCodes.FORBIDDEN,
+                        "You can only create goals for yourself",
+                    );
+                }
+            }
+        }
+
+        const goal = await auth.withDB((db) => db.goal.create({
             data: {
                 title: body.title,
                 description: body.description || null,
@@ -96,7 +161,7 @@ export async function POST(req: Request) {
                 dueDate: body.dueDate,
                 employeeId: targetEmployeeId,
                 reviewCycleId: body.reviewCycleId || null,
-                organizationId: user.organizationId,
+                organizationId: auth.organizationId,
                 keyResults: body.keyResults?.length ? {
                     create: body.keyResults.map((kr) => ({
                         title: kr.title,
@@ -111,12 +176,12 @@ export async function POST(req: Request) {
                 },
                 keyResults: true,
             },
-        });
+        }));
 
         return createdResponse(goal, "Goal created successfully");
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_GOAL_ERROR");
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        return errorResponse(ErrorCodes.INTERNAL_ERROR, `Failed to create goal: ${errorMessage}`);
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_GOAL_ERROR");
+        return errorResponse(ErrorCodes.INTERNAL_ERROR, "Internal server error", { details: { errorId } });
     }
 }

@@ -69,7 +69,7 @@ export default function EditDesignationPage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Edit Designation</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">Edit Designation</h1>
                     <p className="text-muted-foreground">Update designation details</p>
                 </div>
             </div>

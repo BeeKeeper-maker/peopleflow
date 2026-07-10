@@ -22,6 +22,7 @@ async function main() {
 
     // Import workers to activate them after Redis is confirmed.
     await Promise.all([
+        import("./event-worker"),           // Notification & email pipeline (was missing!)
         import("./subscription-lifecycle"),
         import("./impersonation-cleanup"),
         import("./usage-tracking"),
@@ -33,7 +34,7 @@ async function main() {
     workerLogger.info({
         startedAt: new Date().toISOString(),
         redisUrl: process.env.REDIS_URL ? "[redacted]" : "redis://localhost:6379",
-        workers: ["subscription", "impersonation", "usage", "biometric-sync", "device-health", "reconciliation"],
+        workers: ["event-pipeline", "subscription", "impersonation", "usage", "biometric-sync", "device-health", "reconciliation"],
     }, "PeopleFlow SaaS — Background Worker Service started");
 
     // Register CRON schedules

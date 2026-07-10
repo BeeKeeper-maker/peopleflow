@@ -3,6 +3,10 @@
  *
  * Imports from auth.config.ts (NO Prisma/Node.js APIs) to keep
  * request guarding lightweight. JWT decoding only — no DB access.
+ *
+ * P9-RATELIMIT-HEADERS: also runs a lightweight in-memory global
+ * rate limit on /api/ routes that bypass the per-route Redis limiter.
+ * See `edgeGlobalRateLimit` below for rationale and trade-offs.
  */
 
 import NextAuth from "next-auth";
@@ -95,6 +99,105 @@ function getDefaultRoute(role?: string): string {
 
 const { auth } = NextAuth(authConfig);
 
+// ── Edge-only global rate limiter (P9-RATELIMIT-HEADERS) ──────────────
+//
+// The middleware runs on the Edge Runtime, which cannot import
+// `@/lib/rate-limit.ts` (that pulls in `ioredis` + `pino` — Node-only).
+// As a SAFETY NET for routes without per-route rate limits, we keep an
+// in-memory `Map` of IP -> {count, resetAt} per edge instance.
+//
+// Trade-offs:
+//  • Per-instance, not per-cluster — a user rotating across instances
+//    could exceed the cap by `N_instances × limit`. Per-route Redis
+//    limits remain the primary protection for sensitive endpoints.
+//  • Resets on cold start. Acceptable — this is a fallback, not the
+//    main line of defense.
+//  • 1000 req/min per IP is generous enough for legitimate SPA use
+//    (a dashboard page makes ~5-10 API calls per navigation), but
+//    catches scripted abuse on routes that forgot to add a per-route
+//    limit (e.g. new endpoints added in a hurry).
+//
+// Skips:
+//  • `/api/cron/*` — invoked by the scheduler with CRON_SECRET, no IP
+//  • `/api/webhooks/*` — server-to-server, IP-whitelisted at handler
+//  • `/api/health` — liveness probe, must always answer 200
+
+interface EdgeRateBucket {
+    count: number;
+    resetAt: number; // epoch ms
+}
+
+const EDGE_RATE_LIMIT_MAX = 1000;       // 1000 requests…
+const EDGE_RATE_LIMIT_WINDOW_MS = 60_000; // …per minute per IP
+const EDGE_RATE_BUCKETS = new Map<string, EdgeRateBucket>();
+// Sweep stale buckets every 5 minutes so the Map doesn't grow unbounded
+// on a long-lived edge instance behind many distinct IPs.
+let lastEdgeSweepAt = 0;
+
+function getClientIpFromEdgeRequest(req: NextRequest): string {
+    const forwarded = req.headers.get("x-forwarded-for");
+    if (forwarded) return forwarded.split(",")[0].trim();
+    const realIp = req.headers.get("x-real-ip");
+    if (realIp) return realIp;
+    return "127.0.0.1";
+}
+
+/**
+ * In-memory IP rate limit for the edge middleware.
+ *
+ * Returns `null` when the request is allowed (the caller should continue
+ * normal processing). Returns a `NextResponse` (429) when the IP has
+ * exceeded the global edge limit — the caller should return that
+ * response directly.
+ */
+function edgeGlobalRateLimit(req: NextRequest): NextResponse | null {
+    const now = Date.now();
+
+    // Periodic sweep of expired buckets (amortized O(1) per request).
+    if (now - lastEdgeSweepAt > 5 * 60_000) {
+        lastEdgeSweepAt = now;
+        for (const [k, b] of EDGE_RATE_BUCKETS) {
+            if (b.resetAt <= now) EDGE_RATE_BUCKETS.delete(k);
+        }
+    }
+
+    const ip = getClientIpFromEdgeRequest(req);
+    const bucket = EDGE_RATE_BUCKETS.get(ip);
+
+    if (!bucket || bucket.resetAt <= now) {
+        // Start a fresh window.
+        EDGE_RATE_BUCKETS.set(ip, {
+            count: 1,
+            resetAt: now + EDGE_RATE_LIMIT_WINDOW_MS,
+        });
+        return null;
+    }
+
+    bucket.count += 1;
+    if (bucket.count > EDGE_RATE_LIMIT_MAX) {
+        const retryAfterSec = Math.ceil((bucket.resetAt - now) / 1000);
+        const resetEpochSec = Math.ceil(bucket.resetAt / 1000);
+        return NextResponse.json(
+            {
+                error: "Rate limit exceeded",
+                message: `Too many requests. Please retry after ${retryAfterSec} seconds.`,
+                retryAfter: retryAfterSec,
+            },
+            {
+                status: 429,
+                headers: {
+                    "Retry-After": String(retryAfterSec),
+                    "X-RateLimit-Limit": String(EDGE_RATE_LIMIT_MAX),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": String(resetEpochSec),
+                },
+            }
+        );
+    }
+
+    return null;
+}
+
 // ── Auth.js v5 Proxy ─────────────────────────────────────────────
 
 function isPublicPath(pathname: string): boolean {
@@ -158,6 +261,20 @@ export default function proxy(
     context: { params: Promise<Record<string, string | string[]>> }
 ) {
     const pathname = req.nextUrl.pathname;
+
+    // ── P9-RATELIMIT-HEADERS: global edge rate limit for /api/ routes ──
+    // Safety net for routes that don't have their own per-route rate limit.
+    // Skips server-to-server paths (cron, webhooks) and the liveness probe.
+    // See `edgeGlobalRateLimit` above for trade-offs.
+    if (
+        pathname.startsWith("/api/") &&
+        !pathname.startsWith("/api/cron/") &&
+        !pathname.startsWith("/api/webhooks/") &&
+        !pathname.startsWith("/api/health")
+    ) {
+        const limited = edgeGlobalRateLimit(req);
+        if (limited) return limited;
+    }
 
     // Public pages/APIs should not invoke Auth.js. Invoking Auth.js here creates
     // CSRF/callback cookies and forces private no-store responses, which makes

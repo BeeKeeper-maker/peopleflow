@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET - List notifications for current user
 export async function GET(req: Request) {
     try {
         const auth = await requireAuth();
         if (!isAuthenticated(auth)) return auth;
+
+        // Per-user rate limit (read op)
+        const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+        if (!rl.allowed) return rl.response!;
 
         const { searchParams } = new URL(req.url);
         const unreadOnly = searchParams.get("unread") === "true";
@@ -18,21 +22,27 @@ export async function GET(req: Request) {
             where.isRead = false;
         }
 
-        const [notifications, unreadCount] = await Promise.all([
-            prisma.notification.findMany({
-                where,
-                orderBy: { createdAt: "desc" },
-                take: limit,
-            }),
-            prisma.notification.count({
-                where: { userId: auth.userId, isRead: false },
-            }),
-        ]);
+        const [notifications, unreadCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.notification.findMany({
+                    where,
+                    orderBy: { createdAt: "desc" },
+                    take: limit,
+                }),
+                db.notification.count({
+                    where: { userId: auth.userId, isRead: false },
+                }),
+            ]),
+        );
 
-        return NextResponse.json({ notifications, unreadCount });
+        return applyRateLimitHeaders(NextResponse.json({ notifications, unreadCount }), rl.headers);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_NOTIFICATIONS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_NOTIFICATIONS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -49,29 +59,37 @@ export async function POST(req: Request) {
             return new NextResponse("Missing required fields", { status: 400 });
         }
 
-        const targetUser = await prisma.user.findFirst({
-            where: { id: userId, organizationId: auth.organizationId },
-            select: { id: true },
-        });
+        const targetUser = await auth.withDB((db) =>
+            db.user.findFirst({
+                where: { id: userId, organizationId: auth.organizationId },
+                select: { id: true },
+            }),
+        );
 
         if (!targetUser) {
             return new NextResponse("Target user not found", { status: 404 });
         }
 
-        const notification = await prisma.notification.create({
-            data: {
-                userId,
-                title,
-                message,
-                type,
-                link,
-            },
-        });
+        const notification = await auth.withDB((db) =>
+            db.notification.create({
+                data: {
+                    userId,
+                    title,
+                    message,
+                    type,
+                    link,
+                },
+            }),
+        );
 
         return NextResponse.json(notification);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_NOTIFICATION_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_NOTIFICATION_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -86,24 +104,32 @@ export async function PATCH(req: Request) {
 
         if (markAll) {
             // Mark all as read
-            await prisma.notification.updateMany({
-                where: { userId: auth.userId, isRead: false },
-                data: { isRead: true, readAt: new Date() },
-            });
+            await auth.withDB((db) =>
+                db.notification.updateMany({
+                    where: { userId: auth.userId, isRead: false },
+                    data: { isRead: true, readAt: new Date() },
+                }),
+            );
         } else if (notificationIds && notificationIds.length > 0) {
             // Mark specific notifications as read
-            await prisma.notification.updateMany({
-                where: {
-                    id: { in: notificationIds },
-                    userId: auth.userId,
-                },
-                data: { isRead: true, readAt: new Date() },
-            });
+            await auth.withDB((db) =>
+                db.notification.updateMany({
+                    where: {
+                        id: { in: notificationIds },
+                        userId: auth.userId,
+                    },
+                    data: { isRead: true, readAt: new Date() },
+                }),
+            );
         }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        apiLogger.error({ err: error }, "MARK_READ_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "MARK_READ_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

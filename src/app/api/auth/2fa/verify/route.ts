@@ -2,11 +2,19 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { verify as verifyTOTP } from "otplib";
+import { generateRecoveryCodes } from "@/lib/recovery-codes";
 import { authLogger } from "@/lib/logger";
 
 /**
  * POST — Verify TOTP code to enable 2FA
- * Called after user scans QR code and enters the 6-digit code
+ * Called after user scans QR code and enters the 6-digit code.
+ *
+ * On success:
+ *   1. Enables twoFactorEnabled
+ *   2. Generates 10 recovery codes (bcrypt-hashed, stored in DB)
+ *   3. Returns plaintext recovery codes (shown ONCE in UI)
+ *   4. User must save these codes — they are the ONLY way to recover
+ *      access if the authenticator device is lost.
  */
 export async function POST(request: Request) {
     try {
@@ -56,17 +64,25 @@ export async function POST(request: Request) {
             );
         }
 
-        // Enable 2FA
+        // Generate recovery codes
+        const { plaintext, hashes } = await generateRecoveryCodes();
+
+        // Enable 2FA + store recovery code hashes
         await prisma.user.update({
             where: { id: user.id },
-            data: { twoFactorEnabled: true },
+            data: {
+                twoFactorEnabled: true,
+                twoFactorRecoveryCodes: hashes,
+                twoFactorRecoveryCodesGeneratedAt: new Date(),
+            },
         });
 
         return NextResponse.json({
             message: "Two-factor authentication has been enabled successfully!",
             enabled: true,
-        });
-    } catch (error) {
+            recoveryCodes: plaintext,
+            recoveryCodeWarning: "Save these recovery codes in a safe place. Each code can only be used once. You will not be able to see them again.",
+        });    } catch (error) {
         authLogger.error({ err: error }, "2FA verify error:");
         return NextResponse.json(
             { error: "Failed to verify two-factor authentication" },

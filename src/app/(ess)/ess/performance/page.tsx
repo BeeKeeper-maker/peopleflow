@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 import {
     Target,
     TrendingUp,
@@ -15,29 +15,7 @@ import {
     Flag,
     AlertTriangle,
 } from "lucide-react";
-
-interface KeyResult {
-    id: string;
-    title: string;
-    targetValue: number;
-    currentValue: number;
-    unit?: string;
-    status: string;
-}
-
-interface Goal {
-    id: string;
-    title: string;
-    description?: string;
-    type: string;
-    priority: string;
-    status: string;
-    progress: number;
-    startDate?: string;
-    dueDate?: string;
-    completedAt?: string;
-    keyResults: KeyResult[];
-}
+import { useEssPerformanceGoals, type EssKeyResult } from "@/hooks/use-data";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
     not_started: { label: "notStarted", color: "bg-gray-500/15 text-gray-400 border-gray-500/20", icon: Clock },
@@ -57,29 +35,8 @@ const priorityConfig: Record<string, { color: string }> = {
 
 export default function ESSPerformancePage() {
     const t = useTranslations("ESSPerformance");
-    const [goals, setGoals] = useState<Goal[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchGoals = async () => {
-            try {
-                // FIX #1: Correct API endpoint with my=true to scope to current employee
-                const res = await fetch("/api/performance/goals?my=true");
-                if (res.ok) {
-                    const data = await res.json();
-                    // FIX #9: Handle successResponse() wrapper format { success, data }
-                    const goalsData = data?.data || (Array.isArray(data) ? data : (data.goals || []));
-                    setGoals(goalsData);
-                }
-            } catch (err) {
-                console.error("Failed to fetch goals:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchGoals();
-    }, []);
+    // ── TanStack Query: my performance goals ──
+    const { data: goals = [], isLoading: loading } = useEssPerformanceGoals();
 
     if (loading) {
         return (
@@ -99,10 +56,12 @@ export default function ESSPerformancePage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-                <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-            </div>
+            <PageHeader
+                title={t("title")}
+                subtitle={t("subtitle")}
+                icon={Target}
+                iconColor="blue"
+            />
 
             {/* Summary cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -111,7 +70,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
                             <BarChart3 className="h-6 w-6 text-primary" />
                         </div>
-                        <p className="text-2xl font-bold text-foreground">{overallProgress}%</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{overallProgress}%</p>
                         <p className="text-xs text-muted-foreground">{t("overallProgress")}</p>
                     </CardContent>
                 </Card>
@@ -120,7 +79,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-2">
                             <Target className="h-6 w-6 text-blue-400" />
                         </div>
-                        <p className="text-2xl font-bold text-foreground">{totalGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{totalGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("totalGoals")}</p>
                     </CardContent>
                 </Card>
@@ -129,7 +88,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-2">
                             <CheckCircle2 className="h-6 w-6 text-green-400" />
                         </div>
-                        <p className="text-2xl font-bold text-foreground">{completedGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{completedGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("completed")}</p>
                     </CardContent>
                 </Card>
@@ -138,7 +97,7 @@ export default function ESSPerformancePage() {
                         <div className="mx-auto w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-2">
                             <TrendingUp className="h-6 w-6 text-amber-400" />
                         </div>
-                        <p className="text-2xl font-bold text-foreground">{inProgressGoals}</p>
+                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">{inProgressGoals}</p>
                         <p className="text-xs text-muted-foreground">{t("inProgress")}</p>
                     </CardContent>
                 </Card>
@@ -237,7 +196,7 @@ export default function ESSPerformancePage() {
                                         <div className="mt-4 pt-4 border-t border-card-border">
                                             <p className="text-xs font-medium text-muted-foreground mb-2">{t("keyResults")}</p>
                                             <div className="space-y-2">
-                                                {goal.keyResults.map(kr => {
+                                                {(goal.keyResults as EssKeyResult[]).map(kr => {
                                                     const krProgress = kr.targetValue > 0
                                                         ? Math.min(100, Math.round((kr.currentValue / kr.targetValue) * 100))
                                                         : 0;

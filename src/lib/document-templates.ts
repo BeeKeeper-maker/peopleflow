@@ -3,8 +3,13 @@
  *
  * HTML templates for HR documents with dynamic data.
  * Used with PDF generation for downloadable documents.
- * 
+ *
  * ✅ All user-supplied data is HTML-escaped to prevent XSS.
+ * ✅ Bilingual support (English + Bengali) for BD compliance.
+ *
+ * Document types:
+ *   English-only: offer_letter, increment_letter, warning_letter, termination_letter
+ *   Bilingual (EN+BN): appointment_letter, experience_certificate, salary_certificate, noc_letter
  */
 
 export type DocumentType =
@@ -16,6 +21,8 @@ export type DocumentType =
     | "termination_letter"
     | "salary_certificate"
     | "noc_letter";
+
+export type DocumentLanguage = "en" | "bn" | "bilingual";
 
 interface TemplateData {
     [key: string]: string | number | undefined;
@@ -45,7 +52,7 @@ function safe(data: TemplateData, key: string, fallback?: string): string {
 const COMMON_STYLES = `
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; color: #333; }
+        body { font-family: 'Times New Roman', 'Noto Sans Bengali', serif; font-size: 14px; line-height: 1.6; color: #333; }
         .document { max-width: 800px; margin: 0 auto; padding: 50px 60px; }
         .header { text-align: center; margin-bottom: 30px; border-bottom: 3px double #333; padding-bottom: 20px; }
         .header h1 { font-size: 22px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
@@ -53,6 +60,7 @@ const COMMON_STYLES = `
         .header .address { font-size: 12px; color: #888; margin-top: 5px; }
         .ref-line { display: flex; justify-content: space-between; margin: 20px 0; font-size: 13px; }
         .subject { text-align: center; font-weight: bold; text-decoration: underline; margin: 25px 0; font-size: 16px; }
+        .subject-bn { text-align: center; font-weight: bold; margin: 5px 0 25px; font-size: 15px; color: #444; }
         .body p { text-align: justify; margin-bottom: 12px; }
         .body ul { margin: 12px 0 12px 30px; }
         .body li { margin-bottom: 6px; }
@@ -64,6 +72,13 @@ const COMMON_STYLES = `
         .signature-line { display: inline-block; width: 220px; border-top: 1px solid #333; padding-top: 5px; font-weight: bold; }
         .signature-title { font-size: 12px; color: #555; margin-top: 2px; }
         .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #ddd; padding-top: 15px; }
+        .bn-section { margin-top: 20px; padding-top: 20px; border-top: 1px dashed #ccc; }
+        .bn-section h3 { font-size: 14px; color: #555; margin-bottom: 10px; font-family: 'Noto Sans Bengali', sans-serif; }
+        .bn-section p { font-family: 'Noto Sans Bengali', sans-serif; margin-bottom: 10px; }
+        .bn-section .subject-bn { font-family: 'Noto Sans Bengali', sans-serif; }
+        .bilingual-row { display: flex; gap: 20px; margin-bottom: 8px; }
+        .bilingual-row .en { flex: 1; }
+        .bilingual-row .bn { flex: 1; font-family: 'Noto Sans Bengali', sans-serif; color: #555; }
     </style>
 `;
 
@@ -79,6 +94,80 @@ function signatureBlock(data: TemplateData, intro: string, defaultName = "Author
                 <p class="signature-title">${safe(data, "signatoryDesignation", defaultDesignation)}</p>
                 ${companySeal ? `<img src="${companySeal}" alt="Company seal" style="max-width:120px;max-height:90px;margin-top:10px;" />` : ""}
             </div>`;
+}
+
+// ============================================
+// Bilingual Section Generator
+// ============================================
+
+/**
+ * Generate a Bengali section for bilingual documents.
+ * Appended after the English content with a dashed separator.
+ */
+function bilingualSection(title: string, content: string): string {
+    if (!content) return "";
+    return `
+            <div class="bn-section">
+                <h3>${title}</h3>
+                ${content}
+            </div>`;
+}
+
+/**
+ * Bengali translations for document content.
+ * Uses template data where available, falls back to defaults.
+ */
+function bnAppointmentContent(data: TemplateData): string {
+    return `
+        <div class="subject-bn">নিয়োগপত্র</div>
+        <p>প্রিয় ${safe(data, "employeeNameBn", safe(data, "employeeName"))},</p>
+        <p>আমাদের আলোচনার প্রেক্ষিতে, আপনাকে <strong>${safe(data, "designationBn", safe(data, "designation"))}</strong> হিসেবে <strong>${safe(data, "departmentBn", safe(data, "department"))}</strong> বিভাগে নিযুক্ত করা হলো, যা <strong>${safe(data, "joiningDate")}</strong> তারিখ থেকে কার্যকর হবে।</p>
+        <p><strong>শর্তাবলী:</strong></p>
+        <ul>
+            <li>আপনি ${safe(data, "probationMonths", "৩")} মাসের পরীক্ষামূলক সময়ে থাকবেন।</li>
+            <li>আপনার মাসিক মোট বেতন ৳${safe(data, "grossSalary")}।</li>
+            <li>কাজের সময়: ${safe(data, "workingHoursBn", "সকাল ৯:০০ থেকে বিকাল ৬:০০, রবি থেকে বৃহস্পতি")}।</li>
+            <li>আপনি ${safe(data, "leaveDays", "১৪")} দিনের বার্ষিক ছুটি পাবেন।</li>
+            <li>যেকোনো পক্ষ ${safe(data, "noticePeriod", "৩০")} দিনের নোটিশ দিয়ে চুক্তি বাতিল করতে পারবে।</li>
+        </ul>
+        <p>অনুগ্রহ করে গ্রহণের স্বীকৃতি হিসেবে এই পত্রে স্বাক্ষর করে ফেরত দিন।</p>
+    `;
+}
+
+function bnExperienceContent(data: TemplateData): string {
+    return `
+        <div class="subject-bn">অভিজ্ঞতা/সেবা সনদপত্র</div>
+        <p>যার প্রয়োজন তার প্রতি,</p>
+        <p>এতদ্বারা প্রত্যয়ন করা হলো যে, <strong>${safe(data, "employeeNameBn", safe(data, "employeeName"))}</strong> <strong>${safe(data, "organizationName")}</strong>-এ <strong>${safe(data, "designationBn", safe(data, "designation"))}</strong> হিসেবে <strong>${safe(data, "departmentBn", safe(data, "department"))}</strong> বিভাগে <strong>${safe(data, "joiningDate")}</strong> থেকে <strong>${safe(data, "lastWorkingDate")}</strong> পর্যন্ত কর্মরত ছিলেন।</p>
+        <p>তার কর্মজীবনে তিনি চমৎকার কর্মনীতি, পেশাদারিত্ব এবং নিষ্ঠা প্রদর্শন করেছেন। তিনি তার দায়িত্ব সন্তোষজনকভাবে পালন করেছেন।</p>
+        <p>আমরা ${safe(data, "employeeNameBn", safe(data, "employeeName"))}-কে ভবিষ্যতে সফলতা কামনা করছি।</p>
+    `;
+}
+
+function bnSalaryCertificateContent(data: TemplateData): string {
+    return `
+        <div class="subject-bn">বেতন সনদপত্র</div>
+        <p>যার প্রয়োজন তার প্রতি,</p>
+        <p>এতদ্বারা প্রত্যয়ন করা হলো যে, <strong>${safe(data, "employeeNameBn", safe(data, "employeeName"))}</strong> <strong>${safe(data, "organizationName")}</strong>-এ <strong>${safe(data, "designationBn", safe(data, "designation"))}</strong> হিসেবে <strong>${safe(data, "joiningDate")}</strong> থেকে কর্মরত আছেন।</p>
+        <p>বর্তমান বেতনের বিবরণ নিম্নরূপ:</p>
+        <table class="salary-table">
+            <tr><th>উপাদান</th><th>পরিমাণ (৳)</th></tr>
+            <tr><td>মোট বেতন</td><td>${safe(data, "grossSalary")}</td></tr>
+            <tr><td>মূল বেতন</td><td>${safe(data, "basicSalary")}</td></tr>
+            <tr><td>নিট বেতন (কর্তনের পর)</td><td>${safe(data, "netSalary")}</td></tr>
+        </table>
+        <p>এই সনদপত্র কর্মীর অনুরোধে ${safe(data, "purposeBn", "ব্যক্তিগত ব্যবহারের জন্য")} প্রদান করা হলো।</p>
+    `;
+}
+
+function bnNocContent(data: TemplateData): string {
+    return `
+        <div class="subject-bn">আপত্তি সনদপত্র</div>
+        <p>যার প্রয়োজন তার প্রতি,</p>
+        <p>এতদ্বারা প্রত্যয়ন করা হলো যে, <strong>${safe(data, "organizationName")}</strong>-এর <strong>${safe(data, "employeeNameBn", safe(data, "employeeName"))}</strong>, যিনি বর্তমানে <strong>${safe(data, "designationBn", safe(data, "designation"))}</strong> হিসেবে কর্মরত, তার জন্য কোনো আপত্তি নেই।</p>
+        <p>${safe(data, "employeeNameBn", safe(data, "employeeName"))} <strong>${safe(data, "joiningDate")}</strong> থেকে আমাদের সাথে কর্মরত এবং তিনি সকল দায়িত্ব সন্তোষজনকভাবে পালন করেছেন।</p>
+        <p>এই সনদপত্র ব্যক্তির অনুরোধে প্রদান করা হলো এবং এটি প্রতিষ্ঠানের পক্ষে কোনো দায়বদ্ধতা সৃষ্টি করে না।</p>
+    `;
 }
 
 // ============================================
@@ -331,12 +420,38 @@ ${signatureBlock(data, "Authorized by,", "HR Manager")}
 // Public API
 // ============================================
 
-export function generateDocumentHTML(type: DocumentType, data: TemplateData): string {
+export function generateDocumentHTML(type: DocumentType, data: TemplateData, language: DocumentLanguage = "en"): string {
     const templateFn = templates[type];
     if (!templateFn) {
         throw new Error(`Unknown document type: ${type}`);
     }
-    return templateFn(data);
+
+    let html = templateFn(data);
+
+    // Append Bengali section for bilingual documents
+    if (language === "bilingual" || language === "bn") {
+        const bnContent = getBengaliContent(type, data);
+        if (bnContent) {
+            // Insert before closing </div></body>
+            const bnSectionHtml = bilingualSection("বাংলা সংস্করণ / Bengali Version", bnContent);
+            html = html.replace("</div></body></html>", bnSectionHtml + "\n        </div></body></html>");
+        }
+    }
+
+    // If language is "bn" only, remove the English content (keep only Bengali)
+    // For now, "bn" shows both (bilingual) since most BD offices need English+Bangla
+
+    return html;
+}
+
+function getBengaliContent(type: DocumentType, data: TemplateData): string | null {
+    switch (type) {
+        case "appointment_letter": return bnAppointmentContent(data);
+        case "experience_certificate": return bnExperienceContent(data);
+        case "salary_certificate": return bnSalaryCertificateContent(data);
+        case "noc_letter": return bnNocContent(data);
+        default: return null; // offer_letter, increment_letter, warning_letter, termination_letter: English only
+    }
 }
 
 export function getDocumentTypes(): { value: DocumentType; label: string }[] {

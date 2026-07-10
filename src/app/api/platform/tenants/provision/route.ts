@@ -17,6 +17,7 @@ import { logPlatformAction } from "@/lib/platform-auth";
 import { hashPassword } from "@/lib/auth";
 import crypto from "crypto";
 import { apiLogger } from "@/lib/logger";
+import { sendTemplateEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   // Require platform admin
@@ -133,17 +134,17 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 4. Create Default Leave Types
+      // 4. Create Default Leave Types (BLA 2006 compliant)
       await tx.leaveType.createMany({
         data: [
           {
-            name: "Annual Leave",
-            nameBn: "বার্ষিক ছুটি",
-            code: "AL",
-            color: "#3B82F6",
-            annualAllocation: 10,
+            name: "Earned Leave",
+            nameBn: "উপার্জিত ছুটি",
+            code: "EL",
+            color: "#10B981",
+            annualAllocation: 14, // BLA 2006: 1 day per 18 days worked ≈ 14-17/year
             maxAccumulation: 30,
-            carryForwardLimit: 5,
+            carryForwardLimit: 14,
             encashmentAllowed: true,
             organizationId: org.id,
           },
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
             nameBn: "অসুস্থতাজনিত ছুটি",
             code: "SL",
             color: "#EF4444",
-            annualAllocation: 14,
+            annualAllocation: 14, // BLA 2006 Section 100: 14 days/year
             requiresDocument: true,
             organizationId: org.id,
           },
@@ -161,7 +162,33 @@ export async function POST(request: NextRequest) {
             nameBn: "নৈমিত্তিক ছুটি",
             code: "CL",
             color: "#F59E0B",
-            annualAllocation: 10,
+            annualAllocation: 10, // BLA 2006 Section 100: 10 days/year
+            organizationId: org.id,
+          },
+          {
+            name: "Maternity Leave",
+            nameBn: "প্রসূতি ছুটি",
+            code: "ML",
+            color: "#EC4899",
+            annualAllocation: 112, // BLA 2006 Section 46: 16 weeks (112 days)
+            applicableGender: "female",
+            organizationId: org.id,
+          },
+          {
+            name: "Paternity Leave",
+            nameBn: "পিতৃত্বকালীন ছুটি",
+            code: "PL",
+            color: "#8B5CF6",
+            annualAllocation: 7, // Industry standard (no BLA mandate, but common)
+            applicableGender: "male",
+            organizationId: org.id,
+          },
+          {
+            name: "Festival Leave",
+            nameBn: "উৎসবের ছুটি",
+            code: "FL",
+            color: "#F97316",
+            annualAllocation: 11, // BLA 2006: 11 festival holidays/year
             organizationId: org.id,
           },
         ],
@@ -227,12 +254,27 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent") || undefined,
     });
 
-    // TODO: Send welcome email with temp password
-    // await sendTemplateEmail(adminEmail, "welcomeEmployee", {
-    //   employeeName: adminName,
-    //   loginUrl: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
-    //   tempPassword,
-    // });
+    // Send welcome email with temp password (best-effort — don't fail
+    // provisioning if email delivery is down; the platform admin can
+    // still share the temp password from the API response).
+    try {
+      await sendTemplateEmail(normalizedAdminEmail, "welcomeEmployee", {
+        employeeName: adminName,
+        loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://peopleflowbd.online"}/login`,
+        tempPassword,
+      });
+      apiLogger.info(
+        { tenantEmail: normalizedAdminEmail, orgSlug: result.org.slug },
+        "Tenant welcome email sent",
+      );
+    } catch (emailErr) {
+      // Email delivery failure is non-fatal — the temp password is in the
+      // API response. Log it so the platform admin knows to relay manually.
+      apiLogger.warn(
+        { err: emailErr, tenantEmail: normalizedAdminEmail },
+        "Failed to send tenant welcome email — platform admin must relay temp password manually",
+      );
+    }
 
     return NextResponse.json(
       {

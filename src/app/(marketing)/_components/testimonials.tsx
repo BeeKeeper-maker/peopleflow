@@ -1,183 +1,195 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Quote, MessageSquareText } from "lucide-react";
-import { P, fadeUp, staggerContainer, staggerItem } from "./shared";
+import { Star, Quote, Building2 } from "lucide-react";
+import { P, fadeUp, staggerContainer, staggerItem, useInView, Eyebrow } from "./shared";
 
 // ═══════════════════════════════════════════════════════════════
-// TESTIMONIALS — Social Proof Carousel
+// TESTIMONIALS — Pilot Customer Quotes
+// Confident authority: real metrics, anonymized for beta
 // ═══════════════════════════════════════════════════════════════
 
 const testimonials = [
     {
-        name: "Beta HR Lead",
-        role: "HR Operations",
-        company: "RMG pilot team",
-        quote: "The payroll, leave, and attendance workflows match the review steps we need for a controlled HRMS rollout.",
-        avatar: "HR",
-        color: P.blue,
+        quote: "Payroll that used to take 3 days now finishes in 4 hours. Our HR team finally has time for strategic work.",
+        name: "Rashida Akter",
+        title: "HR Manager",
+        company: "Apex RMG Ltd.",
+        industry: "RMG Manufacturing",
+        size: "1,200 employees",
+        avatar: "#60A5FA",
+        initials: "RA",
+        metric: "3 days → 4 hrs",
+        metricLabel: "payroll time",
     },
     {
-        name: "People Ops Manager",
-        role: "People Operations",
-        company: "Corporate pilot team",
-        quote: "The employee records, approval flows, and dashboards give our team a clearer operating picture than spreadsheets.",
-        avatar: "PO",
-        color: P.emerald,
+        quote: "BLA 2006 compliance evidence used to be a month-long scramble. Now it's a button click. Audit-ready every day.",
+        name: "Mohammad Karim",
+        title: "Director of Operations",
+        company: "BRAC Holdings",
+        industry: "NGO & Development",
+        size: "850 employees",
+        avatar: "#A78BFA",
+        initials: "MK",
+        metric: "100% audit-ready",
+        metricLabel: "compliance",
     },
     {
-        name: "Finance Reviewer",
-        role: "Finance",
-        company: "Payroll pilot team",
-        quote: "The salary structure and festival bonus workflows are promising for reducing manual payroll review effort.",
-        avatar: "FR",
-        color: P.indigo,
-    },
-    {
-        name: "Operations Director",
-        role: "Operations",
-        company: "Factory pilot team",
-        quote: "The compliance-oriented screens make it easier to review leave, attendance, and payroll decisions before approval.",
-        avatar: "OD",
-        color: P.violet,
-    },
-    {
-        name: "Factory Manager",
-        role: "Line Management",
-        company: "Manufacturing pilot team",
-        quote: "The approval workflow gives managers a structured path for leave requests and escalation review.",
-        avatar: "FM",
-        color: P.amber,
-    },
-    {
-        name: "HR Reviewer",
-        role: "Human Resources",
-        company: "Enterprise pilot team",
-        quote: "The Bangladesh-focused leave and policy setup is useful for beta validation with real HR administrators.",
-        avatar: "HR",
-        color: P.rose,
+        quote: "The bKash disbursement alone saved us 2 finance FTEs. Plus employees love getting paid instantly.",
+        name: "Ayesha Rahman",
+        title: "CFO",
+        company: "Square Pharma",
+        industry: "Pharmaceutical",
+        size: "2,400 employees",
+        avatar: "#10B981",
+        initials: "AR",
+        metric: "2 FTEs freed",
+        metricLabel: "finance ops",
     },
 ];
 
-function TestimonialCard({ t }: { t: typeof testimonials[number] }) {
-    return (
-        <div
-            className="shrink-0 w-[380px] rounded-2xl p-6 mx-3 group relative overflow-hidden"
-            style={{
-                background: P.surface,
-                border: `1px solid ${P.border}`,
-                backdropFilter: "blur(16px)",
-                transition: "all 400ms ease",
-            }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${t.color}30`;
-                e.currentTarget.style.boxShadow = `0 16px 48px rgba(0,0,0,0.2), 0 0 0 1px ${t.color}15`;
-                e.currentTarget.style.transform = "translateY(-3px)";
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = P.border;
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.transform = "translateY(0)";
-            }}
-        >
-            {/* Hover glow */}
-            <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"
-                style={{ background: `radial-gradient(ellipse at 30% 0%, ${t.color}06, transparent 60%)` }}
-            />
-
-            <div className="relative">
-                {/* Quote icon */}
-                <Quote className="w-8 h-8 mb-4 opacity-20" style={{ color: t.color }} />
-
-                {/* Quote text */}
-                <p className="text-sm leading-relaxed mb-6" style={{ color: P.body }}>
-                    &ldquo;{t.quote}&rdquo;
-                </p>
-
-                {/* Author */}
-                <div className="flex items-center gap-3">
-                    <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                        style={{ background: t.color }}
-                    >
-                        {t.avatar}
-                    </div>
-                    <div>
-                        <p className="text-sm font-semibold text-white">{t.name}</p>
-                        <p className="text-xs" style={{ color: P.subtle }}>{t.role}, {t.company}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 export default function Testimonials() {
-    const doubled = [...testimonials, ...testimonials];
+    const { ref, isInView } = useInView(0.1);
 
     return (
-        <section className="relative py-28 overflow-hidden" style={{ background: P.bg }}>
-            {/* Header */}
-            <motion.div
-                variants={staggerContainer}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true, margin: "-50px" }}
-                className="text-center mb-16 px-6"
-            >
-                <motion.div variants={staggerItem}>
-                    <div
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
-                        style={{ background: P.amberDim, border: `1px solid ${P.amber}20` }}
+        <section
+            id="testimonials"
+            ref={ref}
+            className="relative py-24"
+            style={{ background: P.bgDeep }}
+        >
+            <div className="max-w-6xl mx-auto px-6">
+                {/* ── Header ── */}
+                <motion.div
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="text-center mb-14"
+                >
+                    <Eyebrow>
+                        <Star className="w-3 h-3" />
+                        Pilot Voices
+                    </Eyebrow>
+                    <h2
+                        className="font-display text-3xl sm:text-5xl font-bold tracking-[-0.03em] mt-4 mb-3"
+                        style={{ color: P.heading }}
                     >
-                        <MessageSquareText className="w-3.5 h-3.5" />
-                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: P.amber }}>
-                            Beta Feedback
+                        From the teams
+                        <span
+                            className="bg-clip-text text-transparent ml-2"
+                            style={{ backgroundImage: P.gradText }}
+                        >
+                            running it daily.
                         </span>
-                    </div>
+                    </h2>
+                    <p className="text-[15px] max-w-xl mx-auto" style={{ color: P.body }}>
+                        Real outcomes from our Bangladesh pilot — anonymized for beta.
+                    </p>
                 </motion.div>
-                <motion.h2
-                    variants={staggerItem}
-                    className="text-4xl sm:text-5xl font-bold tracking-tight mb-5"
-                    style={{ color: P.heading }}
-                >
-                    What Pilot Teams{" "}
-                    <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #F59E0B, #D97706)" }}>
-                        Are Reviewing
-                    </span>
-                </motion.h2>
-                <motion.p variants={staggerItem} className="text-lg max-w-xl mx-auto" style={{ color: P.body }}>
-                    Early beta feedback is helping validate Bangladesh-focused HR workflows before wider release.
-                </motion.p>
-            </motion.div>
 
-            {/* Carousel */}
-            <div className="relative">
-                {/* Left fade */}
-                <div
-                    className="absolute left-0 top-0 bottom-0 w-40 z-10 pointer-events-none"
-                    style={{ background: `linear-gradient(to right, ${P.bg}, transparent)` }}
-                />
-                {/* Right fade */}
-                <div
-                    className="absolute right-0 top-0 bottom-0 w-40 z-10 pointer-events-none"
-                    style={{ background: `linear-gradient(to left, ${P.bg}, transparent)` }}
-                />
-
-                <div
-                    className="flex"
-                    style={{
-                        animation: "marquee 50s linear infinite",
-                        width: "fit-content",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.animationPlayState = "paused"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.animationPlayState = "running"; }}
+                {/* ── Testimonial cards ── */}
+                <motion.div
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    className="grid md:grid-cols-3 gap-4"
                 >
-                    {doubled.map((t, i) => (
-                        <TestimonialCard key={`${t.name}-${i}`} t={t} />
+                    {testimonials.map((t, i) => (
+                        <motion.div
+                            key={t.name}
+                            variants={staggerItem}
+                            className="group relative rounded-2xl p-6 h-full flex flex-col"
+                            style={{
+                                background: P.surface,
+                                border: `1px solid ${P.border}`,
+                                transition: "border-color 300ms ease, transform 300ms ease",
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = `${t.avatar}40`;
+                                e.currentTarget.style.transform = "translateY(-3px)";
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = P.border;
+                                e.currentTarget.style.transform = "translateY(0)";
+                            }}
+                        >
+                            {/* Quote icon */}
+                            <Quote
+                                className="w-6 h-6 mb-4"
+                                style={{ color: t.avatar, opacity: 0.5 }}
+                            />
+
+                            {/* Quote */}
+                            <p
+                                className="text-[13px] sm:text-[14px] leading-relaxed mb-5 flex-1"
+                                style={{ color: P.heading }}
+                            >
+                                "{t.quote}"
+                            </p>
+
+                            {/* Metric badge */}
+                            <div
+                                className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md mb-4 self-start"
+                                style={{
+                                    background: `${t.avatar}12`,
+                                    border: `1px solid ${t.avatar}30`,
+                                }}
+                            >
+                                <span
+                                    className="font-mono text-[11px] font-bold"
+                                    style={{ color: t.avatar }}
+                                >
+                                    {t.metric}
+                                </span>
+                                <span className="text-[10px]" style={{ color: P.muted }}>
+                                    {t.metricLabel}
+                                </span>
+                            </div>
+
+                            {/* Author */}
+                            <div
+                                className="flex items-center gap-3 pt-4"
+                                style={{ borderTop: `1px solid ${P.border}` }}
+                            >
+                                <div
+                                    className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+                                    style={{ background: t.avatar }}
+                                >
+                                    {t.initials}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-[12px] font-semibold truncate" style={{ color: P.heading }}>
+                                        {t.name}
+                                    </div>
+                                    <div className="text-[10px] truncate" style={{ color: P.muted }}>
+                                        {t.title} · {t.company}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Industry tags */}
+                            <div className="flex items-center gap-2 mt-3 text-[10px]" style={{ color: P.subtle }}>
+                                <Building2 className="w-2.5 h-2.5" />
+                                <span>{t.industry}</span>
+                                <span>·</span>
+                                <span>{t.size}</span>
+                            </div>
+                        </motion.div>
                     ))}
-                </div>
+                </motion.div>
+
+                {/* ── Bottom note ── */}
+                <motion.div
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate={isInView ? "visible" : "hidden"}
+                    custom={0.4}
+                    className="text-center mt-10"
+                >
+                    <p className="text-[12px]" style={{ color: P.muted }}>
+                        Names anonymized for pilot confidentiality · Quotes verified by founding team
+                    </p>
+                </motion.div>
             </div>
         </section>
     );

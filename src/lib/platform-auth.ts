@@ -7,12 +7,15 @@
  *   - JWT namespace (isPlatform: true)
  *   - Cookie name (pf-platform.session-token)
  *   - Login page (/platform/login)
+ *
+ * Phase 0.3: Added 2FA (TOTP) support for platform admins.
  */
 
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { compare } from "bcryptjs";
+import { verify as verifyTOTP } from "otplib";
 import { NextResponse } from "next/server";
 import { platformLogger } from "@/lib/logger";
 
@@ -50,6 +53,7 @@ const {
             credentials: {
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
+                totpCode: { label: "2FA Code", type: "text" },
             },
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) {
@@ -73,6 +77,28 @@ const {
                     throw new Error("Invalid credentials");
                 }
 
+                // ── 2FA Verification (Phase 0.3) ──
+                if (admin.twoFactorEnabled && admin.twoFactorSecret) {
+                    const totpCode = credentials.totpCode as string;
+                    if (!totpCode) {
+                        throw new Error("2FA code required");
+                    }
+                    try {
+                        const valid = verifyTOTP({
+                            token: totpCode,
+                            secret: admin.twoFactorSecret,
+                        });
+                        if (!valid) {
+                            throw new Error("Invalid 2FA code");
+                        }
+                    } catch (err) {
+                        if (err instanceof Error && err.message.includes("2FA")) {
+                            throw err;
+                        }
+                        throw new Error("Invalid 2FA code");
+                    }
+                }
+
                 await prisma.platformAdmin.update({
                     where: { id: admin.id },
                     data: { lastLogin: new Date() },
@@ -84,6 +110,7 @@ const {
                     name: admin.name,
                     role: admin.role,
                     isPlatform: true,
+                    twoFactorEnabled: admin.twoFactorEnabled,
                 } as any;
             },
         }),
@@ -94,6 +121,7 @@ const {
                 token.id = user.id;
                 token.role = (user as any).role;
                 token.isPlatform = true;
+                token.twoFactorEnabled = (user as any).twoFactorEnabled;
             }
             return token;
         },
@@ -105,6 +133,7 @@ const {
                     id: token.id as string,
                     role: token.role as string,
                     isPlatform: true,
+                    twoFactorEnabled: token.twoFactorEnabled as boolean,
                 },
             };
         },

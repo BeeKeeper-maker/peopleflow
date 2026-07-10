@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,16 +22,9 @@ import {
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useNotifications, type NotificationRecord } from "@/hooks/use-data"
 
-interface Notification {
-    id: string
-    title: string
-    message: string
-    type: string
-    link?: string
-    isRead: boolean
-    createdAt: string
-}
+type Notification = NotificationRecord;
 
 const typeIcons: Record<string, React.ReactNode> = {
     leave_approval: <Calendar className="h-4 w-4" />,
@@ -57,30 +51,15 @@ const typeColors: Record<string, string> = {
 export default function NotificationsPage() {
     const t = useTranslations('Notifications')
     const { addToast } = useToast()
-    const [notifications, setNotifications] = useState<Notification[]>([])
-    const [loading, setLoading] = useState(true)
+    const queryClient = useQueryClient()
     const [filter, setFilter] = useState<"all" | "unread">("all")
 
-    const fetchNotifications = useCallback(async () => {
-        try {
-            const url = filter === "unread"
-                ? "/api/notifications?unread=true&limit=100"
-                : "/api/notifications?limit=100"
-            const res = await fetch(url)
-            if (res.ok) {
-                const data = await res.json()
-                setNotifications(data.notifications || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch notifications", error)
-        } finally {
-            setLoading(false)
-        }
-    }, [filter])
+    // ── TanStack Query: notifications (filter-aware) ──
+    const { data: notifications = [], isLoading: loading } = useNotifications(100, filter === "unread")
 
-    useEffect(() => {
-        fetchNotifications()
-    }, [fetchNotifications])
+    const invalidateNotifications = () => {
+        queryClient.invalidateQueries({ queryKey: ["notifications"] })
+    }
 
     const markAsRead = async (notificationId?: string) => {
         try {
@@ -93,7 +72,7 @@ export default function NotificationsPage() {
                         : { markAll: true }
                 ),
             })
-            fetchNotifications()
+            invalidateNotifications()
             addToast({
                 title: t('toastSuccess'),
                 description: notificationId ? t('toastMarkedRead') : t('toastAllMarkedRead'),
@@ -130,7 +109,7 @@ export default function NotificationsPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-3xl font-display font-bold text-foreground">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">
                         {t('subtitle')}
                     </p>

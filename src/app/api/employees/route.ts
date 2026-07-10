@@ -10,6 +10,8 @@ import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { sendTemplateEmail } from "@/lib/email";
 import { apiLogger } from "@/lib/logger";
 import { randomBytes } from "crypto";
+import { encryptPII, decryptEmployeePhoneNumbers } from "@/lib/pii";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/employees — Create Employee
@@ -36,6 +38,10 @@ export async function POST(req: Request) {
   const auth = await requireAdminOrHR();
   if (!isAuthenticated(auth)) return auth;
 
+  // Per-user rate limit (write op: employee create + cascading allocations)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+  if (!rl.allowed) return rl.response!;
+
   try {
     const json = await req.json();
     const body = employeeSchema.parse(json);
@@ -59,6 +65,14 @@ export async function POST(req: Request) {
     const normalizedEmail = body.email?.toLowerCase();
     const prismaData = toPrismaEmployeeData(body);
     const emergencyContact = buildEmergencyContactJson(body);
+
+    // ── PII Encryption (P8-PII-ENCRYPTION) ───────────────────────────
+    // Encrypt sensitive mobile-banking numbers at rest before writing
+    // to the database. `encryptPII` is idempotent (no-op if already
+    // encrypted) and falls back to plaintext if ENCRYPTION_KEY is unset
+    // in development so the write doesn't 500.
+    const encryptedBkash = encryptPII(prismaData.bkashNumber);
+    const encryptedNagad = encryptPII(prismaData.nagadNumber);
 
     const transaction = await auth.withDB(async (tx) => {
       // ── Uniqueness Checks ────────────────────────────────────────────
@@ -224,6 +238,10 @@ export async function POST(req: Request) {
           organizationId: auth.organizationId,
           userId: user?.id,
           branchId: defaultBranch?.id,
+          // Override with explicitly-encrypted PII (idempotent — safe
+          // even if prismaData already carried an encrypted value).
+          bkashNumber: encryptedBkash,
+          nagadNumber: encryptedNagad,
         },
       });
 
@@ -231,6 +249,7 @@ export async function POST(req: Request) {
         await tx.salaryStructureAssignment.create({
           data: {
             employeeId: employee.id,
+            organizationId: auth.organizationId,
             salaryStructureId: salaryStructure.id,
             grossSalary: body.grossSalary,
             effectiveFrom: new Date(),
@@ -280,6 +299,7 @@ export async function POST(req: Request) {
         await tx.leaveAllocation.create({
           data: {
             employeeId: employee.id,
+            organizationId: auth.organizationId,
             leaveTypeId: leaveType.id,
             year: allocationYear,
             allocatedDays,
@@ -326,7 +346,7 @@ export async function POST(req: Request) {
     await onResourceCreated(auth.organizationId, "employee");
 
     return NextResponse.json({
-      ...result.employee,
+      ...decryptEmployeePhoneNumbers(result.employee),
       onboardingInvitationSent: !!result.invitationToken,
       leaveAllocationsCreated: result.leaveAllocationsCreated,
     });
@@ -337,9 +357,10 @@ export async function POST(req: Request) {
         { status: 422 },
       );
     }
-    apiLogger.error({ err: error }, "CREATE_EMPLOYEE_ERROR");
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "CREATE_EMPLOYEE_ERROR");
     return NextResponse.json(
-      { error: (error as Error).message || "Internal Error" },
+      { error: "Internal server error", errorId },
       { status: 500 },
     );
   }
@@ -352,6 +373,10 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   const auth = await requireAdminOrHR();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (data exfiltration risk on bulk employee reads)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -401,17 +426,24 @@ export async function GET(req: Request) {
       ]),
     );
 
-    return NextResponse.json({
-      data: employees,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return applyRateLimitHeaders(
+      NextResponse.json({
+        data: employees.map(decryptEmployeePhoneNumbers),
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+      }),
+      rl.headers,
+    );
   } catch (error) {
-    apiLogger.error({ err: error }, "GET_EMPLOYEES_ERROR");
-    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "GET_EMPLOYEES_ERROR");
+    return NextResponse.json(
+      { error: "Internal server error", errorId },
+      { status: 500 },
+    );
   }
 }

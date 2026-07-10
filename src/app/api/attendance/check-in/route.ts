@@ -47,12 +47,14 @@ export async function POST(req: Request) {
             return new NextResponse("Employee profile not found", { status: 400 });
         }
 
-        const { location, source } = await req.json(); // { lat, lng }
+        const body = await req.json();
+        const { location, source, photoUrl, deviceFingerprint } = body;
 
         const now = new Date();
         const today = startOfBusinessDay(now);
 
-        // Check if already checked in
+        // ── Buddy Punching Prevention ────────────────────────────
+        // 1. Check if already checked in
         const existing = await prisma.attendance.findUnique({
             where: {
                 employeeId_date: {
@@ -64,6 +66,65 @@ export async function POST(req: Request) {
 
         if (existing) {
             return new NextResponse("Already checked in today", { status: 400 });
+        }
+
+        // 2. IP-based duplicate check — prevent same IP checking in for different employees
+        // within a short time window (buddy punching pattern)
+        //
+        // IMPORTANT: Filter by organizationId so cross-tenant check-ins (e.g. two
+        // different SaaS customers sharing a public IP, or a shared office building)
+        // do NOT trigger false buddy-punch warnings against each other. The IP /
+        // device signature is only meaningful within a single tenant's workforce.
+        const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        let buddyPunchWarning: string | null = null;
+        if (clientIp !== "unknown" && source !== "biometric") {
+            const recentCheckInsFromSameIp = await prisma.attendance.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    checkIn: { gte: new Date(now.getTime() - 2 * 60 * 1000) }, // Last 2 minutes
+                    notes: { contains: `ip:${clientIp}` },
+                    employeeId: { not: employee.id }, // Different employee
+                },
+                select: { employeeId: true, checkIn: true },
+            });
+
+            if (recentCheckInsFromSameIp) {
+                attendanceLogger.warn({
+                    employeeId: employee.id,
+                    otherEmployeeId: recentCheckInsFromSameIp.employeeId,
+                    ip: clientIp,
+                }, "BUDDY_PUNCHING_SUSPECTED");
+
+                // Don't block (could be same office WiFi) but flag it
+                const buddyWarning = `⚠️ SUSPECTED BUDDY PUNCHING: Another employee checked in from same IP (${clientIp}) 2 min ago`;
+                // Will be appended to notes below
+                buddyPunchWarning = buddyWarning;
+            }
+        }
+
+        // 3. Device fingerprint check (if provided by client)
+        // Also scoped to the caller's organization — a device fingerprint is
+        // only a useful buddy-punch signal within the same tenant.
+        if (deviceFingerprint) {
+            const sameDeviceRecent = await prisma.attendance.findFirst({
+                where: {
+                    organizationId: auth.organizationId,
+                    checkIn: { gte: new Date(now.getTime() - 5 * 60 * 1000) }, // Last 5 minutes
+                    notes: { contains: `device:${deviceFingerprint}` },
+                    employeeId: { not: employee.id },
+                },
+                select: { employeeId: true },
+            });
+
+            if (sameDeviceRecent) {
+                attendanceLogger.warn({
+                    employeeId: employee.id,
+                    otherEmployeeId: sameDeviceRecent.employeeId,
+                    deviceFingerprint,
+                }, "BUDDY_PUNCHING_DEVICE_MATCH");
+
+                buddyPunchWarning = `⚠️ BUDDY PUNCHING: Same device used by another employee 5 min ago`;
+            }
         }
 
         // ── GPS Geo-Fence Validation ──────────────────────────────
@@ -113,31 +174,54 @@ export async function POST(req: Request) {
         }
 
         // ── Calculate Late Status ─────────────────────────────────
+        // IMPORTANT: Attendance.status enum is { present, absent, half_day,
+        // on_leave, holiday, weekend }. "late" is NOT a valid status.
+        // Late employees are stored as status="present" with lateMinutes > 0.
+        // Reports that need to identify late employees must filter on
+        // lateMinutes > 0, not status = "late".
         let lateMinutes = 0;
-        let status = "present";
+        const status = "present";
 
         if (employee.shift) {
             const shiftStart = buildBusinessDateTime(today, employee.shift.startTime);
 
-            // Add grace period
+            // Late = arrived after shiftStart + graceMinutes
             const lateThreshold = new Date(shiftStart.getTime() + (employee.shift.graceMinutes || 15) * 60000);
 
             if (now > lateThreshold) {
                 lateMinutes = differenceInMinutes(now, shiftStart);
-                status = "late";
             }
         }
 
-        // ── Build notes with geo-fence info ──────────────────────
-        const notes = geoFenceStatus === "outside"
-            ? `⚠️ Checked in from outside geo-fence (${geoFenceDistance}m away)`
-            : geoFenceStatus === "inside"
-            ? `✅ Checked in within geo-fence (${geoFenceDistance}m)`
-            : undefined;
+        // ── Build notes with geo-fence + anti-buddy-punch info ──
+        const notesParts: string[] = [];
+
+        if (geoFenceStatus === "outside") {
+            notesParts.push(`⚠️ Geo-fence: outside (${geoFenceDistance}m away)`);
+        } else if (geoFenceStatus === "inside") {
+            notesParts.push(`✅ Geo-fence: inside (${geoFenceDistance}m)`);
+        }
+
+        // IP and device fingerprint stored in notes for audit trail
+        if (clientIp !== "unknown") {
+            notesParts.push(`ip:${clientIp}`);
+        }
+        if (deviceFingerprint) {
+            notesParts.push(`device:${deviceFingerprint}`);
+        }
+        if (buddyPunchWarning) {
+            notesParts.push(buddyPunchWarning);
+        }
+        if (photoUrl) {
+            notesParts.push(`photo:${photoUrl}`);
+        }
+
+        const notes = notesParts.length > 0 ? notesParts.join(" | ") : undefined;
 
         const attendance = await prisma.attendance.create({
             data: {
                 employeeId: employee.id,
+                organizationId: auth.organizationId,
                 date: today,
                 checkIn: now,
                 checkInLocation: location ? JSON.stringify(location) : null,
@@ -157,8 +241,12 @@ export async function POST(req: Request) {
         });
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "CHECK_IN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "CHECK_IN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -273,7 +361,11 @@ export async function PUT(req: Request) {
         return NextResponse.json(updated);
 
     } catch (error) {
-        attendanceLogger.error({ err: error }, "CHECK_OUT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        attendanceLogger.error({ err: error, errorId }, "CHECK_OUT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

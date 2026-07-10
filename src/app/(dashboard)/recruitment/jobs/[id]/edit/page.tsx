@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
+import { useTranslations } from "next-intl"
 
 interface Department { id: string; name: string }
 interface Designation { id: string; name: string }
@@ -23,6 +24,8 @@ export default function EditJobPage() {
     const params = useParams<{ id: string }>()
     const router = useRouter()
     const { addToast } = useToast()
+    const tShared = useTranslations("SharedComponents")
+    const t = useTranslations("FormRecruitmentJobs")
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [departments, setDepartments] = useState<Department[]>([])
@@ -79,13 +82,13 @@ export default function EditJobPage() {
                     designationId: emptyToString(job.designationId),
                 })
             } catch {
-                addToast({ title: "Could not load job", type: "error" })
+                addToast({ title: tShared("failedLoadData"), type: "error" })
             } finally {
                 setLoading(false)
             }
         }
         load()
-    }, [params.id, addToast])
+    }, [params.id, addToast, tShared])
 
     const handleChange = (field: string, value: string | boolean) => {
         setFormData(prev => ({ ...prev, [field]: value }))
@@ -93,7 +96,7 @@ export default function EditJobPage() {
 
     const handleSubmit = async (status?: "draft" | "open" | "paused" | "closed") => {
         if (!formData.title || !formData.description || !formData.employmentType) {
-            addToast({ title: "Title, description and employment type are required", type: "error" })
+            addToast({ title: tShared("requiredFieldsError"), type: "error" })
             return
         }
         setSaving(true)
@@ -113,10 +116,10 @@ export default function EditJobPage() {
                 }),
             })
             if (!res.ok) throw new Error("Save failed")
-            addToast({ title: "Job updated", type: "success" })
+            addToast({ title: tShared("updateSuccess"), type: "success" })
             router.push(`/recruitment/jobs/${params.id}`)
         } catch {
-            addToast({ title: "Failed to update job", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSaving(false)
         }
@@ -129,52 +132,52 @@ export default function EditJobPage() {
             <div className="flex items-center gap-4">
                 <Link href={`/recruitment/jobs/${params.id}`}><Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button></Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Edit job posting</h1>
-                    <p className="text-muted-foreground mt-1">Keep recruitment data aligned with the published job.</p>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("editTitle")}</h1>
+                    <p className="text-muted-foreground mt-1">{t("editSubtitle")}</p>
                 </div>
             </div>
 
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5 text-blue-400" />Job details</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5 text-blue-400" />{t("jobDetails")}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
-                        <div className="md:col-span-2"><Label>Job title</Label><Input value={formData.title} onChange={(e) => handleChange("title", e.target.value)} className="mt-1.5" /></div>
-                        <div><Label>Department</Label><Select value={formData.departmentId} onValueChange={(v) => handleChange("departmentId", v)}><SelectTrigger className="mt-1.5"><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div><Label>Designation</Label><Select value={formData.designationId} onValueChange={(v) => handleChange("designationId", v)}><SelectTrigger className="mt-1.5"><SelectValue placeholder="Select designation" /></SelectTrigger><SelectContent>{designations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
-                        <div><Label>Employment type</Label><Select value={formData.employmentType} onValueChange={(v) => handleChange("employmentType", v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="full_time">Full Time</SelectItem><SelectItem value="part_time">Part Time</SelectItem><SelectItem value="contract">Contract</SelectItem><SelectItem value="internship">Internship</SelectItem></SelectContent></Select></div>
-                        <div><Label>Experience</Label><Input value={formData.experience} onChange={(e) => handleChange("experience", e.target.value)} className="mt-1.5" placeholder="e.g. 3-5 years" /></div>
+                        <div className="md:col-span-2"><Label>{t("jobTitle")}</Label><Input value={formData.title} onChange={(e) => handleChange("title", e.target.value)} className="mt-1.5" /></div>
+                        <div><Label>{t("department")}</Label><Select value={formData.departmentId} onValueChange={(v) => handleChange("departmentId", v)}><SelectTrigger className="mt-1.5"><SelectValue placeholder={t("selectDepartment")} /></SelectTrigger><SelectContent>{departments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div><Label>{t("designation")}</Label><Select value={formData.designationId} onValueChange={(v) => handleChange("designationId", v)}><SelectTrigger className="mt-1.5"><SelectValue placeholder={t("selectDesignation")} /></SelectTrigger><SelectContent>{designations.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div><Label>{t("employmentType")}</Label><Select value={formData.employmentType} onValueChange={(v) => handleChange("employmentType", v)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="full_time">{t("fullTime")}</SelectItem><SelectItem value="part_time">{t("partTime")}</SelectItem><SelectItem value="contract">{t("contract")}</SelectItem><SelectItem value="internship">{t("internship")}</SelectItem></SelectContent></Select></div>
+                        <div><Label>{t("experience")}</Label><Input value={formData.experience} onChange={(e) => handleChange("experience", e.target.value)} className="mt-1.5" placeholder={t("experiencePlaceholder")} /></div>
                     </div>
-                    <div><Label>Description</Label><Textarea value={formData.description} onChange={(e) => handleChange("description", e.target.value)} rows={4} className="mt-1.5" /></div>
-                    <div><Label>Responsibilities</Label><Textarea value={formData.responsibilities} onChange={(e) => handleChange("responsibilities", e.target.value)} rows={3} className="mt-1.5" /></div>
-                    <div><Label>Requirements</Label><Textarea value={formData.requirements} onChange={(e) => handleChange("requirements", e.target.value)} rows={3} className="mt-1.5" /></div>
-                    <div><Label>Skills</Label><Input value={formData.skills} onChange={(e) => handleChange("skills", e.target.value)} className="mt-1.5" /></div>
+                    <div><Label>{t("jobDescription")}</Label><Textarea value={formData.description} onChange={(e) => handleChange("description", e.target.value)} rows={4} className="mt-1.5" placeholder={t("jobDescriptionPlaceholder")} /></div>
+                    <div><Label>{t("responsibilities")}</Label><Textarea value={formData.responsibilities} onChange={(e) => handleChange("responsibilities", e.target.value)} rows={3} className="mt-1.5" placeholder={t("responsibilitiesPlaceholder")} /></div>
+                    <div><Label>{t("requirements")}</Label><Textarea value={formData.requirements} onChange={(e) => handleChange("requirements", e.target.value)} rows={3} className="mt-1.5" placeholder={t("requirementsPlaceholder")} /></div>
+                    <div><Label>{t("skills")}</Label><Input value={formData.skills} onChange={(e) => handleChange("skills", e.target.value)} className="mt-1.5" placeholder={t("skillsPlaceholder")} /></div>
                 </CardContent>
             </Card>
 
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-emerald-400" />Location & compensation</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-emerald-400" />{t("locationCompensation")}</CardTitle></CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2">
-                    <div><Label>Location</Label><Input value={formData.location} onChange={(e) => handleChange("location", e.target.value)} className="mt-1.5" /></div>
-                    <div className="flex items-center gap-3 pt-7"><Switch checked={formData.isRemote} onCheckedChange={(v) => handleChange("isRemote", v)} /><Label>Remote position</Label></div>
-                    <div><Label>Minimum salary</Label><Input type="number" value={formData.salaryMin} onChange={(e) => handleChange("salaryMin", e.target.value)} className="mt-1.5" /></div>
-                    <div><Label>Maximum salary</Label><Input type="number" value={formData.salaryMax} onChange={(e) => handleChange("salaryMax", e.target.value)} className="mt-1.5" /></div>
-                    <div className="flex items-center gap-3"><Switch checked={formData.showSalary} onCheckedChange={(v) => handleChange("showSalary", v)} /><Label>Show salary publicly</Label></div>
+                    <div><Label>{t("location")}</Label><Input value={formData.location} onChange={(e) => handleChange("location", e.target.value)} className="mt-1.5" placeholder={t("locationPlaceholder")} /></div>
+                    <div className="flex items-center gap-3 pt-7"><Switch checked={formData.isRemote} onCheckedChange={(v) => handleChange("isRemote", v)} /><Label>{t("remotePosition")}</Label></div>
+                    <div><Label>{t("minSalary")}</Label><Input type="number" value={formData.salaryMin} onChange={(e) => handleChange("salaryMin", e.target.value)} className="mt-1.5" placeholder={t("minSalaryPlaceholder")} /></div>
+                    <div><Label>{t("maxSalary")}</Label><Input type="number" value={formData.salaryMax} onChange={(e) => handleChange("salaryMax", e.target.value)} className="mt-1.5" placeholder={t("maxSalaryPlaceholder")} /></div>
+                    <div className="flex items-center gap-3"><Switch checked={formData.showSalary} onCheckedChange={(v) => handleChange("showSalary", v)} /><Label>{t("showSalary")}</Label></div>
                 </CardContent>
             </Card>
 
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-purple-400" />Publishing settings</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5 text-purple-400" />{t("publishingSettings")}</CardTitle></CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
-                    <div><Label>Openings</Label><Input type="number" min="1" value={formData.openings} onChange={(e) => handleChange("openings", e.target.value)} className="mt-1.5" /></div>
-                    <div><Label>Deadline</Label><Input type="date" value={formData.closesAt} onChange={(e) => handleChange("closesAt", e.target.value)} className="mt-1.5" /></div>
-                    <div><Label>Education</Label><Input value={formData.education} onChange={(e) => handleChange("education", e.target.value)} className="mt-1.5" /></div>
+                    <div><Label>{t("openings")}</Label><Input type="number" min="1" value={formData.openings} onChange={(e) => handleChange("openings", e.target.value)} className="mt-1.5" /></div>
+                    <div><Label>{t("deadline")}</Label><Input type="date" value={formData.closesAt} onChange={(e) => handleChange("closesAt", e.target.value)} className="mt-1.5" /></div>
+                    <div><Label>{t("education")}</Label><Input value={formData.education} onChange={(e) => handleChange("education", e.target.value)} className="mt-1.5" /></div>
                 </CardContent>
             </Card>
 
             <div className="flex flex-wrap gap-3 pt-2">
-                <Button variant="outline" onClick={() => handleSubmit("draft")} disabled={saving}><Save className="mr-2 h-4 w-4" />Save as draft</Button>
-                <Button variant="outline" onClick={() => handleSubmit("closed")} disabled={saving}>Close job</Button>
-                <Button onClick={() => handleSubmit("open")} disabled={saving} className="bg-linear-to-r from-blue-500 to-indigo-600">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}Publish changes</Button>
+                <Button variant="outline" onClick={() => handleSubmit("draft")} disabled={saving}><Save className="mr-2 h-4 w-4" />{t("saveAsDraft")}</Button>
+                <Button variant="outline" onClick={() => handleSubmit("closed")} disabled={saving}>{t("closeJob")}</Button>
+                <Button onClick={() => handleSubmit("open")} disabled={saving} className="bg-linear-to-r from-blue-500 to-indigo-600">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}{t("publishChanges")}</Button>
             </div>
         </div>
     )

@@ -1,46 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Activity, AlertTriangle, CheckCircle2, Clock, Database, Fingerprint, RefreshCw, Search, ShieldCheck, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock, Database, Fingerprint, RefreshCw, Search, ShieldCheck, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useDeviceEvents, type DeviceEventRecord } from "@/hooks/use-data";
 
-type DeviceEvent = {
-    id: string;
-    serialNumber: string | null;
-    eventType: string;
-    method: string;
-    status: string;
-    recordsReceived: number;
-    recordsSynced: number;
-    recordsSkipped: number;
-    unmappedUserIds: string[];
-    errorMessage: string | null;
-    remoteIp: string | null;
-    createdAt: string;
-    device: {
-        id: string;
-        name: string;
-        location: string | null;
-        cloudStatus: string;
-        lastSeenAt: string | null;
-        branch: { name: string; code: string } | null;
-    } | null;
-};
+type DeviceEvent = DeviceEventRecord;
 
 export default function DeviceEventsPage() {
     const t = useTranslations("DeviceEvents");
     const locale = useLocale();
     const dateLocale = locale.startsWith("bn") ? "bn-BD" : "en-US";
-    const [events, setEvents] = useState<DeviceEvent[]>([]);
-    const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState("all");
     const [eventType, setEventType] = useState("all");
     const [search, setSearch] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+
+    // ── TanStack Query: device events ──
+    const { data: events = [], isLoading: loading, isFetching: fetching, refetch } = useDeviceEvents({
+        status,
+        eventType,
+        search,
+        limit: 120,
+    });
 
     const formatDateTime = (value: string) => new Intl.DateTimeFormat(dateLocale, {
         day: "2-digit",
@@ -49,22 +37,10 @@ export default function DeviceEventsPage() {
         minute: "2-digit",
     }).format(new Date(value));
 
-    const fetchEvents = async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ limit: "120", status, eventType });
-            if (search.trim()) params.set("serial", search.trim());
-            const res = await fetch(`/api/biometric-devices/events?${params.toString()}`);
-            if (res.ok) setEvents(await res.json());
-        } finally {
-            setLoading(false);
-        }
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setSearch(searchInput.trim());
     };
-
-    useEffect(() => {
-        fetchEvents();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status, eventType]);
 
     const stats = useMemo(() => ({
         total: events.length,
@@ -92,37 +68,51 @@ export default function DeviceEventsPage() {
 
     return (
         <div className="space-y-6">
+            {/* Header */}
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h1 className="flex items-center gap-3 text-3xl font-bold text-foreground">
-                        <Database className="h-8 w-8 text-primary" />
-                        {t("title")}
-                    </h1>
-                    <p className="mt-1 max-w-3xl text-muted-foreground">{t("subtitle")}</p>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+                        <Database className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-display font-bold text-foreground">{t("title")}</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5 max-w-3xl">{t("subtitle")}</p>
+                    </div>
                 </div>
-                <Button onClick={fetchEvents} disabled={loading} className="gap-2 self-start lg:self-auto">
-                    <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-                    {t("refresh")}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Link href="/devices">
+                        <Button variant="outline" className="gap-2 border-card-border">
+                            <ArrowLeft className="h-4 w-4" />
+                            <span className="hidden sm:inline">Devices</span>
+                        </Button>
+                    </Link>
+                    <Button onClick={() => refetch()} disabled={fetching} className="gap-2">
+                        <RefreshCw className={cn("h-4 w-4", fetching && "animate-spin")} />
+                        {t("refresh")}
+                    </Button>
+                </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            {/* Stats */}
+            <div className="grid gap-3 md:grid-cols-4">
                 {[
-                    { label: t("totalEvents"), value: stats.total, icon: Activity, tone: "bg-blue-500/10 text-blue-400" },
-                    { label: t("attendanceEvents"), value: stats.attendance, icon: Fingerprint, tone: "bg-cyan-500/10 text-cyan-400" },
-                    { label: t("processed"), value: stats.processed, icon: ShieldCheck, tone: "bg-emerald-500/10 text-emerald-400" },
-                    { label: t("attention"), value: stats.attention, icon: AlertTriangle, tone: "bg-amber-500/10 text-amber-400" },
+                    { label: t("totalEvents"), value: stats.total, icon: Activity, tone: "bg-blue-500/10 text-blue-400", ring: "border-blue-500/20" },
+                    { label: t("attendanceEvents"), value: stats.attendance, icon: Fingerprint, tone: "bg-cyan-500/10 text-cyan-400", ring: "border-cyan-500/20" },
+                    { label: t("processed"), value: stats.processed, icon: ShieldCheck, tone: "bg-emerald-500/10 text-emerald-400", ring: "border-emerald-500/20" },
+                    { label: t("attention"), value: stats.attention, icon: AlertTriangle, tone: "bg-amber-500/10 text-amber-400", ring: "border-amber-500/20" },
                 ].map((item) => {
                     const Icon = item.icon;
                     return (
-                        <Card key={item.label} className="border-card-border bg-card">
-                            <CardContent className="flex items-center gap-4 p-4">
-                                <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl", item.tone)}>
-                                    <Icon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold text-foreground">{item.value}</p>
-                                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                        <Card key={item.label} className={cn("border bg-card overflow-hidden", item.ring)}>
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-xs text-muted-foreground truncate">{item.label}</p>
+                                        <p className="text-2xl font-display font-bold text-foreground mt-1 tabular-nums">{item.value}</p>
+                                    </div>
+                                    <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", item.tone)}>
+                                        <Icon className="h-5 w-5" />
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -130,22 +120,38 @@ export default function DeviceEventsPage() {
                 })}
             </div>
 
+            {/* Filters */}
             <Card className="border-card-border bg-card">
                 <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="relative flex-1 lg:max-w-sm">
+                    <form onSubmit={handleSearchSubmit} className="relative flex-1 lg:max-w-sm">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && fetchEvents()} placeholder={t("searchSerial")} className="pl-9" />
-                    </div>
+                        <Input
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            placeholder={t("searchSerial")}
+                            className="pl-9"
+                        />
+                    </form>
                     <div className="flex flex-wrap gap-2">
                         {["all", "processed", "partial", "failed", "unknown_device", "captured"].map((value) => (
-                            <Button key={value} variant={status === value ? "default" : "outline"} size="sm" onClick={() => setStatus(value)}>
+                            <Button
+                                key={value}
+                                variant={status === value ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setStatus(value)}
+                            >
                                 {t(`status_${value}`)}
                             </Button>
                         ))}
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {["all", "cdata", "getrequest", "registry"].map((value) => (
-                            <Button key={value} variant={eventType === value ? "default" : "outline"} size="sm" onClick={() => setEventType(value)}>
+                            <Button
+                                key={value}
+                                variant={eventType === value ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setEventType(value)}
+                            >
                                 {t(`type_${value}`)}
                             </Button>
                         ))}
@@ -153,43 +159,52 @@ export default function DeviceEventsPage() {
                 </CardContent>
             </Card>
 
+            {/* Event Timeline */}
             <Card className="border-card-border bg-card">
                 <CardHeader>
                     <CardTitle className="text-lg">{t("eventTimeline")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {loading ? (
-                        <div className="flex h-40 items-center justify-center text-muted-foreground">{t("loading")}</div>
+                        <div className="flex h-40 items-center justify-center text-muted-foreground">
+                            <RefreshCw className="h-5 w-5 animate-spin mr-2" />
+                            {t("loading")}
+                        </div>
                     ) : events.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-card-border p-8 text-center text-muted-foreground">{t("noEvents")}</div>
-                    ) : events.map((event) => (
-                        <div key={event.id} className="rounded-2xl border border-card-border bg-hover p-4">
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                <div className="flex min-w-0 gap-3">
-                                    <div className="mt-1">{statusIcon(event)}</div>
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <p className="font-semibold text-foreground">{eventLabel(event)}</p>
-                                            <Badge variant="outline" className="border-card-border text-xs">{event.method} / {event.eventType}</Badge>
-                                            <Badge className="border-0 bg-primary/10 text-primary text-xs">{event.status}</Badge>
+                        <div className="rounded-xl border border-dashed border-card-border p-8 text-center text-muted-foreground">
+                            <Database className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                            {t("noEvents")}
+                        </div>
+                    ) : (
+                        events.map((event) => (
+                            <div key={event.id} className="rounded-xl border border-card-border bg-hover p-4 hover:bg-card transition-colors">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="flex min-w-0 gap-3">
+                                        <div className="mt-1">{statusIcon(event)}</div>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="font-semibold text-foreground">{eventLabel(event)}</p>
+                                                <Badge variant="outline" className="border-card-border text-xs">{event.method} / {event.eventType}</Badge>
+                                                <Badge className="border-0 bg-primary/10 text-primary text-xs">{event.status}</Badge>
+                                            </div>
+                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                {event.device?.name || t("unknownDeviceName")} · {event.serialNumber || t("noSerial")} {event.device?.branch ? `· ${event.device.branch.name}` : ""}
+                                            </p>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                {event.recordsSynced} {t("synced")} / {event.recordsSkipped} {t("skipped")}
+                                                {event.unmappedUserIds.length ? ` · ${t("unmapped")}: ${event.unmappedUserIds.join(", ")}` : ""}
+                                            </p>
+                                            {event.errorMessage && <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">{event.errorMessage}</p>}
                                         </div>
-                                        <p className="mt-1 text-sm text-muted-foreground">
-                                            {event.device?.name || t("unknownDeviceName")} · {event.serialNumber || t("noSerial")} {event.device?.branch ? `· ${event.device.branch.name}` : ""}
-                                        </p>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {event.recordsSynced} {t("synced")} / {event.recordsSkipped} {t("skipped")}
-                                            {event.unmappedUserIds.length ? ` · ${t("unmapped")}: ${event.unmappedUserIds.join(", ")}` : ""}
-                                        </p>
-                                        {event.errorMessage && <p className="mt-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">{event.errorMessage}</p>}
+                                    </div>
+                                    <div className="shrink-0 text-left text-xs text-muted-foreground lg:text-right">
+                                        <div className="flex items-center gap-1 lg:justify-end"><Clock className="h-3.5 w-3.5" />{formatDateTime(event.createdAt)}</div>
+                                        {event.remoteIp && <div className="mt-1 font-mono">{event.remoteIp}</div>}
                                     </div>
                                 </div>
-                                <div className="shrink-0 text-left text-xs text-muted-foreground lg:text-right">
-                                    <div className="flex items-center gap-1 lg:justify-end"><Clock className="h-3.5 w-3.5" />{formatDateTime(event.createdAt)}</div>
-                                    {event.remoteIp && <div className="mt-1 font-mono">{event.remoteIp}</div>}
-                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </CardContent>
             </Card>
         </div>

@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 import { InfoCard, InfoItem } from "./info-card"
 import { AttendanceTab } from "./profile-attendance-tab"
 import { LeaveTab } from "./profile-leave-tab"
 import { PayrollTab } from "./profile-payroll-tab"
 import { DocumentsTab } from "./profile-documents-tab"
-import { User, Briefcase, CreditCard, FileText, CalendarRange, Clock, MapPin, Heart, Globe, Shield } from "lucide-react"
+import { User, Briefcase, CreditCard, FileText, CalendarRange, Clock, MapPin, Heart, Globe, Shield, Users, ShieldCheck } from "lucide-react"
 import { format } from "date-fns"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +28,7 @@ const TAB_CONFIG = [
 ] as const
 
 export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
+    const t = useTranslations("SharedComponents.profileTabs")
     const [profileData, setProfileData] = useState<any>(null)
     const [profileLoading, setProfileLoading] = useState(false)
     const [activeTab, setActiveTab] = useState("overview")
@@ -59,6 +62,54 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
     const currentSalary = employee.salaryAssignments?.[0]
     const hasActiveCompensation = Boolean(currentSalary?.isActive && currentSalary?.grossSalary > 0)
 
+    // ── BD field helpers ────────────────────────────────────────────────
+    // Bengali name: prefer the legacy `bengaliName` field, fall back to
+    // the dedicated `firstNameBn` + `lastNameBn` columns introduced in Batch 1.
+    const bengaliNameDisplay = employee.bengaliName
+        || ((employee.firstNameBn || employee.lastNameBn)
+            ? `${employee.firstNameBn || ""} ${employee.lastNameBn || ""}`.trim()
+            : null)
+
+    // Map raw religion code (islam/hinduism/...) to a localized label.
+    const religionLabel = (religion?: string | null): string | null => {
+        if (!religion) return null
+        switch (religion) {
+            case "islam": return t("religionIslam")
+            case "hinduism": return t("religionHinduism")
+            case "buddhism": return t("religionBuddhism")
+            case "christianity": return t("religionChristianity")
+            case "other": return t("religionOther")
+            default: return religion
+        }
+    }
+
+    // Father's / Mother's name — show English with Bengali in parentheses
+    // when both are available, otherwise show whichever exists.
+    const joinBilingual = (en?: string | null, bn?: string | null): string | null => {
+        if (!en && !bn) return null
+        if (en && bn) return `${en} (${bn})`
+        return en || bn || null
+    }
+    const fatherNameDisplay = joinBilingual(employee.fatherName, employee.fatherNameBn)
+    const motherNameDisplay = joinBilingual(employee.motherName, employee.motherNameBn)
+
+    // Family Information card only renders if at least one field is present.
+    // `childrenCount` of 0 is a valid value, so we treat `!= null` as set.
+    const hasFamilyInfo = Boolean(
+        fatherNameDisplay
+        || motherNameDisplay
+        || employee.spouseName
+        || (employee.childrenCount != null)
+    )
+
+    // Tax Exemption card only renders if at least one flag is a real boolean
+    // (HR/full view). The public/limited API view excludes these fields, so
+    // they arrive as `undefined` and the card stays hidden for non-HR users.
+    const hasTaxExemptionData =
+        typeof employee.isSeniorCitizen === "boolean"
+        || typeof employee.isDisabled === "boolean"
+        || typeof employee.isFreedomFighter === "boolean"
+
     return (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {/* ── Premium Pill-Style Tab Bar ───────────────────────────── */}
@@ -84,12 +135,13 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
                     <InfoCard title="Personal Information" icon={<User className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                             <InfoItem label="Full Name" value={`${employee.firstName} ${employee.lastName}`} />
-                            {employee.bengaliName && <InfoItem label="Bengali Name" value={employee.bengaliName} />}
+                            {bengaliNameDisplay && <InfoItem label={t("bengaliName")} value={bengaliNameDisplay} />}
                             <InfoItem label="Email" value={employee.email} />
                             <InfoItem label="Phone" value={employee.phone} />
                             <InfoItem label="Date of Birth" value={formatDate(employee.dateOfBirth)} />
                             <InfoItem label="Gender" value={employee.gender} />
                             <InfoItem label="Blood Group" value={employee.bloodGroup} />
+                            <InfoItem label={t("religion")} value={religionLabel(employee.religion) ?? undefined} />
                             <InfoItem label="Marital Status" value={employee.maritalStatus} />
                             <InfoItem label="Nationality" value={employee.nationality} />
                         </div>
@@ -109,7 +161,19 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
                         </div>
                     </InfoCard>
 
-                    {/* Financial Info */}
+                    {/* Family Information (BD-specific) */}
+                    {hasFamilyInfo && (
+                        <InfoCard title={t("familyInformation")} icon={<Users className="h-5 w-5" />}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                                <InfoItem label={t("fatherName")} value={fatherNameDisplay} />
+                                <InfoItem label={t("motherName")} value={motherNameDisplay} />
+                                <InfoItem label={t("spouseName")} value={employee.spouseName} />
+                                <InfoItem label={t("childrenCount")} value={employee.childrenCount} />
+                            </div>
+                        </InfoCard>
+                    )}
+
+                    {/* Financial Info — bank + mobile banking */}
                     <InfoCard title="Financial Details" icon={<CreditCard className="h-5 w-5" />}>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                             <InfoItem label="Compensation Status" value={hasActiveCompensation ? "Active" : "Deferred / Not set"} />
@@ -121,6 +185,8 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
                             <InfoItem label="Routing Number" value={employee.routingNumber} />
                             <InfoItem label="TIN Number" value={employee.tinNumber} />
                             <InfoItem label="PF" value={employee.pfEnabled ? `Enabled${employee.pfNumber ? ` (${employee.pfNumber})` : ""}` : "Disabled"} />
+                            <InfoItem label={t("bkashNumber")} value={employee.bkashNumber} />
+                            <InfoItem label={t("nagadNumber")} value={employee.nagadNumber} />
                         </div>
                     </InfoCard>
 
@@ -152,6 +218,33 @@ export function ProfileTabs({ employee, apiBasePath }: ProfileTabsProps) {
                             </div>
                         </InfoCard>
                     </div>
+
+                    {/* Tax Exemption Status (BD Finance Act) */}
+                    {hasTaxExemptionData && (
+                        <InfoCard title={t("taxExemptionStatus")} icon={<ShieldCheck className="h-5 w-5" />}>
+                            <p className="text-xs text-muted-foreground -mt-1 mb-4">{t("taxExemptionDesc")}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="flex flex-col gap-1.5 rounded-lg border border-card-border bg-hover/50 px-3 py-2.5">
+                                    <span className="text-xs font-medium text-tertiary-foreground">{t("seniorCitizen")}</span>
+                                    <Badge variant={employee.isSeniorCitizen ? "success" : "default"} className="w-fit">
+                                        {employee.isSeniorCitizen ? t("yes") : t("no")}
+                                    </Badge>
+                                </div>
+                                <div className="flex flex-col gap-1.5 rounded-lg border border-card-border bg-hover/50 px-3 py-2.5">
+                                    <span className="text-xs font-medium text-tertiary-foreground">{t("disabled")}</span>
+                                    <Badge variant={employee.isDisabled ? "success" : "default"} className="w-fit">
+                                        {employee.isDisabled ? t("yes") : t("no")}
+                                    </Badge>
+                                </div>
+                                <div className="flex flex-col gap-1.5 rounded-lg border border-card-border bg-hover/50 px-3 py-2.5">
+                                    <span className="text-xs font-medium text-tertiary-foreground">{t("freedomFighter")}</span>
+                                    <Badge variant={employee.isFreedomFighter ? "success" : "default"} className="w-fit">
+                                        {employee.isFreedomFighter ? t("yes") : t("no")}
+                                    </Badge>
+                                </div>
+                            </div>
+                        </InfoCard>
+                    )}
                 </div>
             </TabsContent>
 

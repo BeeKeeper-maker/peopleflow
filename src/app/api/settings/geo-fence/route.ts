@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { toPlainSettings } from "@/lib/settings-json";
@@ -13,15 +13,15 @@ export async function GET() {
     if (!isAuthenticated(auth)) return auth;
 
     try {
-        const org = await prisma.organization.findUnique({
+        const org = await auth.withDB((db) => db.organization.findUnique({
             where: { id: auth.organizationId },
             select: { settings: true },
-        });
+        }));
 
         const settings = toPlainSettings(org?.settings);
 
         // Get branches with their GPS config
-        const branches = await prisma.branch.findMany({
+        const branches = await auth.withDB((db) => db.branch.findMany({
             where: { organizationId: auth.organizationId, isActive: true },
             select: {
                 id: true,
@@ -33,7 +33,7 @@ export async function GET() {
                 _count: { select: { employees: true } },
             },
             orderBy: { name: "asc" },
-        });
+        }));
 
         return NextResponse.json({
             geoFenceEnabled: settings.geoFenceEnabled === true,
@@ -67,10 +67,10 @@ export async function PATCH(req: NextRequest) {
         }
 
         // Read current settings, merge geo-fence config
-        const org = await prisma.organization.findUnique({
+        const org = await auth.withDB((db) => db.organization.findUnique({
             where: { id: auth.organizationId },
             select: { settings: true },
-        });
+        }));
 
         const currentSettings = toPlainSettings(org?.settings);
 
@@ -80,10 +80,10 @@ export async function PATCH(req: NextRequest) {
             ...(geoFenceEnforcement !== undefined && { geoFenceEnforcement }),
         };
 
-        await prisma.organization.update({
+        await auth.withDB((db) => db.organization.update({
             where: { id: auth.organizationId },
             data: { settings: updatedSettings },
-        });
+        }));
 
         return NextResponse.json({
             success: true,

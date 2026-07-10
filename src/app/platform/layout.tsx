@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { PlatformSidebar } from "@/components/platform/sidebar";
 import { PlatformHeader } from "@/components/platform/header";
+import { SkipLink } from "@/components/ui/skip-link";
 
 interface AdminProfile {
     id: string;
@@ -22,6 +23,7 @@ export default function PlatformLayout({
     const [admin, setAdmin] = useState<AdminProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
     // Skip auth check on login page
     const isLoginPage = pathname === "/platform/login";
@@ -46,10 +48,15 @@ export default function PlatformLayout({
             });
     }, [isLoginPage, router]);
 
+    // Close mobile sidebar on route change
+    useEffect(() => {
+        setMobileSidebarOpen(false);
+    }, [pathname]);
+
     // Login page renders without shell
     if (isLoginPage) {
         return (
-            <div className="platform-theme min-h-screen bg-[#08080F]">
+            <div className="platform-theme min-h-screen bg-background">
                 {children}
             </div>
         );
@@ -57,24 +64,51 @@ export default function PlatformLayout({
 
     if (loading) {
         return (
-            <div className="platform-theme min-h-screen bg-[#08080F] flex items-center justify-center">
+            <div className="platform-theme min-h-screen bg-background flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-                    <p className="text-sm text-zinc-500">Loading Mission Control...</p>
+                    <p className="text-sm text-muted-foreground">Loading Mission Control...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="platform-theme min-h-screen bg-[#08080F] text-white flex">
-            <PlatformSidebar
-                collapsed={sidebarCollapsed}
-                onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            />
-            <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"}`}>
-                <PlatformHeader admin={admin} />
-                <main className="flex-1 p-6 overflow-auto">
+        <div className="platform-theme min-h-screen bg-background text-foreground">
+            {/* Desktop sidebar — fixed, always visible on lg+ */}
+            <div className="hidden lg:block">
+                <PlatformSidebar
+                    collapsed={sidebarCollapsed}
+                    onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+                />
+            </div>
+
+            {/* Mobile sidebar — overlay drawer */}
+            {mobileSidebarOpen && (
+                <>
+                    <div
+                        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+                        onClick={() => setMobileSidebarOpen(false)}
+                    />
+                    <div className="fixed left-0 top-0 z-50 h-screen lg:hidden">
+                        <PlatformSidebar
+                            collapsed={false}
+                            onToggle={() => setMobileSidebarOpen(false)}
+                        />
+                    </div>
+                </>
+            )}
+
+            {/* Main content area */}
+            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+                sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
+            }`}>
+                <PlatformHeader
+                    admin={admin}
+                    onMobileMenuToggle={() => setMobileSidebarOpen(true)}
+                />
+                <SkipLink href="#main-content">Skip to main content</SkipLink>
+                <main id="main-content" tabIndex={-1} className="flex-1 p-4 sm:p-6 overflow-auto">
                     {children}
                 </main>
             </div>

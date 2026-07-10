@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { createAuditLog } from "@/lib/audit-log";
 
 const roleSchema = z.enum(["admin", "hr_admin", "manager", "employee"]);
 
@@ -25,7 +26,7 @@ export async function GET() {
   }
 
   try {
-    const users = await prisma.user.findMany({
+    const users = await auth.withDB((db) => db.user.findMany({
       where: { organizationId: auth.organizationId },
       orderBy: [{ role: "asc" }, { name: "asc" }, { email: "asc" }],
       select: {
@@ -55,7 +56,7 @@ export async function GET() {
           },
         },
       },
-    });
+    }));
 
     const summary = {
       total: users.length,
@@ -88,19 +89,19 @@ export async function PATCH(req: Request) {
   try {
     const body = updateSchema.parse(await req.json());
 
-    const target = await prisma.user.findFirst({
+    const target = await auth.withDB((db) => db.user.findFirst({
       where: { id: body.userId, organizationId: auth.organizationId },
       select: { id: true, role: true, isActive: true, employee: { select: { id: true } } },
-    });
+    }));
 
     if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
     if (target.id === auth.userId && body.isActive === false) {
       return NextResponse.json({ error: "You cannot deactivate your own login" }, { status: 400 });
     }
 
-    const adminCount = await prisma.user.count({
+    const adminCount = await auth.withDB((db) => db.user.count({
       where: { organizationId: auth.organizationId, role: { in: ["admin", "super_admin"] }, isActive: true },
-    });
+    }));
 
     const wouldRemoveAdmin = ["admin", "super_admin"].includes(target.role) &&
       target.isActive &&
@@ -114,15 +115,44 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Manager role requires a linked employee profile" }, { status: 400 });
     }
 
-    const updated = await prisma.user.update({
+    const updated = await auth.withDB((db) => db.user.update({
       where: { id: target.id },
       data: {
         ...(body.role !== undefined && { role: body.role }),
         ...(body.isActive !== undefined && { isActive: body.isActive }),
-        ...(body.isActive === false && { sessionVersion: { increment: 1 } }),
+        // Always invalidate sessions when role changes or user is deactivated.
+        // A role change (e.g., admin → employee) must immediately revoke any
+        // elevated-privilege session; otherwise the demoted user retains
+        // admin access until their JWT expires or is refreshed.
+        ...((body.role !== undefined || body.isActive === false) && {
+          sessionVersion: { increment: 1 },
+        }),
       },
       select: { id: true, role: true, isActive: true },
-    });
+    }));
+
+    // ── Audit log: role change (P11-AUDIT-LOG) ─────────────────────
+    // Only emitted when the role actually changes — `isActive` flips
+    // are out of scope here. Records WHO changed WHOSE role, plus the
+    // before/after role labels. Never logs password hashes or other
+    // secrets. `createAuditLog` swallows its own errors, but the
+    // try/catch guarantees a logging failure can never block the
+    // role update itself.
+    if (body.role !== undefined && body.role !== target.role) {
+      try {
+        await createAuditLog({
+          entityType: "User",
+          entityId: target.id,
+          action: "role.changed",
+          oldValues: { role: target.role },
+          newValues: { role: body.role },
+          userId: auth.userId,
+          organizationId: auth.organizationId,
+        });
+      } catch (err) {
+        apiLogger.error({ err }, "Audit log failed for role change (non-fatal):");
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

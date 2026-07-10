@@ -121,11 +121,24 @@ export async function GET(request: NextRequest) {
     }
 }
 
-// Strip sensitive fields from employee data
+// Sanitize employee data — only return safe, public fields via external API
+// PII fields like NID, passport, bankAccount, etc. are NEVER exposed via API
 function sanitizeEmployee(emp: Record<string, unknown>): Record<string, unknown> {
-    const {
-        organizationId: _orgId,
-        ...safe
-    } = emp as Record<string, unknown>;
-    return safe;
+    return {
+        id: emp.id,
+        employeeCode: emp.employeeCode,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        email: emp.email,
+        phone: emp.phone,
+        employmentType: emp.employmentType,
+        employmentStatus: emp.employmentStatus,
+        joiningDate: emp.joiningDate,
+        gender: emp.gender,
+        photoUrl: emp.photoUrl,
+        // Related data (safe)
+        department: emp.department,
+        branch: emp.branch,
+        designation: emp.designation,
+    };
 }

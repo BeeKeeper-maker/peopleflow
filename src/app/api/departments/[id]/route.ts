@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 export async function GET(
@@ -9,32 +7,24 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session?.user?.email) {
-            return new NextResponse("Unauthorized", { status: 401 });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
-
-        if (!user?.organizationId) {
-            return new NextResponse("Organization not found", { status: 400 });
-        }
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
 
         const { id } = await params;
 
-        const department = await prisma.department.findUnique({
-            where: {
-                id,
-                organizationId: user.organizationId,
-            },
-            include: {
-                _count: {
-                    select: { employees: true }
+        const department = await auth.withDB((db) =>
+            db.department.findUnique({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+                include: {
+                    _count: {
+                        select: { employees: true }
+                    }
                 }
-            }
-        });
+            }),
+        );
 
         if (!department) {
             return new NextResponse("Department not found", { status: 404 });
@@ -42,8 +32,12 @@ export async function GET(
 
         return NextResponse.json(department);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_DEPARTMENT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_DEPARTMENT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -68,35 +62,43 @@ export async function PUT(
 
         // Check uniqueness of code if changed
         if (code) {
-            const existingCode = await prisma.department.findFirst({
-                where: {
-                    organizationId: auth.organizationId,
-                    code,
-                    NOT: { id },
-                },
-            });
+            const existingCode = await auth.withDB((db) =>
+                db.department.findFirst({
+                    where: {
+                        organizationId: auth.organizationId,
+                        code,
+                        NOT: { id },
+                    },
+                }),
+            );
 
             if (existingCode) {
                 return new NextResponse("Department code already exists", { status: 409 });
             }
         }
 
-        const department = await prisma.department.update({
-            where: {
-                id,
-                organizationId: auth.organizationId,
-            },
-            data: {
-                name,
-                code: code || null,
-                ...rest,
-            },
-        });
+        const department = await auth.withDB((db) =>
+            db.department.update({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+                data: {
+                    name,
+                    code: code || null,
+                    ...rest,
+                },
+            }),
+        );
 
         return NextResponse.json(department);
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_DEPARTMENT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_DEPARTMENT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -114,10 +116,12 @@ export async function DELETE(
         const { id } = await params;
 
         // Check if department has employees
-        const department = await prisma.department.findUnique({
-            where: { id, organizationId: auth.organizationId },
-            include: { _count: { select: { employees: true } } }
-        });
+        const department = await auth.withDB((db) =>
+            db.department.findUnique({
+                where: { id, organizationId: auth.organizationId },
+                include: { _count: { select: { employees: true } } }
+            }),
+        );
 
         if (!department) {
             return new NextResponse("Department not found", { status: 404 });
@@ -127,16 +131,22 @@ export async function DELETE(
             return new NextResponse("Cannot delete department with assigned employees", { status: 400 });
         }
 
-        await prisma.department.delete({
-            where: {
-                id,
-                organizationId: auth.organizationId,
-            },
-        });
+        await auth.withDB((db) =>
+            db.department.delete({
+                where: {
+                    id,
+                    organizationId: auth.organizationId,
+                },
+            }),
+        );
 
         return new NextResponse(null, { status: 204 });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_DEPARTMENT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_DEPARTMENT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

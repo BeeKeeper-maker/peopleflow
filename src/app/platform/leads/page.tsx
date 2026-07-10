@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { verifyPlatformCookie } from "@/lib/platform-token";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { LeadsCRMTable } from "./_components/leads-table";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export default async function LeadsPage({
 }: {
     searchParams: Promise<{ page?: string }>;
 }) {
+    const t = await getTranslations("Platform");
+
     // ── Server-side auth gate — prevents data leak before client redirect ──
     const session = await verifyPlatformCookie();
     if (!session) {
@@ -66,29 +69,29 @@ export default async function LeadsPage({
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight">
-                        Lead Pipeline
+                    <h1 className="text-2xl font-bold text-foreground tracking-tight">
+                        {t("leadPipeline")}
                     </h1>
-                    <p className="text-sm text-zinc-500 mt-1">
-                        Manage incoming sales leads and track conversions
+                    <p className="text-sm text-muted-foreground mt-1">
+                        {t("leadsSubtitle")}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
                     <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                     <span className="text-xs text-indigo-400 font-medium tabular-nums">
-                        {stats.total} total leads
+                        {t("totalLeads", { count: stats.total })}
                     </span>
                 </div>
             </div>
 
             {/* Pipeline Stats Row */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <PipelineStat label="New" count={stats.new} color="blue" />
-                <PipelineStat label="Contacted" count={stats.contacted} color="amber" />
-                <PipelineStat label="Qualified" count={stats.qualified} color="purple" />
-                <PipelineStat label="Demo" count={stats.demo_scheduled} color="cyan" />
-                <PipelineStat label="Converted" count={stats.converted} color="emerald" />
-                <PipelineStat label="Lost" count={stats.lost} color="red" />
+                <PipelineStat label={t("leadNew")} count={stats.new} color="blue" />
+                <PipelineStat label={t("leadContacted")} count={stats.contacted} color="amber" />
+                <PipelineStat label={t("leadQualified")} count={stats.qualified} color="purple" />
+                <PipelineStat label={t("leadDemo")} count={stats.demo_scheduled} color="cyan" />
+                <PipelineStat label={t("leadConverted")} count={stats.converted} color="emerald" />
+                <PipelineStat label={t("leadLost")} count={stats.lost} color="red" />
             </div>
 
             {/* CRM Table */}
@@ -164,7 +167,7 @@ function PipelineStat({
         <div
             className={`rounded-xl border ${c.border} ${c.bg} ${c.glow} px-4 py-3 transition-all duration-200 hover:scale-[1.02]`}
         >
-            <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                 {label}
             </p>
             <p className={`text-2xl font-bold ${c.text} tabular-nums mt-0.5`}>

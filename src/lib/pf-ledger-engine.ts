@@ -81,8 +81,8 @@ export async function ensurePFAccount(
     employeeId: string,
     organizationId: string
 ): Promise<string> {
-    const existing = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const existing = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         select: { id: true },
     });
 
@@ -133,6 +133,7 @@ export async function recordMonthlyContributions(
             transactionType: "employee_contribution",
             referenceMonth: month,
             referenceYear: year,
+            deletedAt: null,
         },
         select: {
             pfAccountId: true,
@@ -152,9 +153,9 @@ export async function recordMonthlyContributions(
             pfAccountId: existing.pfAccountId,
             employeeContribution: employeeAmount,
             employerContribution: employerAmount,
-            newEmployeeBalance: existing.pfAccount.employeeBalance,
-            newEmployerBalance: existing.pfAccount.employerBalance,
-            newTotalBalance: existing.pfAccount.totalBalance,
+            newEmployeeBalance: Number(existing.pfAccount.employeeBalance),
+            newEmployerBalance: Number(existing.pfAccount.employerBalance),
+            newTotalBalance: Number(existing.pfAccount.totalBalance),
             error: "Contributions already recorded for this month (idempotent skip)",
         };
     }
@@ -169,8 +170,8 @@ export async function recordMonthlyContributions(
     const pfAccountId = await ensurePFAccount(employeeId, employee.organizationId);
 
     // Get current balances for running balance calculation
-    const account = await prisma.pFAccount.findUnique({
-        where: { id: pfAccountId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { id: pfAccountId, deletedAt: null },
         select: { employeeBalance: true, employerBalance: true, interestBalance: true, totalBalance: true },
     });
     if (!account) throw new Error("PF account not found");
@@ -180,12 +181,13 @@ export async function recordMonthlyContributions(
     // Use a transaction for atomicity
     const result = await prisma.$transaction(async (tx) => {
         // 1. Employee contribution entry
-        const newEmployeeBalance = account.employeeBalance + employeeAmount;
-        const runningAfterEmployee = account.totalBalance + employeeAmount;
+        const newEmployeeBalance = Number(account.employeeBalance) + employeeAmount;
+        const runningAfterEmployee = Number(account.totalBalance) + employeeAmount;
 
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: employee.organizationId,
                 transactionType: "employee_contribution",
                 amount: employeeAmount,
                 runningBalance: runningAfterEmployee,
@@ -196,12 +198,13 @@ export async function recordMonthlyContributions(
         });
 
         // 2. Employer contribution entry
-        const newEmployerBalance = account.employerBalance + employerAmount;
+        const newEmployerBalance = Number(account.employerBalance) + employerAmount;
         const runningAfterEmployer = runningAfterEmployee + employerAmount;
 
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: employee.organizationId,
                 transactionType: "employer_contribution",
                 amount: employerAmount,
                 runningBalance: runningAfterEmployer,
@@ -258,39 +261,40 @@ export async function calculateAndCreditInterest(
     pfAccountId: string,
     fiscalYear: string // "2024-25"
 ): Promise<PFInterestResult> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { id: pfAccountId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { id: pfAccountId, deletedAt: null },
     });
 
     if (!account) throw new Error(`PF Account ${pfAccountId} not found`);
     if (account.status !== "active") throw new Error("Cannot calculate interest on inactive account");
 
     // Calculate interest on the total balance (employee + employer)
-    const calculationBasis = account.employeeBalance + account.employerBalance;
+    const calculationBasis = Number(account.employeeBalance) + Number(account.employerBalance);
     // IEEE 754 FIX: multiply first, divide last
-    const interestAmount = Math.round((calculationBasis * account.interestRate) / 100);
+    const interestAmount = Math.round((calculationBasis * Number(account.interestRate)) / 100);
 
     if (interestAmount <= 0) {
         return {
             accountId: pfAccountId,
             interestAmount: 0,
-            newInterestBalance: account.interestBalance,
-            newTotalBalance: account.totalBalance,
+            newInterestBalance: Number(account.interestBalance),
+            newTotalBalance: Number(account.totalBalance),
             calculationBasis,
-            interestRate: account.interestRate,
+            interestRate: Number(account.interestRate),
             period: fiscalYear,
         };
     }
 
     // Credit interest
     const result = await prisma.$transaction(async (tx) => {
-        const newInterestBalance = account.interestBalance + interestAmount;
-        const newTotalBalance = account.totalBalance + interestAmount;
+        const newInterestBalance = Number(account.interestBalance) + interestAmount;
+        const newTotalBalance = Number(account.totalBalance) + interestAmount;
 
         // Create interest credit transaction
         await tx.pFTransaction.create({
             data: {
                 pfAccountId,
+                organizationId: account.organizationId,
                 transactionType: "interest_credit",
                 amount: interestAmount,
                 runningBalance: newTotalBalance,
@@ -317,7 +321,7 @@ export async function calculateAndCreditInterest(
         newInterestBalance: result.newInterestBalance,
         newTotalBalance: result.newTotalBalance,
         calculationBasis,
-        interestRate: account.interestRate,
+        interestRate: Number(account.interestRate),
         period: fiscalYear,
     };
 }
@@ -335,7 +339,7 @@ export async function creditInterestForOrganization(
     errors: string[];
 }> {
     const accounts = await prisma.pFAccount.findMany({
-        where: { organizationId, status: "active" },
+        where: { organizationId, status: "active", deletedAt: null },
         select: { id: true },
     });
 
@@ -375,20 +379,21 @@ export async function settlePFAccount(
         interestAccrued: number;
     };
 }> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
     });
 
     if (!account) throw new Error("No PF account found for this employee");
     if (account.status === "settled") throw new Error("PF account is already settled");
 
-    const settlementAmount = account.totalBalance;
+    const settlementAmount = Number(account.totalBalance);
 
     await prisma.$transaction(async (tx) => {
         // Create settlement transaction (debit full balance)
         await tx.pFTransaction.create({
             data: {
                 pfAccountId: account.id,
+                organizationId: account.organizationId,
                 transactionType: "settlement",
                 amount: -settlementAmount, // Negative = debit
                 runningBalance: 0,
@@ -413,9 +418,9 @@ export async function settlePFAccount(
     return {
         settlementAmount,
         breakdown: {
-            employeeContributions: account.employeeBalance,
-            employerContributions: account.employerBalance,
-            interestAccrued: account.interestBalance,
+            employeeContributions: Number(account.employeeBalance),
+            employerContributions: Number(account.employerBalance),
+            interestAccrued: Number(account.interestBalance),
         },
     };
 }
@@ -428,8 +433,8 @@ export async function settlePFAccount(
 export async function getPFAccountSummary(
     employeeId: string
 ): Promise<PFAccountSummary | null> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         include: {
             _count: { select: { transactions: true } },
         },
@@ -441,12 +446,12 @@ export async function getPFAccountSummary(
         accountId: account.id,
         accountNumber: account.accountNumber,
         status: account.status,
-        employeeBalance: account.employeeBalance,
-        employerBalance: account.employerBalance,
-        interestBalance: account.interestBalance,
-        totalBalance: account.totalBalance,
+        employeeBalance: Number(account.employeeBalance),
+        employerBalance: Number(account.employerBalance),
+        interestBalance: Number(account.interestBalance),
+        totalBalance: Number(account.totalBalance),
         openingDate: account.openingDate,
-        interestRate: account.interestRate,
+        interestRate: Number(account.interestRate),
         lastInterestDate: account.lastInterestDate,
         transactionCount: account._count.transactions,
     };
@@ -470,16 +475,17 @@ export async function getPFStatement(
     description: string;
     transactionDate: Date;
 }>> {
-    const account = await prisma.pFAccount.findUnique({
-        where: { employeeId },
+    const account = await prisma.pFAccount.findFirst({
+        where: { employeeId, deletedAt: null },
         select: { id: true },
     });
 
     if (!account) return [];
 
-    return prisma.pFTransaction.findMany({
+    const transactions = await prisma.pFTransaction.findMany({
         where: {
             pfAccountId: account.id,
+            deletedAt: null,
             ...(options?.fromDate || options?.toDate
                 ? {
                     transactionDate: {
@@ -500,6 +506,15 @@ export async function getPFStatement(
         orderBy: { transactionDate: "desc" },
         take: options?.limit || 100,
     });
+
+    return transactions.map((t) => ({
+        id: t.id,
+        transactionType: t.transactionType,
+        amount: Number(t.amount),
+        runningBalance: Number(t.runningBalance),
+        description: t.description,
+        transactionDate: t.transactionDate,
+    }));
 }
 
 // ── Utility ─────────────────────────────────────────────────────────

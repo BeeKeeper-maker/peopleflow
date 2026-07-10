@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,32 +31,20 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
+import { useLoans, useEmployees, type LoanRecord } from "@/hooks/use-data"
 
 // ════════════════════════════════════════════════════════════════════════
 // Types
 // ════════════════════════════════════════════════════════════════════════
 
-interface Employee {
+type Loan = LoanRecord;
+
+type Employee = {
     id: string
     firstName: string
     lastName: string
     employeeCode: string
-}
-
-interface Loan {
-    id: string
-    type: string
-    amount: number
-    interestRate: number
-    tenure: number
-    emiAmount: number
-    disbursedAmount: number
-    paidAmount: number
-    remainingAmount: number
-    status: string
-    reason?: string | null
-    createdAt: string
-    employee: Employee
 }
 
 const LOAN_TYPES = [
@@ -103,9 +92,16 @@ function AnimatedCounter({ target, prefix = "", duration = 1200 }: {
 export default function LoansPage() {
     const t = useTranslations('Loans')
     const { addToast } = useToast()
-    const [loans, setLoans] = useState<Loan[]>([])
-    const [employees, setEmployees] = useState<Employee[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
+    const queryClient = useQueryClient()
+
+    // ── TanStack Query: loans + employees ──
+    const { data: loansData = [], isLoading: loansLoading } = useLoans()
+    const { data: employeesData = [] } = useEmployees()
+    const loans = loansData as Loan[]
+    const employees = employeesData as unknown as Employee[]
+    const isLoading = loansLoading
+
     const [showForm, setShowForm] = useState(false)
     const [saving, setSaving] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -115,25 +111,9 @@ export default function LoansPage() {
         employeeId: "", type: "salary_advance", amount: "", interestRate: "0", tenure: "12", reason: ""
     })
 
-    const fetchData = useCallback(async () => {
-        try {
-            const [loansRes, empRes] = await Promise.all([
-                fetch("/api/loans"),
-                fetch("/api/employees?fields=id,firstName,lastName,employeeId"),
-            ])
-            if (loansRes.ok) setLoans(await loansRes.json())
-            if (empRes.ok) {
-                const empData = await empRes.json()
-                setEmployees(Array.isArray(empData) ? empData : empData.data || empData.employees || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { fetchData() }, [fetchData])
+    const invalidateLoans = () => {
+        queryClient.invalidateQueries({ queryKey: ["loans"] })
+    }
 
     // ── Actions ────────────────────────────────────────────────────
     const handleCreate = async () => {
@@ -156,7 +136,7 @@ export default function LoansPage() {
                 addToast({ title: t('created'), type: "success" })
                 setShowForm(false)
                 setForm({ employeeId: "", type: "salary_advance", amount: "", interestRate: "0", tenure: "12", reason: "" })
-                fetchData()
+                invalidateLoans()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || t('createFailed'), type: "error" })
@@ -174,16 +154,22 @@ export default function LoansPage() {
             })
             if (res.ok) {
                 addToast({ title: t('statusUpdated'), type: "success" })
-                fetchData()
+                invalidateLoans()
             }
         } catch { addToast({ title: t('updateFailed'), type: "error" }) }
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const ok = await confirm({
+            title: t('confirmDelete'),
+            description: "This action cannot be undone.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        })
+        if (!ok) return
         try {
             const res = await fetch(`/api/loans/${id}`, { method: "DELETE" })
-            if (res.ok) fetchData()
+            if (res.ok) invalidateLoans()
         } catch { /* silent */ }
     }
 
@@ -230,7 +216,7 @@ export default function LoansPage() {
                         <HandCoins className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">
                             {t('subtitle')}
                             {!isLoading && (
@@ -302,7 +288,7 @@ export default function LoansPage() {
                                 <div className="flex items-start justify-between">
                                     <div className="space-y-1">
                                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</p>
-                                        <p className="text-2xl font-bold text-foreground tabular-nums">
+                                        <p className="text-2xl font-display font-bold text-foreground tabular-nums">
                                             <AnimatedCounter target={card.value} prefix={card.prefix || ""} />
                                         </p>
                                         {card.badge && (
@@ -415,7 +401,7 @@ export default function LoansPage() {
                                             <span className="text-lg">{typeObj?.icon || "💰"}</span>
                                             <span className="text-xs font-medium text-muted-foreground">{typeObj?.label || loan.type}</span>
                                         </div>
-                                        <p className="text-xl font-bold text-foreground tabular-nums">{formatCurrency(loan.amount)}</p>
+                                        <p className="text-xl font-display font-bold text-foreground tabular-nums">{formatCurrency(loan.amount)}</p>
                                     </div>
 
                                     {/* Progress Bar (for disbursed loans) */}
@@ -423,7 +409,7 @@ export default function LoansPage() {
                                         <div className="mb-4">
                                             <div className="flex items-center justify-between mb-1.5">
                                                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Repayment Progress</span>
-                                                <span className="text-xs font-bold text-foreground">{progress}%</span>
+                                                <span className="text-xs font-bold tabular-nums text-foreground">{progress}%</span>
                                             </div>
                                             <div className="h-2 rounded-full bg-hover overflow-hidden">
                                                 <div
@@ -576,6 +562,7 @@ export default function LoansPage() {
                     </div>
                 </div>
             )}
+            {confirmDialog}
         </div>
     )
 }

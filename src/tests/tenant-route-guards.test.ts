@@ -31,9 +31,9 @@ describe("tenant and RBAC guard coverage in critical API routes", () => {
   it("employee detail route scopes full and public profiles by organization", () => {
     const source = routeSource("src/app/api/employees/[id]/route.ts");
 
-    expect(source).toMatch(/where:\s*\{[\s\S]*id,[\s\S]*organizationId:\s*user\.organizationId/);
-    expect(source).toContain("reportingManagerId: user.employee.id");
-    expect(source).toContain("const isSelf = user.employee?.id === id");
+    expect(source).toMatch(/where:\s*\{[\s\S]*id,[\s\S]*organizationId:\s*auth\.organizationId/);
+    expect(source).toContain("reportingManagerId: auth.employeeId");
+    expect(source).toContain("const isSelf = auth.employeeId === id");
     expect(source).toContain("salaryAssignments");
     expect(source).toMatch(/Regular employees viewing others: public fields only/);
   });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTranslations } from "next-intl";
 import { useToast } from "@/components/ui/toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
     GitPullRequest,
@@ -51,7 +52,9 @@ const entityTypeIcons: Record<string, string> = {
 
 export default function ApprovalWorkflowsPage() {
     const t = useTranslations("ApprovalWorkflows");
+    const tShared = useTranslations("SharedComponents");
     const { addToast } = useToast();
+    const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -181,7 +184,7 @@ export default function ApprovalWorkflowsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm(t("confirmDelete"))) return;
+        const _ok = await confirm({ title: t("confirmDelete"), description: tShared("confirmDeleteDescription"), confirmLabel: tShared("delete"), variant: "destructive" }); if (!_ok) return;
 
         try {
             const res = await fetch(`/api/approval-workflows/${id}`, { method: "DELETE" });
@@ -233,7 +236,7 @@ export default function ApprovalWorkflowsPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
                 </div>
                 {!showForm && availableEntityTypes.length > 0 && (
@@ -286,7 +289,7 @@ export default function ApprovalWorkflowsPage() {
                             <Input
                                 value={formData.name}
                                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder={`e.g. Leave Approval Chain`}
+                                placeholder={t("namePlaceholder")}
                             />
                         </div>
 
@@ -458,7 +461,7 @@ export default function ApprovalWorkflowsPage() {
                                             {workflow.isActive ? t("isActive") : t("inactive")}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
-                                            {steps.length} {t("steps").toLowerCase()}
+                                            {t("stepsCount", { count: steps.length })}
                                         </span>
                                     </div>
                                 </CardContent>

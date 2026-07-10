@@ -330,7 +330,7 @@ export function EmployeeDocumentVault({ employeeId, employeeName, compact = fals
             ].map(([label, value, color]) => (
               <div key={label} className="rounded-xl border border-card-border bg-hover/40 p-3">
                 <p className="text-xs text-muted-foreground">{label}</p>
-                <p className={cn("mt-1 text-2xl font-semibold", color as string)}>{value}</p>
+                <p className={cn("mt-1 text-2xl font-semibold tabular-nums", color as string)}>{value}</p>
               </div>
             ))}
           </div>

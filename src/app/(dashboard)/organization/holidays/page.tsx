@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Loader2, Calendar as CalendarIcon, List, Trash2, Pencil, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/components/ui/toast"
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface Holiday {
     id: string
@@ -50,6 +51,7 @@ const BD_HOLIDAYS_2026 = [
 export default function HolidaysPage() {
     const t = useTranslations('Holidays')
     const { addToast } = useToast()
+    const { confirm, dialog: confirmDialog } = useConfirmDialog()
     const [holidayLists, setHolidayLists] = useState<HolidayList[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [view, setView] = useState<"list" | "calendar">("list")
@@ -138,7 +140,7 @@ export default function HolidaysPage() {
 
     // Delete holiday
     const handleDeleteHoliday = async (holidayId: string) => {
-        if (!confirm(t('confirmDelete'))) return
+        const _ok = await confirm({ title: t('confirmDelete'), description: 'This holiday will be permanently removed.', confirmLabel: 'Delete', variant: 'destructive' }); if (!_ok) return
         try {
             const res = await fetch(`/api/holidays/${selectedListId}?holidayId=${holidayId}`, {
                 method: "DELETE",
@@ -200,7 +202,7 @@ export default function HolidaysPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t('title')}</h1>
                     <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-2">

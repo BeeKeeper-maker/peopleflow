@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { calculateEncashment } from "@/lib/leave-engine";
@@ -29,10 +29,10 @@ export async function POST(req: Request) {
         }
 
         // ✅ Org-scoping: verify employee belongs to same organization
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: employeeId, organizationId: ctx.organizationId },
             select: { id: true },
-        });
+        }));
 
         if (!employee) {
             return NextResponse.json({ error: "Employee not found in your organization" }, { status: 404 });
@@ -75,20 +75,20 @@ export async function GET(req: Request) {
         }
 
         // Get encashable leave types in this org
-        const encashableLeaveTypes = await prisma.leaveType.findMany({
+        const encashableLeaveTypes = await auth.withDB((db) => db.leaveType.findMany({
             where: {
                 organizationId: ctx.organizationId,
                 isActive: true,
                 encashmentAllowed: true,
             },
-        });
+        }));
 
         if (encashableLeaveTypes.length === 0) {
             return NextResponse.json({ report: [], totalEncashment: 0 });
         }
 
         // Get active employees with salary info (batch)
-        const employees = await prisma.employee.findMany({
+        const employees = await auth.withDB((db) => db.employee.findMany({
             where: { organizationId: ctx.organizationId, employmentStatus: "active" },
             include: {
                 user: { select: { name: true } },
@@ -98,19 +98,19 @@ export async function GET(req: Request) {
                     take: 1,
                 },
             },
-        });
+        }));
 
         // Get all allocations for the year (batch)
         const employeeIds = employees.map(e => e.id);
         const leaveTypeIds = encashableLeaveTypes.map(lt => lt.id);
 
-        const allocations = await prisma.leaveAllocation.findMany({
+        const allocations = await auth.withDB((db) => db.leaveAllocation.findMany({
             where: {
                 year,
                 employeeId: { in: employeeIds },
                 leaveTypeId: { in: leaveTypeIds },
             },
-        });
+        }));
 
         // Build allocation lookup
         const allocMap = new Map<string, typeof allocations[0]>();
@@ -126,7 +126,7 @@ export async function GET(req: Request) {
             const assignment = emp.salaryAssignments[0];
             if (!assignment) continue;
 
-            const basicSalary = assignment.grossSalary * (assignment.salaryStructure.basicPercentage / 100);
+            const basicSalary = Number(assignment.grossSalary) * (Number(assignment.salaryStructure.basicPercentage) / 100);
             const dailyRate = basicSalary / 26;
 
             for (const lt of encashableLeaveTypes) {

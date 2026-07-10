@@ -156,3 +156,9 @@ Rollback notes:
 - Remove Redis connection attempts during build/static page collection.
 - Expand E2E coverage for authenticated tenant workflows using a disposable seeded database.
 - Complete app-wide tenant isolation/RLS verification beyond the high-risk routes patched for beta.
+
+## Documentation
+
+- [Production Deployment Runbook](docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md)
+- [Staging Environment Guide](docs/STAGING_ENVIRONMENT_GUIDE.md)
+- [Contributing Guide](CONTRIBUTING.md)

@@ -226,6 +226,44 @@ export async function GET(request: NextRequest) {
             where: { status: "past_due" },
         });
 
+        // ── 9. Historical MRR Trend (last 6 months) ──────────
+
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const monthlyInvoices = await prisma.invoice.findMany({
+            where: {
+                status: "paid",
+                paidAt: { gte: sixMonthsAgo },
+            },
+            select: { amount: true, paidAt: true },
+        });
+
+        // Group by month
+        const monthMap = new Map<string, number>();
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            monthMap.set(key, 0);
+        }
+
+        for (const inv of monthlyInvoices) {
+            if (!inv.paidAt) continue;
+            const d = new Date(inv.paidAt);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            if (monthMap.has(key)) {
+                monthMap.set(key, (monthMap.get(key) || 0) + (inv.amount || 0));
+            }
+        }
+
+        const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const revenueTrend = Array.from(monthMap.entries()).map(([key, revenue]) => {
+            const [year, month] = key.split("-");
+            const monthIdx = parseInt(month, 10) - 1;
+            return {
+                month: `${MONTH_NAMES[monthIdx]} ${year.slice(2)}`,
+                mrr: Math.round(revenue / 100), // Convert poisha to taka
+            };
+        });
+
         // ── Build Response ──────────────────────────────
 
         return NextResponse.json({
@@ -240,6 +278,7 @@ export async function GET(request: NextRequest) {
                 ),
                 invoicesPaid: recentRevenue._count,
                 revenueGrowthPercent: revenueGrowth,
+                revenueTrend, // Historical 6-month MRR trend
             },
             tenants: {
                 total: totalTenants,

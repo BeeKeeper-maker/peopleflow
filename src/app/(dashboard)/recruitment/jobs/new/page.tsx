@@ -152,7 +152,7 @@ export default function NewJobPage() {
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+                    <h1 className="text-2xl font-display font-bold text-foreground tabular-nums">{t("title")}</h1>
                     <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
                 </div>
             </div>
@@ -323,7 +323,7 @@ export default function NewJobPage() {
                                     type="number"
                                     value={formData.salaryMin}
                                     onChange={(e) => handleChange("salaryMin", e.target.value)}
-                                    placeholder="e.g. 50000"
+                                    placeholder={t("minSalaryPlaceholder")}
                                     className="mt-1.5 bg-hover border-card-border"
                                 />
                             </div>
@@ -334,7 +334,7 @@ export default function NewJobPage() {
                                     type="number"
                                     value={formData.salaryMax}
                                     onChange={(e) => handleChange("salaryMax", e.target.value)}
-                                    placeholder="e.g. 80000"
+                                    placeholder={t("maxSalaryPlaceholder")}
                                     className="mt-1.5 bg-hover border-card-border"
                                 />
                             </div>

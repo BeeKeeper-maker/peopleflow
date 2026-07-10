@@ -135,12 +135,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             throw new Error("Two-factor authentication code is required.");
           }
 
-          const isValidToken = verifyTOTP({
-            token,
-            secret: user.twoFactorSecret,
-          });
-          if (!isValidToken) {
-            throw new Error("Invalid two-factor authentication code.");
+          // ── Recovery code support ──
+          // If the token looks like a recovery code (contains dashes or is 19 chars),
+          // try to match it against stored recovery code hashes.
+          // Otherwise, try TOTP verification.
+          const looksLikeRecoveryCode =
+            token.includes("-") || token.length === 19;
+
+          let isRecoveryCode = false;
+
+          if (looksLikeRecoveryCode && user.twoFactorRecoveryCodes.length > 0) {
+            const { verifyRecoveryCode } = await import("@/lib/recovery-codes");
+            const matchIndex = await verifyRecoveryCode(
+              token,
+              user.twoFactorRecoveryCodes,
+            );
+
+            if (matchIndex !== null) {
+              // Recovery code matched — remove it (single-use)
+              const remainingCodes = user.twoFactorRecoveryCodes.filter(
+                (_, i) => i !== matchIndex,
+              );
+              await withPlatform((db) =>
+                db.user.update({
+                  where: { id: user.id },
+                  data: { twoFactorRecoveryCodes: remainingCodes },
+                }),
+              );
+              isRecoveryCode = true;
+            }
+          }
+
+          // If not a recovery code, try TOTP
+          if (!isRecoveryCode) {
+            const isValidToken = verifyTOTP({
+              token,
+              secret: user.twoFactorSecret,
+            });
+            if (!isValidToken) {
+              throw new Error("Invalid two-factor authentication code or recovery code.");
+            }
           }
         }
 

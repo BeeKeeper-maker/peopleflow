@@ -157,7 +157,7 @@ export default function LeaveRequestsPage() {
                         <CalendarOff className="h-6 w-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-foreground tracking-tight">{t("requestsTitle")}</h1>
+                        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">{t("requestsTitle")}</h1>
                         <p className="text-sm text-muted-foreground">
                             {t("requestsSubtitle")}
                             {!isLoading && (
@@ -229,7 +229,7 @@ export default function LeaveRequestsPage() {
                                 <div className="flex items-start justify-between">
                                     <div className="space-y-1">
                                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</p>
-                                        <p className="text-3xl font-bold text-foreground tabular-nums">
+                                        <p className="text-3xl font-display font-bold text-foreground tabular-nums">
                                             <AnimatedCounter target={card.value} />
                                         </p>
                                         {card.badge && (

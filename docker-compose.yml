@@ -1,5 +1,8 @@
 # PeopleFlow HRMS - Docker Compose
-# Enterprise B2B SaaS — Production-ready with Redis
+# Enterprise B2B SaaS — Production-ready with Redis + RLS
+#
+# Security: App and worker connect as peopleflow_app (NOSUPERUSER) for RLS.
+# Migrations connect as peopleflow (superuser) for DDL operations.
 
 services:
   app:
@@ -9,7 +12,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      # App connects via PgBouncer (port 6432) for connection pooling.
+      # PgBouncer connects to Postgres (db:5432) as peopleflow_app (NOSUPERUSER) for RLS.
+      # pgbouncer=true&connection_limit=1 prevents "prepared statement does not exist" errors
+      # when Prisma is used with PgBouncer in transaction pooling mode.
+      - DATABASE_URL=postgresql://peopleflow_app:${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}@pgbouncer:6432/peopleflow?pgbouncer=true&connection_limit=1
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
@@ -20,10 +27,44 @@ services:
       - SENTRY_DSN=${SENTRY_DSN}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
       - PLATFORM_ADMIN_PASSWORD=${PLATFORM_ADMIN_PASSWORD}
+      # ── Encryption / Cron / Sentry public ──
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CRON_SECRET=${CRON_SECRET}
+      # ALLOW_INSECURE_CRON: optional dev-only opt-in (default empty = denied).
+      # Passed through so /api/cron/* endpoints work in local docker stacks
+      # without setting CRON_SECRET. NEVER set this to "1" in production.
+      - ALLOW_INSECURE_CRON=${ALLOW_INSECURE_CRON:-}
+      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+      # ── SMTP ──
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM:-noreply@peopleflow.app}
+      # ── Logging ──
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # ── Storage (local or S3/R2) ──
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - STORAGE_LOCAL_PATH=${STORAGE_LOCAL_PATH:-/app/uploads}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-auto}
+      # ── Web Push (VAPID) — public key is safe to expose to the browser ──
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      # ── Health alerting (email + Slack/Discord webhook) ──
+      # Used by checkHealthAndAlert() in src/lib/health-alert.ts when the
+      # health-ping cron finds DB/Redis down. Empty values = alerting disabled.
+      - HEALTH_ALERT_EMAILS=${HEALTH_ALERT_EMAILS:-}
+      - HEALTH_ALERT_WEBHOOK=${HEALTH_ALERT_WEBHOOK:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      pgbouncer:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
@@ -36,19 +77,53 @@ services:
       dockerfile: Dockerfile
       target: worker
     environment:
-      - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      # Worker connects via PgBouncer (port 6432) for connection pooling.
+      # pgbouncer=true&connection_limit=1 prevents Prisma prepared-statement errors
+      # under PgBouncer transaction pooling mode.
+      - DATABASE_URL=postgresql://peopleflow_app:${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}@pgbouncer:6432/peopleflow?pgbouncer=true&connection_limit=1
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - PLATFORM_JWT_SECRET=${PLATFORM_JWT_SECRET}
+      - SENTRY_DSN=${SENTRY_DSN}
+      # ── Encryption / Cron / Sentry public ──
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CRON_SECRET=${CRON_SECRET}
+      # ALLOW_INSECURE_CRON: optional dev-only opt-in (default empty = denied).
+      # Worker boots env.ts validation too — without this var passed through,
+      # worker boots in stacks that rely on ALLOW_INSECURE_CRON=1 would fail
+      # the CRON_SECRET refine() in env.ts. NEVER set to "1" in production.
+      - ALLOW_INSECURE_CRON=${ALLOW_INSECURE_CRON:-}
+      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+      # ── SMTP ──
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM=${SMTP_FROM:-noreply@peopleflow.app}
+      # ── Logging ──
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # ── Storage (local or S3/R2) ──
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - STORAGE_LOCAL_PATH=${STORAGE_LOCAL_PATH:-/app/uploads}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-}
+      - S3_REGION=${S3_REGION:-auto}
+      # ── Web Push (VAPID) — worker can also send pushes via smart-notifications ──
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      # ── Health alerting (email + Slack/Discord webhook) ──
+      # Worker also runs internal health checks; without these env vars any
+      # worker-side alerting path would silently no-op.
+      - HEALTH_ALERT_EMAILS=${HEALTH_ALERT_EMAILS:-}
+      - HEALTH_ALERT_WEBHOOK=${HEALTH_ALERT_WEBHOOK:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      pgbouncer:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
@@ -57,6 +132,7 @@ services:
       replicas: 1  # Scale up: docker-compose up --scale worker=3
 
   # ── Explicit migration/seed job (run manually before schema-changing releases) ──
+  # Migrations connect as peopleflow (SUPERUSER) for DDL + RLS role setup
   migrate:
     build:
       context: .
@@ -64,6 +140,8 @@ services:
       target: migrate
     environment:
       - DATABASE_URL=postgresql://peopleflow:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/peopleflow
+      - PF_APP_DB_PASSWORD=${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL}
       - PLATFORM_ADMIN_PASSWORD=${PLATFORM_ADMIN_PASSWORD}
     depends_on:
@@ -88,6 +166,38 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+  # ── PgBouncer Connection Pooler ──
+  # Prevents "too many connections" errors at scale.
+  # App connects to PgBouncer (port 6432) instead of Postgres directly.
+  # PgBouncer maintains a pool of connections to Postgres.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_USER: peopleflow_app
+      DB_PASSWORD: ${PF_APP_DB_PASSWORD:?Set PF_APP_DB_PASSWORD}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: peopleflow
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 3
+      SERVER_IDLE_TIMEOUT: 240
+      AUTH_TYPE: plain
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U peopleflow_app"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   redis:
     image: redis:7-alpine

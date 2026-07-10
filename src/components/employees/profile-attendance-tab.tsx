@@ -148,7 +148,7 @@ export function AttendanceTab({ data, loading }: AttendanceTabProps) {
                             <span className="text-xs font-medium text-muted-foreground">{m.label}</span>
                             <m.icon className={`h-4 w-4 ${m.color}`} />
                         </div>
-                        <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
+                        <p className={`text-2xl font-bold tabular-nums ${m.color}`}>{m.value}</p>
                         <p className="text-xs text-muted-foreground mt-1">{m.sub}</p>
                     </div>
                 ))}

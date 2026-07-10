@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { SalarySlipPDF, SalarySlipData } from "@/components/payroll/salary-slip-pdf";
+import { toNumber } from "@/lib/payroll-engine";
 import { payrollLogger } from "@/lib/logger";
 
 type RouteParams = {
@@ -11,24 +11,16 @@ type RouteParams = {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
+        const auth = await requireAuth();
+        if (!isAuthenticated(auth)) return auth;
+
         const { id } = await params;
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
-
-        if (!user?.organizationId) {
-            return NextResponse.json({ error: "No organization" }, { status: 400 });
-        }
-
-        // Get salary slip
-        const salarySlip = await prisma.salarySlip.findUnique({
-            where: { id },
+        // Get salary slip (RLS-scoped via auth.withDB).
+        // findFirst + deletedAt: null so soft-deleted slips are hidden
+        // (SalarySlip has had deletedAt since P6-SOFT-DELETE).
+        const salarySlip = await auth.withDB((db) => db.salarySlip.findFirst({
+            where: { id, deletedAt: null },
             include: {
                 employee: {
                     include: {
@@ -38,35 +30,39 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                     },
                 },
             },
-        });
+        }));
 
-        if (!salarySlip || salarySlip.employee.organizationId !== user.organizationId) {
+        if (!salarySlip || salarySlip.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
 
         // Check access - employee can only view their own, HR can view all
-        const isHR = ["admin", "hr_admin", "super_admin"].includes(user.role);
-        if (!isHR && salarySlip.employeeId !== user.employee?.id) {
+        const isHR = ["admin", "hr_admin", "super_admin"].includes(auth.role);
+        if (!isHR && salarySlip.employeeId !== auth.employeeId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        // Map salary slip fields to PDF data
+        // Map salary slip fields to PDF data.
+        // Phase 1 (Float → Decimal): wrap each monetary field with toNumber() because
+        // (a) `specialAllowance + otherEarnings` would otherwise string-concatenate
+        //     two Decimal objects (decimal.js does not override the `+` operator), and
+        // (b) the SalarySlipData interface expects `number`, not Prisma.Decimal.
         const earnings = {
-            basicSalary: salarySlip.basicSalary,
-            houseRent: salarySlip.houseRent,
-            medicalAllowance: salarySlip.medicalAllowance,
-            transportAllowance: salarySlip.conveyance,
-            otherAllowances: salarySlip.specialAllowance + salarySlip.otherEarnings,
-            bonus: salarySlip.bonus || undefined,
-            overtime: salarySlip.overtime || undefined,
+            basicSalary: toNumber(salarySlip.basicSalary),
+            houseRent: toNumber(salarySlip.houseRent),
+            medicalAllowance: toNumber(salarySlip.medicalAllowance),
+            transportAllowance: toNumber(salarySlip.conveyance),
+            otherAllowances: toNumber(salarySlip.specialAllowance) + toNumber(salarySlip.otherEarnings),
+            bonus: toNumber(salarySlip.bonus) || undefined,
+            overtime: toNumber(salarySlip.overtime) || undefined,
         };
 
         const deductions = {
-            providentFund: salarySlip.pfEmployee,
+            providentFund: toNumber(salarySlip.pfEmployee),
             professionalTax: 0,
-            incomeTax: salarySlip.incomeTax,
-            loanDeduction: salarySlip.loanDeduction || undefined,
-            otherDeductions: salarySlip.advanceDeduction + salarySlip.absentDeduction + salarySlip.lateDeduction + salarySlip.otherDeductions,
+            incomeTax: toNumber(salarySlip.incomeTax),
+            loanDeduction: toNumber(salarySlip.loanDeduction) || undefined,
+            otherDeductions: toNumber(salarySlip.advanceDeduction) + toNumber(salarySlip.absentDeduction) + toNumber(salarySlip.lateDeduction) + toNumber(salarySlip.otherDeductions),
         };
 
         // Get month name
@@ -98,9 +94,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             earnings,
             deductions,
             summary: {
-                grossEarnings: salarySlip.grossSalary,
-                totalDeductions: salarySlip.totalDeductions,
-                netPayable: salarySlip.netSalary,
+                grossEarnings: toNumber(salarySlip.grossSalary),
+                totalDeductions: toNumber(salarySlip.totalDeductions),
+                netPayable: toNumber(salarySlip.netSalary),
             },
         };
 

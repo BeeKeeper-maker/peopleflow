@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 
 // GET /api/branches — List all branches
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAuth();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (read op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const branches = await auth.withDB((db) =>
@@ -21,10 +26,14 @@ export async function GET() {
       }),
     );
 
-    return NextResponse.json(branches);
+    return applyRateLimitHeaders(NextResponse.json(branches), rl.headers);
   } catch (error) {
-    apiLogger.error({ err: error }, "GET_BRANCHES_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "GET_BRANCHES_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }
 
@@ -32,6 +41,10 @@ export async function GET() {
 export async function POST(req: Request) {
   const auth = await requireAdminOrHR();
   if (!isAuthenticated(auth)) return auth;
+
+  // Per-user rate limit (write op)
+  const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+  if (!rl.allowed) return rl.response!;
 
   try {
     const json = await req.json();
@@ -114,7 +127,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json(branch);
   } catch (error) {
-    apiLogger.error({ err: error }, "CREATE_BRANCH_ERROR");
-    return new NextResponse("Internal Error", { status: 500 });
+    const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    apiLogger.error({ err: error, errorId }, "CREATE_BRANCH_ERROR");
+    return NextResponse.json(
+        { error: "Internal server error", errorId },
+        { status: 500 }
+    );
   }
 }

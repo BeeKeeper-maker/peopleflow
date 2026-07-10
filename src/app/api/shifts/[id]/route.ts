@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
 import { z } from "zod";
 import { apiLogger } from "@/lib/logger";
@@ -26,22 +25,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         // If setting as default, unset others
         if (body.isDefault) {
-            await prisma.shift.updateMany({
-                where: { organizationId: auth.organizationId, isDefault: true, id: { not: id } },
-                data: { isDefault: false }
-            });
+            await auth.withDB((db) =>
+                db.shift.updateMany({
+                    where: { organizationId: auth.organizationId, isDefault: true, id: { not: id } },
+                    data: { isDefault: false }
+                }),
+            );
         }
 
-        const shift = await prisma.shift.update({
-            where: { id, organizationId: auth.organizationId },
-            data: body
-        });
+        const shift = await auth.withDB((db) =>
+            db.shift.update({
+                where: { id, organizationId: auth.organizationId },
+                data: body
+            }),
+        );
 
         return NextResponse.json(shift);
 
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_SHIFT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_SHIFT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -53,9 +60,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         const { id } = await params;
 
         // Check if assigned to any employees
-        const assignedCount = await prisma.employee.count({
-            where: { shiftId: id, organizationId: auth.organizationId }
-        });
+        const assignedCount = await auth.withDB((db) =>
+            db.employee.count({
+                where: { shiftId: id, organizationId: auth.organizationId }
+            }),
+        );
 
         if (assignedCount > 0) {
             return new NextResponse(`Cannot delete shift. It is assigned to ${assignedCount} employees.`, { status: 400 });
@@ -63,14 +72,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
         // Soft delete or hard delete? Schema says isActive, so let's use that or hard delete if no relations.
         // Actually, let's hard delete since we checked relations.
-        await prisma.shift.delete({
-            where: { id, organizationId: auth.organizationId }
-        });
+        await auth.withDB((db) =>
+            db.shift.delete({
+                where: { id, organizationId: auth.organizationId }
+            }),
+        );
 
         return new NextResponse(null, { status: 204 });
 
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_SHIFT_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_SHIFT_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

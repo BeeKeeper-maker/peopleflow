@@ -1,30 +1,39 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { enforcePlanLimit, onResourceCreated } from "@/lib/plan-enforcement";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { biometricLogger } from "@/lib/logger";
 
 /**
  * GET /api/biometric-devices — List all devices for organization
  */
-export async function GET() {
+export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
 
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
+
     try {
-        const devices = await prisma.biometricDevice.findMany({
+        const devices = await auth.withDB((db) => db.biometricDevice.findMany({
             where: { organizationId: auth.organizationId },
             include: {
                 branch: { select: { id: true, name: true, code: true } },
                 _count: { select: { syncLogs: true } },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
-        return NextResponse.json(devices);
+        return applyRateLimitHeaders(NextResponse.json(devices), rl.headers);
     } catch (error) {
-        biometricLogger.error({ err: error }, "GET_BIOMETRIC_DEVICES_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "GET_BIOMETRIC_DEVICES_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -39,6 +48,10 @@ export async function POST(req: Request) {
     if (!["super_admin", "admin", "hr_admin"].includes(auth.role)) {
         return new NextResponse("Forbidden", { status: 403 });
     }
+
+    // Per-user rate limit (write op: device registration)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const body = await req.json();
@@ -87,7 +100,7 @@ export async function POST(req: Request) {
         }
 
         // Check for duplicate connection identity in same org
-        const existing = await prisma.biometricDevice.findFirst({
+        const existing = await auth.withDB((db) => db.biometricDevice.findFirst({
             where: mode === "direct_cloud"
                 ? { organizationId: auth.organizationId, serialNumber: cleanSerial }
                 : {
@@ -95,7 +108,7 @@ export async function POST(req: Request) {
                     ip: normalizedIp,
                     port: port || 4370,
                 },
-        });
+        }));
 
         if (existing) {
             return NextResponse.json(
@@ -106,15 +119,15 @@ export async function POST(req: Request) {
 
         // Validate branchId if provided
         if (branchId) {
-            const branch = await prisma.branch.findFirst({
+            const branch = await auth.withDB((db) => db.branch.findFirst({
                 where: { id: branchId, organizationId: auth.organizationId },
-            });
+            }));
             if (!branch) {
                 return NextResponse.json({ error: "Branch not found" }, { status: 400 });
             }
         }
 
-        const device = await prisma.biometricDevice.create({
+        const device = await auth.withDB((db) => db.biometricDevice.create({
             data: {
                 name,
                 ip: normalizedIp,
@@ -135,13 +148,17 @@ export async function POST(req: Request) {
             include: {
                 branch: { select: { id: true, name: true, code: true } },
             },
-        });
+        }));
 
         await onResourceCreated(auth.organizationId, "device");
 
         return NextResponse.json(device, { status: 201 });
     } catch (error) {
-        biometricLogger.error({ err: error }, "CREATE_BIOMETRIC_DEVICE_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "CREATE_BIOMETRIC_DEVICE_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

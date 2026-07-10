@@ -385,7 +385,7 @@ export function BiometricMappingHub({
                                                     : "bg-hover border-card-border hover:border-violet-500/20"
                                             )}
                                         >
-                                            <p className="text-xl font-bold text-foreground">{stats.total}</p>
+                                            <p className="text-xl font-display font-bold text-foreground">{stats.total}</p>
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Total</p>
                                         </button>
                                         <button
@@ -398,7 +398,7 @@ export function BiometricMappingHub({
                                                     : "bg-hover border-card-border hover:border-emerald-500/20"
                                             )}
                                         >
-                                            <p className="text-xl font-bold text-emerald-400">{stats.mapped}</p>
+                                            <p className="text-xl font-display font-bold text-emerald-400">{stats.mapped}</p>
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{t("mappedUsers")}</p>
                                         </button>
                                         <button
@@ -411,7 +411,7 @@ export function BiometricMappingHub({
                                                     : "bg-hover border-card-border hover:border-blue-500/20"
                                             )}
                                         >
-                                            <p className="text-xl font-bold text-blue-400">{stats.suggested}</p>
+                                            <p className="text-xl font-display font-bold text-blue-400">{stats.suggested}</p>
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{t("suggestedMatch")}</p>
                                         </button>
                                         <button
@@ -424,7 +424,7 @@ export function BiometricMappingHub({
                                                     : "bg-hover border-card-border hover:border-red-500/20"
                                             )}
                                         >
-                                            <p className="text-xl font-bold text-red-400">{stats.unmapped}</p>
+                                            <p className="text-xl font-display font-bold text-red-400">{stats.unmapped}</p>
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{t("unmappedUsers")}</p>
                                         </button>
                                     </div>

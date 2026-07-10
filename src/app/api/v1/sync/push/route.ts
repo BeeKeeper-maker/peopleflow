@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
+import { ingestBiometricPunches, type BiometricPunchRecord } from "@/lib/biometric/punch-processor";
 
 /**
  * POST /api/v1/sync/push — Cloud Ingest Endpoint
@@ -11,91 +12,33 @@ import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
  *
  * Body: {
  *   deviceSerial?: string,
+ *   deviceIp?: string,
+ *   devicePort?: number,
+ *   agentVersion?: string,
  *   records: [{ userId: string, timestamp: string, type?: number }]
  * }
  *
  * The engine:
- *   1. Validates API key
- *   2. Maps device userIds → employees via biometricUserId
- *   3. Creates/updates Attendance records with shift-aware logic
- *   4. Returns summary of processed records
+ *   1. Validates API key (authenticateSyncAgent)
+ *   2. Delegates punch processing to the canonical punch-processor
+ *      (shared with ADMS/iClock path — single source of truth)
+ *   3. Updates SyncApiKey stats
+ *   4. Updates matching BiometricDevice card (if deviceIp matches a device row)
+ *   5. Returns summary of processed records
+ *
+ * Merge semantics (idempotent):
+ *   Re-processing the same punch is safe. checkIn = min(existing, new),
+ *   checkOut = max(existing, new). Manual entries are never overwritten.
+ *
+ * Timezone:
+ *   All shift-date determination uses Asia/Dhaka (UTC+6) regardless of
+ *   server timezone. See punch-processor.ts for details.
  */
 
 interface PunchRecord {
     userId: string;
     timestamp: string;
     type?: number; // 0=checkIn, 1=checkOut (ZKTeco convention)
-}
-
-interface ShiftConfig {
-    startTime: string;
-    endTime: string;
-    graceMinutes: number;
-    crossesMidnight: boolean;
-}
-
-function parseTime(timeStr: string): { hours: number; minutes: number } {
-    const [h, m] = timeStr.split(":").map(Number);
-    return { hours: h || 0, minutes: m || 0 };
-}
-
-function startOfDay(date: Date): Date {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d;
-}
-
-function addDays(date: Date, days: number): Date {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    return d;
-}
-
-function buildDateTime(baseDate: Date, timeStr: string): Date {
-    const { hours, minutes } = parseTime(timeStr);
-    const d = new Date(baseDate);
-    d.setHours(hours, minutes, 0, 0);
-    return d;
-}
-
-function getShiftDate(punchTimestamp: Date, shift: ShiftConfig | null): Date {
-    const shiftDate = startOfDay(punchTimestamp);
-    if (!shift || !shift.crossesMidnight) return shiftDate;
-
-    const { hours: startH } = parseTime(shift.startTime);
-    const { hours: endH, minutes: endM } = parseTime(shift.endTime);
-    const punchH = punchTimestamp.getHours();
-    const punchM = punchTimestamp.getMinutes();
-
-    if (punchH < endH || (punchH === endH && punchM <= endM)) {
-        return addDays(shiftDate, -1);
-    }
-    if (punchH >= startH) return shiftDate;
-    return shiftDate;
-}
-
-function diffMinutes(a: Date, b: Date): number {
-    return Math.round((a.getTime() - b.getTime()) / 60000);
-}
-
-function calculateShiftMetrics(checkIn: Date, checkOut: Date | null, shiftDate: Date, shift: ShiftConfig | null) {
-    if (!shift) return { lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0 };
-
-    const shiftStart = buildDateTime(shiftDate, shift.startTime);
-    const shiftEnd = buildDateTime(shift.crossesMidnight ? addDays(shiftDate, 1) : shiftDate, shift.endTime);
-    const graceMinutes = shift.graceMinutes || 0;
-
-    const lateMinutes = Math.max(0, diffMinutes(checkIn, shiftStart) - graceMinutes);
-    let earlyLeaveMinutes = 0;
-    let overtimeMinutes = 0;
-
-    if (checkOut) {
-        const endDiff = diffMinutes(checkOut, shiftEnd);
-        if (endDiff < 0) earlyLeaveMinutes = Math.abs(endDiff);
-        else overtimeMinutes = endDiff;
-    }
-
-    return { lateMinutes, earlyLeaveMinutes, overtimeMinutes };
 }
 
 export async function POST(req: Request) {
@@ -106,14 +49,14 @@ export async function POST(req: Request) {
         const { apiKey } = auth;
 
         const body = await req.json();
-        const records: PunchRecord[] = body.records;
+        const records: PunchRecord[] = Array.isArray(body.records) ? body.records : [];
         const deviceIp = typeof body.deviceIp === "string" ? body.deviceIp.trim() : null;
         const devicePort = Number(body.devicePort) || 4370;
 
-        if (!records || !Array.isArray(records) || records.length === 0) {
+        if (records.length === 0) {
             return NextResponse.json(
                 { success: false, error: "No records provided" },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
@@ -122,193 +65,123 @@ export async function POST(req: Request) {
             req.headers.get("x-real-ip") ||
             "unknown";
 
-        // 2. Get employee map: biometricUserId → employee
-        const employees = await prisma.employee.findMany({
-            where: {
-                organizationId: apiKey.organizationId,
-                biometricUserId: { not: null },
-                deletedAt: null,
-            },
-            select: {
-                id: true,
-                biometricUserId: true,
-                shift: {
-                    select: {
-                        startTime: true,
-                        endTime: true,
-                        graceMinutes: true,
-                        crossesMidnight: true,
-                    },
-                },
-            },
+        // 2. Delegate to the canonical punch processor
+        const result = await ingestBiometricPunches({
+            organizationId: apiKey.organizationId,
+            records: records as BiometricPunchRecord[],
+            source: "biometric",
+            deviceId: undefined, // resolved below if deviceIp matches
+            deviceName: deviceIp ? `Sync Agent (${deviceIp})` : "Sync Agent",
         });
 
-        const employeeMap = new Map<string, (typeof employees)[0]>();
-        for (const emp of employees) {
-            if (emp.biometricUserId) {
-                employeeMap.set(emp.biometricUserId, emp);
-            }
-        }
-
-        // 3. Process records
-        let synced = 0;
-        let skipped = 0;
-        let unmappedUsers = 0;
-        const errors: string[] = [];
-        const unmappedIds = new Set<string>();
-
-        // Group punches by employee+date for smart check-in/check-out detection
-        const punchGroups = new Map<string, { employee: (typeof employees)[0]; punches: Date[] }>();
-
-        for (const record of records) {
-            const employee = employeeMap.get(String(record.userId));
-            if (!employee) {
-                unmappedIds.add(String(record.userId));
-                unmappedUsers++;
-                continue;
-            }
-
-            const ts = new Date(record.timestamp);
-            if (isNaN(ts.getTime())) {
-                skipped++;
-                continue;
-            }
-
-            // Group key: employeeId + shift-aware attendance date
-            const attendanceDateForPunch = getShiftDate(ts, employee.shift);
-            const dateKey = attendanceDateForPunch.toISOString();
-            const groupKey = `${employee.id}::${dateKey}`;
-
-            if (!punchGroups.has(groupKey)) {
-                punchGroups.set(groupKey, { employee, punches: [] });
-            }
-            punchGroups.get(groupKey)!.punches.push(ts);
-        }
-
-        // 4. Create/update attendance records
-        for (const [groupKey, group] of punchGroups.entries()) {
-            const [employeeId, dateStr] = groupKey.split("::");
-            const attendanceDate = new Date(dateStr);
-
-            // Sort punches chronologically
-            group.punches.sort((a, b) => a.getTime() - b.getTime());
-
-            const firstPunch = group.punches[0];
-            const lastPunch = group.punches.length > 1
-                ? group.punches[group.punches.length - 1]
-                : null;
-
-            // Calculate shift-aware late / early leave / overtime metrics
-            const { lateMinutes, earlyLeaveMinutes, overtimeMinutes } = calculateShiftMetrics(
-                firstPunch,
-                lastPunch,
-                attendanceDate,
-                group.employee.shift
-            );
-
-            try {
-                await prisma.attendance.upsert({
-                    where: {
-                        employeeId_date: {
-                            employeeId,
-                            date: attendanceDate,
-                        },
-                    },
-                    create: {
-                        employeeId,
-                        date: attendanceDate,
-                        checkIn: firstPunch,
-                        checkOut: lastPunch,
-                        status: "present",
-                        source: "biometric",
-                        lateMinutes,
-                        earlyLeaveMinutes,
-                        overtimeMinutes,
-                    },
-                    update: {
-                        checkIn: firstPunch,
-                        checkOut: lastPunch || undefined,
-                        source: "biometric",
-                        lateMinutes,
-                        earlyLeaveMinutes,
-                        overtimeMinutes,
-                    },
-                });
-                synced++;
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                errors.push(`${groupKey}: ${msg}`);
-                skipped++;
-            }
-        }
-
-        // 5. Update API key stats and matching device card/history when possible
+        // 3. Update API key stats + device card + sync log.
+        //    All operations are scoped to apiKey.organizationId → wrap in
+        //    a single withTenant so RLS allows the reads/writes in production
+        //    (peopleflow_app is NOSUPERUSER; raw prisma is blocked under RLS).
         const syncedAt = new Date();
-        await prisma.syncApiKey.update({
-            where: { id: apiKey.id },
-            data: {
-                lastSyncAt: syncedAt,
-                agentIp,
-                agentVersion: body.agentVersion || apiKey.agentVersion,
-                syncCount: { increment: 1 },
-                totalRecords: { increment: synced },
-            },
-        });
 
-        if (deviceIp) {
-            const device = await prisma.biometricDevice.findFirst({
-                where: {
-                    organizationId: apiKey.organizationId,
-                    ip: deviceIp,
-                    port: devicePort,
+        // 4. Update matching BiometricDevice card (if deviceIp + port matches)
+        //    We also try to match by the SyncApiKey → BiometricDevice relation
+        //    (added in migration 20260703000000_add_device_sync_api_key_relation).
+        let deviceMatch: { id: string; name: string } | null = null;
+
+        await withTenant(apiKey.organizationId, async (db) => {
+            await db.syncApiKey.update({
+                where: { id: apiKey.id },
+                data: {
+                    lastSyncAt: syncedAt,
+                    agentIp,
+                    agentVersion: body.agentVersion || apiKey.agentVersion,
+                    syncCount: { increment: 1 },
+                    totalRecords: { increment: result.synced },
                 },
-                select: { id: true },
             });
 
-            if (device) {
-                const status = errors.length > 0 || unmappedUsers > 0 ? "partial" : "success";
-                await prisma.biometricDevice.update({
-                    where: { id: device.id },
+            if (apiKey.id) {
+                deviceMatch = await db.biometricDevice.findFirst({
+                    where: {
+                        OR: [
+                            { syncApiKeyId: apiKey.id },
+                            ...(deviceIp
+                                ? [
+                                      {
+                                          ip: deviceIp,
+                                          port: devicePort,
+                                      },
+                                  ]
+                                : []),
+                        ],
+                        organizationId: apiKey.organizationId,
+                    },
+                    select: { id: true, name: true },
+                });
+            }
+
+            if (deviceMatch) {
+                const status =
+                    (result.errors?.length ?? 0) > 0 || result.unmappedUsers > 0
+                        ? "partial"
+                        : "success";
+                await db.biometricDevice.update({
+                    where: { id: deviceMatch.id },
                     data: {
                         lastSyncAt: syncedAt,
                         lastSyncStatus: status,
                         isOnline: true,
                         lastPingAt: syncedAt,
+                        lastSeenAt: syncedAt,
                         consecutiveFailures: 0,
+                        ...(apiKey.id ? { syncApiKeyId: apiKey.id } : {}),
                     },
                 });
 
-                await prisma.deviceSyncLog.create({
+                await db.deviceSyncLog.create({
                     data: {
-                        deviceId: device.id,
+                        deviceId: deviceMatch.id,
                         status,
-                        recordsSynced: synced,
-                        recordsSkipped: skipped + unmappedUsers,
-                        errorMessage: errors.length > 0 ? errors.slice(0, 3).join("; ") : null,
+                        recordsSynced: result.synced,
+                        recordsSkipped: result.skipped + result.unmappedUsers,
+                        errorMessage:
+                            (result.errors?.length ?? 0) > 0
+                                ? result.errors!.slice(0, 3).join("; ")
+                                : null,
                         syncDuration: null,
                     },
                 });
             }
-        }
-
-        return NextResponse.json({
-            success: true,
-            summary: {
-                received: records.length,
-                synced,
-                skipped,
-                unmappedUsers,
-                unmappedUserIds: Array.from(unmappedIds),
-                attendanceDays: punchGroups.size,
-                errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-            },
-            timestamp: new Date().toISOString(),
         });
+
+        // 5. Return summary
+        //    If we received records but synced 0 (all unmapped), return a
+        //    "partial" success flag so the agent can surface a loud warning.
+        const allUnmapped =
+            result.synced === 0 && result.received > 0 && result.unmappedUsers > 0;
+
+        return NextResponse.json(
+            {
+                success: !allUnmapped,
+                code: allUnmapped ? "ALL_PUNCHES_UNMAPPED" : undefined,
+                message: allUnmapped
+                    ? "All received punches were for unmapped biometric user IDs. Please map employees to biometric user IDs in the device settings."
+                    : undefined,
+                summary: {
+                    received: result.received,
+                    synced: result.synced,
+                    skipped: result.skipped,
+                    unmappedUsers: result.unmappedUsers,
+                    unmappedUserIds: result.unmappedUserIds,
+                    attendanceDays: result.attendanceDays,
+                    errors: result.errors,
+                },
+                timestamp: new Date().toISOString(),
+            },
+            { status: allUnmapped ? 422 : 200 },
+        );
     } catch (error) {
         apiLogger.error({ err: error }, "SYNC_PUSH_ERROR");
         return NextResponse.json(
             { success: false, error: "Internal server error" },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

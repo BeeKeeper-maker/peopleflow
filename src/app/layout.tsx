@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { LocaleProvider } from "@/components/providers/locale-provider";
@@ -11,6 +11,20 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+});
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
+  weight: ["500", "600", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono",
+  weight: ["400", "500", "600"],
 });
 
 export const viewport: Viewport = {
@@ -82,8 +96,28 @@ export default async function RootLayout({
     <html lang={locale === 'bn' ? 'bn-BD' : 'en'} className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            :root {
+              --font-sans: ${inter.style.fontFamily};
+              --font-display: ${interTight.style.fontFamily};
+              --font-mono: ${jetbrainsMono.style.fontFamily};
+            }
+            .font-display {
+              font-family: var(--font-display), system-ui, sans-serif;
+              letter-spacing: -0.02em;
+            }
+            .font-mono {
+              font-family: var(--font-mono), ui-monospace, monospace;
+            }
+            .tabular-nums {
+              font-variant-numeric: tabular-nums;
+              font-family: var(--font-mono), var(--font-sans), monospace;
+            }
+          `
+        }} />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} font-sans antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <NextIntlClientProvider messages={messages} locale={locale}>
             <LocaleProvider>

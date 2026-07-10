@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { resolveApprovalActorEmployee } from "@/lib/approval-actor";
 import { processApprovalStep } from "@/lib/approval-engine";
@@ -25,16 +25,17 @@ export async function PUT(
         const isHR = ["super_admin", "admin", "hr_admin"].includes(auth.role);
         const isManager = auth.role === "manager";
 
-        const existing = await prisma.loan.findFirst({
+        const existing = await auth.withDB((db) => db.loan.findFirst({
             where: {
                 id,
+                deletedAt: null,
                 employee: {
                     organizationId: auth.organizationId,
                     ...(!isHR && isManager ? { reportingManagerId: auth.employeeId } : {}),
                 },
             },
             include: { employee: { select: { organizationId: true, reportingManagerId: true } } },
-        });
+        }));
 
         if (!existing || existing.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
@@ -42,9 +43,9 @@ export async function PUT(
 
         // ── ✅ Route approve/reject through Stateful Approval Engine ──
         if (json.status === "approved" || json.status === "rejected") {
-            const approvalRequest = await prisma.approvalRequest.findUnique({
+            const approvalRequest = await auth.withDB((db) => db.approvalRequest.findUnique({
                 where: { entityType_entityId: { entityType: "loan", entityId: id } },
-            });
+            }));
 
             if (approvalRequest && approvalRequest.status === "in_progress") {
                 const actorEmployee = await resolveApprovalActorEmployee(auth);
@@ -64,9 +65,10 @@ export async function PUT(
                     return NextResponse.json({ error: result.message }, { status: 400 });
                 }
 
-                // Fetch updated loan
-                const updatedLoan = await prisma.loan.findUnique({
-                    where: { id },
+                // Fetch updated loan (soft-delete-aware: findFirst so we can
+                // filter out loans tombstoned via deletedAt)
+                const updatedLoan = await auth.withDB((db) => db.loan.findFirst({
+                    where: { id, deletedAt: null },
                     include: {
                         employee: {
                             select: {
@@ -78,7 +80,7 @@ export async function PUT(
                             },
                         },
                     },
-                });
+                }));
 
                 // 🔔 Emit notification for loan approval/rejection
                 if (updatedLoan?.employee?.user?.id) {
@@ -88,7 +90,7 @@ export async function PUT(
                         userId: updatedLoan.employee.user.id,
                         employeeName: empName,
                         amount: Number(updatedLoan.amount),
-                        loanType: (updatedLoan as any).loanType || "Loan",
+                        loanType: updatedLoan.type || "Loan",
                         ...(json.status === "rejected" ? { reason: json.notes || json.reason } : {}),
                     } as any).catch((err: unknown) => apiLogger.error({ err: err }, "[EVENT_FAIL] loan:"));
                 }
@@ -116,7 +118,7 @@ export async function PUT(
             }
         }
 
-        const loan = await prisma.loan.update({
+        const loan = await auth.withDB((db) => db.loan.update({
             where: { id },
             data,
             include: {
@@ -124,12 +126,16 @@ export async function PUT(
                     select: { id: true, firstName: true, lastName: true, employeeCode: true },
                 },
             },
-        });
+        }));
 
         return NextResponse.json(loan);
     } catch (error) {
-        apiLogger.error({ err: error }, "UPDATE_LOAN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "UPDATE_LOAN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -149,20 +155,24 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const existing = await prisma.loan.findFirst({
-            where: { id },
+        const existing = await auth.withDB((db) => db.loan.findFirst({
+            where: { id, deletedAt: null },
             include: { employee: { select: { organizationId: true } } },
-        });
+        }));
 
         if (!existing || existing.employee.organizationId !== auth.organizationId) {
             return NextResponse.json({ error: "Loan not found" }, { status: 404 });
         }
 
-        await prisma.loan.delete({ where: { id } });
+        await auth.withDB((db) => db.loan.delete({ where: { id } }));
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELETE_LOAN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELETE_LOAN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

@@ -115,7 +115,7 @@ export function PayrollTab({ data, loading }: PayrollTabProps) {
                             <span className="text-xs font-medium text-muted-foreground">Gross Salary</span>
                             <Banknote className="h-4 w-4 text-emerald-400" />
                         </div>
-                        <p className="text-2xl font-bold text-emerald-400">৳{current.gross.toLocaleString()}</p>
+                        <p className="text-2xl font-bold tabular-nums text-emerald-400">৳{current.gross.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground mt-1">{MONTHS[current.month - 1]} {current.year}</p>
                     </div>
                     <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5 backdrop-blur-sm">
@@ -123,7 +123,7 @@ export function PayrollTab({ data, loading }: PayrollTabProps) {
                             <span className="text-xs font-medium text-muted-foreground">Net Salary</span>
                             <Wallet className="h-4 w-4 text-blue-400" />
                         </div>
-                        <p className="text-2xl font-bold text-blue-400">৳{current.net.toLocaleString()}</p>
+                        <p className="text-2xl font-bold tabular-nums text-blue-400">৳{current.net.toLocaleString()}</p>
                         {netChange && (
                             <p className={`text-xs mt-1 flex items-center gap-1 ${Number(netChange) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 {Number(netChange) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -136,7 +136,7 @@ export function PayrollTab({ data, loading }: PayrollTabProps) {
                             <span className="text-xs font-medium text-muted-foreground">Total Deductions</span>
                             <TrendingDown className="h-4 w-4 text-red-400" />
                         </div>
-                        <p className="text-2xl font-bold text-red-400">৳{current.deductions.toLocaleString()}</p>
+                        <p className="text-2xl font-bold tabular-nums text-red-400">৳{current.deductions.toLocaleString()}</p>
                         <div className="flex gap-3 mt-1 text-[10px] text-muted-foreground">
                             <span>PF: ৳{current.pf.toLocaleString()}</span>
                             <span>Tax: ৳{current.tax.toLocaleString()}</span>

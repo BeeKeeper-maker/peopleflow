@@ -32,6 +32,7 @@ import { useLocale as useNextIntlLocale } from "next-intl";
 import { useTranslations } from "next-intl";
 import { canAccessPath, type EntitlementFeatures } from "@/lib/module-entitlements";
 import { ProtectedAppProviders } from "@/components/providers/protected-app-providers";
+import { SkipLink } from "@/components/ui/skip-link";
 
 interface ESSLayoutProps {
     children: ReactNode;
@@ -132,7 +133,7 @@ function ESSLayoutInner({ children }: ESSLayoutProps) {
 
                     <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-lg bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                            <Layers className="h-3.5 w-3.5 text-foreground" />
+                            <Layers className="h-3.5 w-3.5 text-white" />
                         </div>
                         <span className="text-lg font-semibold text-foreground">PeopleFlow</span>
                     </div>
@@ -156,7 +157,7 @@ function ESSLayoutInner({ children }: ESSLayoutProps) {
                 <div className="h-16 flex items-center gap-3 px-5 border-b border-sidebar-border shrink-0">
                     <div className="relative">
                         <div className="w-8 h-8 rounded-xl bg-linear-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <Layers className="h-4 w-4 text-foreground" />
+                            <Layers className="h-4 w-4 text-white" />
                         </div>
                         <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />
                     </div>
@@ -174,7 +175,7 @@ function ESSLayoutInner({ children }: ESSLayoutProps) {
                     <div className="flex items-center gap-3 p-2.5 rounded-xl bg-card-bg border border-card-border">
                         <Avatar className="h-10 w-10 ring-2 ring-border">
                             <AvatarImage src={user?.image || undefined} />
-                            <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-foreground text-sm font-semibold">
+                            <AvatarFallback className="bg-linear-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
                                 {initials}
                             </AvatarFallback>
                         </Avatar>
@@ -273,7 +274,8 @@ function ESSLayoutInner({ children }: ESSLayoutProps) {
             )}
 
             {/* Main Content */}
-            <main className="lg:pl-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
+            <SkipLink href="#main-content">Skip to main content</SkipLink>
+            <main id="main-content" tabIndex={-1} className="lg:pl-64 pt-16 lg:pt-0 pb-20 lg:pb-0">
                 <div className="px-4 py-4 sm:p-6">{children}</div>
             </main>
 

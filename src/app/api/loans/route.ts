@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { createApprovalRequest } from "@/lib/approval-engine";
+import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/loans — List loans for the organization
 export async function GET(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -38,7 +43,7 @@ export async function GET(req: Request) {
 
         if (status) where.status = status;
 
-        const loans = await prisma.loan.findMany({
+        const loans = await auth.withDB((db) => db.loan.findMany({
             where,
             include: {
                 employee: {
@@ -52,12 +57,16 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
-        return NextResponse.json(loans);
+        return applyRateLimitHeaders(NextResponse.json(loans), rl.headers);
     } catch (error) {
-        apiLogger.error({ err: error }, "GET_LOANS_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "GET_LOANS_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -65,6 +74,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     const auth = await requireAuth();
     if (!isAuthenticated(auth)) return auth;
+
+    // Per-user rate limit (write op: loan create + approval workflow)
+    const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.write, auth.userId);
+    if (!rl.allowed) return rl.response!;
 
     try {
         const json = await req.json();
@@ -90,24 +103,37 @@ export async function POST(req: Request) {
 
         // Verify employee belongs to org and is within the caller's allowed scope.
         // Employees may request only their own loan; managers may request for self/direct reportees only.
-        const employee = await prisma.employee.findFirst({
+        const employee = await auth.withDB((db) => db.employee.findFirst({
             where: {
                 id: employeeId,
                 organizationId: auth.organizationId,
                 ...(!isHR && isManager ? { OR: [{ id: auth.employeeId }, { reportingManagerId: auth.employeeId }] } : {}),
             },
             select: { id: true, firstName: true, lastName: true },
-        });
+        }));
         if (!employee) {
             return NextResponse.json({ error: isManager ? "Employee not found" : "Employee not found" }, { status: 404 });
         }
 
         const rate = interestRate || 0;
-        const emiAmount = rate > 0
-            ? (amount * (1 + (rate / 100) * (tenure / 12))) / tenure
-            : amount / tenure;
+        // EMI calculation: use standard reducing-balance amortization formula
+        // (the same formula banks use). The previous simple-interest formula
+        // produced EMI values that didn't match bank statements.
+        //
+        // Formula: EMI = P × r × (1+r)^n / ((1+r)^n − 1)
+        //   where P = principal, r = monthly rate (annual/12/100), n = tenure months
+        //
+        // For zero-interest loans (rate=0): EMI = P / n (simple division)
+        const monthlyRate = rate > 0 ? rate / 100 / 12 : 0;
+        let emiAmount: number;
+        if (monthlyRate > 0) {
+            const pow = Math.pow(1 + monthlyRate, tenure);
+            emiAmount = (amount * monthlyRate * pow) / (pow - 1);
+        } else {
+            emiAmount = amount / tenure;
+        }
 
-        const loan = await prisma.loan.create({
+        const loan = await auth.withDB((db) => db.loan.create({
             data: {
                 type,
                 amount,
@@ -117,13 +143,14 @@ export async function POST(req: Request) {
                 remainingAmount: amount,
                 reason: reason || null,
                 employeeId,
+                organizationId: auth.organizationId,
             },
             include: {
                 employee: {
                     select: { id: true, firstName: true, lastName: true, employeeCode: true },
                 },
             },
-        });
+        }));
 
         // ── ✅ NEW: Create Stateful Approval Request ──
         try {
@@ -145,7 +172,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(loan);
     } catch (error) {
-        apiLogger.error({ err: error }, "CREATE_LOAN_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "CREATE_LOAN_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

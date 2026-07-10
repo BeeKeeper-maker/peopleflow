@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +45,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/toast"
 import { useTranslations } from "next-intl"
+import { useLateDeductionPolicy, queryKeys } from "@/hooks/use-data"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,8 +226,9 @@ function PipelineTierCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LateDeductionPolicyPage() {
-    const [policies, setPolicies] = useState<Policy[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const queryClient = useQueryClient()
+    const { data: policies = [], isLoading } = useLateDeductionPolicy()
+    const policyList = policies as unknown as Policy[]
     const [showCreateDialog, setShowCreateDialog] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -239,21 +242,9 @@ export default function LateDeductionPolicyPage() {
 
     useEffect(() => { setMounted(true) }, [])
 
-    const fetchPolicies = useCallback(async () => {
-        try {
-            const res = await fetch("/api/policies/late-deduction")
-            if (res.ok) {
-                const json = await res.json()
-                setPolicies(json.data || [])
-            }
-        } catch (error) {
-            console.error("Failed to fetch policies:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [])
-
-    useEffect(() => { fetchPolicies() }, [fetchPolicies])
+    const invalidatePolicies = () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.policies.lateDeduction() })
+    }
 
     const addTier = () => {
         const lastTier = tiers[tiers.length - 1]
@@ -300,7 +291,7 @@ export default function LateDeductionPolicyPage() {
                 setPolicyName("Corporate Standard Policy")
                 setLateThreshold(10)
                 setTiers([...defaultTiers])
-                fetchPolicies()
+                invalidatePolicies()
             } else {
                 const err = await res.json()
                 addToast({ title: err.error || "Failed to create policy", type: "error" })
@@ -312,8 +303,8 @@ export default function LateDeductionPolicyPage() {
         }
     }
 
-    const activePolicy = policies.find((p) => p.isActive)
-    const inactivePolicies = policies.filter((p) => !p.isActive)
+    const activePolicy = policyList.find((p) => p.isActive)
+    const inactivePolicies = policyList.filter((p) => !p.isActive)
 
     // ─── Loading Skeleton ─────────────────────────────────────────────────
     if (isLoading) {
@@ -324,7 +315,7 @@ export default function LateDeductionPolicyPage() {
                         <Timer className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
+                        <h1 className="text-2xl font-display font-bold tracking-tight">{t('title')}</h1>
                         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
                     </div>
                 </div>
@@ -355,7 +346,7 @@ export default function LateDeductionPolicyPage() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight bg-linear-to-r from-rose-400 via-red-400 to-orange-400 bg-clip-text text-transparent">
+                        <h1 className="text-2xl font-display font-bold tracking-tight bg-linear-to-r from-rose-400 via-red-400 to-orange-400 bg-clip-text text-transparent">
                             {t('title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
@@ -380,7 +371,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('totalPolicies')}</p>
-                        <p className="text-2xl font-bold mt-1">{policies.length}</p>
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">{policyList.length}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('totalPoliciesDesc')}</p>
                     </CardContent>
                 </Card>
@@ -400,7 +391,7 @@ export default function LateDeductionPolicyPage() {
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('activeTiers')}</p>
-                        <p className="text-2xl font-bold text-emerald-400 mt-1">
+                        <p className="text-2xl font-display font-bold text-emerald-400 mt-1 tabular-nums">
                             {activePolicy?.tiers.length || 0}
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-1">{t('activeTiersDesc')}</p>
@@ -417,7 +408,7 @@ export default function LateDeductionPolicyPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('lateThreshold')}</p>
-                        <p className="text-2xl font-bold mt-1">
+                        <p className="text-2xl font-display font-bold mt-1 tabular-nums">
                             {activePolicy?.lateThresholdMinutes || "—"}
                             <span className="text-sm font-normal text-muted-foreground ml-1">{t('min')}</span>
                         </p>
@@ -520,14 +511,14 @@ export default function LateDeductionPolicyPage() {
                                 <div className="flex items-center justify-center gap-3">
                                     <div className="text-center">
                                         <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center mb-1">
-                                            <span className="text-lg font-bold text-amber-400">3</span>
+                                            <span className="text-lg font-display font-bold tabular-nums text-amber-400">3</span>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground">{t('legacyLates')}</span>
                                     </div>
                                     <ArrowRight className="w-5 h-5 text-muted-foreground" />
                                     <div className="text-center">
                                         <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center mb-1">
-                                            <span className="text-lg font-bold text-red-400">1</span>
+                                            <span className="text-lg font-display font-bold tabular-nums text-red-400">1</span>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground">{t('legacyDayCut')}</span>
                                     </div>

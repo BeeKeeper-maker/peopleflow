@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/rbac/delegations — List delegations for the current user's organization
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     try {
         // Delegations where current user is the "owner" (created for others during their tenure)
         // We use organizationId to scope and show all delegations
-        const allDelegations = await prisma.rBACPermission.findMany({
+        const allDelegations = await auth.withDB((db) => db.rBACPermission.findMany({
             where: {
                 organizationId: auth.organizationId,
             },
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
                 },
             },
             orderBy: { createdAt: "desc" },
-        });
+        }));
 
         // Split into: delegated TO current user vs delegated to others
         const received = allDelegations.filter((d) => d.userId === auth.userId);
@@ -34,8 +34,12 @@ export async function GET(req: NextRequest) {
             },
         });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_LIST_ERROR");
-        return NextResponse.json({ error: "Failed to fetch delegations" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_LIST_ERROR");
+        return NextResponse.json(
+            { error: "Failed to fetch delegations", errorId },
+            { status: 500 }
+        );
     }
 }
 
@@ -49,23 +53,25 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
 
         // Find the target employee's user ID — must belong to same org
-        const targetEmployee = await prisma.employee.findFirst({
+        const targetEmployee = await auth.withDB((db) => db.employee.findFirst({
             where: { id: body.targetEmployeeId, organizationId: auth.organizationId },
             select: { userId: true, firstName: true, lastName: true },
-        });
+        }));
 
         if (!targetEmployee?.userId) {
             return NextResponse.json({ error: "Target employee not found" }, { status: 404 });
         }
 
+        const targetUserId: string = targetEmployee.userId;
+
         // Self-delegation prevention
-        if (targetEmployee.userId === auth.userId) {
+        if (targetUserId === auth.userId) {
             return NextResponse.json({ error: "Cannot delegate to yourself" }, { status: 400 });
         }
 
-        const delegation = await prisma.rBACPermission.create({
+        const delegation = await auth.withDB((db) => db.rBACPermission.create({
             data: {
-                userId: targetEmployee.userId,
+                userId: targetUserId,
                 organizationId: auth.organizationId,
                 permission: body.permission || "approval:act",
                 scope: body.scope || "department",
@@ -74,13 +80,14 @@ export async function POST(req: NextRequest) {
                 validUntil: new Date(body.validUntil),
                 isActive: true,
             },
-        });
+        }));
 
         return NextResponse.json({ data: delegation }, { status: 201 });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_CREATE_ERROR");
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_CREATE_ERROR");
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Failed to create delegation" },
+            { error: "Internal server error", errorId },
             { status: 500 }
         );
     }
@@ -99,21 +106,25 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Verify the delegation belongs to caller's organization
-        const existing = await prisma.rBACPermission.findFirst({
+        const existing = await auth.withDB((db) => db.rBACPermission.findFirst({
             where: { id, organizationId: auth.organizationId },
-        });
+        }));
         if (!existing) {
             return NextResponse.json({ error: "Delegation not found" }, { status: 404 });
         }
 
-        await prisma.rBACPermission.update({
+        await auth.withDB((db) => db.rBACPermission.update({
             where: { id },
             data: { isActive: false },
-        });
+        }));
 
         return NextResponse.json({ message: "Delegation revoked" });
     } catch (error) {
-        apiLogger.error({ err: error }, "DELEGATION_DELETE_ERROR");
-        return NextResponse.json({ error: "Failed to revoke delegation" }, { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        apiLogger.error({ err: error, errorId }, "DELEGATION_DELETE_ERROR");
+        return NextResponse.json(
+            { error: "Failed to revoke delegation", errorId },
+            { status: 500 }
+        );
     }
 }

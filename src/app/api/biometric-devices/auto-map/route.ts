@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { biometricLogger } from "@/lib/logger";
 
@@ -41,10 +41,10 @@ export async function POST(req: Request) {
 
                 try {
                     // Verify employee belongs to this org
-                    const employee = await prisma.employee.findFirst({
+                    const employee = await auth.withDB((db) => db.employee.findFirst({
                         where: { id: employeeId, organizationId: auth.organizationId },
                         select: { id: true, firstName: true, lastName: true, employeeCode: true },
-                    });
+                    }));
 
                     if (!employee) {
                         results.push({ deviceUserId, success: false, error: "Employee not found" });
@@ -52,13 +52,13 @@ export async function POST(req: Request) {
                     }
 
                     // Check if this biometric ID is already taken by another employee
-                    const existing = await prisma.employee.findFirst({
+                    const existing = await auth.withDB((db) => db.employee.findFirst({
                         where: {
                             organizationId: auth.organizationId,
                             biometricUserId: String(deviceUserId),
                             id: { not: employeeId },
                         },
-                    });
+                    }));
 
                     if (existing) {
                         results.push({
@@ -70,10 +70,10 @@ export async function POST(req: Request) {
                     }
 
                     // Apply mapping
-                    await prisma.employee.update({
+                    await auth.withDB((db) => db.employee.update({
                         where: { id: employeeId },
                         data: { biometricUserId: String(deviceUserId) },
-                    });
+                    }));
 
                     results.push({
                         deviceUserId,
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         }
 
         // Get all employees in this org (active, not soft-deleted)
-        const employees = await prisma.employee.findMany({
+        const employees = await auth.withDB((db) => db.employee.findMany({
             where: {
                 organizationId: auth.organizationId,
                 deletedAt: null,
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
                 department: { select: { name: true } },
                 designation: { select: { name: true } },
             },
-        });
+        }));
 
         const suggestions = [];
 
@@ -274,7 +274,11 @@ export async function POST(req: Request) {
                 })),
         });
     } catch (error) {
-        biometricLogger.error({ err: error }, "AUTO_MAP_ERROR");
-        return new NextResponse("Internal Error", { status: 500 });
+        const errorId = `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        biometricLogger.error({ err: error, errorId }, "AUTO_MAP_ERROR");
+        return NextResponse.json(
+            { error: "Internal server error", errorId },
+            { status: 500 }
+        );
     }
 }

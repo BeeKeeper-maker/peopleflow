@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
+import { Shield, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound } from "lucide-react";
 
 export default function PlatformLoginPage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [totpCode, setTotpCode] = useState("");
+    const [show2FA, setShow2FA] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -21,13 +23,20 @@ export default function PlatformLoginPage() {
             const res = await fetch("/api/platform/auth", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, totpCode: totpCode || undefined }),
                 credentials: "include",
             });
 
             const data = await res.json();
 
             if (!res.ok) {
+                // Check if 2FA is required
+                if (data.twoFactorRequired || data.code === "TWO_FACTOR_REQUIRED") {
+                    setShow2FA(true);
+                    setError("Please enter your 2FA code to continue.");
+                    setLoading(false);
+                    return;
+                }
                 setError(data.error || "Login failed");
                 return;
             }
@@ -84,7 +93,8 @@ export default function PlatformLoginPage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                                 autoFocus
-                                className="w-full h-11 px-4 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                                disabled={show2FA}
+                                className="w-full h-11 px-4 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all disabled:opacity-60"
                                 placeholder="admin@peopleflow.io"
                             />
                         </div>
@@ -99,7 +109,8 @@ export default function PlatformLoginPage() {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full h-11 px-4 pr-11 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                                    disabled={show2FA}
+                                    className="w-full h-11 px-4 pr-11 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white placeholder-zinc-600 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all disabled:opacity-60"
                                     placeholder="••••••••"
                                 />
                                 <button
@@ -116,6 +127,28 @@ export default function PlatformLoginPage() {
                             </div>
                         </div>
 
+                        {/* 2FA Code Input — shown when 2FA is required */}
+                        {show2FA && (
+                            <div>
+                                <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">
+                                    <KeyRound className="inline w-3 h-3 mr-1" />
+                                    2FA Code
+                                </label>
+                                <input
+                                    type="text"
+                                    value={totpCode}
+                                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                    required
+                                    autoFocus
+                                    placeholder="000000"
+                                    className="w-full h-11 px-4 rounded-lg bg-white/[0.04] border border-white/[0.08] text-white placeholder-zinc-600 text-sm font-mono text-center text-lg tracking-widest focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                                />
+                                <p className="text-xs text-zinc-600 mt-1.5">
+                                    Enter the 6-digit code from your authenticator app.
+                                </p>
+                            </div>
+                        )}
+
                         <button
                             type="submit"
                             disabled={loading}
@@ -125,7 +158,7 @@ export default function PlatformLoginPage() {
                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    Access Console
+                                    {show2FA ? "Verify & Access" : "Access Console"}
                                     <ArrowRight className="w-4 h-4" />
                                 </>
                             )}

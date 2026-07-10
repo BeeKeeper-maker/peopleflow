@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+
 import { requireAdminOrHR } from "@/lib/api-auth";
 import type { AuthContext } from "@/lib/api-auth";
 import { emit } from "@/lib/event-bus";
 import { attendanceLogger } from "@/lib/logger";
 import { buildBusinessDateTime } from "@/lib/biometric/attendance-ingest";
-
 
 type RegularizationStatus = "PENDING" | "APPROVED" | "REJECTED";
 type RegularizationMeta = {
@@ -64,7 +63,7 @@ export async function PUT(
         }
 
         // Fetch the attendance record + org check
-        const attendance = await prisma.attendance.findFirst({
+        const attendance = await auth.withDB((db) => db.attendance.findFirst({
             where: {
                 id,
                 employee: { organizationId: ctx.organizationId },
@@ -79,7 +78,7 @@ export async function PUT(
                     },
                 },
             },
-        });
+        }));
 
         if (!attendance) {
             return NextResponse.json({ error: "Request not found" }, { status: 404 });
@@ -96,10 +95,10 @@ export async function PUT(
         }
 
         // Get approver info
-        const approver = await prisma.employee.findFirst({
+        const approver = await auth.withDB((db) => db.employee.findFirst({
             where: { userId: ctx.userId },
             select: { firstName: true, lastName: true },
-        });
+        }));
         const approverName = approver
             ? `${approver.firstName} ${approver.lastName}`
             : ctx.userId;
@@ -144,10 +143,10 @@ export async function PUT(
             updateData.lateMinutes = 0;
             updateData.earlyLeaveMinutes = 0;
 
-            await prisma.attendance.update({
+            await auth.withDB((db) => db.attendance.update({
                 where: { id },
                 data: updateData,
-            });
+            }));
 
             // 🔔 Emit notification for approved regularization
             if (attendance.employee.user?.id) {
@@ -160,7 +159,7 @@ export async function PUT(
 
             // Log the action in audit
             try {
-                await prisma.auditLog.create({
+                await auth.withDB((db) => db.auditLog.create({
                     data: {
                         action: "approve",
                         entityType: "AttendanceRegularization",
@@ -174,7 +173,7 @@ export async function PUT(
                             approvedBy: approverName,
                         }),
                     },
-                });
+                }));
             } catch {
                 // Non-critical — don't fail the request
             }
@@ -189,12 +188,12 @@ export async function PUT(
             regData.rejectedBy = approverName;
             regData.rejectedAt = new Date().toISOString();
 
-            await prisma.attendance.update({
+            await auth.withDB((db) => db.attendance.update({
                 where: { id },
                 data: {
                     notes: `[REGULARIZATION] ${JSON.stringify(regData)}`,
                 },
-            });
+            }));
 
             // 🔔 Emit notification for rejected regularization
             if (attendance.employee.user?.id) {
@@ -207,7 +206,7 @@ export async function PUT(
 
             // Log the action in audit
             try {
-                await prisma.auditLog.create({
+                await auth.withDB((db) => db.auditLog.create({
                     data: {
                         action: "reject",
                         entityType: "AttendanceRegularization",
@@ -221,7 +220,7 @@ export async function PUT(
                             rejectedBy: approverName,
                         }),
                     },
-                });
+                }));
             } catch {
                 // Non-critical
             }
