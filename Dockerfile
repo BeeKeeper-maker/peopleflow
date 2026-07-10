@@ -18,7 +18,7 @@ COPY .npmrc* ./
 COPY package.json package-lock.json ./
 
 # Cache-buster: change this value to force npm ci re-run
-ARG CACHEBUST=3
+ARG CACHEBUST=4
 # VPS/package-registry connections can reset during large installs. Use explicit
 # retry/timeout settings so transient npm network failures do not break deploys.
 RUN npm config set fetch-retries 5 && \
