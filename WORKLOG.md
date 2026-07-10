@@ -919,3 +919,59 @@ Git Push (main) → GitHub → Coolify Webhook → Docker Build → Deploy → H
   - `npx tsc --noEmit` → passed.
   - `npm run build` → passed.
   - `npm run test:e2e:prod` against production server on port 3100 → **45/45 passed**.
+
+## P17-BUGS-1-8 — Senior-Agent Bug-Fix Sweep (May 8, 2026)
+
+A senior-engineer review (task `P17-BUGS-1-8`) flagged 8 critical bugs across the platform. All 8 were verified against the live code and fixed in a single commit (`efe12bd`). All 474 existing tests continued to pass; 4 new regression tests were added (478/478 green).
+
+### Bug-by-bug summary
+
+1. **Platform Plans API — `maxCustomRoles` missing** (`src/app/api/platform/plans/route.ts`)
+   - The `Plan` model in `prisma/schema.prisma` already had `maxCustomRoles Int @default(0)` (added during P3-RBAC-V2), but the platform plans API was silently dropping it on POST create and PATCH update because the field was not in the destructured body / whitelisted update fields.
+   - Fix: added `maxCustomRoles = 0` to the POST body destructure + create call, and `"maxCustomRoles"` to the PATCH allowed-fields list.
+
+2. **Billing Plans API — RLS bypass via `auth()` + raw `prisma`** (`src/app/api/billing/plans/route.ts`)
+   - The route used `auth()` + raw `prisma.*` calls, bypassing the `requireAuth()` + `auth.withDB()` RLS pattern used by every other tenant-scoped route. A mis-issued session could leak cross-tenant subscription data.
+   - Fix: rewrote the GET handler to use `requireAuth()` + `auth.withDB()` (single Promise.all for plan + subscription). The billing/checkout and billing/status routes were already RLS-compliant — only the plans route was affected.
+
+3. **CI/CD workflow couldn't be pushed** (`.github/workflows/ci.yml`)
+   - The file historically could not be pushed because the deploy PAT lacked the `workflow` scope. The local file did not exist either.
+   - Fix: created `.github/workflows/ci.yml` with the 4 standard quality gates (tsc / eslint / vitest / next build) on push + PR to `masterpiece-v2`, with concurrency cancellation. The push to `origin/masterpiece-v2` succeeded — the PAT now has the `workflow` scope and CI is live.
+
+4. **Buddy punching checks missing `organizationId` filter** (`src/app/api/attendance/check-in/route.ts`)
+   - Both the IP-based and device-fingerprint buddy-punch queries scanned the entire `Attendance` table without an org filter. Two different SaaS customers sharing a public IP (e.g. same co-working space) would falsely trigger buddy-punch warnings against each other.
+   - Fix: added `organizationId: auth.organizationId` to both WHERE clauses so the signal is only meaningful within a single tenant's workforce.
+
+5. **Payroll deducts loan EMI even when net salary is 0** (`src/lib/payroll-engine.ts`)
+   - The previous implementation computed `loanDeduction = Σ emiAmount` unconditionally, summed it into `totalDeductions`, then clamped `netSalary` at 0 via `Math.max(0, …)`. This silently under-paid other priorities (PF, tax) and lost the audit trail of "loan EMI was due but unaffordable this cycle".
+   - Fix: compute `netBeforeLoan = max(0, grossEarnings − nonLoanDeductions)` first, then deduct each loan EMI up to the remaining net (per-loan, in order). If net is 0 before any loan, defer the entire EMI bundle. A warn-level log (`LOAN_DEDUCTION_CAPPED_AT_NET_SALARY`) flags the deferred amount for HR to handle manually.
+
+6. **Stripe webhook race condition on same-subscription concurrent events** (`src/app/api/webhooks/stripe/route.ts`)
+   - The 3-layer idempotency envelope (DB ledger + Redis claim + DB insert) only protected against duplicate deliveries of the SAME event id. DIFFERENT events targeting the same subscription (e.g. `invoice.payment_succeeded` + `customer.subscription.updated` arriving within milliseconds) could race on `prisma.subscription.update`, causing lost updates or P2034 write conflicts.
+   - Fix: added a per-subscription Redis lock (`stripe:sub:${subId}`, 30s TTL, 2s retry-then-give-up). If the lock cannot be acquired, the event-id claim is released and a 503 is returned so Stripe retries after the other worker finishes. The StripeEvent row is NOT persisted in that case.
+
+7. **Stripe payment retry-success ignored** (`src/app/api/webhooks/stripe/route.ts`)
+   - When a payment fails first then succeeds on retry, Stripe sends a NEW `invoice.payment_succeeded` event for the SAME `stripeInvoiceId`. The previous handler saw the existing invoice row (status `failed`) and returned early, leaving the invoice stuck at `failed` forever and the subscription's `currentPeriodEnd` never extended.
+   - Fix: `handlePaymentSucceeded` now checks `existingInvoice.status === "failed"` and, if so, UPDATE the row to `paid` (clearing `failureReason`, setting `paidAt`, refreshing `amount` from `invoice.amount_paid`) + extend the subscription period in a single `$transaction`. The org is also restored to active in case the failed-payment grace cascade had suspended it.
+
+8. **bKash disbursement — unrounded amount + random `merchantInvoiceNumber`** (`src/lib/disbursement-engine.ts`)
+   - The amount was sent as `String(amount)` without rounding — bKash rejects amounts with >2 decimal places (e.g. 1234.56789 → 4001). The `merchantInvoiceNumber` was `PF-${Date.now()}-${Math.floor(Math.random() * 10000)}` which made it impossible to match a bKash transaction back to a salary slip for reconciliation.
+   - Fix: amount is now rounded to 2 dp (`Math.round(amount * 100) / 100`) before the API call. The `merchantInvoiceNumber` is now deterministic: `PF-${salarySlipId}-${disbursementId}` — slipId is searchable in the bKash merchant portal, and the disbursementId ensures uniqueness per attempt so a failed-then-retried disbursement is not rejected as a duplicate.
+
+### Test deltas
+
+- `src/tests/stripe-webhook.test.ts`: +2 tests (retry-success on failed invoice, subscription-lock contention).
+- `src/tests/payroll-integration.test.ts`: +2 tests (loan EMI cap when net is low, loan EMI fully deferred when net is 0).
+- `src/tests/setup.ts`: added `invoice.update` to the prisma mock for the new retry-success path.
+
+### Quality gates
+
+- `npx tsc --noEmit` → **0 errors**.
+- `npx vitest run` → **478/478 passed** (was 474, +4 new regression tests).
+- `npx eslint` on all 9 changed files → **0 errors** (6 pre-existing warnings only).
+
+### Git
+
+- Branch: `masterpiece-v2`
+- Commit: `efe12bd` — `P17-BUGS-1-8: Fix Plans API maxCustomRoles, Billing RLS, Buddy Punch org filter, Payroll zero-salary loan, Stripe race/retry, bKash rounding/merchantID`
+- Pushed to `origin/masterpiece-v2` — **success** (the `workflow` PAT scope is now in place; `.github/workflows/ci.yml` is live on the remote).
