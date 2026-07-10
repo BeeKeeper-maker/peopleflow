@@ -117,6 +117,24 @@ export async function PATCH(req: Request, { params }: RouteParams) {
             return NextResponse.json({ error: "Role not found" }, { status: 404 });
         }
 
+        // P17-BUGS-11: System core roles (admin, hr_admin, manager, employee,
+        // super_admin) cannot have their permission set modified — doing so
+        // would let a malicious/accidental admin strip critical invariants
+        // (e.g., remove "admin can always view employees") and lock the
+        // tenant out of recovery paths. Cosmetic edits (name/description/
+        // color) are still permitted, but `permissions` is rejected.
+        // Tenants that need a different permission set must create a custom
+        // role (isSystem=false) instead.
+        if (role.isSystem && permissions !== undefined) {
+            return NextResponse.json(
+                {
+                    error: "System roles cannot be modified. Create a custom role instead.",
+                    code: "SYSTEM_ROLE_PERMISSIONS_LOCKED",
+                },
+                { status: 403 },
+            );
+        }
+
         const oldValues = {
             name: role.name,
             description: role.description,
@@ -206,7 +224,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         );
         const { invalidatePermissionCache } = await import("@/lib/rbac-v2");
         for (const a of assignments) {
-            invalidatePermissionCache(a.userId);
+            // P17-BUGS-10: invalidatePermissionCache is now async (clears
+            // both the local in-process Map and the cross-node Redis marker
+            // key). Fire-and-forget — failures are logged inside the helper.
+            invalidatePermissionCache(a.userId).catch((err) =>
+                apiLogger.error({ err, userId: a.userId }, "Failed to invalidate permission cache"),
+            );
         }
 
         return NextResponse.json({

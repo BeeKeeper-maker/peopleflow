@@ -57,41 +57,87 @@ export interface PermissionCheckOptions {
 // ── Cache ────────────────────────────────────────────────────────────
 
 // In-process cache (per Node.js worker). Keyed by userId.
-// TTL: 60 seconds. Invalidated on sessionVersion change (checked by caller).
-// In production with multiple workers, each worker has its own cache —
-// acceptable because the JWT also carries permissions and is the primary
-// source of truth. This cache just avoids re-computing on every request
-// within the same worker.
+// TTL: 30 seconds. Invalidated on sessionVersion change (checked by caller).
+// In production with multiple workers/containers, each worker has its own
+// in-process cache. To prevent a stale cache on worker B after an
+// invalidation event triggered on worker A, we ALSO write a Redis marker
+// key `rbac:perms:${userId}` with the same TTL whenever we populate the
+// local cache, and delete it in `invalidatePermissionCache`. On every
+// local-cache read we re-check the Redis marker: if it is missing the
+// local entry is treated as stale and discarded. When Redis is unavailable
+// (e.g. in unit tests) we silently fall back to the local cache only.
 interface CacheEntry {
     permissions: EffectivePermission[];
     expiresAt: number;
 }
 const permissionCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 60_000; // 1 minute
+const CACHE_TTL_MS = 30_000; // 30 seconds — P17-BUGS-10 (was 60s)
+const CACHE_TTL_SECONDS = Math.ceil(CACHE_TTL_MS / 1000);
 
-function getCached(userId: string): EffectivePermission[] | null {
+/**
+ * Redis marker key used for cross-node cache invalidation.
+ * Format: `rbac:perms:${userId}` — set on cache populate, deleted on
+ * invalidation. Its absence (after a delete, or after natural expiry)
+ * signals to other nodes that their local cache for this user is stale.
+ */
+function redisCacheKey(userId: string): string {
+    return `rbac:perms:${userId}`;
+}
+
+async function getCached(userId: string): Promise<EffectivePermission[] | null> {
     const entry = permissionCache.get(userId);
     if (!entry) return null;
     if (Date.now() > entry.expiresAt) {
         permissionCache.delete(userId);
         return null;
     }
+
+    // Cross-node invalidation: if Redis is reachable but the marker key is
+    // missing, the cache was invalidated on another node. Treat local
+    // entry as stale. When Redis is disabled (tests), skip this check and
+    // trust the local cache.
+    const { isRedisDisabledForRuntime, cacheGet } = await import("./redis");
+    if (!isRedisDisabledForRuntime()) {
+        const marker = await cacheGet<boolean>(redisCacheKey(userId));
+        if (marker === null) {
+            permissionCache.delete(userId);
+            return null;
+        }
+    }
+
     return entry.permissions;
 }
 
-function setCached(userId: string, permissions: EffectivePermission[]): void {
+async function setCached(userId: string, permissions: EffectivePermission[]): Promise<void> {
     permissionCache.set(userId, {
         permissions,
         expiresAt: Date.now() + CACHE_TTL_MS,
     });
+
+    // Mirror the cache state into Redis so other nodes can detect
+    // invalidation. Best-effort — failures here are logged in redis.ts
+    // and don't affect the local cache write above.
+    const { isRedisDisabledForRuntime, cacheSet } = await import("./redis");
+    if (!isRedisDisabledForRuntime()) {
+        await cacheSet(redisCacheKey(userId), true, CACHE_TTL_SECONDS);
+    }
 }
 
 /**
  * Invalidate the cached permissions for a user.
  * Call this whenever a user's role assignment or delegation changes.
+ *
+ * P17-BUGS-10: Also deletes the Redis marker key so that other worker
+ * nodes/containers detect the invalidation on their next read instead of
+ * serving stale permissions until their local TTL expires.
  */
-export function invalidatePermissionCache(userId: string): void {
+export async function invalidatePermissionCache(userId: string): Promise<void> {
     permissionCache.delete(userId);
+
+    const { isRedisDisabledForRuntime, cacheDel } = await import("./redis");
+    if (!isRedisDisabledForRuntime()) {
+        await cacheDel(redisCacheKey(userId));
+    }
 }
 
 // ── Core Resolution ──────────────────────────────────────────────────
@@ -113,7 +159,7 @@ export async function computeEffectivePermissions(
     organizationId: string,
 ): Promise<EffectivePermission[]> {
     // Check cache first
-    const cached = getCached(userId);
+    const cached = await getCached(userId);
     if (cached) return cached;
 
     // Load user to check role (super_admin shortcut)
@@ -123,14 +169,14 @@ export async function computeEffectivePermissions(
     });
 
     if (!user) {
-        setCached(userId, []);
+        await setCached(userId, []);
         return [];
     }
 
     // super_admin gets wildcard
     if (user.role === "super_admin") {
         const wildcard: EffectivePermission[] = [{ key: "*", scope: "global" }];
-        setCached(userId, wildcard);
+        await setCached(userId, wildcard);
         return wildcard;
     }
 
@@ -215,7 +261,7 @@ export async function computeEffectivePermissions(
         }
     }
 
-    setCached(userId, permissions);
+    await setCached(userId, permissions);
     return permissions;
 }
 
@@ -275,12 +321,28 @@ export async function hasEffectivePermission(
                 return true;
             case "department":
                 if (!options?.departmentId) continue;
-                if (!perm.departmentIds || perm.departmentIds.length === 0) return true; // all departments
+                // P17-BUGS-12: Distinguish undefined (all departments) from
+                // an explicit empty array (no departments — deny).
+                //   undefined / null → global scope (all departments)
+                //   []               → scoped, no match (deny)
+                //   [id1, id2]       → scoped to listed departments
+                if (perm.departmentIds === undefined || perm.departmentIds === null) {
+                    return true; // all departments
+                }
+                if (perm.departmentIds.length === 0) {
+                    continue; // explicitly no departments — deny this permission
+                }
                 if (perm.departmentIds.includes(options.departmentId)) return true;
                 continue;
             case "branch":
                 if (!options?.branchId) continue;
-                if (!perm.branchIds || perm.branchIds.length === 0) return true; // all branches
+                // P17-BUGS-12: same undefined-vs-empty distinction as above.
+                if (perm.branchIds === undefined || perm.branchIds === null) {
+                    return true; // all branches
+                }
+                if (perm.branchIds.length === 0) {
+                    continue; // explicitly no branches — deny this permission
+                }
                 if (perm.branchIds.includes(options.branchId)) return true;
                 continue;
         }

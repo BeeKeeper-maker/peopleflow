@@ -41,8 +41,23 @@ export async function POST(req: Request) {
     const ctx = auth as AuthContext;
 
     try {
-        const body = await req.json();
-        const text = typeof body?.text === "string" ? body.text : "";
+        // P17-BUGS-15: Wrap JSON parsing in try/catch so a malformed body
+        // returns 400 Bad Request instead of crashing the route with a 500.
+        // Previously `await req.json()` would throw a SyntaxError on invalid
+        // JSON, which fell through to the generic 500 handler below — making
+        // it look like a server bug rather than a client error.
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json(
+                { error: "Invalid JSON body" },
+                { status: 400 },
+            );
+        }
+        const text = typeof (body as { text?: unknown })?.text === "string"
+            ? (body as { text: string }).text
+            : "";
 
         if (!text || text.trim().length < 20) {
             return NextResponse.json(

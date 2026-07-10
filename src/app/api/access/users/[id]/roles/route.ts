@@ -167,7 +167,9 @@ export async function POST(req: Request, { params }: RouteParams) {
             },
         }));
 
-        invalidatePermissionCache(id);
+        invalidatePermissionCache(id).catch((err) =>
+            apiLogger.error({ err }, "Failed to invalidate permission cache (cross-node)"),
+        );
 
         await createAuditLog({
             organizationId: auth.organizationId,
@@ -253,7 +255,9 @@ export async function DELETE(req: Request, { params }: RouteParams) {
             },
         }));
 
-        invalidatePermissionCache(id);
+        invalidatePermissionCache(id).catch((err) =>
+            apiLogger.error({ err }, "Failed to invalidate permission cache (cross-node)"),
+        );
 
         await createAuditLog({
             organizationId: auth.organizationId,

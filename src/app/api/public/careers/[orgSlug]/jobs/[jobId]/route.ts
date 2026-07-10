@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, applyRateLimitHeaders } from "@/lib/rate-limit";
 import * as z from "zod";
 
 /**
  * GET /api/public/careers/[orgSlug]/jobs/[jobId] — Public job detail
+ *
+ * P17-BUGS-14: Now also excludes expired jobs (closesAt < now) so a stale
+ * link to a closed position returns 404 instead of the job detail.
+ *
+ * P17-BUGS-16a: IP-based rate limited (30 req/min) like the listing route.
  */
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ orgSlug: string; jobId: string }> },
 ) {
+    // P17-BUGS-16a: rate limit unauthenticated public traffic by IP.
+    const rl = await rateLimit(req, { windowMs: 60_000, maxRequests: 30 }, "careers/job-detail");
+    if (!rl.allowed) return rl.response!;
+
     try {
         const { orgSlug, jobId } = await params;
 
@@ -22,11 +32,14 @@ export async function GET(
             return NextResponse.json({ error: "Company not found" }, { status: 404 });
         }
 
+        // P17-BUGS-14: hide expired jobs — `closesAt` must be null or in the future.
+        const now = new Date();
         const job = await prisma.jobPosting.findFirst({
             where: {
                 id: jobId,
                 organizationId: org.id,
                 status: "open",
+                OR: [{ closesAt: null }, { closesAt: { gte: now } }],
             },
             include: {
                 department: { select: { name: true } },
@@ -38,10 +51,12 @@ export async function GET(
             return NextResponse.json({ error: "Job not found or closed" }, { status: 404 });
         }
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             company: org,
             job,
         });
+        applyRateLimitHeaders(response, rl.headers);
+        return response;
     } catch {
         return NextResponse.json({ error: "Failed to fetch job" }, { status: 500 });
     }
@@ -74,6 +89,12 @@ export async function POST(
     req: Request,
     { params }: { params: Promise<{ orgSlug: string; jobId: string }> },
 ) {
+    // P17-BUGS-16a: rate limit unauthenticated public traffic by IP. The
+    // POST apply endpoint is more sensitive than the GETs (it writes rows
+    // + sends notification emails), so it gets a tighter 10 req/min cap.
+    const rl = await rateLimit(req, { windowMs: 60_000, maxRequests: 10 }, "careers/apply");
+    if (!rl.allowed) return rl.response!;
+
     try {
         const { orgSlug, jobId } = await params;
 
@@ -86,15 +107,33 @@ export async function POST(
             return NextResponse.json({ error: "Company not found" }, { status: 404 });
         }
 
+        // P17-BUGS-14: also reject applications to expired jobs, even if the
+        // job's status hasn't been flipped to "closed" yet.
+        const now = new Date();
         const job = await prisma.jobPosting.findFirst({
-            where: { id: jobId, organizationId: org.id, status: "open" },
+            where: {
+                id: jobId,
+                organizationId: org.id,
+                status: "open",
+                OR: [{ closesAt: null }, { closesAt: { gte: now } }],
+            },
         });
 
         if (!job) {
             return NextResponse.json({ error: "Job not found or closed" }, { status: 404 });
         }
 
-        const body = await req.json();
+        // P17-BUGS-15: wrap JSON parsing so an invalid body returns 400
+        // instead of crashing the route with a 500.
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json(
+                { error: "Invalid JSON body" },
+                { status: 400 },
+            );
+        }
         const validation = applySchema.safeParse(body);
 
         if (!validation.success) {
@@ -112,10 +151,48 @@ export async function POST(
 
         const data = validation.data;
 
-        // Reuse existing candidate by email, or create new
-        let candidate = await prisma.candidate.findFirst({
+        // P17-BUGS-13: Check for a duplicate application BEFORE mutating the
+        // candidate row. Previously the flow updated the existing candidate's
+        // resumeUrl/portfolioUrl/etc. first and only then checked for an
+        // existing application — which meant an attacker could submit a
+        // bogus application using a victim's email and a fake resume URL,
+        // overwriting the victim's real resume even though the application
+        // was ultimately rejected with 409. The duplicate check now runs
+        // first; if a candidate with this email has already applied to this
+        // job, we short-circuit with 409 and touch nothing.
+        const existingCandidate = await prisma.candidate.findFirst({
             where: { email: data.email, organizationId: org.id },
+            select: { id: true },
         });
+
+        if (existingCandidate) {
+            const existingApp = await prisma.application.findUnique({
+                where: {
+                    candidateId_jobPostingId: {
+                        candidateId: existingCandidate.id,
+                        jobPostingId: jobId,
+                    },
+                },
+                select: { id: true },
+            });
+
+            if (existingApp) {
+                return NextResponse.json(
+                    {
+                        error: "You have already applied for this position.",
+                        code: "ALREADY_APPLIED",
+                    },
+                    { status: 409 },
+                );
+            }
+        }
+
+        // Reuse existing candidate by email, or create new
+        let candidate = existingCandidate
+            ? await prisma.candidate.findUnique({
+                  where: { id: existingCandidate.id },
+              })
+            : null;
 
         if (!candidate) {
             candidate = await prisma.candidate.create({
@@ -153,27 +230,7 @@ export async function POST(
             });
         }
 
-        // Check for duplicate application
-        const existingApp = await prisma.application.findUnique({
-            where: {
-                candidateId_jobPostingId: {
-                    candidateId: candidate.id,
-                    jobPostingId: jobId,
-                },
-            },
-        });
-
-        if (existingApp) {
-            return NextResponse.json(
-                {
-                    error: "You have already applied for this position.",
-                    code: "ALREADY_APPLIED",
-                },
-                { status: 409 },
-            );
-        }
-
-        // Create the application
+        // Create the application (duplicate check already done above)
         const application = await prisma.application.create({
             data: {
                 candidateId: candidate.id,
