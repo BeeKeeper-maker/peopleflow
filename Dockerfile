@@ -63,6 +63,23 @@ RUN for attempt in 1 2 3; do \
 # CRITICAL: next build MUST run with NODE_ENV=production
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# ── Build-time placeholder env vars ──
+# next build loads next.config.ts which imports env.ts and validates all required
+# env vars. Coolify only injects real values at container RUNTIME, not build time.
+# These placeholders satisfy the Zod schema validation during the build step.
+# They are NOT baked into the final image — the runner stage starts clean and
+# Coolify injects real env vars at container start.
+ENV REDIS_URL="redis://build-placeholder:6379"
+ENV NEXTAUTH_SECRET="build-placeholder-secret-minimum-32-chars-long!!"
+ENV NEXTAUTH_URL="http://localhost:3000"
+ENV AUTH_SECRET="build-placeholder-secret-minimum-32-chars-long!!"
+ENV AUTH_URL="http://localhost:3000"
+ENV AUTH_TRUST_HOST="true"
+ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV CRON_SECRET="build-placeholder-cron-secret-16chars"
+ENV ENCRYPTION_KEY="build-placeholder-encryption-key-32chars!!"
+ENV PLATFORM_JWT_SECRET="build-placeholder-jwt-secret-min32chars!!"
 # Coolify kills long silent Docker build steps. Keep a lightweight heartbeat
 # while Next.js compiles so production deploys don't fail during quiet periods.
 RUN (while true; do echo "[build] Next.js build still running..."; sleep 30; done) & \
