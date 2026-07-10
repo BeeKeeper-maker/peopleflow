@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withPlatform, withTenant, type TxClient } from "@/lib/prisma";
 import { biometricLogger } from "@/lib/logger";
 import { ingestBiometricPunches, type BiometricPunchRecord } from "@/lib/biometric/punch-processor";
 import { authenticateDirectCloudDevice } from "@/lib/biometric/direct-cloud-auth";
@@ -142,37 +142,54 @@ function isAttendanceUpload(query: Record<string, string>, bodyText: string): bo
 
 async function findDirectCloudDevice(serialNumber: string | null) {
     if (!serialNumber) return null;
-    return prisma.biometricDevice.findFirst({
-        where: {
-            serialNumber,
-            isActive: true,
-            connectionMode: "direct_cloud",
-        },
-        select: {
-            id: true,
-            organizationId: true,
-            serialNumber: true,
-            name: true,
-            cloudSecretHash: true,
-        },
-    });
+    // Cross-tenant lookup by serial number → withPlatform bypasses RLS so the
+    // device row is visible regardless of which tenant's context (if any)
+    // is currently set. Raw prisma returns null under RLS in production.
+    return withPlatform((db) =>
+        db.biometricDevice.findFirst({
+            where: {
+                serialNumber,
+                isActive: true,
+                connectionMode: "direct_cloud",
+            },
+            select: {
+                id: true,
+                organizationId: true,
+                serialNumber: true,
+                name: true,
+                cloudSecretHash: true,
+            },
+        }),
+    );
 }
 
-async function captureEvent(params: {
-    req: Request;
-    ctx: AdmsRequestContext;
-    eventType: string;
-    status: string;
-    deviceId?: string | null;
-    organizationId?: string | null;
-    recordsReceived?: number;
-    recordsSynced?: number;
-    recordsSkipped?: number;
-    unmappedUserIds?: string[];
-    errorMessage?: string | null;
-}) {
+/**
+ * Persist a BiometricCloudEvent audit row.
+ *
+ * RLS context: the caller MUST pass a `db` handle that already has the
+ * correct RLS context set (withPlatform for unattributed/unknown-device
+ * captures where organizationId is null, or withTenant(orgId) for
+ * captures attributed to a known device). BiometricCloudEvent's RLS
+ * policy allows NULL organizationId rows under both contexts.
+ */
+async function captureEvent(
+    db: TxClient,
+    params: {
+        req: Request;
+        ctx: AdmsRequestContext;
+        eventType: string;
+        status: string;
+        deviceId?: string | null;
+        organizationId?: string | null;
+        recordsReceived?: number;
+        recordsSynced?: number;
+        recordsSkipped?: number;
+        unmappedUserIds?: string[];
+        errorMessage?: string | null;
+    },
+) {
     const { req, ctx } = params;
-    return prisma.biometricCloudEvent.create({
+    return db.biometricCloudEvent.create({
         data: {
             serialNumber: ctx.serialNumber,
             eventType: params.eventType,
@@ -249,17 +266,21 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
         : null;
 
     try {
-        // Unknown device → capture and return OK so firmware keeps trying
+        // Unknown device → capture and return OK so firmware keeps trying.
+        // No organization context → withPlatform so RLS allows the NULL-org
+        // BiometricCloudEvent insert (raw prisma is blocked under RLS).
         if (!device) {
-            await captureEvent({
-                req,
-                ctx,
-                eventType,
-                status: "unknown_device",
-                errorMessage: ctx.serialNumber
-                    ? "Serial is not registered for direct-cloud sync. Register this device in the dashboard first."
-                    : "Device did not provide serial number",
-            });
+            await withPlatform((db) =>
+                captureEvent(db, {
+                    req,
+                    ctx,
+                    eventType,
+                    status: "unknown_device",
+                    errorMessage: ctx.serialNumber
+                        ? "Serial is not registered for direct-cloud sync. Register this device in the dashboard first."
+                        : "Device did not provide serial number",
+                }),
+            );
 
             if (eventType === "cdata" && req.method === "GET") return deviceOptionsResponse(ctx.serialNumber);
             return plainOk();
@@ -267,26 +288,28 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
 
         // Known device but in claim mode (no secret set) → capture but don't ingest
         if (!authResult.authenticated && authResult.reason === "claim_mode") {
-            await prisma.biometricDevice.update({
-                where: { id: device.id },
-                data: {
-                    lastSeenAt: now,
-                    lastPingAt: now,
-                    isOnline: true,
-                    cloudStatus: "warning",
-                    cloudProtocol: "adms",
-                },
-            });
+            await withTenant(device.organizationId, async (db) => {
+                await db.biometricDevice.update({
+                    where: { id: device.id },
+                    data: {
+                        lastSeenAt: now,
+                        lastPingAt: now,
+                        isOnline: true,
+                        cloudStatus: "warning",
+                        cloudProtocol: "adms",
+                    },
+                });
 
-            await captureEvent({
-                req,
-                ctx,
-                eventType,
-                status: "captured",
-                deviceId: device.id,
-                organizationId: device.organizationId,
-                errorMessage:
-                    "Device is in claim mode — assign a cloud secret in the dashboard to enable punch ingestion.",
+                await captureEvent(db, {
+                    req,
+                    ctx,
+                    eventType,
+                    status: "captured",
+                    deviceId: device.id,
+                    organizationId: device.organizationId,
+                    errorMessage:
+                        "Device is in claim mode — assign a cloud secret in the dashboard to enable punch ingestion.",
+                });
             });
 
             if (eventType === "cdata" && req.method === "GET") return deviceOptionsResponse(ctx.serialNumber);
@@ -295,26 +318,28 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
 
         // Known device but failed authentication → capture and reject
         if (!authResult.authenticated) {
-            await prisma.biometricDevice.update({
-                where: { id: device.id },
-                data: {
-                    lastSeenAt: now,
-                    lastPingAt: now,
-                    isOnline: true,
-                    cloudStatus: "failed",
-                    cloudProtocol: "adms",
-                    consecutiveFailures: { increment: 1 },
-                },
-            });
+            await withTenant(device.organizationId, async (db) => {
+                await db.biometricDevice.update({
+                    where: { id: device.id },
+                    data: {
+                        lastSeenAt: now,
+                        lastPingAt: now,
+                        isOnline: true,
+                        cloudStatus: "failed",
+                        cloudProtocol: "adms",
+                        consecutiveFailures: { increment: 1 },
+                    },
+                });
 
-            await captureEvent({
-                req,
-                ctx,
-                eventType,
-                status: "failed",
-                deviceId: device.id,
-                organizationId: device.organizationId,
-                errorMessage: `Authentication failed: ${authResult.reason}`,
+                await captureEvent(db, {
+                    req,
+                    ctx,
+                    eventType,
+                    status: "failed",
+                    deviceId: device.id,
+                    organizationId: device.organizationId,
+                    errorMessage: `Authentication failed: ${authResult.reason}`,
+                });
             });
 
             // Return OK to keep firmware happy, but punches are NOT ingested
@@ -323,20 +348,24 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
         }
 
         // ── AUTHENTICATED — process the request ──
-        await prisma.biometricDevice.update({
-            where: { id: device.id },
-            data: {
-                lastSeenAt: now,
-                lastPingAt: now,
-                isOnline: true,
-                cloudStatus: "connected",
-                cloudProtocol: "adms",
-                consecutiveFailures: 0,
-            },
-        });
+        await withTenant(device.organizationId, (db) =>
+            db.biometricDevice.update({
+                where: { id: device.id },
+                data: {
+                    lastSeenAt: now,
+                    lastPingAt: now,
+                    isOnline: true,
+                    cloudStatus: "connected",
+                    cloudProtocol: "adms",
+                    consecutiveFailures: 0,
+                },
+            }),
+        );
 
         if (eventType === "cdata" && req.method === "GET") {
-            await captureEvent({ req, ctx, eventType, status: "captured", deviceId: device.id, organizationId: device.organizationId });
+            await withTenant(device.organizationId, (db) =>
+                captureEvent(db, { req, ctx, eventType, status: "captured", deviceId: device.id, organizationId: device.organizationId }),
+            );
             return deviceOptionsResponse(ctx.serialNumber);
         }
 
@@ -354,61 +383,71 @@ export async function handleAdmsRequest(req: Request, eventType: "registry" | "c
 
             const status = result.synced > 0 && result.unmappedUsers === 0 && !result.errors ? "processed" : "partial";
 
-            await prisma.biometricDevice.update({
-                where: { id: device.id },
-                data: {
-                    lastSyncAt: now,
-                    lastSyncStatus: status === "processed" ? "success" : "partial",
-                    lastSeenAt: now,
-                    lastPingAt: now,
-                    isOnline: true,
-                    cloudStatus: status === "processed" ? "connected" : "warning",
-                },
-            });
+            await withTenant(device.organizationId, async (db) => {
+                await db.biometricDevice.update({
+                    where: { id: device.id },
+                    data: {
+                        lastSyncAt: now,
+                        lastSyncStatus: status === "processed" ? "success" : "partial",
+                        lastSeenAt: now,
+                        lastPingAt: now,
+                        isOnline: true,
+                        cloudStatus: status === "processed" ? "connected" : "warning",
+                    },
+                });
 
-            await prisma.deviceSyncLog.create({
-                data: {
+                await db.deviceSyncLog.create({
+                    data: {
+                        deviceId: device.id,
+                        status: status === "processed" ? "success" : "partial",
+                        recordsSynced: result.synced,
+                        recordsSkipped: result.skipped + result.unmappedUsers,
+                        errorMessage: result.errors?.join("; ") || (result.unmappedUserIds.length ? `Unmapped biometric IDs: ${result.unmappedUserIds.join(", ")}` : null),
+                        syncDuration: null,
+                    },
+                });
+
+                await captureEvent(db, {
+                    req,
+                    ctx,
+                    eventType,
+                    status,
                     deviceId: device.id,
-                    status: status === "processed" ? "success" : "partial",
+                    organizationId: device.organizationId,
+                    recordsReceived: result.received,
                     recordsSynced: result.synced,
                     recordsSkipped: result.skipped + result.unmappedUsers,
-                    errorMessage: result.errors?.join("; ") || (result.unmappedUserIds.length ? `Unmapped biometric IDs: ${result.unmappedUserIds.join(", ")}` : null),
-                    syncDuration: null,
-                },
-            });
-
-            await captureEvent({
-                req,
-                ctx,
-                eventType,
-                status,
-                deviceId: device.id,
-                organizationId: device.organizationId,
-                recordsReceived: result.received,
-                recordsSynced: result.synced,
-                recordsSkipped: result.skipped + result.unmappedUsers,
-                unmappedUserIds: result.unmappedUserIds,
-                errorMessage: result.errors?.join("; ") || null,
+                    unmappedUserIds: result.unmappedUserIds,
+                    errorMessage: result.errors?.join("; ") || null,
+                });
             });
 
             return plainOk();
         }
 
         // Non-attendance requests (registry, getrequest, devicecmd, operlog) — capture and OK
-        await captureEvent({ req, ctx, eventType, status: "captured", deviceId: device.id, organizationId: device.organizationId });
+        await withTenant(device.organizationId, (db) =>
+            captureEvent(db, { req, ctx, eventType, status: "captured", deviceId: device.id, organizationId: device.organizationId }),
+        );
         return plainOk();
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         biometricLogger.error({ err: error, eventType, serialNumber: ctx.serialNumber }, "ADMS_REQUEST_ERROR");
-        await captureEvent({
-            req,
-            ctx,
-            eventType,
-            status: "failed",
-            deviceId: device?.id || null,
-            organizationId: device?.organizationId || null,
-            errorMessage: message,
-        }).catch(() => undefined);
+        // Error-path capture: device may be null (unknown device) → use
+        // withPlatform so the capture works regardless of tenant context.
+        // The BiometricCloudEvent policy allows NULL organizationId under
+        // platform bypass.
+        await withPlatform((db) =>
+            captureEvent(db, {
+                req,
+                ctx,
+                eventType,
+                status: "failed",
+                deviceId: device?.id || null,
+                organizationId: device?.organizationId || null,
+                errorMessage: message,
+            }),
+        ).catch(() => undefined);
         return plainOk();
     }
 }

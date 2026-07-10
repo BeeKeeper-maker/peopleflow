@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 import { buildSubscriptionAccessError, getOrgSubscription } from "@/lib/plan-enforcement";
 import { canAccessModule } from "@/lib/module-entitlements";
 
@@ -29,14 +29,20 @@ export async function authenticateSyncAgent(req: Request) {
 
     const keyHash = createHash("sha256").update(rawKey).digest("hex");
 
-    const apiKey = await prisma.syncApiKey.findUnique({
-        where: { key: keyHash },
-        include: {
-            organization: {
-                select: { id: true, name: true, timezone: true, status: true },
+    // Cross-tenant lookup by key hash → withPlatform bypasses RLS so the
+    // SyncApiKey row is visible. Raw prisma returns null under RLS in
+    // production (peopleflow_app is NOSUPERUSER), which would cause every
+    // sync-agent push to 401.
+    const apiKey = await withPlatform((db) =>
+        db.syncApiKey.findUnique({
+            where: { key: keyHash },
+            include: {
+                organization: {
+                    select: { id: true, name: true, timezone: true, status: true },
+                },
             },
-        },
-    });
+        }),
+    );
 
     if (!apiKey || !apiKey.isActive || apiKey.revokedAt) {
         return {

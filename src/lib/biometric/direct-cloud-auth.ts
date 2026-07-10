@@ -30,7 +30,7 @@
  */
 
 import { createHash, createHmac, timingSafeEqual } from "crypto";
-import { prisma } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 
 export interface DirectCloudAuthResult {
     authenticated: boolean;
@@ -90,20 +90,25 @@ export async function authenticateDirectCloudDevice(
         return { authenticated: false, device: null, reason: "missing_serial" };
     }
 
-    const device = await prisma.biometricDevice.findFirst({
-        where: {
-            serialNumber,
-            isActive: true,
-            connectionMode: "direct_cloud",
-        },
-        select: {
-            id: true,
-            organizationId: true,
-            serialNumber: true,
-            name: true,
-            cloudSecretHash: true,
-        },
-    });
+    // Cross-tenant lookup by serial number → must use withPlatform so RLS
+    // doesn't silently hide the device row in production (peopleflow_app is
+    // NOSUPERUSER, so raw prisma reads return null under RLS).
+    const device = await withPlatform((db) =>
+        db.biometricDevice.findFirst({
+            where: {
+                serialNumber,
+                isActive: true,
+                connectionMode: "direct_cloud",
+            },
+            select: {
+                id: true,
+                organizationId: true,
+                serialNumber: true,
+                name: true,
+                cloudSecretHash: true,
+            },
+        }),
+    );
 
     if (!device) {
         return { authenticated: false, device: null, reason: "unknown_device" };

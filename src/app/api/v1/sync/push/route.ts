@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
 import { ingestBiometricPunches, type BiometricPunchRecord } from "@/lib/biometric/punch-processor";
@@ -74,76 +74,82 @@ export async function POST(req: Request) {
             deviceName: deviceIp ? `Sync Agent (${deviceIp})` : "Sync Agent",
         });
 
-        // 3. Update API key stats
+        // 3. Update API key stats + device card + sync log.
+        //    All operations are scoped to apiKey.organizationId → wrap in
+        //    a single withTenant so RLS allows the reads/writes in production
+        //    (peopleflow_app is NOSUPERUSER; raw prisma is blocked under RLS).
         const syncedAt = new Date();
-        await prisma.syncApiKey.update({
-            where: { id: apiKey.id },
-            data: {
-                lastSyncAt: syncedAt,
-                agentIp,
-                agentVersion: body.agentVersion || apiKey.agentVersion,
-                syncCount: { increment: 1 },
-                totalRecords: { increment: result.synced },
-            },
-        });
 
         // 4. Update matching BiometricDevice card (if deviceIp + port matches)
         //    We also try to match by the SyncApiKey → BiometricDevice relation
         //    (added in migration 20260703000000_add_device_sync_api_key_relation).
         let deviceMatch: { id: string; name: string } | null = null;
 
-        if (apiKey.id) {
-            deviceMatch = await prisma.biometricDevice.findFirst({
-                where: {
-                    OR: [
-                        { syncApiKeyId: apiKey.id },
-                        ...(deviceIp
-                            ? [
-                                  {
-                                      ip: deviceIp,
-                                      port: devicePort,
-                                  },
-                              ]
-                            : []),
-                    ],
-                    organizationId: apiKey.organizationId,
-                },
-                select: { id: true, name: true },
-            });
-        }
-
-        if (deviceMatch) {
-            const status =
-                (result.errors?.length ?? 0) > 0 || result.unmappedUsers > 0
-                    ? "partial"
-                    : "success";
-            await prisma.biometricDevice.update({
-                where: { id: deviceMatch.id },
+        await withTenant(apiKey.organizationId, async (db) => {
+            await db.syncApiKey.update({
+                where: { id: apiKey.id },
                 data: {
                     lastSyncAt: syncedAt,
-                    lastSyncStatus: status,
-                    isOnline: true,
-                    lastPingAt: syncedAt,
-                    lastSeenAt: syncedAt,
-                    consecutiveFailures: 0,
-                    ...(apiKey.id ? { syncApiKeyId: apiKey.id } : {}),
+                    agentIp,
+                    agentVersion: body.agentVersion || apiKey.agentVersion,
+                    syncCount: { increment: 1 },
+                    totalRecords: { increment: result.synced },
                 },
             });
 
-            await prisma.deviceSyncLog.create({
-                data: {
-                    deviceId: deviceMatch.id,
-                    status,
-                    recordsSynced: result.synced,
-                    recordsSkipped: result.skipped + result.unmappedUsers,
-                    errorMessage:
-                        (result.errors?.length ?? 0) > 0
-                            ? result.errors!.slice(0, 3).join("; ")
-                            : null,
-                    syncDuration: null,
-                },
-            });
-        }
+            if (apiKey.id) {
+                deviceMatch = await db.biometricDevice.findFirst({
+                    where: {
+                        OR: [
+                            { syncApiKeyId: apiKey.id },
+                            ...(deviceIp
+                                ? [
+                                      {
+                                          ip: deviceIp,
+                                          port: devicePort,
+                                      },
+                                  ]
+                                : []),
+                        ],
+                        organizationId: apiKey.organizationId,
+                    },
+                    select: { id: true, name: true },
+                });
+            }
+
+            if (deviceMatch) {
+                const status =
+                    (result.errors?.length ?? 0) > 0 || result.unmappedUsers > 0
+                        ? "partial"
+                        : "success";
+                await db.biometricDevice.update({
+                    where: { id: deviceMatch.id },
+                    data: {
+                        lastSyncAt: syncedAt,
+                        lastSyncStatus: status,
+                        isOnline: true,
+                        lastPingAt: syncedAt,
+                        lastSeenAt: syncedAt,
+                        consecutiveFailures: 0,
+                        ...(apiKey.id ? { syncApiKeyId: apiKey.id } : {}),
+                    },
+                });
+
+                await db.deviceSyncLog.create({
+                    data: {
+                        deviceId: deviceMatch.id,
+                        status,
+                        recordsSynced: result.synced,
+                        recordsSkipped: result.skipped + result.unmappedUsers,
+                        errorMessage:
+                            (result.errors?.length ?? 0) > 0
+                                ? result.errors!.slice(0, 3).join("; ")
+                                : null,
+                        syncDuration: null,
+                    },
+                });
+            }
+        });
 
         // 5. Return summary
         //    If we received records but synced 0 (all unmapped), return a

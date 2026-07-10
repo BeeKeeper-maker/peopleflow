@@ -30,7 +30,7 @@
  * but the merge logic here is sufficient for production today.
  */
 
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { biometricLogger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -258,29 +258,34 @@ export function calculateShiftMetrics(
 /**
  * Build a map of biometricUserId → EmployeeWithShift for an organization.
  * Only returns active (non-deleted) employees with a biometricUserId set.
+ *
+ * RLS: scoped to the tenant via withTenant(organizationId) so the
+ * Employee read is visible under production RLS enforcement.
  */
 export async function buildEmployeeBiometricMap(
     organizationId: string,
 ): Promise<Map<string, EmployeeWithShift>> {
-    const employees = await prisma.employee.findMany({
-        where: {
-            organizationId,
-            biometricUserId: { not: null },
-            deletedAt: null,
-        },
-        select: {
-            id: true,
-            biometricUserId: true,
-            shift: {
-                select: {
-                    startTime: true,
-                    endTime: true,
-                    graceMinutes: true,
-                    crossesMidnight: true,
+    const employees = await withTenant(organizationId, (db) =>
+        db.employee.findMany({
+            where: {
+                organizationId,
+                biometricUserId: { not: null },
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                biometricUserId: true,
+                shift: {
+                    select: {
+                        startTime: true,
+                        endTime: true,
+                        graceMinutes: true,
+                        crossesMidnight: true,
+                    },
                 },
             },
-        },
-    });
+        }),
+    );
 
     const map = new Map<string, EmployeeWithShift>();
     for (const emp of employees) {
@@ -404,6 +409,14 @@ export async function ingestBiometricPunches(params: {
     //    Then derive Attendance from the FULL ledger (not just this batch).
     //    This fixes the "lost punch" bug where intermediate punches
     //    (lunch out + lunch in) were discarded when arriving in separate batches.
+    //
+    //    RLS: each iteration is wrapped in its own withTenant(organizationId)
+    //    transaction so that BiometricPunch and Attendance reads/writes are
+    //    visible under production RLS enforcement (peopleflow_app is
+    //    NOSUPERUSER, so raw prisma is blocked). Per-iteration wrapping
+    //    preserves the original error-isolation semantics: a failure in one
+    //    (employee, shiftDate) group rolls back only that group's writes
+    //    and is logged; the remaining groups still process.
     let synced = 0;
     const errors: string[] = [];
 
@@ -412,167 +425,176 @@ export async function ingestBiometricPunches(params: {
         const employeeId = employee.id;
 
         try {
-            // 3a. Write all punches from this batch to the ledger.
-            //     Uses createMany with skipDuplicates for idempotent re-sync.
-            //     If a punch already exists (same employeeId + punchTime),
-            //     it's silently skipped — no error, no data loss.
-            const ledgerRows = punches.map((p) => ({
-                employeeId,
-                organizationId,
-                punchTime: p.timestamp,
-                shiftDate,
-                deviceUserId: p.deviceUserId,
-                punchType: p.punchType ?? null,
-                deviceId: params.deviceId || null,
-                deviceSerial: params.deviceName || null,
-                source,
-            }));
+            let didSkip = false;
 
-            await prisma.biometricPunch.createMany({
-                data: ledgerRows,
-                skipDuplicates: true,
-            });
-
-            // 3b. Fetch ALL punches for this (employee, shiftDate) from the ledger.
-            //     This includes punches from PREVIOUS sync batches too —
-            //     so even if this batch only had 1 punch, we get the full picture.
-            const allPunches = await prisma.biometricPunch.findMany({
-                where: {
+            await withTenant(organizationId, async (db) => {
+                // 3a. Write all punches from this batch to the ledger.
+                //     Uses createMany with skipDuplicates for idempotent re-sync.
+                //     If a punch already exists (same employeeId + punchTime),
+                //     it's silently skipped — no error, no data loss.
+                const ledgerRows = punches.map((p) => ({
                     employeeId,
-                    shiftDate,
-                },
-                orderBy: { punchTime: "asc" },
-                select: { punchTime: true, punchType: true },
-            });
-
-            if (allPunches.length === 0) {
-                // Shouldn't happen since we just wrote some, but guard anyway
-                skipped++;
-                continue;
-            }
-
-            // 3c. Derive checkIn/checkOut from the FULL ledger:
-            //     checkIn  = earliest punch
-            //     checkOut = latest punch (if > 1 punch)
-            const newCheckIn = allPunches[0].punchTime;
-            const newCheckOut =
-                allPunches.length > 1
-                    ? allPunches[allPunches.length - 1].punchTime
-                    : null;
-
-            // 3d. Calculate break time from intermediate punches.
-            //     For [09:00, 13:00, 14:00, 18:00]:
-            //       pairs = [(09:00→13:00), (13:00→14:00), (14:00→18:00)]
-            //       breaks = even-indexed gaps (0→1, 2→3, ...) = lunch break
-            //       work segments = odd-indexed gaps (1→2, 3→4, ...) = work time
-            //     This is the standard "in/out alternation" model.
-            //     With 4 punches: break = punch[2] - punch[1] = 14:00 - 13:00 = 60 min
-            //     With 2 punches: break = 0 (no intermediate)
-            //     With 3 punches: break = punch[2] - punch[1] (assumes out-in-out)
-            let breakMinutes = 0;
-            if (allPunches.length >= 4) {
-                // Even number: in, out, in, out → breaks are gaps between
-                // punch[1]→punch[2], punch[3]→punch[4], etc.
-                for (let i = 1; i < allPunches.length - 1; i += 2) {
-                    const gapMs =
-                        allPunches[i + 1].punchTime.getTime() -
-                        allPunches[i].punchTime.getTime();
-                    if (gapMs > 0) {
-                        breakMinutes += Math.round(gapMs / 60_000);
-                    }
-                }
-            } else if (allPunches.length === 3) {
-                // Odd: in, out, in (forgot to punch out) or out, in, out
-                // Assume the middle gap is a break
-                const gapMs =
-                    allPunches[2].punchTime.getTime() -
-                    allPunches[1].punchTime.getTime();
-                if (gapMs > 0) {
-                    breakMinutes = Math.round(gapMs / 60_000);
-                }
-            }
-            // With 1 or 2 punches: breakMinutes = 0 (no break data)
-
-            // 3e. Fetch existing Attendance record to check merge behavior
-            const existingRecord = await prisma.attendance.findUnique({
-                where: {
-                    employeeId_date: { employeeId, date: shiftDate },
-                },
-                select: {
-                    checkIn: true,
-                    checkOut: true,
-                    source: true,
-                    notes: true,
-                },
-            });
-
-            // Never overwrite a manual entry with biometric data
-            if (existingRecord?.source === "manual") {
-                skipped++;
-                continue;
-            }
-
-            // 3f. Merge with existing record (take earliest checkIn, latest checkOut)
-            let bestCheckIn = newCheckIn;
-            let bestCheckOut = newCheckOut;
-
-            if (existingRecord) {
-                if (existingRecord.checkIn && existingRecord.checkIn < bestCheckIn) {
-                    bestCheckIn = existingRecord.checkIn;
-                }
-                if (existingRecord.checkOut) {
-                    if (!bestCheckOut || existingRecord.checkOut > bestCheckOut) {
-                        bestCheckOut = existingRecord.checkOut;
-                    }
-                }
-            }
-
-            // 3g. Recalculate shift metrics from merged check-in/out
-            const { lateMinutes, earlyLeaveMinutes, overtimeMinutes } =
-                calculateShiftMetrics(
-                    bestCheckIn,
-                    bestCheckOut,
-                    shiftDate,
-                    employee.shift,
-                );
-
-            // 3h. Upsert Attendance with derived data + break minutes
-            //     Store break minutes in notes as JSON (schema doesn't have a
-            //     dedicated breakMinutes column yet — can add in future migration)
-            const notesWithBreak = auditNote
-                ? `${auditNote} | punches: ${allPunches.length} | break: ${breakMinutes}min`
-                : `punches: ${allPunches.length} | break: ${breakMinutes}min`;
-
-            await prisma.attendance.upsert({
-                where: {
-                    employeeId_date: { employeeId, date: shiftDate },
-                },
-                create: {
-                    employeeId,
-                    date: shiftDate,
-                    checkIn: bestCheckIn,
-                    checkOut: bestCheckOut,
-                    status: "present",
-                    source,
-                    lateMinutes,
-                    earlyLeaveMinutes,
-                    overtimeMinutes,
-                    notes: notesWithBreak,
                     organizationId,
-                },
-                update: {
-                    checkIn: bestCheckIn,
-                    // NEVER set checkOut to undefined — that would delete a
-                    // previously-known check-out. Only update if we have one.
-                    ...(bestCheckOut ? { checkOut: bestCheckOut } : {}),
+                    punchTime: p.timestamp,
+                    shiftDate,
+                    deviceUserId: p.deviceUserId,
+                    punchType: p.punchType ?? null,
+                    deviceId: params.deviceId || null,
+                    deviceSerial: params.deviceName || null,
                     source,
-                    lateMinutes,
-                    earlyLeaveMinutes,
-                    overtimeMinutes,
-                    notes: notesWithBreak,
-                },
+                }));
+
+                await db.biometricPunch.createMany({
+                    data: ledgerRows,
+                    skipDuplicates: true,
+                });
+
+                // 3b. Fetch ALL punches for this (employee, shiftDate) from the ledger.
+                //     This includes punches from PREVIOUS sync batches too —
+                //     so even if this batch only had 1 punch, we get the full picture.
+                const allPunches = await db.biometricPunch.findMany({
+                    where: {
+                        employeeId,
+                        shiftDate,
+                    },
+                    orderBy: { punchTime: "asc" },
+                    select: { punchTime: true, punchType: true },
+                });
+
+                if (allPunches.length === 0) {
+                    // Shouldn't happen since we just wrote some, but guard anyway
+                    didSkip = true;
+                    return;
+                }
+
+                // 3c. Derive checkIn/checkOut from the FULL ledger:
+                //     checkIn  = earliest punch
+                //     checkOut = latest punch (if > 1 punch)
+                const newCheckIn = allPunches[0].punchTime;
+                const newCheckOut =
+                    allPunches.length > 1
+                        ? allPunches[allPunches.length - 1].punchTime
+                        : null;
+
+                // 3d. Calculate break time from intermediate punches.
+                //     For [09:00, 13:00, 14:00, 18:00]:
+                //       pairs = [(09:00→13:00), (13:00→14:00), (14:00→18:00)]
+                //       breaks = even-indexed gaps (0→1, 2→3, ...) = lunch break
+                //       work segments = odd-indexed gaps (1→2, 3→4, ...) = work time
+                //     This is the standard "in/out alternation" model.
+                //     With 4 punches: break = punch[2] - punch[1] = 14:00 - 13:00 = 60 min
+                //     With 2 punches: break = 0 (no intermediate)
+                //     With 3 punches: break = punch[2] - punch[1] (assumes out-in-out)
+                let breakMinutes = 0;
+                if (allPunches.length >= 4) {
+                    // Even number: in, out, in, out → breaks are gaps between
+                    // punch[1]→punch[2], punch[3]→punch[4], etc.
+                    for (let i = 1; i < allPunches.length - 1; i += 2) {
+                        const gapMs =
+                            allPunches[i + 1].punchTime.getTime() -
+                            allPunches[i].punchTime.getTime();
+                        if (gapMs > 0) {
+                            breakMinutes += Math.round(gapMs / 60_000);
+                        }
+                    }
+                } else if (allPunches.length === 3) {
+                    // Odd: in, out, in (forgot to punch out) or out, in, out
+                    // Assume the middle gap is a break
+                    const gapMs =
+                        allPunches[2].punchTime.getTime() -
+                        allPunches[1].punchTime.getTime();
+                    if (gapMs > 0) {
+                        breakMinutes = Math.round(gapMs / 60_000);
+                    }
+                }
+                // With 1 or 2 punches: breakMinutes = 0 (no break data)
+
+                // 3e. Fetch existing Attendance record to check merge behavior
+                const existingRecord = await db.attendance.findUnique({
+                    where: {
+                        employeeId_date: { employeeId, date: shiftDate },
+                    },
+                    select: {
+                        checkIn: true,
+                        checkOut: true,
+                        source: true,
+                        notes: true,
+                    },
+                });
+
+                // Never overwrite a manual entry with biometric data
+                if (existingRecord?.source === "manual") {
+                    didSkip = true;
+                    return;
+                }
+
+                // 3f. Merge with existing record (take earliest checkIn, latest checkOut)
+                let bestCheckIn = newCheckIn;
+                let bestCheckOut = newCheckOut;
+
+                if (existingRecord) {
+                    if (existingRecord.checkIn && existingRecord.checkIn < bestCheckIn) {
+                        bestCheckIn = existingRecord.checkIn;
+                    }
+                    if (existingRecord.checkOut) {
+                        if (!bestCheckOut || existingRecord.checkOut > bestCheckOut) {
+                            bestCheckOut = existingRecord.checkOut;
+                        }
+                    }
+                }
+
+                // 3g. Recalculate shift metrics from merged check-in/out
+                const { lateMinutes, earlyLeaveMinutes, overtimeMinutes } =
+                    calculateShiftMetrics(
+                        bestCheckIn,
+                        bestCheckOut,
+                        shiftDate,
+                        employee.shift,
+                    );
+
+                // 3h. Upsert Attendance with derived data + break minutes
+                //     Store break minutes in notes as JSON (schema doesn't have a
+                //     dedicated breakMinutes column yet — can add in future migration)
+                const notesWithBreak = auditNote
+                    ? `${auditNote} | punches: ${allPunches.length} | break: ${breakMinutes}min`
+                    : `punches: ${allPunches.length} | break: ${breakMinutes}min`;
+
+                await db.attendance.upsert({
+                    where: {
+                        employeeId_date: { employeeId, date: shiftDate },
+                    },
+                    create: {
+                        employeeId,
+                        date: shiftDate,
+                        checkIn: bestCheckIn,
+                        checkOut: bestCheckOut,
+                        status: "present",
+                        source,
+                        lateMinutes,
+                        earlyLeaveMinutes,
+                        overtimeMinutes,
+                        notes: notesWithBreak,
+                        organizationId,
+                    },
+                    update: {
+                        checkIn: bestCheckIn,
+                        // NEVER set checkOut to undefined — that would delete a
+                        // previously-known check-out. Only update if we have one.
+                        ...(bestCheckOut ? { checkOut: bestCheckOut } : {}),
+                        source,
+                        lateMinutes,
+                        earlyLeaveMinutes,
+                        overtimeMinutes,
+                        notes: notesWithBreak,
+                    },
+                });
             });
-            synced++;
+
+            if (didSkip) {
+                skipped++;
+            } else {
+                synced++;
+            }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             errors.push(`${employeeId}::${shiftDate.toISOString()}: ${msg}`);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 import { authenticateSyncAgent } from "@/lib/sync-agent-auth";
 
@@ -25,32 +25,37 @@ export async function POST(req: Request) {
             "unknown";
 
         const heartbeatAt = new Date();
-        await prisma.syncApiKey.update({
-            where: { id: apiKey.id },
-            data: {
-                lastHeartbeat: heartbeatAt,
-                agentIp,
-                agentVersion: body.agentVersion || undefined,
-            },
-        });
-
         const deviceIp = typeof body.deviceIp === "string" ? body.deviceIp.trim() : null;
         const devicePort = Number(body.devicePort) || 4370;
 
-        if (deviceIp) {
-            await prisma.biometricDevice.updateMany({
-                where: {
-                    organizationId: apiKey.organizationId,
-                    ip: deviceIp,
-                    port: devicePort,
-                },
+        // Wrap all DB writes in a single withTenant so RLS allows them in
+        // production (peopleflow_app is NOSUPERUSER; raw prisma is blocked).
+        // apiKey.organizationId is known from the authenticated API key.
+        await withTenant(apiKey.organizationId, async (db) => {
+            await db.syncApiKey.update({
+                where: { id: apiKey.id },
                 data: {
-                    isOnline: true,
-                    lastPingAt: heartbeatAt,
-                    consecutiveFailures: 0,
+                    lastHeartbeat: heartbeatAt,
+                    agentIp,
+                    agentVersion: body.agentVersion || undefined,
                 },
             });
-        }
+
+            if (deviceIp) {
+                await db.biometricDevice.updateMany({
+                    where: {
+                        organizationId: apiKey.organizationId,
+                        ip: deviceIp,
+                        port: devicePort,
+                    },
+                    data: {
+                        isOnline: true,
+                        lastPingAt: heartbeatAt,
+                        consecutiveFailures: 0,
+                    },
+                });
+            }
+        });
 
         return NextResponse.json({
             success: true,
