@@ -23,17 +23,20 @@ import { cronLogger } from "@/lib/logger";
 export function verifyCronAuth(req: Request): NextResponse | null {
     const secret = process.env.CRON_SECRET;
 
-    // If no CRON_SECRET is set, allow in development but block in production
+    // If no CRON_SECRET is set, default to DENY. Only allow without secret
+    // when ALLOW_INSECURE_CRON=1 is explicitly set (e.g. local development).
+    // This prevents accidental exposure if NODE_ENV is "development" in a
+    // staging/preview environment that's reachable from the internet.
     if (!secret) {
-        if (process.env.NODE_ENV === "production") {
-            cronLogger.fatal("CRON_SECRET is not set in production!");
+        if (process.env.ALLOW_INSECURE_CRON !== "1") {
+            cronLogger.fatal("CRON_SECRET is not set! Set ALLOW_INSECURE_CRON=1 to allow in development.");
             return NextResponse.json(
                 { error: "Cron endpoint not configured" },
                 { status: 503 }
             );
         }
-        // Allow in development without secret
-        cronLogger.warn("Running without CRON_SECRET (dev mode)");
+        // Explicit opt-in: allow without secret (development only)
+        cronLogger.warn("Running without CRON_SECRET (ALLOW_INSECURE_CRON=1)");
         return null;
     }
 

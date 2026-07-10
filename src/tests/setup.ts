@@ -11,6 +11,10 @@ process.env.REDIS_URL = "redis://localhost:6379/1"; // Use DB 1 for tests
 process.env.NEXTAUTH_SECRET = "test-secret-32-characters-long!!";
 process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_mock";
+// P14-I18N-CRON-PF: cron-auth default-deny now requires either CRON_SECRET
+// or ALLOW_INSECURE_CRON=1. Tests that hit /api/cron/* without a secret
+// need this opt-in to pass.
+process.env.ALLOW_INSECURE_CRON = "1";
 (process.env as any).NODE_ENV = "test";
 
 // ── Prisma Mock ─────────────────────────────────────────────────────
@@ -56,7 +60,28 @@ const prismaMock = {
     // P13-STRIPE: Stripe webhook DB idempotency ledger
     // Used by /api/webhooks/stripe/route.ts via withPlatform((db) => db.stripeEvent.*)
     stripeEvent: { findUnique: vi.fn(), create: vi.fn() },
-    $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
+    // P14-TESTS: Stripe webhook event handlers + health-alert probe
+    // subscription.* — used by handleCheckoutCompleted / handlePaymentSucceeded /
+    // handlePaymentFailed / handleSubscriptionUpdated / handleSubscriptionDeleted
+    subscription: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    // invoice.* — used by handlePaymentSucceeded / handlePaymentFailed
+    invoice: { findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
+    // plan.* — used by handleSubscriptionUpdated (plan change lookup)
+    plan: { findFirst: vi.fn() },
+    // $queryRaw — used by health-alert.ts DB probe (`SELECT 1`)
+    $queryRaw: vi.fn(),
+    // $transaction supports BOTH forms in Prisma:
+    //   1. Callback form:  prisma.$transaction(async (tx) => { ... })
+    //   2. Array form:      prisma.$transaction([query1, query2])
+    // The array form is used by Stripe webhook handlers (e.g. handlePaymentSucceeded
+    // creates an invoice + updates the subscription atomically). Detect the shape
+    // and dispatch accordingly so neither form throws.
+    $transaction: vi.fn(async (arg: unknown) => {
+        if (typeof arg === "function") {
+            return (arg as (tx: unknown) => Promise<unknown>)(prismaMock);
+        }
+        return Promise.all(arg as Promise<unknown>[]);
+    }),
 };
 
 vi.mock("@/lib/prisma", () => ({

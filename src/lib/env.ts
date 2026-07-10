@@ -96,14 +96,30 @@ const serverSchema = z.object({
     SENTRY_AUTH_TOKEN: z.string().optional(),
 
     // ── CRON Authentication ──
-    // Required in production (min 16 characters). Optional in development.
+    // Required in production (min 16 characters). Optional in development
+    // ONLY when ALLOW_INSECURE_CRON=1 is explicitly set (default-deny).
     // The refine() enforces production presence so a missing CRON_SECRET
     // crashes the boot instead of silently leaving /api/cron/* endpoints
     // either unprotected (503 in cron-auth.ts) or, worse, misconfigured.
+    // In development, the refine() blocks missing CRON_SECRET unless the
+    // operator has explicitly opted in via ALLOW_INSECURE_CRON=1.
     CRON_SECRET: z.string().refine(
-        (val) => process.env.NODE_ENV !== "production" || (val && val.length >= 16),
-        "CRON_SECRET is required in production (min 16 characters)"
+        (val) => {
+            if (process.env.NODE_ENV === "production") {
+                return val && val.length >= 16;
+            }
+            // dev / test: allow empty only with explicit opt-in
+            if (!val) {
+                return process.env.ALLOW_INSECURE_CRON === "1";
+            }
+            return val.length >= 16;
+        },
+        "CRON_SECRET is required (min 16 characters). In development, set ALLOW_INSECURE_CRON=1 to allow without a secret."
     ).optional(),
+
+    // Explicit opt-in for running cron endpoints without CRON_SECRET in
+    // development. Default empty (denied). See src/lib/cron-auth.ts.
+    ALLOW_INSECURE_CRON: z.string().optional(),
 
     // ── Email (optional — graceful degradation) ──
     SMTP_HOST: z.string().optional(),

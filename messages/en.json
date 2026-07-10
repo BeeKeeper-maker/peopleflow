@@ -1237,7 +1237,15 @@
     "postSuccess": "Job posted successfully",
     "error": "Error",
     "requiredFields": "Please fill in all required fields",
-    "createFailed": "Failed to create job posting"
+    "createFailed": "Failed to create job posting",
+    "editTitle": "Edit Job Posting",
+    "editSubtitle": "Keep recruitment data aligned with the published job.",
+    "responsibilities": "Responsibilities",
+    "responsibilitiesPlaceholder": "List the responsibilities for this position...",
+    "experiencePlaceholder": "e.g. 3-5 years",
+    "publishingSettings": "Publishing Settings",
+    "closeJob": "Close Job",
+    "publishChanges": "Publish Changes"
   },
   "SharedComponents": {
     "common": {

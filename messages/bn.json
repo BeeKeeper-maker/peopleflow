@@ -1389,7 +1389,15 @@
     "postSuccess": "চাকরি সফলভাবে পোস্ট হয়েছে",
     "error": "ত্রুটি",
     "requiredFields": "অনুগ্রহ করে সকল প্রয়োজনীয় ক্ষেত্র পূরণ করুন",
-    "createFailed": "চাকরির বিজ্ঞপ্তি তৈরি করা যায়নি"
+    "createFailed": "চাকরির বিজ্ঞপ্তি তৈরি করা যায়নি",
+    "editTitle": "জব পোস্টিং সম্পাদনা",
+    "editSubtitle": "প্রকাশিত জবের সাথে নিয়োগ তথ্য সামঞ্জস্য রাখুন।",
+    "responsibilities": "দায়িত্ব",
+    "responsibilitiesPlaceholder": "এই পদের দায়িত্বগুলি তালিকাভুক্ত করুন...",
+    "experiencePlaceholder": "যেমন: ৩-৫ বছর",
+    "publishingSettings": "প্রকাশনা সেটিংস",
+    "closeJob": "জব বন্ধ করুন",
+    "publishChanges": "পরিবর্তন প্রকাশ করুন"
   },
   "SharedComponents": {
     "common": {
