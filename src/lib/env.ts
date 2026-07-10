@@ -191,7 +191,11 @@ function validateEnv(): void {
         console.error(message);
 
         // In production, crash immediately. In dev, warn but continue.
-        if (process.env.NODE_ENV === "production") {
+        // EXCEPTION: During `next build` (NEXT_PHASE=phase-production-build),
+        // runtime env vars are not available — Coolify only injects them at
+        // container start. So we warn but don't crash during the build step.
+        const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+        if (process.env.NODE_ENV === "production" && !isBuildPhase) {
             throw new Error("Environment validation failed. Cannot start in production with invalid configuration.");
         }
     }
