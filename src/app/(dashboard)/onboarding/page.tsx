@@ -86,7 +86,7 @@ export default function OnboardingPage() {
             addToast({ title: `${created.length} department(s) created`, type: "success" });
             setCurrentStep(2);
         } catch {
-            addToast({ title: "Failed to create departments", type: "error" });
+            addToast({ title: t("failedCreateDepartments"), type: "error" });
         } finally {
             setLoading(false);
         }
@@ -112,7 +112,7 @@ export default function OnboardingPage() {
             addToast({ title: `${created.length} designation(s) created`, type: "success" });
             setCurrentStep(3);
         } catch {
-            addToast({ title: "Failed to create designations", type: "error" });
+            addToast({ title: t("failedCreateDesignations"), type: "error" });
         } finally {
             setLoading(false);
         }
@@ -132,10 +132,10 @@ export default function OnboardingPage() {
                 setCurrentStep(4);
             } else {
                 const data = await res.json().catch(() => ({}));
-                addToast({ title: data.error || "Failed to create shift", type: "error" });
+                addToast({ title: data.error || t("failedCreateShift"), type: "error" });
             }
         } catch {
-            addToast({ title: "Failed to create shift", type: "error" });
+            addToast({ title: t("failedCreateShift"), type: "error" });
         } finally {
             setLoading(false);
         }
@@ -167,10 +167,10 @@ export default function OnboardingPage() {
                 setCurrentStep(5);
             } else {
                 const data = await res.json().catch(() => ({}));
-                addToast({ title: data.error || "Failed to create employee", type: "error" });
+                addToast({ title: data.error || t("failedCreateEmployee"), type: "error" });
             }
         } catch {
-            addToast({ title: "Failed to create employee", type: "error" });
+            addToast({ title: t("failedCreateEmployee"), type: "error" });
         } finally {
             setLoading(false);
         }

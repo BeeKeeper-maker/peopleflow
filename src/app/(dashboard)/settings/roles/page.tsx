@@ -83,6 +83,7 @@ const MODULE_LABELS: Record<string, string> = {
 
 export default function RolesPage() {
     const t = useTranslations("Settings");
+    const tShared = useTranslations("SharedComponents");
     const queryClient = useQueryClient();
     const { addToast } = useToast();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
@@ -124,10 +125,10 @@ export default function RolesPage() {
                 invalidateRoles();
             } else {
                 const err = await res.json();
-                addToast({ title: "Error", description: err.error || "Failed to delete", type: "error" });
+                addToast({ title: tShared("error"), description: err.error || tShared("deleteFailed"), type: "error" });
             }
         } catch {
-            addToast({ title: "Error", description: "Network error", type: "error" });
+            addToast({ title: tShared("error"), description: tShared("networkError"), type: "error" });
         }
     };
 
@@ -258,6 +259,7 @@ function RoleEditor({
     onSaved,
 }: RoleEditorProps) {
     const { addToast } = useToast();
+    const tShared = useTranslations("SharedComponents");
     const [name, setName] = useState(role?.name || "");
     const [slug, setSlug] = useState(role?.slug || "");
     const [description, setDescription] = useState(role?.description || "");
@@ -365,13 +367,13 @@ function RoleEditor({
             } else {
                 const err = await res.json();
                 addToast({
-                    title: "Error",
-                    description: err.error || "Failed to save",
+                    title: tShared("error"),
+                    description: err.error || tShared("saveFailed"),
                     type: "error",
                 });
             }
         } catch {
-            addToast({ title: "Error", description: "Network error", type: "error" });
+            addToast({ title: tShared("error"), description: tShared("networkError"), type: "error" });
         } finally {
             setSaving(false);
         }

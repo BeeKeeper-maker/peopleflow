@@ -28,6 +28,7 @@ export async function PUT(
         const existing = await auth.withDB((db) => db.loan.findFirst({
             where: {
                 id,
+                deletedAt: null,
                 employee: {
                     organizationId: auth.organizationId,
                     ...(!isHR && isManager ? { reportingManagerId: auth.employeeId } : {}),
@@ -64,9 +65,10 @@ export async function PUT(
                     return NextResponse.json({ error: result.message }, { status: 400 });
                 }
 
-                // Fetch updated loan
-                const updatedLoan = await auth.withDB((db) => db.loan.findUnique({
-                    where: { id },
+                // Fetch updated loan (soft-delete-aware: findFirst so we can
+                // filter out loans tombstoned via deletedAt)
+                const updatedLoan = await auth.withDB((db) => db.loan.findFirst({
+                    where: { id, deletedAt: null },
                     include: {
                         employee: {
                             select: {
@@ -154,7 +156,7 @@ export async function DELETE(
         const { id } = await params;
 
         const existing = await auth.withDB((db) => db.loan.findFirst({
-            where: { id },
+            where: { id, deletedAt: null },
             include: { employee: { select: { organizationId: true } } },
         }));
 
