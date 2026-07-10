@@ -44,6 +44,8 @@ WORKDIR /app
 
 # node_modules are already installed from deps stage (with devDeps)
 COPY --from=deps /app/node_modules ./node_modules
+# Cache-buster for builder stage — forces fresh COPY of source files
+ARG CACHEBUST=4
 COPY . .
 
 # Prisma generate
