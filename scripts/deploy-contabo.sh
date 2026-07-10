@@ -313,6 +313,12 @@ log "Step 8/8: Setting up automated tasks..."
 mkdir -p /backups
 (crontab -l 2>/dev/null | grep -v "backup-db.sh"; echo "0 2 * * * cd $DEPLOY_DIR && docker compose exec -T db pg_dump -U peopleflow peopleflow | gzip > /backups/peopleflow_\$(date +\%Y\%m\%d_\%H\%M\%S).sql.gz >> /var/log/peopleflow-backup.log 2>&1") | crontab -
 
+# Monthly backup restore drill (1st of month at 3 AM)
+# Restores the latest daily backup into a TEMP database, counts the restored
+# tables, and drops the temp database. Never touches production data.
+# The grep -v de-duplicates on re-runs.
+(crontab -l 2>/dev/null | grep -v "test-restore"; echo "0 3 1 * * cd $DEPLOY_DIR && docker compose exec -T db bash /app/scripts/backup-db.sh --test-restore >> /var/log/peopleflow-backup-test.log 2>&1") | crontab -
+
 # Docker container auto-restart check (every 5 min)
 (crontab -l 2>/dev/null; echo "*/5 * * * * cd $DEPLOY_DIR && docker compose ps | grep -q 'Exit' && docker compose up -d >> /var/log/peopleflow-docker.log 2>&1") | crontab -
 

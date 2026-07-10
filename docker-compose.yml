@@ -50,6 +50,11 @@ services:
       # ── Web Push (VAPID) — public key is safe to expose to the browser ──
       - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      # ── Health alerting (email + Slack/Discord webhook) ──
+      # Used by checkHealthAndAlert() in src/lib/health-alert.ts when the
+      # health-ping cron finds DB/Redis down. Empty values = alerting disabled.
+      - HEALTH_ALERT_EMAILS=${HEALTH_ALERT_EMAILS:-}
+      - HEALTH_ALERT_WEBHOOK=${HEALTH_ALERT_WEBHOOK:-}
     depends_on:
       db:
         condition: service_healthy
@@ -98,6 +103,11 @@ services:
       # ── Web Push (VAPID) — worker can also send pushes via smart-notifications ──
       - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      # ── Health alerting (email + Slack/Discord webhook) ──
+      # Worker also runs internal health checks; without these env vars any
+      # worker-side alerting path would silently no-op.
+      - HEALTH_ALERT_EMAILS=${HEALTH_ALERT_EMAILS:-}
+      - HEALTH_ALERT_WEBHOOK=${HEALTH_ALERT_WEBHOOK:-}
     depends_on:
       db:
         condition: service_healthy
