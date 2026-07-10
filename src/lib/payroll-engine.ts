@@ -510,14 +510,81 @@ export async function calculateSalary(input: CalculateSalaryInput): Promise<Sala
             remainingAmount: { gt: 0 },
         },
     });
-    const loanDeduction = activeLoans.reduce((sum, loan) => sum + Number(loan.emiAmount), 0);
 
     // Calculate totals
     const grossEarnings = basicSalary + houseRent + medicalAllowance + conveyance +
         specialAllowance + overtimeAmount + bonus + festivalBonus + arrears + otherEarnings;
 
-    const totalDeductions = pfEmployee + incomeTax + loanDeduction + absentDeduction +
+    // Aggregate all NON-loan deductions first so we can decide how much loan
+    // EMI the payroll can actually afford this cycle. Loan EMIs are the LAST
+    // deduction pulled out of net salary — if the employee's net is already 0
+    // (or near 0) after statutory deductions (PF, tax, absent, late, other),
+    // deducting the full EMI would push the payslip negative or leave the
+    // employee with BDT 0 take-home. The previous implementation deducted the
+    // full EMI unconditionally and then clamped net at 0 via `Math.max(0, …)`,
+    // which silently under-paid other priorities and lost the audit trail of
+    // "loan EMI was due but unaffordable this cycle".
+    //
+    // P17-BUGS-5 fix:
+    //   - Compute net BEFORE loan deductions.
+    //   - If net > 0, deduct loan EMIs up to the remaining net (per-loan, in
+    //     the order Prisma returned them — usually created-at asc).
+    //   - If net <= 0, deduct 0 and emit a warn-level audit log so HR can
+    //     manually handle the shortfall (e.g. defer the EMI, prorate next
+    //     cycle, or write off). The loan's `remainingAmount` is NOT mutated
+    //     here — that happens in the disbursement step keyed off this number.
+    const nonLoanDeductions = pfEmployee + incomeTax + absentDeduction +
         lateDeduction + otherDeductions;
+    const netBeforeLoan = Math.max(0, grossEarnings - nonLoanDeductions);
+
+    let loanDeduction = 0;
+    let loanDeductionCapped = false;
+    let loanDeductionDeferred = 0;
+    if (netBeforeLoan > 0 && activeLoans.length > 0) {
+        let remaining = netBeforeLoan;
+        for (const loan of activeLoans) {
+            const emi = Number(loan.emiAmount);
+            if (emi <= 0) continue;
+            if (remaining >= emi) {
+                loanDeduction += emi;
+                remaining -= emi;
+            } else {
+                // Cap this loan's deduction at whatever is left and flag the
+                // remainder as deferred so HR can see it in the audit log.
+                loanDeduction += remaining;
+                loanDeductionDeferred += emi - remaining;
+                loanDeductionCapped = true;
+                remaining = 0;
+            }
+        }
+    } else if (activeLoans.length > 0) {
+        // Net is 0 (or negative before clamp) — defer the entire EMI bundle.
+        loanDeductionDeferred = activeLoans.reduce(
+            (sum, loan) => sum + Number(loan.emiAmount),
+            0,
+        );
+        loanDeductionCapped = true;
+    }
+
+    if (loanDeductionCapped) {
+        payrollLogger.warn(
+            {
+                employeeId,
+                month,
+                year,
+                requestedEmiTotal: activeLoans.reduce(
+                    (sum, loan) => sum + Number(loan.emiAmount),
+                    0,
+                ),
+                deductedEmiTotal: loanDeduction,
+                deferredEmiTotal: loanDeductionDeferred,
+                netBeforeLoan,
+            },
+            "LOAN_DEDUCTION_CAPPED_AT_NET_SALARY — HR must handle the deferred EMI manually",
+        );
+    }
+
+    const totalDeductions = nonLoanDeductions + loanDeduction;
 
     // Payroll slips should never show a negative payable salary. If deductions exceed
     // earnings (e.g. no attendance data for a processed month), cap payable net at 0;

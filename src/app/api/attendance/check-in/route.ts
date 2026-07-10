@@ -70,11 +70,17 @@ export async function POST(req: Request) {
 
         // 2. IP-based duplicate check — prevent same IP checking in for different employees
         // within a short time window (buddy punching pattern)
+        //
+        // IMPORTANT: Filter by organizationId so cross-tenant check-ins (e.g. two
+        // different SaaS customers sharing a public IP, or a shared office building)
+        // do NOT trigger false buddy-punch warnings against each other. The IP /
+        // device signature is only meaningful within a single tenant's workforce.
         const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
         let buddyPunchWarning: string | null = null;
         if (clientIp !== "unknown" && source !== "biometric") {
             const recentCheckInsFromSameIp = await prisma.attendance.findFirst({
                 where: {
+                    organizationId: auth.organizationId,
                     checkIn: { gte: new Date(now.getTime() - 2 * 60 * 1000) }, // Last 2 minutes
                     notes: { contains: `ip:${clientIp}` },
                     employeeId: { not: employee.id }, // Different employee
@@ -97,9 +103,12 @@ export async function POST(req: Request) {
         }
 
         // 3. Device fingerprint check (if provided by client)
+        // Also scoped to the caller's organization — a device fingerprint is
+        // only a useful buddy-punch signal within the same tenant.
         if (deviceFingerprint) {
             const sameDeviceRecent = await prisma.attendance.findFirst({
                 where: {
+                    organizationId: auth.organizationId,
                     checkIn: { gte: new Date(now.getTime() - 5 * 60 * 1000) }, // Last 5 minutes
                     notes: { contains: `device:${deviceFingerprint}` },
                     employeeId: { not: employee.id },

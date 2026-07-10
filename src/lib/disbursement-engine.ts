@@ -181,15 +181,39 @@ async function getBkashToken(
  *   - success: true/false
  *   - reference: bKash transaction ID (trnxID)
  *   - providerResponse: full API response
+ *
+ * P17-BUGS-8: The caller MUST pass `salarySlipId` and `disbursementId` so
+ * the merchantInvoiceNumber is deterministic and traceable back to a slip.
+ * The amount is rounded to 2 decimal places (bKash rejects >2 dp amounts).
  */
 async function disburseViaBkash(
     config: BkashConfig,
     amount: number,
     receiverMsisdn: string,
     organizationId: string,
+    salarySlipId: string,
+    disbursementId: string,
 ): Promise<DisbursementResult> {
     try {
         const token = await getBkashToken(config, organizationId);
+
+        // P17-BUGS-8a: bKash rejects amounts with more than 2 decimal places
+        // (e.g. 1234.56789 → 4001 BadRequest). Our payroll engine rounds to
+        // integer BDT, but downstream adjustments (partial-day payroll,
+        // prorated festival bonus, fractional arrears) can produce sub-poisha
+        // amounts. Round here as the last line of defense before the API call.
+        const roundedAmount = Math.round(amount * 100) / 100;
+
+        // P17-BUGS-8b: Use a deterministic merchantInvoiceNumber so HR can
+        // match a bKash transaction back to a salary slip for reconciliation.
+        // The previous implementation used `PF-${Date.now()}-${Math.random()}`
+        // which made matching impossible. The new format encodes:
+        //   - slipId: HR can search the bKash merchant portal by slip id.
+        //   - disbursementId: ensures uniqueness per attempt. A failed
+        //     disbursement that is retried creates a NEW SalaryDisbursement
+        //     row, so this id differs across attempts and bKash does NOT
+        //     reject the retry as a duplicate.
+        const merchantInvoiceNumber = `PF-${salarySlipId}-${disbursementId}`;
 
         const response = await fetch(`${config.baseUrl}/tokenized/checkout/payment/b2c`, {
             method: "POST",
@@ -200,11 +224,10 @@ async function disburseViaBkash(
                 "X-APP-Key": config.appKey,
             },
             body: JSON.stringify({
-                amount: String(amount),
+                amount: String(roundedAmount),
                 currency: "BDT",
                 receiverMSISDN: receiverMsisdn,
-                // bKash requires a unique merchantInvoiceNumber
-                merchantInvoiceNumber: `PF-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                merchantInvoiceNumber,
             }),
         });
 
@@ -360,7 +383,14 @@ export async function disburseSalary(params: {
                     errorMessage: "Employee does not have a bKash number. Please add it to the employee profile.",
                 };
             } else {
-                result = await disburseViaBkash(config, amount, bkashNumber, organizationId);
+                result = await disburseViaBkash(
+                    config,
+                    amount,
+                    bkashNumber,
+                    organizationId,
+                    slip.id,
+                    disbursement.id,
+                );
             }
         }
     } else if (channel === "nagad") {

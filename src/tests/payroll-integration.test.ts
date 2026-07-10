@@ -293,6 +293,64 @@ describe("calculateSalary() — Full Pipeline", () => {
         expect(result.loanDeduction).toBe(7_500);
     });
 
+    // ── P17-BUGS-5: Loan EMI cap at net salary ──────────────────────
+    // The previous implementation deducted the full EMI unconditionally
+    // and clamped net at 0 via `Math.max(0, …)`, which silently
+    // under-paid other priorities and lost the audit trail of "loan EMI
+    // was due but unaffordable this cycle". The fix caps each loan's
+    // deduction at the remaining net (computed AFTER all other deductions)
+    // and logs the deferred remainder for HR to handle manually.
+    it("caps loan EMI at remaining net salary when full EMI is unaffordable", async () => {
+        // Tiny gross salary (5,000 BDT) but a 10,000 BDT EMI due → net
+        // before loan is well below the EMI, so the cap kicks in.
+        // NOTE: getFestivalBonusForPayroll is reset to 0 here because an
+        // earlier test ("includes festival bonus from the bonus engine")
+        // overrode its default mock to return 25_000; without this reset
+        // the bonus would inflate netBeforeLoan and the cap would not fire.
+        vi.mocked(getFestivalBonusForPayroll).mockResolvedValue(0);
+        const assignment = buildMockAssignment({ grossSalary: 5_000 });
+        vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);
+        vi.mocked(prisma.attendance.findMany).mockResolvedValue(buildAttendanceRecords(22) as never);
+        vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([] as never);
+        vi.mocked(prisma.loan.findMany).mockResolvedValue([
+            { id: "loan-1", status: "disbursed", remainingAmount: 100_000, emiAmount: 10_000 },
+        ] as never);
+
+        const result = await calculateSalary({ employeeId: "emp-001", month: 4, year: 2026 });
+
+        // Loan deduction MUST be capped at the net-before-loan amount,
+        // NOT the full 10,000 EMI. Net salary MUST NOT be negative.
+        expect(result.loanDeduction).toBeLessThanOrEqual(result.grossSalary);
+        expect(result.loanDeduction).toBeLessThan(10_000);
+        expect(result.netSalary).toBeGreaterThanOrEqual(0);
+        // The cap leaves zero net take-home in this pathological scenario
+        // (5k gross, 10k EMI) — that's the intended behaviour: HR sees
+        // the warning log and manually defers the unpaid EMI.
+        expect(result.netSalary).toBe(0);
+    });
+
+    it("skips loan EMI entirely when net is already 0 after other deductions", async () => {
+        // 0 working days → 100% absent deduction → net before loan is 0.
+        // The previous implementation would still deduct the full EMI and
+        // push net negative (then clamp at 0). The fix skips the EMI
+        // entirely and logs a deferred-EMI warning for HR.
+        vi.mocked(getFestivalBonusForPayroll).mockResolvedValue(0);
+        const assignment = buildMockAssignment();
+        vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);
+        vi.mocked(prisma.attendance.findMany).mockResolvedValue([] as never); // 0 attendance
+        vi.mocked(prisma.leaveApplication.findMany).mockResolvedValue([] as never);
+        vi.mocked(prisma.loan.findMany).mockResolvedValue([
+            { id: "loan-1", status: "disbursed", remainingAmount: 100_000, emiAmount: 5_000 },
+        ] as never);
+
+        const result = await calculateSalary({ employeeId: "emp-001", month: 4, year: 2026 });
+
+        // No attendance → entire gross is deducted as absent days → net
+        // before loan is 0 → loan EMI is fully deferred.
+        expect(result.loanDeduction).toBe(0);
+        expect(result.netSalary).toBe(0);
+    });
+
     it("applies late deduction from the late deduction engine", async () => {
         const assignment = buildMockAssignment();
         vi.mocked(prisma.salaryStructureAssignment.findFirst).mockResolvedValue(assignment as never);

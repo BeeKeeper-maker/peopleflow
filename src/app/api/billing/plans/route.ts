@@ -1,53 +1,62 @@
+/**
+ * Billing API: List Plans + Current Subscription
+ *
+ * GET /api/billing/plans — Returns all active plans and the caller's
+ * current subscription status.
+ *
+ * Auth: Any authenticated tenant user (used by the "Upgrade" page to
+ * render plan cards + the user's current plan badge).
+ *
+ * RLS: Uses `requireAuth()` + `auth.withDB()` so reads are scoped by
+ * tenant via the row-level security policy. Previously this route used
+ * `auth()` + raw `prisma.*` calls, which bypassed RLS and could leak
+ * cross-tenant subscription data if the session was ever mis-issued.
+ */
+
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 export async function GET() {
-    const session = await auth();
-
-    if (!session?.user?.email) {
-        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if (!isAuthenticated(auth)) return auth;
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            select: { organizationId: true },
-        });
-
-        if (!user?.organizationId) {
-            return NextResponse.json({ error: "No organization found" }, { status: 400 });
-        }
-
-        const [plans, subscription] = await Promise.all([
-            prisma.plan.findMany({
-                where: { isActive: true },
-                orderBy: { sortOrder: "asc" },
-                select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    description: true,
-                    priceMonthly: true,
-                    priceYearly: true,
-                    currency: true,
-                    maxEmployees: true,
-                    maxAdmins: true,
-                    maxBranches: true,
-                    maxDevices: true,
-                    maxStorageMB: true,
-                    features: true,
-                    stripePriceIdMonthly: true,
-                    stripePriceIdYearly: true,
-                    sortOrder: true,
-                },
-            }),
-            prisma.subscription.findUnique({
-                where: { organizationId: user.organizationId },
-                include: { plan: { select: { slug: true, name: true } } },
-            }),
-        ]);
+        // Plan rows are global (not tenant-scoped), but subscription is.
+        // We fetch plans via withDB to keep a single RLS-aware DB client and
+        // subscription via the same withDB call so both reads go through the
+        // tenant-scoped role.
+        const [plans, subscription] = await auth.withDB((db) =>
+            Promise.all([
+                db.plan.findMany({
+                    where: { isActive: true },
+                    orderBy: { sortOrder: "asc" },
+                    select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                        description: true,
+                        priceMonthly: true,
+                        priceYearly: true,
+                        currency: true,
+                        maxEmployees: true,
+                        maxAdmins: true,
+                        maxBranches: true,
+                        maxDevices: true,
+                        maxStorageMB: true,
+                        maxCustomRoles: true,
+                        features: true,
+                        stripePriceIdMonthly: true,
+                        stripePriceIdYearly: true,
+                        sortOrder: true,
+                    },
+                }),
+                db.subscription.findUnique({
+                    where: { organizationId: auth.organizationId },
+                    include: { plan: { select: { slug: true, name: true } } },
+                }),
+            ]),
+        );
 
         return NextResponse.json({
             plans: plans.map((plan) => ({

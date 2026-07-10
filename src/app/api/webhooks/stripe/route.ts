@@ -19,6 +19,8 @@ import { billingLogger } from "@/lib/logger";
 
 const STRIPE_EVENT_IDEMPOTENCY_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STRIPE_EVENT_PROCESSING_TTL_SECONDS = 10 * 60;
+const STRIPE_SUBSCRIPTION_LOCK_TTL_SECONDS = 30;
+const STRIPE_SUBSCRIPTION_LOCK_RETRY_DELAY_MS = 2000;
 
 /** Extract subscription ID from an invoice — handles both old and new Stripe API shapes */
 function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined {
@@ -26,6 +28,38 @@ function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefin
     const subDetail = invoice.parent?.subscription_details?.subscription;
     if (subDetail) {
         return typeof subDetail === "string" ? subDetail : subDetail.id;
+    }
+    return undefined;
+}
+
+/**
+ * Extract the Stripe subscription id (if any) referenced by an event.
+ *
+ * Used by the per-subscription Redis lock so concurrent events targeting
+ * the same subscription (e.g. `invoice.payment_succeeded` racing
+ * `customer.subscription.updated`) are serialized instead of stomping on
+ * each other's `prisma.subscription.update` calls.
+ */
+function getSubscriptionIdFromEvent(event: Stripe.Event): string | undefined {
+    if (event.type.startsWith("customer.subscription.")) {
+        const sub = event.data.object as unknown as { id?: string };
+        return typeof sub.id === "string" ? sub.id : undefined;
+    }
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object as unknown as {
+            subscription?: string | { id?: string };
+        };
+        const sub = session.subscription;
+        if (typeof sub === "string") return sub;
+        if (sub && typeof sub === "object" && typeof sub.id === "string") {
+            return sub.id;
+        }
+        return undefined;
+    }
+    if (event.type.startsWith("invoice.")) {
+        return getSubscriptionIdFromInvoice(
+            event.data.object as Stripe.Invoice,
+        );
     }
     return undefined;
 }
@@ -72,6 +106,73 @@ async function releaseStripeEventClaim(eventId: string): Promise<void> {
         billingLogger.warn(
             { err: error, eventId },
             "[STRIPE_WEBHOOK] Could not release failed event claim"
+        );
+    }
+}
+
+/**
+ * Acquire a short-lived Redis lock on a Stripe subscription id.
+ *
+ * P17-BUGS-6: Different Stripe events for the same subscription can race.
+ * For example, `invoice.payment_succeeded` and
+ * `customer.subscription.updated` often fire within milliseconds of each
+ * other after a renewal. Both handlers call `prisma.subscription.update`
+ * on the same row, which can produce:
+ *   - lost updates (last writer wins, clobbering periodStart/periodEnd)
+ *   - Prisma P2034 (write-write conflict) on transactions
+ *
+ * The per-event idempotency envelope (Redis claim + StripeEvent ledger)
+ * only protects against duplicate deliveries of the SAME event id. It
+ * does NOT serialize different events touching the same subscription.
+ *
+ * This lock bridges that gap. Returns true if the caller holds the lock
+ * (and must release it via `releaseSubscriptionLock`); false if another
+ * worker is already processing this subscription. On false, the caller
+ * should return 503 so Stripe retries the webhook after the other
+ * worker has finished.
+ *
+ * If Redis is unavailable, we proceed without the lock — the event-id
+ * idempotency envelope still protects against exact duplicates.
+ */
+async function acquireSubscriptionLock(stripeSubId: string): Promise<boolean> {
+    try {
+        const first = await getRedis().set(
+            `stripe:sub:${stripeSubId}`,
+            "1",
+            "EX",
+            STRIPE_SUBSCRIPTION_LOCK_TTL_SECONDS,
+            "NX"
+        );
+        if (first === "OK") return true;
+
+        // Another worker is processing this subscription — wait briefly and
+        // retry once. Webhook handlers are fast (<1s typically), so 2s gives
+        // the other worker a comfortable window to finish.
+        await new Promise((r) => setTimeout(r, STRIPE_SUBSCRIPTION_LOCK_RETRY_DELAY_MS));
+        const retry = await getRedis().set(
+            `stripe:sub:${stripeSubId}`,
+            "1",
+            "EX",
+            STRIPE_SUBSCRIPTION_LOCK_TTL_SECONDS,
+            "NX"
+        );
+        return retry === "OK";
+    } catch (err) {
+        billingLogger.warn(
+            { err, stripeSubId },
+            "[STRIPE_WEBHOOK] Subscription lock unavailable; proceeding without lock"
+        );
+        return true;
+    }
+}
+
+async function releaseSubscriptionLock(stripeSubId: string): Promise<void> {
+    try {
+        await getRedis().del(`stripe:sub:${stripeSubId}`);
+    } catch (err) {
+        billingLogger.warn(
+            { err, stripeSubId },
+            "[STRIPE_WEBHOOK] Could not release subscription lock"
         );
     }
 }
@@ -200,6 +301,36 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true, concurrent: true });
     }
 
+    // ── Per-subscription lock (P17-BUGS-6) ─────────────────────────
+    // Different Stripe events targeting the SAME subscription (e.g.
+    // invoice.payment_succeeded + customer.subscription.updated arriving
+    // within milliseconds of each other) can race on the subscription
+    // row. The event-id idempotency envelope above does NOT protect
+    // against this — it only dedupes the SAME event id. Acquire a
+    // short-lived Redis lock keyed by the subscription id so concurrent
+    // events are serialized.
+    //
+    // If the lock cannot be acquired (another worker is mid-flight on
+    // the same subscription), release the event-id claim and return
+    // 503 so Stripe retries after the other worker finishes. We must
+    // NOT persist the StripeEvent row — otherwise the retry would be
+    // treated as a duplicate and the update lost.
+    const stripeSubId = getSubscriptionIdFromEvent(event);
+    let subLockAcquired = false;
+    if (stripeSubId) {
+        subLockAcquired = await acquireSubscriptionLock(stripeSubId);
+        if (!subLockAcquired) {
+            billingLogger.info(
+                `[STRIPE_WEBHOOK] Subscription lock contention for ${stripeSubId} — deferring event ${event.id}`
+            );
+            await releaseStripeEventClaim(event.id);
+            return NextResponse.json(
+                { error: "Subscription lock contention — deferring" },
+                { status: 503 }
+            );
+        }
+    }
+
     try {
         switch (event.type) {
             case "checkout.session.completed":
@@ -246,10 +377,18 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         billingLogger.error({ err: error }, `[STRIPE_WEBHOOK] Handler error for ${event.type}:`);
         await releaseStripeEventClaim(event.id);
+        if (subLockAcquired && stripeSubId) {
+            await releaseSubscriptionLock(stripeSubId);
+        }
         return NextResponse.json(
             { error: "Webhook handler failed", eventType: event.type },
             { status: 500 }
         );
+    } finally {
+        // Always release the subscription lock, even on the success path.
+        if (subLockAcquired && stripeSubId) {
+            await releaseSubscriptionLock(stripeSubId);
+        }
     }
 
     // ── Persist to DB idempotency ledger (source of truth) ─────────
@@ -345,12 +484,64 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
         return;
     }
 
-    // Idempotency check — don't create duplicate invoices
+    // Idempotency check — don't create duplicate invoices.
+    //
+    // P17-BUGS-7: If the existing invoice row has status "failed", this
+    // is the retry-success webhook for the SAME Stripe invoice id —
+    // Stripe retried the payment after the initial failure and it
+    // succeeded. The previous implementation returned early here,
+    // leaving the invoice stuck at "failed" forever and the
+    // subscription's currentPeriodEnd never extended. Instead, update
+    // the row to "paid" + extend the subscription period so the
+    // tenant's billing state converges with Stripe's.
     const existingInvoice = await prisma.invoice.findFirst({
         where: { stripeInvoiceId: invoice.id },
     });
 
     if (existingInvoice) {
+        if (existingInvoice.status === "failed") {
+            // Retry-success path: flip the failed invoice to paid and
+            // extend the subscription period in the same transaction so
+            // a mid-flight crash can't leave them inconsistent.
+            await prisma.$transaction([
+                prisma.invoice.update({
+                    where: { id: existingInvoice.id },
+                    data: {
+                        status: "paid",
+                        paidAt: new Date(),
+                        failureReason: null,
+                        paymentMethod: "card",
+                        amount: invoice.amount_paid,
+                    },
+                }),
+                prisma.subscription.update({
+                    where: { id: subscription.id },
+                    data: {
+                        status: "active",
+                        currentPeriodStart: new Date(
+                            (invoice.period_start ?? 0) * 1000
+                        ),
+                        currentPeriodEnd: new Date((invoice.period_end ?? 0) * 1000),
+                    },
+                }),
+            ]);
+
+            // Restore org to active in case it had been suspended during
+            // the failed-payment grace cascade.
+            await prisma.organization.update({
+                where: { id: subscription.organizationId },
+                data: { status: "active", suspendedAt: null, suspendedReason: null },
+            });
+
+            await invalidateSubscription(subscription.organizationId);
+            await invalidateOrgStatus(subscription.organizationId);
+
+            billingLogger.info(
+                `[STRIPE_WEBHOOK] Failed invoice ${invoice.id} marked paid on retry for org: ${subscription.organizationId}`
+            );
+            return;
+        }
+
         billingLogger.info(`[STRIPE_WEBHOOK] Invoice ${invoice.id} already recorded`);
         return;
     }

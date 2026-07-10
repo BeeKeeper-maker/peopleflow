@@ -64,8 +64,10 @@ const prismaMock = {
     // subscription.* — used by handleCheckoutCompleted / handlePaymentSucceeded /
     // handlePaymentFailed / handleSubscriptionUpdated / handleSubscriptionDeleted
     subscription: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-    // invoice.* — used by handlePaymentSucceeded / handlePaymentFailed
-    invoice: { findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
+    // invoice.* — used by handlePaymentSucceeded / handlePaymentFailed.
+    // P17-BUGS-7: handlePaymentSucceeded now also calls invoice.update when
+    // a previously "failed" invoice is paid on retry.
+    invoice: { findFirst: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn() },
     // plan.* — used by handleSubscriptionUpdated (plan change lookup)
     plan: { findFirst: vi.fn() },
     // $queryRaw — used by health-alert.ts DB probe (`SELECT 1`)

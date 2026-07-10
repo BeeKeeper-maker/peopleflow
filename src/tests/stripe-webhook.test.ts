@@ -475,3 +475,192 @@ describe("[P14-TESTS] Stripe webhook event handlers", () => {
         expect(prisma.stripeEvent.create).not.toHaveBeenCalled();
     });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Stripe Webhook Retry-Success (P17-BUGS-7)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Regression coverage for the retry-success path on
+// `invoice.payment_succeeded`. When a payment fails first then succeeds
+// on retry, Stripe sends a NEW `invoice.payment_succeeded` event for
+// the SAME invoice id. The previous implementation looked up the
+// existing invoice row, saw it existed (with status "failed"), and
+// returned early — leaving the invoice stuck at "failed" forever and
+// never extending the subscription's currentPeriodEnd.
+//
+// P17-BUGS-7 fix: when the existing invoice has status "failed", flip
+// it to "paid" and extend the subscription period in a single
+// transaction.
+
+describe("[P17-BUGS-7] Stripe webhook retry-success on failed invoice", () => {
+    const ORG_ID = "org-retry-1";
+    const SUB_DB_ID = "sub-retry-1";
+    const STRIPE_SUB_ID = "sub_stripe_retry";
+    const STRIPE_INVOICE_ID = "in_stripe_retry_001";
+    const FAILED_INVOICE_DB_ID = "inv-failed-1";
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+
+        // Idempotency envelope defaults — event is new.
+        vi.mocked(prisma.stripeEvent.findUnique).mockResolvedValue(null as never);
+        vi.mocked(prisma.stripeEvent.create).mockResolvedValue({ id: "row-1" } as never);
+
+        // Subscription lookup returns a linked sub so the handler proceeds.
+        const subRow = {
+            id: SUB_DB_ID,
+            organizationId: ORG_ID,
+            stripeSubscriptionId: STRIPE_SUB_ID,
+        };
+        vi.mocked(prisma.subscription.findFirst).mockResolvedValue(subRow as never);
+        vi.mocked(prisma.subscription.update).mockResolvedValue(subRow as never);
+
+        // Critical mock: the invoice ALREADY EXISTS with status "failed".
+        // This is the state left behind by the prior `invoice.payment_failed`
+        // webhook. The retry-success handler must UPDATE this row to "paid".
+        vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+            id: FAILED_INVOICE_DB_ID,
+            stripeInvoiceId: STRIPE_INVOICE_ID,
+            status: "failed",
+            subscriptionId: SUB_DB_ID,
+        } as never);
+
+        vi.mocked(prisma.organization.update).mockResolvedValue({ id: ORG_ID } as never);
+    });
+
+    it("flips a previously-failed invoice to paid on retry-success and extends the subscription", async () => {
+        vi.mocked(verifyWebhookSignature).mockReturnValue(
+            makeStripeEventWithObject(
+                "evt_retry_success_001",
+                "invoice.payment_succeeded",
+                {
+                    id: STRIPE_INVOICE_ID,
+                    parent: { subscription_details: { subscription: STRIPE_SUB_ID } },
+                    amount_paid: 50000, // 500.00 BDT (poisha)
+                    currency: "bdt",
+                    period_start: 1700000000,
+                    period_end: 1702592000,
+                    due_date: 1702592000,
+                },
+            ),
+        );
+
+        const res = await POST(makeWebhookRequest("{}"));
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ received: true });
+
+        // Critical: the existing failed invoice is UPDATED to "paid", not
+        // skipped. A new invoice row must NOT be created.
+        expect(prisma.invoice.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: FAILED_INVOICE_DB_ID },
+                data: expect.objectContaining({
+                    status: "paid",
+                    paidAt: expect.any(Date),
+                    failureReason: null,
+                }),
+            }),
+        );
+        expect(prisma.invoice.create).not.toHaveBeenCalled();
+
+        // The subscription is reactivated + extended inside the same $transaction.
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: SUB_DB_ID },
+                data: expect.objectContaining({
+                    status: "active",
+                    currentPeriodEnd: expect.any(Date),
+                }),
+            }),
+        );
+
+        // The org is restored to active in case it had been suspended.
+        expect(prisma.organization.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: ORG_ID },
+                data: expect.objectContaining({
+                    status: "active",
+                    suspendedAt: null,
+                    suspendedReason: null,
+                }),
+            }),
+        );
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Stripe Webhook Subscription Lock (P17-BUGS-6)
+// ═══════════════════════════════════════════════════════════════════
+//
+// When two DIFFERENT Stripe events for the SAME subscription arrive
+// concurrently (e.g. `invoice.payment_succeeded` and
+// `customer.subscription.updated`), both handlers call
+// `prisma.subscription.update` on the same row. Without serialization
+// this causes lost updates or P2034 write conflicts.
+//
+// P17-BUGS-6 fix: acquire a Redis lock keyed by `stripe:sub:${subId}`
+// before running any handler that touches a subscription. If the lock
+// cannot be acquired, return 503 so Stripe retries after the other
+// worker finishes. Do NOT persist the StripeEvent row in that case.
+
+describe("[P17-BUGS-6] Stripe webhook per-subscription lock", () => {
+    const STRIPE_SUB_ID = "sub_stripe_lock_001";
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(prisma.stripeEvent.findUnique).mockResolvedValue(null as never);
+        vi.mocked(prisma.stripeEvent.create).mockResolvedValue({ id: "row-1" } as never);
+    });
+
+    it("returns 503 when the subscription lock is held by another worker and does NOT persist the event", async () => {
+        // Mock Redis: the event-id claim succeeds (returns "OK"), but the
+        // subscription-id lock fails on both attempts (returns null).
+        // This simulates another worker already mid-flight on the same
+        // subscription id.
+        const redisSet = vi.fn().mockImplementation((key: string) => {
+            if (key.startsWith("stripe:event:")) return Promise.resolve("OK");
+            // stripe:sub:* — both the first attempt and the 2-second retry
+            // fail to acquire the lock.
+            return Promise.resolve(null);
+        });
+        const redisDel = vi.fn().mockResolvedValue(1);
+        const redisModule = await import("@/lib/redis");
+        vi.mocked(redisModule.getRedis).mockReturnValue({
+            set: redisSet,
+            del: redisDel,
+        } as never);
+
+        // Stub the 2-second retry-delay so the test doesn't actually sleep.
+        vi.useFakeTimers();
+        try {
+            vi.mocked(verifyWebhookSignature).mockReturnValue(
+                makeStripeEventWithObject(
+                    "evt_lock_contention_001",
+                    "customer.subscription.updated",
+                    { id: STRIPE_SUB_ID },
+                ),
+            );
+
+            // Kick off POST and fast-forward through the setTimeout retry delay.
+            const postPromise = POST(makeWebhookRequest("{}"));
+            await vi.advanceTimersByTimeAsync(2500);
+            const res = await postPromise;
+
+            expect(res.status).toBe(503);
+            const json = await res.json();
+            expect(json.error).toMatch(/lock contention/i);
+
+            // Critical: the event-id claim must be released so Stripe's retry
+            // is NOT treated as a duplicate by the Redis fast path.
+            expect(redisDel).toHaveBeenCalledWith(`stripe:event:evt_lock_contention_001`);
+
+            // The StripeEvent row must NOT be persisted — otherwise Stripe's
+            // retry would be treated as a duplicate and the update lost.
+            expect(prisma.stripeEvent.create).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+

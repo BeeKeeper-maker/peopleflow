@@ -1,0 +1,73 @@
+# PeopleFlow HRMS — Continuous Integration Pipeline
+#
+# Runs on every push to masterpiece-v2 and on every PR targeting masterpiece-v2.
+# Quality gates (must all pass before merge):
+#   1. TypeScript compilation (tsc --noEmit)
+#   2. ESLint
+#   3. Vitest unit tests
+#   4. Next.js production build
+#
+# NOTE (P3-CICD / P17-BUGS-1-8): This file was historically blocked from being
+# pushed because the deploy PAT lacked the `workflow` scope (GitHub requires
+# this scope to push files under .github/workflows/). The file lives in the
+# repo so CI runs once a properly-scoped PAT is configured. See
+# CONTRIBUTING.md "Quality Gates" section for the local equivalents.
+
+name: CI
+
+on:
+  push:
+    branches: [masterpiece-v2]
+  pull_request:
+    branches: [masterpiece-v2]
+
+# Cancel in-flight runs for the same ref when a new commit is pushed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Typecheck · Lint · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Vitest does not hit a real DB — the global prisma mock in
+      # src/tests/setup.ts intercepts every query. We still set DATABASE_URL
+      # so Prisma's engine can resolve the schema during `prisma generate`.
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/peopleflow_ci"
+      REDIS_URL: "redis://localhost:6379/1"
+      NEXTAUTH_SECRET: "ci-secret-32-characters-long!!"
+      STRIPE_SECRET_KEY: "sk_test_mock"
+      STRIPE_WEBHOOK_SECRET: "whsec_test_mock"
+      ALLOW_INSECURE_CRON: "1"
+      NODE_ENV: "test"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: TypeScript compilation
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Production build
+        run: npx next build
