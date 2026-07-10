@@ -229,6 +229,29 @@ model Invoice {
   @@index([dueDate])
 }
 
+// ============================================
+// STRIPE WEBHOOK IDEMPOTENCY (DB-backed)
+// ============================================
+//
+// Stripe webhook idempotency previously relied solely on Redis. If Redis
+// evicted the key (memory pressure, restart), the same event could be
+// reprocessed. This table is the durable source of truth — the Redis
+// layer remains as a fast-path cache (10-min processing claim) but the
+// DB row is what prevents reprocessing after Redis eviction.
+//
+// Written via withPlatform() (RLS bypass) because Stripe webhooks are
+// cross-tenant — there is no organization context at webhook time.
+
+model StripeEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // Stripe event id (e.g. "evt_1Pabc...")
+  eventType   String   // e.g. "invoice.payment_succeeded"
+  processedAt DateTime @default(now())
+  status      String   @default("processed") // processed, failed (future)
+
+  @@index([eventType])
+}
+
 model UsageRecord {
   id         String   @id @default(cuid())
   metric     String   // "api_calls", "storage_mb", "active_employees"

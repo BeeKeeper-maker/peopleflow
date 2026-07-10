@@ -159,7 +159,7 @@ export default function NewExpenseClaimPage() {
                             {items.map((item, index) => (
                                 <div key={item.id} className="p-4 rounded-xl bg-hover border border-card-border space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-muted-foreground">Item #{index + 1}</span>
+                                        <span className="text-sm font-medium text-muted-foreground">{t("itemNumber", { number: index + 1 })}</span>
                                         {items.length > 1 && (
                                             <Button
                                                 variant="outline"
@@ -228,7 +228,7 @@ export default function NewExpenseClaimPage() {
                                                 step="0.01"
                                                 value={item.amount || ""}
                                                 onChange={(e) => updateItem(item.id, "amount", parseFloat(e.target.value) || 0)}
-                                                placeholder="0.00"
+                                                placeholder={t("amountPlaceholder")}
                                             />
                                         </div>
                                     </div>

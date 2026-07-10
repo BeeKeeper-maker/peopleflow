@@ -140,7 +140,7 @@ export default function BranchesPage() {
     }
 
     const handleDelete = async (id: string) => {
-        const _ok = await confirm({ title: t('confirmDelete'), description: 'This branch will be permanently removed.', confirmLabel: 'Delete', variant: 'destructive' }); if (!_ok) return
+        const _ok = await confirm({ title: t('confirmDelete'), description: tShared('confirmDeleteDescription'), confirmLabel: tShared('delete'), variant: 'destructive' }); if (!_ok) return
         try {
             const res = await fetch(`/api/branches/${id}`, { method: "DELETE" })
             if (res.ok) {
@@ -264,10 +264,10 @@ export default function BranchesPage() {
                             <Crown className="h-5 w-5 text-amber-400" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-semibold text-foreground">Branch limit reached</h3>
+                            <h3 className="text-sm font-semibold text-foreground">{tShared('branchLimitReached')}</h3>
                             <p className="text-sm text-muted-foreground mt-0.5">{planLimit.message}</p>
                             {typeof planLimit.current === "number" && typeof planLimit.limit === "number" && (
-                                <p className="text-xs text-amber-300 mt-1">Current usage: {planLimit.current}/{planLimit.limit} branches</p>
+                                <p className="text-xs text-amber-300 mt-1">{tShared('currentBranchUsage', { current: planLimit.current, limit: planLimit.limit })}</p>
                             )}
                         </div>
                     </div>
@@ -275,7 +275,7 @@ export default function BranchesPage() {
                         onClick={() => router.push("/billing/upgrade?source=branch-limit")}
                         className="gap-2 bg-amber-500 hover:bg-amber-600 text-black shrink-0"
                     >
-                        Upgrade plan <ArrowUpRight className="h-4 w-4" />
+                        {tShared('upgradePlan')} <ArrowUpRight className="h-4 w-4" />
                     </Button>
                 </div>
             )}
@@ -292,7 +292,7 @@ export default function BranchesPage() {
                         </div>
                         <div>
                             <h3 className="text-sm font-semibold text-foreground">
-                                GPS Attendance Verification
+                                {tShared('gpsAttendanceVerification')}
                             </h3>
                             <p className="text-xs text-muted-foreground">
                                 {geoConfig.geoFenceEnabled
@@ -530,7 +530,7 @@ export default function BranchesPage() {
                                         ) : (
                                             <MapPin className="h-3 w-3" />
                                         )}
-                                        {fetchingLocation ? "নিচ্ছে..." : "📍 আমার অবস্থান ব্যবহার করুন"}
+                                        {fetchingLocation ? tShared('fetchingLocation') : tShared('useMyLocation')}
                                     </Button>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground mb-3">

@@ -1216,6 +1216,8 @@
     "remotePosition": "Remote Position",
     "minSalary": "Minimum Salary (BDT)",
     "maxSalary": "Maximum Salary (BDT)",
+    "minSalaryPlaceholder": "e.g. 50000",
+    "maxSalaryPlaceholder": "e.g. 80000",
     "showSalary": "Show salary in job posting",
     "additionalSettings": "Additional Settings",
     "openings": "Number of Openings",
@@ -1686,7 +1688,14 @@
     "missingFields": "Missing fields",
     "selectDocTypeAndEmployee": "Please select a document type and employee.",
     "selectEmployeeFirst": "Please select an employee first.",
-    "selectDocTypeFirst": "Please select a document type."
+    "selectDocTypeFirst": "Please select a document type.",
+    "confirmDeleteDescription": "This record will be permanently removed.",
+    "branchLimitReached": "Branch limit reached",
+    "currentBranchUsage": "Current usage: {current}/{limit} branches",
+    "upgradePlan": "Upgrade plan",
+    "gpsAttendanceVerification": "GPS Attendance Verification",
+    "useMyLocation": "📍 Use my location",
+    "fetchingLocation": "Fetching..."
   },
   "Manager": {
     "dashboardTitle": "Manager Dashboard",
@@ -2217,6 +2226,7 @@
     "itemNumber": "Item #{number}",
     "dateLabel": "Date",
     "amountLabel": "Amount (৳)",
+    "amountPlaceholder": "0.00",
     "additionalNotes": "Additional Notes",
     "notesPlaceholder": "Any additional notes or justification...",
     "totalAmount": "Total Amount",
@@ -2694,7 +2704,9 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "attendance_regularize": "Attendance Regularization",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "namePlaceholder": "e.g. Leave Approval Chain",
+    "stepsCount": "{count} steps"
   },
   "Devices": {
     "title": "Biometric Devices",

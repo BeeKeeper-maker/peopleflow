@@ -52,6 +52,7 @@ const entityTypeIcons: Record<string, string> = {
 
 export default function ApprovalWorkflowsPage() {
     const t = useTranslations("ApprovalWorkflows");
+    const tShared = useTranslations("SharedComponents");
     const { addToast } = useToast();
     const { confirm, dialog: confirmDialog } = useConfirmDialog();
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -183,7 +184,7 @@ export default function ApprovalWorkflowsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        const _ok = await confirm({ title: t("confirmDelete"), description: "This workflow will be permanently removed.", confirmLabel: "Delete", variant: "destructive" }); if (!_ok) return;
+        const _ok = await confirm({ title: t("confirmDelete"), description: tShared("confirmDeleteDescription"), confirmLabel: tShared("delete"), variant: "destructive" }); if (!_ok) return;
 
         try {
             const res = await fetch(`/api/approval-workflows/${id}`, { method: "DELETE" });
@@ -288,7 +289,7 @@ export default function ApprovalWorkflowsPage() {
                             <Input
                                 value={formData.name}
                                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder={`e.g. Leave Approval Chain`}
+                                placeholder={t("namePlaceholder")}
                             />
                         </div>
 
@@ -460,7 +461,7 @@ export default function ApprovalWorkflowsPage() {
                                             {workflow.isActive ? t("isActive") : t("inactive")}
                                         </span>
                                         <span className="text-xs text-muted-foreground">
-                                            {steps.length} {t("steps").toLowerCase()}
+                                            {t("stepsCount", { count: steps.length })}
                                         </span>
                                     </div>
                                 </CardContent>

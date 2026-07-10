@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPlatform } from "@/lib/prisma";
 import { verifyWebhookSignature, generateInvoiceNumber } from "@/lib/stripe";
 import { getRedis, invalidateSubscription, invalidateOrgStatus } from "@/lib/redis";
 import type Stripe from "stripe";
@@ -76,6 +76,84 @@ async function releaseStripeEventClaim(eventId: string): Promise<void> {
     }
 }
 
+/**
+ * Persist a Stripe event id to the DB idempotency ledger.
+ *
+ * Uses `withPlatform()` because Stripe webhooks are cross-tenant —
+ * there is no organization context at webhook time, so we bypass RLS.
+ *
+ * Returns:
+ *   - "inserted"  — first time we've seen this event id (normal path)
+ *   - "duplicate" — another worker already inserted it (P2002 race).
+ *                   This is expected during concurrent processing and
+ *                   is treated as success.
+ *   - "error"     — DB write failed for any other reason. The caller
+ *                   must NOT mark Redis as processed and must return 500
+ *                   so Stripe retries; otherwise the event would be
+ *                   lost after Redis eviction.
+ */
+async function persistStripeEvent(
+    eventId: string,
+    eventType: string
+): Promise<"inserted" | "duplicate" | "error"> {
+    try {
+        await withPlatform((db) =>
+            db.stripeEvent.create({
+                data: { eventId, eventType },
+            })
+        );
+        return "inserted";
+    } catch (err: unknown) {
+        // P2002 = unique constraint violation. Another worker beat us to
+        // the insert — race condition between two concurrent deliveries.
+        // The event was already processed, so this is a no-op success.
+        const prismaError = err as { code?: string };
+        if (prismaError.code === "P2002") {
+            billingLogger.info(
+                { eventId, eventType },
+                "[STRIPE_WEBHOOK] StripeEvent already persisted by concurrent worker (P2002)"
+            );
+            return "duplicate";
+        }
+        billingLogger.error(
+            { err: err, eventId, eventType },
+            "[STRIPE_WEBHOOK] Failed to persist StripeEvent to DB idempotency ledger"
+        );
+        return "error";
+    }
+}
+
+/**
+ * Check whether a Stripe event has already been processed and persisted
+ * to the DB idempotency ledger.
+ *
+ * Returns true if a StripeEvent row exists for this eventId. Uses
+ * `withPlatform()` for RLS bypass (cross-tenant webhook context).
+ */
+async function isStripeEventProcessed(eventId: string): Promise<boolean> {
+    try {
+        const existing = await withPlatform((db) =>
+            db.stripeEvent.findUnique({
+                where: { eventId },
+                select: { id: true },
+            })
+        );
+        return existing !== null;
+    } catch (err: unknown) {
+        // If the DB check itself fails (DB down, network error, etc.),
+        // we cannot safely determine whether the event was processed.
+        // Return false so the caller proceeds with the Redis fast-path
+        // claim — but the durable write at the end of processing will
+        // fail and cause a 500 → Stripe retry, which is the safe
+        // behaviour.
+        billingLogger.warn(
+            { err: err, eventId },
+            "[STRIPE_WEBHOOK] DB idempotency check failed; falling through to Redis fast-path"
+        );
+        return false;
+    }
+}
+
 export async function POST(request: NextRequest) {
     const body = await request.text();
     const signature = request.headers.get("stripe-signature");
@@ -101,10 +179,25 @@ export async function POST(request: NextRequest) {
 
     billingLogger.info(`[STRIPE_WEBHOOK] Received: ${event.type}`);
 
+    // ── DB-backed idempotency check (source of truth) ──────────────
+    // If the event has already been persisted to the StripeEvent ledger,
+    // short-circuit before doing any other work. This is what prevents
+    // reprocessing after Redis eviction (memory pressure, restart).
+    if (await isStripeEventProcessed(event.id)) {
+        billingLogger.info(
+            `[STRIPE_WEBHOOK] Duplicate event skipped (DB ledger): ${event.id}`
+        );
+        return NextResponse.json({ received: true, duplicate: true });
+    }
+
+    // ── Redis fast-path claim (prevents concurrent processing) ─────
+    // Two concurrent deliveries of the same event (e.g. Stripe retry
+    // racing the original) would both pass the DB check above. Redis
+    // NX with a 10-minute TTL ensures only one worker proceeds.
     const eventClaimed = await claimStripeEvent(event.id);
     if (!eventClaimed) {
-        billingLogger.info(`[STRIPE_WEBHOOK] Duplicate event skipped: ${event.id}`);
-        return NextResponse.json({ received: true, duplicate: true });
+        billingLogger.info(`[STRIPE_WEBHOOK] Duplicate event skipped (Redis concurrent): ${event.id}`);
+        return NextResponse.json({ received: true, concurrent: true });
     }
 
     try {
@@ -159,7 +252,27 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    // ── Persist to DB idempotency ledger (source of truth) ─────────
+    // After successful processing, persist the event id. If this fails
+    // for any reason other than P2002 race-condition, we must NOT mark
+    // Redis as processed — otherwise the event would be lost after
+    // Redis eviction and never retried. Return 500 → Stripe retries.
+    const persistResult = await persistStripeEvent(event.id, event.type);
+    if (persistResult === "error") {
+        await releaseStripeEventClaim(event.id);
+        return NextResponse.json(
+            { error: "Failed to persist event idempotency record" },
+            { status: 500 }
+        );
+    }
+
+    // ── Extend Redis TTL (30-day cache for fast path) ─────────────
     await markStripeEventProcessed(event.id);
+
+    if (persistResult === "duplicate") {
+        // Another worker already persisted — still success, just note it.
+        return NextResponse.json({ received: true, duplicate: true });
+    }
     return NextResponse.json({ received: true });
 }
 

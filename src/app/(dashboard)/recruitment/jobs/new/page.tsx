@@ -323,7 +323,7 @@ export default function NewJobPage() {
                                     type="number"
                                     value={formData.salaryMin}
                                     onChange={(e) => handleChange("salaryMin", e.target.value)}
-                                    placeholder="e.g. 50000"
+                                    placeholder={t("minSalaryPlaceholder")}
                                     className="mt-1.5 bg-hover border-card-border"
                                 />
                             </div>
@@ -334,7 +334,7 @@ export default function NewJobPage() {
                                     type="number"
                                     value={formData.salaryMax}
                                     onChange={(e) => handleChange("salaryMax", e.target.value)}
-                                    placeholder="e.g. 80000"
+                                    placeholder={t("maxSalaryPlaceholder")}
                                     className="mt-1.5 bg-hover border-card-border"
                                 />
                             </div>

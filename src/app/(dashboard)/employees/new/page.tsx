@@ -8,12 +8,13 @@ import { useTranslations } from "next-intl"
 
 export default function NewEmployeePage() {
     const t = useTranslations("FormEmployees")
+    const tShared = useTranslations("SharedComponents")
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex items-center gap-4">
                 <Link href="/employees">
-                    <Button variant="ghost" size="icon" className="h-10 w-10" title="Back" aria-label="Back">
+                    <Button variant="ghost" size="icon" className="h-10 w-10" title={tShared("back")} aria-label={tShared("back")}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 </Link>

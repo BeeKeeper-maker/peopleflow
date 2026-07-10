@@ -1368,6 +1368,8 @@
     "remotePosition": "দূরবর্তী পদ",
     "minSalary": "সর্বনিম্ন বেতন (টাকা)",
     "maxSalary": "সর্বোচ্চ বেতন (টাকা)",
+    "minSalaryPlaceholder": "যেমন ৫০০০০",
+    "maxSalaryPlaceholder": "যেমন ৮০০০০",
     "showSalary": "চাকরির বিজ্ঞপ্তিতে বেতন দেখান",
     "additionalSettings": "অতিরিক্ত সেটিংস",
     "openings": "পদ সংখ্যা",
@@ -1838,7 +1840,14 @@
     "missingFields": "কিছু তথ্য অসম্পূর্ণ",
     "selectDocTypeAndEmployee": "অনুগ্রহ করে একটি ডকুমেন্ট টাইপ এবং কর্মী নির্বাচন করুন।",
     "selectEmployeeFirst": "অনুগ্রহ করে প্রথমে একজন কর্মী নির্বাচন করুন।",
-    "selectDocTypeFirst": "অনুগ্রহ করে একটি ডকুমেন্ট টাইপ নির্বাচন করুন।"
+    "selectDocTypeFirst": "অনুগ্রহ করে একটি ডকুমেন্ট টাইপ নির্বাচন করুন।",
+    "confirmDeleteDescription": "এই রেকর্ডটি স্থায়ীভাবে মুছে ফেলা হবে।",
+    "branchLimitReached": "ব্রাঞ্চ লিমিট পূর্ণ হয়েছে",
+    "currentBranchUsage": "বর্তমান ব্যবহার: {current}/{limit} ব্রাঞ্চ",
+    "upgradePlan": "প্ল্যান আপগ্রেড করুন",
+    "gpsAttendanceVerification": "জিপিএস অ্যাটেনডেন্স ভেরিফিকেশন",
+    "useMyLocation": "📍 আমার অবস্থান ব্যবহার করুন",
+    "fetchingLocation": "নিচ্ছে..."
   },
   "Manager": {
     "dashboardTitle": "ম্যানেজার ড্যাশবোর্ড",
@@ -2217,6 +2226,7 @@
     "itemNumber": "আইটেম #{number}",
     "dateLabel": "তারিখ",
     "amountLabel": "পরিমাণ (৳)",
+    "amountPlaceholder": "0.00",
     "additionalNotes": "অতিরিক্ত নোট",
     "notesPlaceholder": "কোনো অতিরিক্ত নোট বা যুক্তি...",
     "totalAmount": "মোট পরিমাণ",
@@ -2694,7 +2704,9 @@
     "cancel": "বাতিল",
     "delete": "মুছুন",
     "attendance_regularize": "উপস্থিতি নিয়মিতকরণ",
-    "inactive": "নিষ্ক্রিয়"
+    "inactive": "নিষ্ক্রিয়",
+    "namePlaceholder": "যেমন লিভ অনুমোদন চেইন",
+    "stepsCount": "{count} ধাপ"
   },
   "Devices": {
     "title": "বায়োমেট্রিক ডিভাইস",
