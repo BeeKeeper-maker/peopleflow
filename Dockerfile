@@ -44,8 +44,9 @@ WORKDIR /app
 
 # node_modules are already installed from deps stage (with devDeps)
 COPY --from=deps /app/node_modules ./node_modules
-# Cache-buster for builder stage — forces fresh COPY of source files
-ARG CACHEBUST=4
+# Cache-buster: this RUN forces Docker to invalidate all subsequent layers.
+# Change the string below to force a full rebuild.
+RUN echo "cache-bust-2026-07-11-v1" > /tmp/.cachebust
 COPY . .
 
 # Prisma generate
