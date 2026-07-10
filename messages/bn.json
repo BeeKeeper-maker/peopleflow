@@ -1847,7 +1847,25 @@
     "upgradePlan": "প্ল্যান আপগ্রেড করুন",
     "gpsAttendanceVerification": "জিপিএস অ্যাটেনডেন্স ভেরিফিকেশন",
     "useMyLocation": "📍 আমার অবস্থান ব্যবহার করুন",
-    "fetchingLocation": "নিচ্ছে..."
+    "fetchingLocation": "নিচ্ছে...",
+    "enforcementSoft": "নরম",
+    "enforcementStrict": "কঠোর",
+    "gpsStatusEnabled": "চালু আছে • {configured}/{total} ব্রাঞ্চে GPS সেট করা হয়েছে",
+    "gpsStatusDisabled": "বন্ধ আছে • কর্মীরা যেকোনো জায়গা থেকে check-in করতে পারবে",
+    "gpsMissingHint": "{count}টি ব্রাঞ্চে GPS location সেট করা হয়নি। Edit বাটনে ক্লিক করে \"📍 আমার অবস্থান ব্যবহার করুন\" বাটন চাপুন।",
+    "gpsSetConfigured": "GPS সেট করা হয়েছে",
+    "gpsNotSet": "GPS সেট করা হয়নি",
+    "setUpNow": "সেট করুন →",
+    "radiusMeters": "{radius}মি ব্যাসার্ধ",
+    "officeLocationGps": "অফিস লোকেশন (GPS)",
+    "gpsCaptureHint": "অফিসে বসে থাকা অবস্থায় \"আমার অবস্থান ব্যবহার করুন\" চাপুন। এটি আপনার অফিসের GPS coordinate সেভ করবে, যাতে কর্মীদের attendance location verify করা যায়।",
+    "latitude": "অক্ষাংশ",
+    "latitudePlaceholder": "২৩.৮১০৩",
+    "longitude": "দ্রাঘিমাংশ",
+    "longitudePlaceholder": "৯০.৪১২৫",
+    "radiusLabel": "ব্যাসার্ধ (মি)",
+    "radiusPlaceholder": "২০০",
+    "locationSetHint": "Location সেট করা হয়েছে — কর্মীরা {radius}মি এর মধ্যে থেকে check-in করতে পারবে"
   },
   "Manager": {
     "dashboardTitle": "ম্যানেজার ড্যাশবোর্ড",
@@ -2391,7 +2409,8 @@
     "confirmDelete": "আপনি কি এই শাখা মুছে ফেলতে চান?",
     "cancel": "বাতিল",
     "save": "সংরক্ষণ",
-    "employees": "কর্মচারী"
+    "employees": "কর্মচারী",
+    "planLimitFallback": "আপনার বর্তমান প্ল্যানে আর ব্রাঞ্চ যোগ করা যাবে না।"
   },
   "Announcements": {
     "title": "ঘোষণা",

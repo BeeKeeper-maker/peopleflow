@@ -10,11 +10,12 @@
  *
  * Provider support:
  *   - `local`  — walks `${STORAGE_LOCAL_PATH}/${organizationId}` and sums
- *                file sizes recursively. This is the default and the only
- *                fully-implemented provider today.
- *   - `s3`/`r2` — TODO. Would query ListObjectsV2 with the prefix
- *                `${organizationId}/` and sum `Size` across paginated
- *                responses. Returns 0 for now (documented limitation).
+ *                file sizes recursively. This is the default.
+ *   - `s3`/`r2` — uses AWS SDK `ListObjectsV2Command` with the prefix
+ *                `${organizationId}/` and sums `Size` across paginated
+ *                responses. The SDK is lazy-required (same pattern as
+ *                `src/lib/storage.ts`) so the module loads cleanly even
+ *                when `@aws-sdk/client-s3` isn't installed.
  *
  * Caching:
  *   Filesystem walks are expensive on tenants with many uploads, and the
@@ -128,15 +129,78 @@ async function calculateDirectorySize(dirPath: string): Promise<number> {
     return totalSize;
 }
 
-async function getS3StorageUsage(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _organizationId: string,
-): Promise<number> {
-    // TODO: Implement S3 / R2 storage usage calculation.
-    // Would use ListObjectsV2 with prefix `${organizationId}/` and sum
-    // the `Size` field across paginated responses. For now, return 0 —
-    // S3 usage tracking is a future enhancement tracked separately.
-    return 0;
+async function getS3StorageUsage(organizationId: string): Promise<number> {
+    // Mirror the env-var resolution in src/lib/storage.ts:getStorageService.
+    // S3_* is the canonical name (also wired in docker-compose.yml and
+    // .env.example); STORAGE_S3_* is the legacy alias kept for backward
+    // compatibility with existing deployments that haven't migrated yet.
+    const bucket = process.env.S3_BUCKET || process.env.STORAGE_S3_BUCKET;
+    const endpoint = process.env.S3_ENDPOINT || process.env.STORAGE_S3_ENDPOINT;
+    const region = process.env.S3_REGION || process.env.STORAGE_S3_REGION || "auto";
+    const accessKeyId = process.env.S3_ACCESS_KEY || process.env.STORAGE_S3_ACCESS_KEY;
+    const secretAccessKey = process.env.S3_SECRET_KEY || process.env.STORAGE_S3_SECRET_KEY;
+
+    // If S3 isn't configured at all, return 0 instead of throwing. This
+    // keeps the billing-status endpoint working for self-hosted tenants
+    // that haven't configured S3 yet — the meter just shows 0.
+    if (!bucket || !accessKeyId || !secretAccessKey) {
+        return 0;
+    }
+
+    try {
+        // Lazy-require so the module loads cleanly even when the SDK isn't
+        // installed (same pattern as src/lib/storage.ts). Also keeps the
+        // AWS SDK out of the bundle for local-only tenants.
+        const { S3Client, ListObjectsV2Command } = require("@aws-sdk/client-s3");
+        const s3Client = new S3Client({
+            region,
+            endpoint: endpoint || undefined,
+            credentials: { accessKeyId, secretAccessKey },
+            // forcePathStyle is required for S3-alternative endpoints
+            // (Cloudflare R2, MinIO, Wasabi, etc.) that don't support
+            // virtual-host-style addressing.
+            forcePathStyle: !!endpoint,
+        });
+
+        let totalSize = 0;
+        let continuationToken: string | undefined;
+        const prefix = `${organizationId}/`;
+
+        // Paginate through every object under the org prefix. ListObjectsV2
+        // returns up to 1,000 keys per request; IsTruncated + NextContinuationToken
+        // signal more pages. MaxKeys is the upper bound, not a guarantee.
+        do {
+            const response = await s3Client.send(
+                new ListObjectsV2Command({
+                    Bucket: bucket,
+                    Prefix: prefix,
+                    ContinuationToken: continuationToken,
+                    MaxKeys: 1000,
+                }),
+            );
+
+            if (response.Contents) {
+                for (const obj of response.Contents) {
+                    totalSize += obj.Size || 0;
+                }
+            }
+
+            continuationToken = response.IsTruncated
+                ? response.NextContinuationToken
+                : undefined;
+        } while (continuationToken);
+
+        return totalSize;
+    } catch (err) {
+        apiLogger.error(
+            { err, organizationId },
+            "S3 storage usage calculation failed",
+        );
+        // Return 0 on any error so a transient S3 outage doesn't break the
+        // billing-status endpoint. The 5-min in-process cache will keep
+        // serving the last successful value until the next TTL refresh.
+        return 0;
+    }
 }
 
 /**

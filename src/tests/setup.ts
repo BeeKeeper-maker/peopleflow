@@ -53,6 +53,9 @@ const prismaMock = {
     platformAuditLog: { create: vi.fn(), findMany: vi.fn() },
     // P12-AUDIT-STORAGE: tenant audit log (createAuditLog calls prisma.auditLog.create)
     auditLog: { create: vi.fn(), findMany: vi.fn() },
+    // P13-STRIPE: Stripe webhook DB idempotency ledger
+    // Used by /api/webhooks/stripe/route.ts via withPlatform((db) => db.stripeEvent.*)
+    stripeEvent: { findUnique: vi.fn(), create: vi.fn() },
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
 };
 
