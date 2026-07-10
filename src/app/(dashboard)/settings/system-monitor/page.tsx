@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ interface SystemStats {
 }
 
 export default function SystemMonitorPage() {
+    const t = useTranslations("SystemMonitor");
     const [stats, setStats] = useState<SystemStats | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -82,8 +84,8 @@ export default function SystemMonitorPage() {
     return (
         <div className="space-y-6">
             <PageHeader
-                title="System Monitor"
-                subtitle="Real-time system health and performance metrics"
+                title={t("title")}
+                subtitle={t("subtitle")}
                 icon={Activity}
                 iconColor="blue"
                 actions={
@@ -98,7 +100,7 @@ export default function SystemMonitorPage() {
                         ) : (
                             <RefreshCw className="h-4 w-4" />
                         )}
-                        Refresh
+                        {t("refresh")}
                     </Button>
                 }
             />
@@ -107,35 +109,35 @@ export default function SystemMonitorPage() {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <DatabaseStatCard
                     icon={<Users className="h-3.5 w-3.5" />}
-                    label="Total Employees"
+                    label={t("totalEmployees")}
                     value={stats?.database.totalEmployees}
                 />
                 <DatabaseStatCard
                     icon={<UserCheck className="h-3.5 w-3.5" />}
-                    label="Active Employees"
+                    label={t("activeEmployees")}
                     value={stats?.database.activeEmployees}
                     accent="emerald"
                 />
                 <DatabaseStatCard
                     icon={<CalendarCheck className="h-3.5 w-3.5" />}
-                    label="Attendance Today"
+                    label={t("attendanceToday")}
                     value={stats?.database.totalAttendanceToday}
                     accent="blue"
                 />
                 <DatabaseStatCard
                     icon={<FileText className="h-3.5 w-3.5" />}
-                    label="Leave Applications"
+                    label={t("leaveApplications")}
                     value={stats?.database.totalLeaveApplications}
                 />
                 <DatabaseStatCard
                     icon={<Clock3 className="h-3.5 w-3.5" />}
-                    label="Pending Approvals"
+                    label={t("pendingApprovals")}
                     value={stats?.database.pendingApprovals}
                     accent="amber"
                 />
                 <DatabaseStatCard
                     icon={<Receipt className="h-3.5 w-3.5" />}
-                    label="Salary Slips"
+                    label={t("salarySlips")}
                     value={stats?.database.totalSalarySlips}
                 />
             </div>
@@ -146,7 +148,7 @@ export default function SystemMonitorPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-sm">
                             <Database className="h-4 w-4 text-blue-400" />
-                            Redis
+                            {t("redis")}
                             <Badge
                                 className={
                                     stats?.redis.connected
@@ -155,15 +157,15 @@ export default function SystemMonitorPage() {
                                 }
                             >
                                 {stats?.redis.connected
-                                    ? "Connected"
-                                    : "Disconnected"}
+                                    ? t("connected")
+                                    : t("disconnected")}
                             </Badge>
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Queue Depth
+                                {t("queueDepth")}
                             </span>
                             <span className="font-medium text-foreground tabular-nums">
                                 {stats?.redis.queueDepth ?? "—"}
@@ -176,13 +178,13 @@ export default function SystemMonitorPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-sm">
                             <Server className="h-4 w-4 text-purple-400" />
-                            System
+                            {t("system")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Uptime
+                                {t("uptime")}
                             </span>
                             <span className="font-medium text-foreground">
                                 {stats ? formatUptime(stats.system.uptime) : "—"}
@@ -190,7 +192,7 @@ export default function SystemMonitorPage() {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Memory (RSS)
+                                {t("memoryRss")}
                             </span>
                             <span className="font-medium text-foreground">
                                 {stats
@@ -200,7 +202,7 @@ export default function SystemMonitorPage() {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Heap Used
+                                {t("heapUsed")}
                             </span>
                             <span className="font-medium text-foreground">
                                 {stats
@@ -212,7 +214,7 @@ export default function SystemMonitorPage() {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Node Version
+                                {t("nodeVersion")}
                             </span>
                             <span className="font-medium text-foreground">
                                 {stats?.system.nodeVersion ?? "—"}
@@ -220,7 +222,7 @@ export default function SystemMonitorPage() {
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                Environment
+                                {t("environment")}
                             </span>
                             <Badge variant="outline">
                                 {stats?.system.environment ?? "—"}
@@ -233,9 +235,9 @@ export default function SystemMonitorPage() {
             {/* Last Updated */}
             {stats && (
                 <p className="text-xs text-muted-foreground text-center">
-                    Last updated:{" "}
+                    {t("lastUpdated")}:{" "}
                     {new Date(stats.timestamp).toLocaleString()} ·
-                    Auto-refreshes every 30s
+                    {t("autoRefresh")}
                 </p>
             )}
         </div>

@@ -3534,5 +3534,28 @@
     "tenantFeatureAdvancedReports": "অ্যাডভান্সড রিপোর্ট",
     "tenantFeatureCompliance": "কমপ্লায়েন্স",
     "tenantFeatureApiAccess": "API অ্যাক্সেস"
+  },
+  "SystemMonitor": {
+    "title": "সিস্টেম মনিটর",
+    "subtitle": "রিয়েল-টাইম সিস্টেম স্বাস্থ্য এবং পারফরম্যান্স মেট্রিক্স",
+    "refresh": "রিফ্রেশ",
+    "totalEmployees": "মোট কর্মচারী",
+    "activeEmployees": "সক্রিয় কর্মচারী",
+    "attendanceToday": "আজকের উপস্থিতি",
+    "leaveApplications": "ছুটির আবেদন",
+    "pendingApprovals": "অপেক্ষমাণ অনুমোদন",
+    "salarySlips": "স্যালারি স্লিপ",
+    "redis": "Redis",
+    "connected": "সংযুক্ত",
+    "disconnected": "সংযোগ বিচ্ছিন্ন",
+    "queueDepth": "কিউ গভীরতা",
+    "system": "সিস্টেম",
+    "uptime": "আপটাইম",
+    "memoryRss": "মেমোরি (RSS)",
+    "heapUsed": "হিপ ব্যবহৃত",
+    "nodeVersion": "Node সংস্করণ",
+    "environment": "পরিবেশ",
+    "lastUpdated": "সর্বশেষ আপডেট",
+    "autoRefresh": "প্রতি ৩০ সেকেন্ডে অটো-রিফ্রেশ"
   }
 }

@@ -3534,5 +3534,28 @@
     "tenantFeatureAdvancedReports": "Advanced Reports",
     "tenantFeatureCompliance": "Compliance",
     "tenantFeatureApiAccess": "API Access"
+  },
+  "SystemMonitor": {
+    "title": "System Monitor",
+    "subtitle": "Real-time system health and performance metrics",
+    "refresh": "Refresh",
+    "totalEmployees": "Total Employees",
+    "activeEmployees": "Active Employees",
+    "attendanceToday": "Attendance Today",
+    "leaveApplications": "Leave Applications",
+    "pendingApprovals": "Pending Approvals",
+    "salarySlips": "Salary Slips",
+    "redis": "Redis",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "queueDepth": "Queue Depth",
+    "system": "System",
+    "uptime": "Uptime",
+    "memoryRss": "Memory (RSS)",
+    "heapUsed": "Heap Used",
+    "nodeVersion": "Node Version",
+    "environment": "Environment",
+    "lastUpdated": "Last updated",
+    "autoRefresh": "Auto-refreshes every 30s"
   }
 }

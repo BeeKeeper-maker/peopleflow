@@ -348,6 +348,47 @@ describe("[P0-SECURITY] 2FA disable requires re-authentication", () => {
         );
     });
 
+    it("rejects invalid TOTP code when 2FA is enabled (locks down P10 await fix)", async () => {
+        // P10-FIXES added `await` to the verifyTOTP call. otplib v13's verify
+        // is async — without `await` the Promise object is always truthy and
+        // `result?.valid` becomes undefined (falsy) → would always reject,
+        // masking the bug. This test confirms the negative path: when the
+        // awaited result returns { valid: false }, the route rejects with 403.
+        vi.mocked(prisma.user.findUnique).mockResolvedValue({
+            id: "user-001",
+            password: "$2a$12$hashed",
+            twoFactorSecret: "test-secret",
+            twoFactorEnabled: true,
+            twoFactorRecoveryCodes: [],
+        } as never);
+        vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
+        // Mock verifyTOTP to resolve with valid:false — an invalid 6-digit code.
+        vi.mocked(otplib.verify).mockResolvedValue({
+            valid: false,
+            delta: undefined,
+            epoch: 0,
+            timeStep: 0,
+        } as never);
+
+        const res = await DELETE(
+            makeDeleteRequest({
+                currentPassword: "correct-password",
+                totpCode: "000000", // invalid code
+            }),
+        );
+
+        expect(res.status).toBe(403);
+        const json = await res.json();
+        expect(json.error).toContain("Invalid");
+
+        // 2FA MUST NOT be disabled when the TOTP code is wrong.
+        expect(prisma.user.update).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({ twoFactorEnabled: false }),
+            }),
+        );
+    });
+
     it("returns 401 when the caller is not authenticated (no session)", async () => {
         vi.mocked(getApiUser).mockResolvedValue(null);
 
