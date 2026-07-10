@@ -975,3 +975,59 @@ A senior-engineer review (task `P17-BUGS-1-8`) flagged 8 critical bugs across th
 - Branch: `masterpiece-v2`
 - Commit: `efe12bd` — `P17-BUGS-1-8: Fix Plans API maxCustomRoles, Billing RLS, Buddy Punch org filter, Payroll zero-salary loan, Stripe race/retry, bKash rounding/merchantID`
 - Pushed to `origin/masterpiece-v2` — **success** (the `workflow` PAT scope is now in place; `.github/workflows/ci.yml` is live on the remote).
+
+---
+
+## P17-BUGS-9-16 — Senior-Agent Bug-Fix Sweep, Round 2 (Jul 10, 2026)
+
+A second senior-engineer review (task `P17-BUGS-9-16`) flagged 8 more bugs (9 through 16) across the RBAC, recruitment, and public-careers subsystems. All 8 were verified against the live code and fixed in a single commit (`32eff8b`). The 478-test baseline held; 27 new regression tests were added (505/505 green).
+
+### Bug-by-bug summary
+
+9. **bKash merchantInvoiceNumber — already fixed in bug 8** (`src/lib/disbursement-engine.ts`)
+   - Verified at fix time: `merchantInvoiceNumber = \`PF-${salarySlipId}-${disbursementId}\`` is already in place from commit `efe12bd`. No further action.
+
+10. **RBAC permission cache only clears on the local node** (`src/lib/rbac-v2.ts`)
+    - The in-process `permissionCache` Map had a 60s TTL, but `invalidatePermissionCache(userId)` only deleted the local entry. On multi-worker/multi-container deployments a stale cache on worker B kept serving old permissions for up to 60s after a role change on worker A.
+    - Fix: TTL reduced 60s → 30s. `invalidatePermissionCache` is now `async` and additionally deletes a Redis marker key `rbac:perms:${userId}` (set on cache populate via `cacheSet`). On every cache read, if Redis is reachable but the marker is missing, the local entry is treated as stale and discarded. When Redis is disabled (tests), the local cache is trusted as before. All 4 call sites updated to `await` or fire-and-forget `.catch()`.
+
+11. **Role update can delete system core roles' permissions** (`src/app/api/rbac/roles/[id]/route.ts`)
+    - The PATCH handler allowed replacing the entire `RolePermission` set on system roles (admin / hr_admin / manager / employee / super_admin), so a malicious or careless admin could strip critical invariants (e.g. "admin can always view employees") and lock the tenant out of recovery paths.
+    - Fix: PATCH now rejects with 403 `SYSTEM_ROLE_PERMISSIONS_LOCKED` when `permissions` is supplied AND `role.isSystem === true`. Cosmetic edits (name / description / color) on system roles remain permitted. Custom roles (`isSystem=false`) are fully editable.
+
+12. **Empty array `[]` for departmentIds treated as "all departments"** (`src/lib/rbac-v2.ts`)
+    - The scope check used `if (!perm.departmentIds || perm.departmentIds.length === 0) return true;` — so an explicit `[]` (intended to mean "scoped, but to no departments") was treated as global scope, accidentally granting org-wide access.
+    - Fix: scope semantics now distinguish `undefined`/`null` (all departments → allow) from `[]` (explicitly no departments → deny) from `[id1, id2]` (scoped to listed). Same logic mirrored for `branchIds`/branch scope.
+
+13. **Career portal — fake CV overwrites real candidate** (`src/app/api/public/careers/[orgSlug]/jobs/[jobId]/route.ts` POST)
+    - The apply endpoint updated the existing candidate's `resumeUrl`/`portfolioUrl`/etc. BEFORE checking for an existing application. An attacker could submit a fake application using a victim's email + a fake resume URL and the victim's real resume would be overwritten, even though the application was ultimately rejected with 409.
+    - Fix: the duplicate-application check is now moved BEFORE any candidate mutation. If a candidate with this email has already applied to this job, the route short-circuits with 409 `ALREADY_APPLIED` and touches nothing. Otherwise the existing create/update candidate + create application flow runs as before.
+
+14. **Career portal — closed/expired jobs still visible** (`src/app/api/public/careers/[orgSlug]/jobs/route.ts` + `[jobId]/route.ts`)
+    - The public listing and detail endpoints only filtered by `status: "open"`. A job whose `closesAt` had passed but whose status hadn't been manually flipped to `"closed"` was still listed / returned.
+    - Fix: added `OR: [{ closesAt: null }, { closesAt: { gte: now } }]` to the WHERE clauses of all three public careers routes (list, detail, apply). Expired jobs now return 404 from the detail/apply routes and disappear from the listing.
+
+15. **Resume parsing — invalid JSON causes 500** (`src/app/api/recruitment/parse-resume/route.ts`)
+    - `await req.json()` could throw a `SyntaxError` on a malformed body, which fell through to the generic 500 handler — looking like a server bug rather than a client error. Same issue existed in the careers POST apply route.
+    - Fix: JSON parsing is now wrapped in try/catch in both routes; malformed bodies return 400 `Invalid JSON body`.
+
+16. **Career portal public APIs — no rate limiting or pagination**
+    - 16a. **Rate limiting**: added IP-based `rateLimit` calls to all three careers public routes. GET list + GET detail: 30 req/min. POST apply: tighter 10 req/min (writes rows + triggers notification emails). `X-RateLimit-*` headers forwarded on success responses via `applyRateLimitHeaders`.
+    - 16b. **Pagination**: the listing route now accepts `?page=&limit=` (default 10, clamped to [1, 50]) and runs `findMany` + `count` in parallel via `Promise.all`. Response shape extended to `{ data, jobs (back-compat alias), total, pagination: { page, limit, total, totalPages } }`. Existing clients reading the old `jobs` field continue to work.
+
+### Test deltas
+
+- `src/tests/p17-bugs-9-16.test.ts` (new, 23 tests): covers bugs 10/12/13/14/15/16. Mocks `@/lib/prisma` (jobPosting/candidate/application/role/rolePermission/userRoleAssignment/rBACPermission/permission), `@/lib/rate-limit`, `@/lib/audit-log`, `@/lib/logger`. Uses `vi.hoisted()` for the prisma mock object so the `vi.mock` factory can reference it.
+- `src/tests/p17-bugs-11-system-roles.test.ts` (new, 4 tests): covers bug 11. Mocks `@/lib/rbac-v2` (requirePermission + invalidatePermissionCache) and exercises the PATCH handler directly with system / custom / missing roles.
+
+### Quality gates
+
+- `npx tsc --noEmit` → **0 errors**.
+- `npx vitest run` → **505/505 passed** (was 478, +27 new regression tests across 2 new files).
+- `npx eslint` on the 8 changed files → **0 errors** (0 warnings).
+
+### Git
+
+- Branch: `masterpiece-v2`
+- Commit: `32eff8b` — `P17-BUGS-9-16: Fix RBAC cache TTL, system role protection, empty array scope, career portal email/closesAt/resume/rate-limit/pagination`
+- Pushed to `origin/masterpiece-v2` — **success** (push confirmed `99cc0d0..32eff8b`).
