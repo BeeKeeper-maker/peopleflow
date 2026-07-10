@@ -118,6 +118,7 @@ export default function DocumentsPage() {
 function DocumentsPageContent() {
     const { addToast } = useToast();
     const t = useTranslations('Documents');
+    const tShared = useTranslations("SharedComponents");
     const locale = useLocale();
     const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -163,7 +164,7 @@ function DocumentsPageContent() {
 
     const handleGenerate = async () => {
         if (!selectedType || !selectedEmployee) {
-            addToast({ title: "Missing fields", description: "Please select a document type and employee.", type: "error" });
+            addToast({ title: tShared("missingFields"), description: tShared("selectDocTypeAndEmployee"), type: "error" });
             return;
         }
 
@@ -188,10 +189,10 @@ function DocumentsPageContent() {
             const data = await res.json();
             setGeneratedHTML(data.html);
             setStep(3);
-            addToast({ title: "Document Generated", description: `${selectedTypeInfo?.label} created successfully.`, type: "success" });
+            addToast({ title: t("documentGenerated"), description: `${selectedTypeInfo?.label} ${t("createdSuccessfully")}`, type: "success" });
         } catch (error) {
-            const message = error instanceof Error ? error.message : "Something went wrong";
-            addToast({ title: "Generation Failed", description: message, type: "error" });
+            const message = error instanceof Error ? error.message : tShared("common.somethingWentWrong");
+            addToast({ title: t("generationFailed"), description: message, type: "error" });
         } finally {
             setGenerating(false);
         }
@@ -348,11 +349,11 @@ function DocumentsPageContent() {
                             <Button
                                 onClick={() => {
                                     if (!selectedEmployee) {
-                                        addToast({ title: "Select Employee", description: "Please select an employee first.", type: "error" });
+                                        addToast({ title: t("selectEmployee"), description: tShared("selectEmployeeFirst"), type: "error" });
                                         return;
                                     }
                                     if (!selectedType) {
-                                        addToast({ title: "Select Template", description: "Please select a document type.", type: "error" });
+                                        addToast({ title: t("selectTemplate"), description: tShared("selectDocTypeFirst"), type: "error" });
                                         return;
                                     }
                                     setStep(2);

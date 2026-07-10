@@ -1671,7 +1671,22 @@
     "writeComments": "Write your comments",
     "reviewSubmitted": "Review submitted",
     "managerReviewSubmitted": "Manager review submitted",
-    "reviewFailed": "Failed to submit review"
+    "reviewFailed": "Failed to submit review",
+    "loadFailed": "Failed to load",
+    "requiredFieldsError": "Please fill in all required fields",
+    "upgradePlanHint": "Open billing to choose a plan with a higher limit.",
+    "geoLocationUnsupported": "Your browser does not support GPS",
+    "locationCaptured": "Location captured successfully",
+    "locationPermissionDenied": "Location permission denied. Please allow it in your browser.",
+    "locationCaptureFailed": "Failed to capture location. Please try again.",
+    "gpsAttendanceEnabled": "GPS Attendance enabled",
+    "gpsAttendanceDisabled": "GPS Attendance disabled",
+    "geoFenceModeChanged": "Mode changed: {mode}",
+    "unknownError": "Unknown error",
+    "missingFields": "Missing fields",
+    "selectDocTypeAndEmployee": "Please select a document type and employee.",
+    "selectEmployeeFirst": "Please select an employee first.",
+    "selectDocTypeFirst": "Please select a document type."
   },
   "Manager": {
     "dashboardTitle": "Manager Dashboard",

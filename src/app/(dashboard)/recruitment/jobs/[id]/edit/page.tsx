@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/toast"
+import { useTranslations } from "next-intl"
 
 interface Department { id: string; name: string }
 interface Designation { id: string; name: string }
@@ -23,6 +24,7 @@ export default function EditJobPage() {
     const params = useParams<{ id: string }>()
     const router = useRouter()
     const { addToast } = useToast()
+    const tShared = useTranslations("SharedComponents")
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [departments, setDepartments] = useState<Department[]>([])
@@ -79,13 +81,13 @@ export default function EditJobPage() {
                     designationId: emptyToString(job.designationId),
                 })
             } catch {
-                addToast({ title: "Could not load job", type: "error" })
+                addToast({ title: tShared("failedLoadData"), type: "error" })
             } finally {
                 setLoading(false)
             }
         }
         load()
-    }, [params.id, addToast])
+    }, [params.id, addToast, tShared])
 
     const handleChange = (field: string, value: string | boolean) => {
         setFormData(prev => ({ ...prev, [field]: value }))
@@ -93,7 +95,7 @@ export default function EditJobPage() {
 
     const handleSubmit = async (status?: "draft" | "open" | "paused" | "closed") => {
         if (!formData.title || !formData.description || !formData.employmentType) {
-            addToast({ title: "Title, description and employment type are required", type: "error" })
+            addToast({ title: tShared("requiredFieldsError"), type: "error" })
             return
         }
         setSaving(true)
@@ -113,10 +115,10 @@ export default function EditJobPage() {
                 }),
             })
             if (!res.ok) throw new Error("Save failed")
-            addToast({ title: "Job updated", type: "success" })
+            addToast({ title: tShared("updateSuccess"), type: "success" })
             router.push(`/recruitment/jobs/${params.id}`)
         } catch {
-            addToast({ title: "Failed to update job", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSaving(false)
         }

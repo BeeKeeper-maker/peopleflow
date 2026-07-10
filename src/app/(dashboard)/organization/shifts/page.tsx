@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl"
 export default function ShiftsPage() {
     const { addToast } = useToast()
     const t = useTranslations('Shifts')
+    const tShared = useTranslations("SharedComponents")
     const [shifts, setShifts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -55,11 +56,11 @@ export default function ShiftsPage() {
                 const msg = await res.text()
                 throw new Error(msg)
             }
-            addToast({ title: "Shift deleted", type: "success" })
+            addToast({ title: tShared("deleteSuccess"), type: "success" })
             fetchShifts()
             setIsDeleteOpen(false)
         } catch (error) {
-            addToast({ title: "Delete failed", description: error instanceof Error ? error.message : "Unknown error", type: "error" })
+            addToast({ title: tShared("deleteFailed"), description: error instanceof Error ? error.message : tShared("unknownError"), type: "error" })
         }
     }
 

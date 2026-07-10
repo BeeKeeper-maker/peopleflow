@@ -1823,7 +1823,22 @@
     "writeComments": "আপনার মন্তব্য লিখুন",
     "reviewSubmitted": "রিভিউ জমা দেওয়া হয়েছে",
     "managerReviewSubmitted": "ম্যানেজার রিভিউ জমা দেওয়া হয়েছে",
-    "reviewFailed": "রিভিউ জমা দিতে ব্যর্থ"
+    "reviewFailed": "রিভিউ জমা দিতে ব্যর্থ",
+    "loadFailed": "লোড ব্যর্থ হয়েছে",
+    "requiredFieldsError": "অনুগ্রহ করে সমস্ত প্রয়োজনীয় তথ্য পূরণ করুন",
+    "upgradePlanHint": "উচ্চতর লিমিটের প্ল্যান নির্বাচন করতে বিলিং খুলুন।",
+    "geoLocationUnsupported": "আপনার ব্রাউজারে GPS সাপোর্ট নেই",
+    "locationCaptured": "আপনার অবস্থান সফলভাবে নেওয়া হয়েছে",
+    "locationPermissionDenied": "লোকেশন পারমিশন দিতে হবে। ব্রাউজারে allow করুন।",
+    "locationCaptureFailed": "লোকেশন নেওয়া যায়নি। আবার চেষ্টা করুন।",
+    "gpsAttendanceEnabled": "GPS Attendance চালু হয়েছে",
+    "gpsAttendanceDisabled": "GPS Attendance বন্ধ করা হয়েছে",
+    "geoFenceModeChanged": "মোড পরিবর্তন: {mode}",
+    "unknownError": "অজানা ত্রুটি",
+    "missingFields": "কিছু তথ্য অসম্পূর্ণ",
+    "selectDocTypeAndEmployee": "অনুগ্রহ করে একটি ডকুমেন্ট টাইপ এবং কর্মী নির্বাচন করুন।",
+    "selectEmployeeFirst": "অনুগ্রহ করে প্রথমে একজন কর্মী নির্বাচন করুন।",
+    "selectDocTypeFirst": "অনুগ্রহ করে একটি ডকুমেন্ট টাইপ নির্বাচন করুন।"
   },
   "Manager": {
     "dashboardTitle": "ম্যানেজার ড্যাশবোর্ড",

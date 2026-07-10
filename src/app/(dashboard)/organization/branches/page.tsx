@@ -32,6 +32,7 @@ interface GeoFenceConfig {
 
 export default function BranchesPage() {
     const t = useTranslations('Branches')
+    const tShared = useTranslations("SharedComponents")
     const router = useRouter()
     const { addToast } = useToast()
     const { confirm, dialog: confirmDialog } = useConfirmDialog()
@@ -129,7 +130,7 @@ export default function BranchesPage() {
                 }
                 addToast({
                     title: err.error || (editingBranch ? t('updateFailed') : t('createFailed')),
-                    description: err.upgradeRequired ? "Open billing to choose a plan with a higher branch limit." : undefined,
+                    description: err.upgradeRequired ? tShared("upgradePlanHint") : undefined,
                     type: err.upgradeRequired ? "warning" : "error",
                     duration: err.upgradeRequired ? 9000 : undefined,
                 })
@@ -152,7 +153,7 @@ export default function BranchesPage() {
     // ── GPS: Use My Current Location ──────────────────────────────
     const handleUseMyLocation = async () => {
         if (!("geolocation" in navigator)) {
-            addToast({ title: "আপনার ব্রাউজারে GPS সাপোর্ট নেই", type: "error" })
+            addToast({ title: tShared("geoLocationUnsupported"), type: "error" })
             return
         }
         setFetchingLocation(true)
@@ -168,13 +169,13 @@ export default function BranchesPage() {
                 latitude: pos.coords.latitude.toFixed(6),
                 longitude: pos.coords.longitude.toFixed(6),
             }))
-            addToast({ title: "✅ আপনার অবস্থান সফলভাবে নেওয়া হয়েছে!", type: "success" })
+            addToast({ title: tShared("locationCaptured"), type: "success" })
         } catch (e: unknown) {
             const err = e as GeolocationPositionError
             if (err?.code === 1) {
-                addToast({ title: "📍 Location permission দিতে হবে। Browser-এ allow করুন।", type: "error" })
+                addToast({ title: tShared("locationPermissionDenied"), type: "error" })
             } else {
-                addToast({ title: "📍 Location নেওয়া যায়নি। আবার চেষ্টা করুন।", type: "error" })
+                addToast({ title: tShared("locationCaptureFailed"), type: "error" })
             }
         } finally {
             setFetchingLocation(false)
@@ -197,13 +198,13 @@ export default function BranchesPage() {
                 setGeoConfig(prev => ({ ...prev, geoFenceEnabled: !prev.geoFenceEnabled }))
                 addToast({
                     title: !geoConfig.geoFenceEnabled
-                        ? "✅ GPS Attendance চালু হয়েছে"
-                        : "GPS Attendance বন্ধ করা হয়েছে",
+                        ? tShared("gpsAttendanceEnabled")
+                        : tShared("gpsAttendanceDisabled"),
                     type: "success"
                 })
             }
         } catch {
-            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSavingGeo(false)
         }
@@ -222,10 +223,10 @@ export default function BranchesPage() {
             })
             if (res.ok) {
                 setGeoConfig(prev => ({ ...prev, geoFenceEnforcement: mode }))
-                addToast({ title: `মোড পরিবর্তন: ${mode === "strict" ? "Strict (অফিসের বাইরে block)" : "Soft (warning দিবে)"}`, type: "success" })
+                addToast({ title: tShared("geoFenceModeChanged", { mode: mode === "strict" ? "Strict" : "Soft" }), type: "success" })
             }
         } catch {
-            addToast({ title: "সেটিংস আপডেট ব্যর্থ", type: "error" })
+            addToast({ title: tShared("updateFailed"), type: "error" })
         } finally {
             setSavingGeo(false)
         }
