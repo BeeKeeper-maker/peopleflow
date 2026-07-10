@@ -86,29 +86,51 @@ export async function GET(
             }
 
             // ── Audit log: PII access (P11-AUDIT-LOG) ──────────────────
-            // Only HR/admin roles (excluding self-view) trigger this log.
+            // HR/admin roles (excluding self-view) trigger this log.
             // Self-view is intentionally excluded: an employee reading
-            // their own profile is not a third-party PII access. Managers
-            // viewing direct reports also receive decrypted PII, but the
-            // task scope is HR/admin only — a future task can extend
-            // coverage if needed. The log records WHO accessed WHOSE
-            // data and WHICH field categories were exposed — never the
-            // PII values themselves. `createAuditLog` already swallows
-            // its own errors; the outer try/catch is a belt-and-braces
-            // guarantee that audit persistence can never break a
-            // legitimate profile read.
+            // their own profile is not a third-party PII access.
+            // The log records WHO accessed WHOSE data and WHICH field
+            // categories were exposed — never the PII values themselves.
+            // `createAuditLog` already swallows its own errors; the outer
+            // try/catch is a belt-and-braces guarantee that audit
+            // persistence can never break a legitimate profile read.
             if (isHRLevel && !isSelf) {
                 try {
                     await createAuditLog({
                         entityType: "Employee",
                         entityId: id,
                         action: "pii.accessed",
-                        newValues: { fields: ["bkashNumber", "nagadNumber", "nidNumber"] },
+                        newValues: { fields: ["bkashNumber", "nagadNumber", "nidNumber"], accessContext: "hr_admin" },
                         userId: auth.userId,
                         organizationId: auth.organizationId,
                     });
                 } catch (err) {
                     apiLogger.error({ err }, "Audit log failed for PII access (non-fatal):");
+                }
+            }
+
+            // ── Audit log: Manager direct-report PII access (P12-AUDIT-STORAGE) ─
+            // Managers viewing their direct reports' profiles receive the
+            // same decrypted PII (bkashNumber / nagadNumber / NID) as HR,
+            // so the access must be audited identically. Previously this
+            // branch was silently un-logged — a compliance gap noted in
+            // the P11 audit notes. The `accessContext: "manager_direct_report"`
+            // tag lets audit-log queries distinguish manager views from
+            // HR/admin views without parsing roles. Never logs the PII
+            // values themselves. Non-blocking: a logging failure cannot
+            // break the legitimate profile read.
+            if (isDirectReport && !isHRLevel && !isSelf) {
+                try {
+                    await createAuditLog({
+                        entityType: "Employee",
+                        entityId: id,
+                        action: "pii.accessed",
+                        newValues: { fields: ["bkashNumber", "nagadNumber", "nidNumber"], accessContext: "manager_direct_report" },
+                        userId: auth.userId,
+                        organizationId: auth.organizationId,
+                    });
+                } catch (err) {
+                    apiLogger.error({ err }, "Audit log failed for manager direct-report PII access (non-fatal):");
                 }
             }
 

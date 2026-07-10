@@ -36,7 +36,7 @@ const prismaMock = {
     festivalBonusConfig: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     festivalBonusPayment: { findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
     lateDeductionPolicy: { findFirst: vi.fn() },
-    organization: { findMany: vi.fn(), findUnique: vi.fn() },
+    organization: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     impersonationSession: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     leaveAllocation: { findMany: vi.fn() },
     // P10-TESTS: system-stats route counts pending approvals via approvalRequest.count
@@ -51,6 +51,8 @@ const prismaMock = {
     holidayList: { findFirst: vi.fn() },
     // P0 regression: impersonation audit log + platform actions
     platformAuditLog: { create: vi.fn(), findMany: vi.fn() },
+    // P12-AUDIT-STORAGE: tenant audit log (createAuditLog calls prisma.auditLog.create)
+    auditLog: { create: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
 };
 

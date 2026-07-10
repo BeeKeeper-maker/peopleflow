@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 import { getOrgSubscription } from "@/lib/plan-enforcement";
+import { getOrganizationStorageUsage } from "@/lib/storage-usage";
 
 export async function GET() {
     const auth = await requireAuth();
@@ -66,6 +67,14 @@ export async function GET() {
             ]),
         );
 
+        // Storage usage is computed from the file system (local) or S3 API
+        // (TODO) — not a DB count. The result is cached in-process for
+        // CACHE_TTL_MS (5 min) inside getOrganizationStorageUsage so a
+        // dashboard refresh doesn't trigger a full directory walk on every
+        // request. Returns bytes; convert to MB to match the plan-limit unit.
+        const storageUsedBytes = await getOrganizationStorageUsage(orgId);
+        const storageUsedMB = Math.ceil(storageUsedBytes / (1024 * 1024));
+
         const plan = subscription.plan;
         const effectiveSubscription = await getOrgSubscription(orgId);
         const effectiveLimits = {
@@ -93,7 +102,7 @@ export async function GET() {
                 unlimited: effectiveLimits.maxBranches === -1,
             },
             storage: {
-                current: 0, // TODO: Calculate from file storage
+                current: storageUsedMB,
                 limit: effectiveLimits.maxStorageMB,
                 unlimited: effectiveLimits.maxStorageMB === -1,
             },
