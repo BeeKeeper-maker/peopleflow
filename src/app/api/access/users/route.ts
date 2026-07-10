@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
+import { createAuditLog } from "@/lib/audit-log";
 
 const roleSchema = z.enum(["admin", "hr_admin", "manager", "employee"]);
 
@@ -129,6 +130,29 @@ export async function PATCH(req: Request) {
       },
       select: { id: true, role: true, isActive: true },
     }));
+
+    // ── Audit log: role change (P11-AUDIT-LOG) ─────────────────────
+    // Only emitted when the role actually changes — `isActive` flips
+    // are out of scope here. Records WHO changed WHOSE role, plus the
+    // before/after role labels. Never logs password hashes or other
+    // secrets. `createAuditLog` swallows its own errors, but the
+    // try/catch guarantees a logging failure can never block the
+    // role update itself.
+    if (body.role !== undefined && body.role !== target.role) {
+      try {
+        await createAuditLog({
+          entityType: "User",
+          entityId: target.id,
+          action: "role.changed",
+          oldValues: { role: target.role },
+          newValues: { role: body.role },
+          userId: auth.userId,
+          organizationId: auth.organizationId,
+        });
+      } catch (err) {
+        apiLogger.error({ err }, "Audit log failed for role change (non-fatal):");
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

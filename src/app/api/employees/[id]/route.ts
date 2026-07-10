@@ -6,6 +6,7 @@ import { apiLogger } from "@/lib/logger";
 import { sendTemplateEmail } from "@/lib/email";
 import { randomBytes } from "crypto";
 import { encryptPII, decryptEmployeePhoneNumbers } from "@/lib/pii";
+import { createAuditLog } from "@/lib/audit-log";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/employees/:id
@@ -82,6 +83,33 @@ export async function GET(
 
             if (!employee) {
                 return new NextResponse("Employee not found", { status: 404 });
+            }
+
+            // ── Audit log: PII access (P11-AUDIT-LOG) ──────────────────
+            // Only HR/admin roles (excluding self-view) trigger this log.
+            // Self-view is intentionally excluded: an employee reading
+            // their own profile is not a third-party PII access. Managers
+            // viewing direct reports also receive decrypted PII, but the
+            // task scope is HR/admin only — a future task can extend
+            // coverage if needed. The log records WHO accessed WHOSE
+            // data and WHICH field categories were exposed — never the
+            // PII values themselves. `createAuditLog` already swallows
+            // its own errors; the outer try/catch is a belt-and-braces
+            // guarantee that audit persistence can never break a
+            // legitimate profile read.
+            if (isHRLevel && !isSelf) {
+                try {
+                    await createAuditLog({
+                        entityType: "Employee",
+                        entityId: id,
+                        action: "pii.accessed",
+                        newValues: { fields: ["bkashNumber", "nagadNumber", "nidNumber"] },
+                        userId: auth.userId,
+                        organizationId: auth.organizationId,
+                    });
+                } catch (err) {
+                    apiLogger.error({ err }, "Audit log failed for PII access (non-fatal):");
+                }
             }
 
             // PII: bkashNumber/nagadNumber are encrypted at rest; decrypt for HR/manager/self views.

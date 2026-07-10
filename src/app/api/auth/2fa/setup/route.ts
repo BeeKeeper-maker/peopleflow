@@ -5,6 +5,7 @@ import { getApiUser } from "@/lib/auth";
 import { generateSecret, generateURI } from "otplib";
 import QRCode from "qrcode";
 import { authLogger } from "@/lib/logger";
+import { createAuditLog } from "@/lib/audit-log";
 
 /**
  * POST — Generate 2FA secret and QR code for setup
@@ -177,6 +178,26 @@ export async function DELETE(req: NextRequest) {
                 twoFactorSecret: null,
             },
         });
+
+        // ── Audit log: 2FA disabled (P11-AUDIT-LOG) ───────────────────
+        // 2FA disable is a high-risk auth-factor change. Log who disabled
+        // it and when, so a silent 2FA-rollback during account takeover
+        // can be detected. `createAuditLog` already swallows internal
+        // errors, but we wrap in try/catch as a belt-and-braces guarantee
+        // that audit-log persistence can never break the 2FA disable flow.
+        try {
+            await createAuditLog({
+                entityType: "User",
+                entityId: auth.user.id,
+                action: "2fa.disabled",
+                oldValues: { twoFactorEnabled: true },
+                newValues: { twoFactorEnabled: false },
+                userId: auth.user.id,
+                organizationId: auth.organizationId,
+            });
+        } catch (err) {
+            authLogger.error({ err }, "Audit log failed for 2FA disable (non-fatal):");
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

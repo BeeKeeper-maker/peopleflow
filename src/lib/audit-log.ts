@@ -17,7 +17,15 @@ export type AuditAction =
     | "view"
     | "approve"
     | "reject"
-    | "export";
+    | "export"
+    // ── Sensitive-action audit events (P11-AUDIT-LOG) ───────────────
+    // These are emitted alongside the generic CRUD actions above to
+    // surface high-risk operations (auth factor changes, role changes,
+    // PII decryption, credential rotation) in audit-log queries.
+    | "2fa.disabled"
+    | "role.changed"
+    | "pii.accessed"
+    | "bkash.credentials_updated";
 
 interface AuditLogEntry {
     action: AuditAction;

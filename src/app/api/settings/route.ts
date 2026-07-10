@@ -4,6 +4,7 @@ import { requireAuth, requireAdminOrHR, isAuthenticated } from "@/lib/api-auth"
 import { apiLogger } from "@/lib/logger";
 import { toPlainSettings } from "@/lib/settings-json";
 import { encrypt, decrypt, isEncrypted } from "@/lib/crypto";
+import { createAuditLog } from "@/lib/audit-log";
 
 // ── bKash credential redaction ────────────────────────────────────
 // The disbursement engine reads encrypted credentials from
@@ -209,10 +210,12 @@ export async function PATCH(req: NextRequest) {
         // bKash disbursement credentials — encrypt each sensitive field
         // before persistence. The disbursement engine decrypts them
         // server-side when calling the bKash API.
+        let bkashCredentialsUpdated = false;
         if (body.bkashConfig !== undefined) {
             const encrypted = buildEncryptedBkashConfig(body.bkashConfig);
             if (encrypted) {
                 nextSettings.bkashConfig = encrypted;
+                bkashCredentialsUpdated = true;
             } else {
                 return NextResponse.json(
                     { error: "Invalid bKash credentials — all four fields (appKey, appSecret, username, password) are required." },
@@ -242,6 +245,28 @@ export async function PATCH(req: NextRequest) {
                 }
             }),
         )
+
+        // ── Audit log: bKash credentials saved (P11-AUDIT-LOG) ───────
+        // Only emitted when bKash credentials were actually persisted.
+        // Records WHO updated the credentials for WHICH organization —
+        // never the credential values themselves (appKey/appSecret/
+        // username/password remain encrypted at rest). `createAuditLog`
+        // already swallows its own errors; the outer try/catch is a
+        // belt-and-braces guarantee that audit persistence can never
+        // break a successful settings save.
+        if (bkashCredentialsUpdated) {
+            try {
+                await createAuditLog({
+                    entityType: "Organization",
+                    entityId: organizationId,
+                    action: "bkash.credentials_updated",
+                    userId: auth.userId,
+                    organizationId,
+                });
+            } catch (err) {
+                apiLogger.error({ err }, "Audit log failed for bKash credential save (non-fatal):");
+            }
+        }
 
         return NextResponse.json({ organization: updatedOrg })
     } catch (error) {
