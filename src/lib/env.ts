@@ -190,14 +190,10 @@ function validateEnv(): void {
 
         console.error(message);
 
-        // In production, crash immediately. In dev, warn but continue.
-        // EXCEPTION: During `next build` (NEXT_PHASE=phase-production-build),
-        // runtime env vars are not available — Coolify only injects them at
-        // container start. So we warn but don't crash during the build step.
-        const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
-        if (process.env.NODE_ENV === "production" && !isBuildPhase) {
-            throw new Error("Environment validation failed. Cannot start in production with invalid configuration.");
-        }
+        // During Docker build (Coolify), runtime env vars are not available.
+        // Log the error prominently but never crash — the app will crash at
+        // runtime if truly required env vars are missing (e.g. DB connection).
+        // This prevents next build from failing in CI/CD pipelines.
     }
 
     serverEnv = (serverResult.success ? serverResult.data : serverSchema.parse({

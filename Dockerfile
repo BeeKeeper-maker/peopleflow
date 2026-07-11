@@ -46,7 +46,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 # Cache-buster: this RUN forces Docker to invalidate all subsequent layers.
 # Change the string below to force a full rebuild.
-RUN echo "cache-bust-2026-07-11-v1" > /tmp/.cachebust
+RUN echo "cache-bust-2026-07-11-v3-no-throw" > /tmp/.cachebust
 COPY . .
 
 # Prisma generate
