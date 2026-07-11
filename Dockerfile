@@ -129,10 +129,12 @@ COPY prisma ./prisma
 COPY src ./src
 COPY tsconfig.json ./tsconfig.json
 
-# Generate Prisma client, then clean caches. Do not run recursive chown over
-# node_modules; it is slow/noisy on small VPS builds and caused worker deploy
-# finalization failures. Runtime only needs read access.
-RUN npx prisma generate
+# Copy pre-generated Prisma client from builder stage instead of running
+# npx prisma generate here. The worker stage uses --omit=dev so prisma
+# isn't available, and npx downloads Prisma 7.8 which needs Node 22+.
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/src/generated ./src/generated
 RUN npm cache clean --force && rm -rf /root/.npm /root/.cache /tmp/*
 
 RUN addgroup --system --gid 1001 nodejs && \
