@@ -102,6 +102,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PEOPLEFLOW_PROCESS=worker
+# prisma generate needs a DATABASE_URL at build time (any valid-looking DSN works)
+ENV DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma"
 
 COPY .npmrc* ./
 COPY package.json package-lock.json ./
