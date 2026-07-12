@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireEmployee, isAuthenticated } from "@/lib/api-auth";
 import { differenceInMinutes } from "date-fns";
 import { attendanceLogger } from "@/lib/logger";
@@ -23,24 +22,29 @@ export async function POST(req: Request) {
         const auth = await requireEmployee();
         if (!isAuthenticated(auth)) return auth;
 
-        const employee = await prisma.employee.findFirst({
-            where: { id: auth.employeeId, organizationId: auth.organizationId },
-            include: {
-                shift: true,
-                branch: {
-                    select: {
-                        id: true,
-                        name: true,
-                        latitude: true,
-                        longitude: true,
-                        geoFenceRadius: true,
+        // Employee + organization are independent reads — combine in a single
+        // RLS-scoped transaction so `app.current_tenant_id` is set once.
+        const { employee, organization } = await auth.withDB(async (db) => {
+            const employee = await db.employee.findFirst({
+                where: { id: auth.employeeId, organizationId: auth.organizationId },
+                include: {
+                    shift: true,
+                    branch: {
+                        select: {
+                            id: true,
+                            name: true,
+                            latitude: true,
+                            longitude: true,
+                            geoFenceRadius: true,
+                        },
                     },
                 },
-            },
-        });
-        const organization = await prisma.organization.findUnique({
-            where: { id: auth.organizationId },
-            select: { settings: true },
+            });
+            const organization = await db.organization.findUnique({
+                where: { id: auth.organizationId },
+                select: { settings: true },
+            });
+            return { employee, organization };
         });
 
         if (!employee) {
@@ -55,14 +59,14 @@ export async function POST(req: Request) {
 
         // ── Buddy Punching Prevention ────────────────────────────
         // 1. Check if already checked in
-        const existing = await prisma.attendance.findUnique({
+        const existing = await auth.withDB((db) => db.attendance.findUnique({
             where: {
                 employeeId_date: {
                     employeeId: employee.id,
                     date: today,
                 }
             }
-        });
+        }));
 
         if (existing) {
             return new NextResponse("Already checked in today", { status: 400 });
@@ -78,7 +82,7 @@ export async function POST(req: Request) {
         const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
         let buddyPunchWarning: string | null = null;
         if (clientIp !== "unknown" && source !== "biometric") {
-            const recentCheckInsFromSameIp = await prisma.attendance.findFirst({
+            const recentCheckInsFromSameIp = await auth.withDB((db) => db.attendance.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     checkIn: { gte: new Date(now.getTime() - 2 * 60 * 1000) }, // Last 2 minutes
@@ -86,7 +90,7 @@ export async function POST(req: Request) {
                     employeeId: { not: employee.id }, // Different employee
                 },
                 select: { employeeId: true, checkIn: true },
-            });
+            }));
 
             if (recentCheckInsFromSameIp) {
                 attendanceLogger.warn({
@@ -106,7 +110,7 @@ export async function POST(req: Request) {
         // Also scoped to the caller's organization — a device fingerprint is
         // only a useful buddy-punch signal within the same tenant.
         if (deviceFingerprint) {
-            const sameDeviceRecent = await prisma.attendance.findFirst({
+            const sameDeviceRecent = await auth.withDB((db) => db.attendance.findFirst({
                 where: {
                     organizationId: auth.organizationId,
                     checkIn: { gte: new Date(now.getTime() - 5 * 60 * 1000) }, // Last 5 minutes
@@ -114,7 +118,7 @@ export async function POST(req: Request) {
                     employeeId: { not: employee.id },
                 },
                 select: { employeeId: true },
-            });
+            }));
 
             if (sameDeviceRecent) {
                 attendanceLogger.warn({
@@ -218,7 +222,7 @@ export async function POST(req: Request) {
 
         const notes = notesParts.length > 0 ? notesParts.join(" | ") : undefined;
 
-        const attendance = await prisma.attendance.create({
+        const attendance = await auth.withDB((db) => db.attendance.create({
             data: {
                 employeeId: employee.id,
                 organizationId: auth.organizationId,
@@ -230,7 +234,7 @@ export async function POST(req: Request) {
                 lateMinutes,
                 notes,
             }
-        });
+        }));
 
         return NextResponse.json({
             ...attendance,
@@ -255,24 +259,29 @@ export async function PUT(req: Request) {
         const auth = await requireEmployee();
         if (!isAuthenticated(auth)) return auth;
 
-        const employee = await prisma.employee.findFirst({
-            where: { id: auth.employeeId, organizationId: auth.organizationId },
-            include: {
-                shift: true,
-                branch: {
-                    select: {
-                        id: true,
-                        name: true,
-                        latitude: true,
-                        longitude: true,
-                        geoFenceRadius: true,
+        // Employee + organization are independent reads — combine in a single
+        // RLS-scoped transaction so `app.current_tenant_id` is set once.
+        const { employee, organization } = await auth.withDB(async (db) => {
+            const employee = await db.employee.findFirst({
+                where: { id: auth.employeeId, organizationId: auth.organizationId },
+                include: {
+                    shift: true,
+                    branch: {
+                        select: {
+                            id: true,
+                            name: true,
+                            latitude: true,
+                            longitude: true,
+                            geoFenceRadius: true,
+                        },
                     },
                 },
-            },
-        });
-        const organization = await prisma.organization.findUnique({
-            where: { id: auth.organizationId },
-            select: { settings: true },
+            });
+            const organization = await db.organization.findUnique({
+                where: { id: auth.organizationId },
+                select: { settings: true },
+            });
+            return { employee, organization };
         });
 
         if (!employee) {
@@ -284,14 +293,14 @@ export async function PUT(req: Request) {
         const now = new Date();
         const today = startOfBusinessDay(now);
 
-        const attendance = await prisma.attendance.findUnique({
+        const attendance = await auth.withDB((db) => db.attendance.findUnique({
             where: {
                 employeeId_date: {
                     employeeId: employee.id,
                     date: today,
                 }
             }
-        });
+        }));
 
         if (!attendance) {
             return new NextResponse("No check-in record found for today", { status: 404 });
@@ -347,7 +356,7 @@ export async function PUT(req: Request) {
             ? `${attendance.notes}${checkoutGeoNote}`
             : checkoutGeoNote ? checkoutGeoNote.replace(" | ", "") : undefined;
 
-        const updated = await prisma.attendance.update({
+        const updated = await auth.withDB((db) => db.attendance.update({
             where: { id: attendance.id },
             data: {
                 checkOut: now,
@@ -356,7 +365,7 @@ export async function PUT(req: Request) {
                 overtimeMinutes,
                 ...(updatedNotes && { notes: updatedNotes }),
             }
-        });
+        }));
 
         return NextResponse.json(updated);
 

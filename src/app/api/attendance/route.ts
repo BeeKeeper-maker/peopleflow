@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import type { PrismaClient } from "@/generated/prisma";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
 import { rateLimit, RATE_LIMIT_CONFIGS, applyRateLimitHeaders } from "@/lib/rate-limit";
 import { attendanceLogger } from "@/lib/logger";
@@ -41,7 +41,7 @@ function buildDateFilter(searchParams: URLSearchParams) {
     return undefined;
 }
 
-function toAttendanceDto(record: Awaited<ReturnType<typeof prisma.attendance.findMany>>[number]) {
+function toAttendanceDto(record: Awaited<ReturnType<PrismaClient["attendance"]["findMany"]>>[number]) {
     const totalMinutes = record.checkIn && record.checkOut
         ? Math.max(0, Math.round((record.checkOut.getTime() - record.checkIn.getTime()) / 60000))
         : 0;
