@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant, withPlatform } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { successResponse, errorResponse, createdResponse, ErrorCodes } from "@/lib/api-response";
 import { apiLogger } from "@/lib/logger";
@@ -13,14 +13,20 @@ export async function GET(req: Request) {
             return errorResponse(ErrorCodes.UNAUTHORIZED, "Authentication required");
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            include: { organization: true },
-        });
+        const sessionEmail = session.user.email;
+
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { email: sessionEmail },
+                include: { organization: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return errorResponse(ErrorCodes.NOT_FOUND, "Organization not found");
         }
+
+        const orgId = user.organizationId;
 
         // Per-user rate limit (read op)
         const rl = await rateLimit(req, RATE_LIMIT_CONFIGS.read, user.id);
@@ -30,19 +36,21 @@ export async function GET(req: Request) {
         const status = searchParams.get("status");
         const departmentId = searchParams.get("departmentId");
 
-        const where: any = { organizationId: user.organizationId };
+        const where: any = { organizationId: orgId };
         if (status) where.status = status;
         if (departmentId) where.departmentId = departmentId;
 
-        const jobs = await prisma.jobPosting.findMany({
-            where,
-            include: {
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-                _count: { select: { applications: true } },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const jobs = await withTenant(orgId, (db) =>
+            db.jobPosting.findMany({
+                where,
+                include: {
+                    department: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                    _count: { select: { applications: true } },
+                },
+                orderBy: { createdAt: "desc" },
+            }),
+        );
 
         return applyRateLimitHeaders(successResponse(jobs), rl.headers);
     } catch (error) {
@@ -59,13 +67,19 @@ export async function POST(req: Request) {
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const sessionEmail = session.user.email;
+
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { email: sessionEmail },
+            }),
+        );
 
         if (!user?.organizationId) {
             return new NextResponse("Organization not found", { status: 404 });
         }
+
+        const orgId = user.organizationId;
 
         // Check if user has permission
         if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
@@ -102,34 +116,36 @@ export async function POST(req: Request) {
             return new NextResponse("Missing required fields", { status: 400 });
         }
 
-        const job = await prisma.jobPosting.create({
-            data: {
-                title,
-                description,
-                requirements,
-                responsibilities,
-                employmentType,
-                experience,
-                education,
-                skills,
-                salaryMin: salaryMin || null,
-                salaryMax: salaryMax || null,
-                showSalary: showSalary || false,
-                location,
-                isRemote: isRemote || false,
-                status: status || "draft",
-                openings: openings || 1,
-                closesAt: closesAt ? new Date(closesAt) : null,
-                postedAt: status === "open" ? new Date() : null,
-                departmentId: departmentId || null,
-                designationId: designationId || null,
-                organizationId: user.organizationId,
-            },
-            include: {
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-            },
-        });
+        const job = await withTenant(orgId, (db) =>
+            db.jobPosting.create({
+                data: {
+                    title,
+                    description,
+                    requirements,
+                    responsibilities,
+                    employmentType,
+                    experience,
+                    education,
+                    skills,
+                    salaryMin: salaryMin || null,
+                    salaryMax: salaryMax || null,
+                    showSalary: showSalary || false,
+                    location,
+                    isRemote: isRemote || false,
+                    status: status || "draft",
+                    openings: openings || 1,
+                    closesAt: closesAt ? new Date(closesAt) : null,
+                    postedAt: status === "open" ? new Date() : null,
+                    departmentId: departmentId || null,
+                    designationId: designationId || null,
+                    organizationId: orgId,
+                },
+                include: {
+                    department: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                },
+            }),
+        );
 
         return NextResponse.json(job);
     } catch (error) {

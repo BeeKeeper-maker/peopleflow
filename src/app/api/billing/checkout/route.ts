@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 import { createCheckoutSession, createPortalSession } from "@/lib/stripe";
 import { apiLogger } from "@/lib/logger";
 
@@ -62,9 +62,11 @@ export async function POST(request: NextRequest) {
 
         // Get plan — global lookup table, not tenant-scoped. Use the platform
         // (non-RLS) client.
-        const plan = await prisma.plan.findUnique({
-            where: { slug: planSlug },
-        });
+        const plan = await withPlatform((db) =>
+            db.plan.findUnique({
+                where: { slug: planSlug },
+            }),
+        );
 
         if (!plan || !plan.isActive) {
             return NextResponse.json(

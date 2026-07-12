@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { generateSecret, generateURI } from "otplib";
 import QRCode from "qrcode";
@@ -42,10 +42,12 @@ export async function POST() {
         const qrCodeUrl = await QRCode.toDataURL(otpauthUrl);
 
         // Save secret temporarily (not enabled yet — requires verification)
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { twoFactorSecret: secret },
-        });
+        await withTenant(auth.organizationId, (db) =>
+            db.user.update({
+                where: { id: user.id },
+                data: { twoFactorSecret: secret },
+            }),
+        );
 
         return NextResponse.json({
             secret,
@@ -90,15 +92,17 @@ export async function DELETE(req: NextRequest) {
         }
 
         // Verify current password
-        const user = await prisma.user.findUnique({
-            where: { id: auth.user.id },
-            select: {
-                password: true,
-                twoFactorSecret: true,
-                twoFactorEnabled: true,
-                twoFactorRecoveryCodes: true,
-            },
-        });
+        const user = await withTenant(auth.organizationId, (db) =>
+            db.user.findUnique({
+                where: { id: auth.user.id },
+                select: {
+                    password: true,
+                    twoFactorSecret: true,
+                    twoFactorEnabled: true,
+                    twoFactorRecoveryCodes: true,
+                },
+            }),
+        );
 
         if (!user || !user.password) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -141,10 +145,12 @@ export async function DELETE(req: NextRequest) {
                 }
                 // Consume the recovery code (single-use)
                 const remainingCodes = storedHashes.filter((_, i) => i !== matchIndex);
-                await prisma.user.update({
-                    where: { id: auth.user.id },
-                    data: { twoFactorRecoveryCodes: remainingCodes },
-                });
+                await withTenant(auth.organizationId, (db) =>
+                    db.user.update({
+                        where: { id: auth.user.id },
+                        data: { twoFactorRecoveryCodes: remainingCodes },
+                    }),
+                );
             } else if (totpCode && user.twoFactorSecret) {
                 // Verify TOTP code.
                 // otplib v13's `verify` is async — it returns
@@ -171,13 +177,15 @@ export async function DELETE(req: NextRequest) {
             }
         }
 
-        await prisma.user.update({
-            where: { id: auth.user.id },
-            data: {
-                twoFactorEnabled: false,
-                twoFactorSecret: null,
-            },
-        });
+        await withTenant(auth.organizationId, (db) =>
+            db.user.update({
+                where: { id: auth.user.id },
+                data: {
+                    twoFactorEnabled: false,
+                    twoFactorSecret: null,
+                },
+            }),
+        );
 
         // ── Audit log: 2FA disabled (P11-AUDIT-LOG) ───────────────────
         // 2FA disable is a high-risk auth-factor change. Log who disabled

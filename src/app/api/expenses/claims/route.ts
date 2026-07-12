@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant, withPlatform, type TxClient } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { createApprovalRequest } from "@/lib/approval-engine";
@@ -25,12 +25,12 @@ const claimSchema = z.object({
 });
 
 // Generate claim number with retry for race condition safety
-async function generateClaimNumber(organizationId: string): Promise<string> {
+async function generateClaimNumber(db: TxClient, organizationId: string): Promise<string> {
     const year = new Date().getFullYear();
     const maxRetries = 3;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-        const count = await prisma.expenseClaim.count({
+        const count = await db.expenseClaim.count({
             where: {
                 organizationId,
                 claimNumber: { startsWith: `EXP-${year}` },
@@ -39,7 +39,7 @@ async function generateClaimNumber(organizationId: string): Promise<string> {
         const claimNumber = `EXP-${year}-${String(count + 1 + attempt).padStart(4, "0")}`;
 
         // Check if this number already exists
-        const existing = await prisma.expenseClaim.findFirst({
+        const existing = await db.expenseClaim.findFirst({
             where: { claimNumber, organizationId },
         });
 
@@ -62,10 +62,12 @@ export async function GET(request: NextRequest) {
         const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.read, session.user.id);
         if (!rl.allowed) return rl.response!;
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                include: { employee: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
@@ -74,6 +76,9 @@ export async function GET(request: NextRequest) {
         if (!user.isActive) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
+
+        const orgId = user.organizationId;
+        const employeeId_ = user.employee?.id;
 
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
@@ -104,10 +109,13 @@ export async function GET(request: NextRequest) {
         // A manager-supplied employeeId must still be scoped to self/direct reportees;
         // otherwise a manager who guesses an employee id could list non-reportee claims.
         else if (isManager && user.employee) {
-            const reportees = await prisma.employee.findMany({
-                where: { organizationId: user.organizationId, reportingManagerId: user.employee.id },
-                select: { id: true },
-            });
+            const managerEmployeeId = employeeId_!;
+            const reportees = await withTenant(orgId, (db) =>
+                db.employee.findMany({
+                    where: { organizationId: orgId, reportingManagerId: managerEmployeeId },
+                    select: { id: true },
+                }),
+            );
             const reporteeIds = reportees.map(r => r.id);
 
             if (pending) {
@@ -128,28 +136,30 @@ export async function GET(request: NextRequest) {
             whereClause.employeeId = employeeId;
         }
 
-        const claims = await prisma.expenseClaim.findMany({
-            where: whereClause,
-            include: {
-                category: true,
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        photoUrl: true,
+        const claims = await withTenant(orgId, (db) =>
+            db.expenseClaim.findMany({
+                where: whereClause,
+                include: {
+                    category: true,
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            photoUrl: true,
+                        },
+                    },
+                    approver: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                        },
                     },
                 },
-                approver: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+                orderBy: { createdAt: "desc" },
+            }),
+        );
 
         return applyRateLimitHeaders(NextResponse.json(claims), rl.headers);
     } catch (error) {
@@ -174,10 +184,12 @@ export async function POST(request: NextRequest) {
         const rl = await rateLimit(request, RATE_LIMIT_CONFIGS.write, session.user.id);
         if (!rl.allowed) return rl.response!;
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                include: { employee: true },
+            }),
+        );
 
         if (!user?.organizationId || !user.employee) {
             return NextResponse.json({ error: "Employee profile required" }, { status: 400 });
@@ -191,17 +203,22 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Inactive employees cannot submit expenses" }, { status: 403 });
         }
 
+        const orgId = user.organizationId;
+        const userEmployeeId = user.employee.id;
+
         const body = await request.json();
         const validatedData = claimSchema.parse(body);
 
         // Validate category exists and is active
-        const category = await prisma.expenseCategory.findFirst({
-            where: {
-                id: validatedData.categoryId,
-                organizationId: user.organizationId,
-                isActive: true,
-            },
-        });
+        const category = await withTenant(orgId, (db) =>
+            db.expenseCategory.findFirst({
+                where: {
+                    id: validatedData.categoryId,
+                    organizationId: orgId,
+                    isActive: true,
+                },
+            }),
+        );
 
         if (!category) {
             return NextResponse.json({ error: "Invalid category" }, { status: 400 });
@@ -246,41 +263,43 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const claimNumber = await generateClaimNumber(user.organizationId);
+        const claim = await withTenant(orgId, async (db) => {
+            const claimNumber = await generateClaimNumber(db, orgId);
 
-        const claim = await prisma.expenseClaim.create({
-            data: {
-                claimNumber,
-                title: validatedData.title,
-                description: validatedData.description,
-                amount: calculation.amount,
-                currency: calculation.currency,
-                exchangeRate: calculation.exchangeRate,
-                amountInBDT: calculation.amountInBDT,
-                distance: validatedData.distance || null,
-                distanceUnit: validatedData.distanceUnit || null,
-                perDiemDays: validatedData.perDiemDays || null,
-                perDiemRate: category.perDiemRate || null,
-                policyViolation: calculation.policyViolation.violationDescription || null,
-                policyViolationType: calculation.policyViolation.violationType || null,
-                expenseDate: new Date(validatedData.expenseDate),
-                receiptUrl: validatedData.receiptUrl,
-                receiptName: validatedData.receiptName,
-                status: validatedData.status,
-                submittedAt: validatedData.status === "submitted" ? new Date() : null,
-                categoryId: validatedData.categoryId,
-                employeeId: user.employee.id,
-                organizationId: user.organizationId,
-            },
-            include: {
-                category: true,
-                employee: {
-                    select: {
-                        firstName: true,
-                        lastName: true,
+            return db.expenseClaim.create({
+                data: {
+                    claimNumber,
+                    title: validatedData.title,
+                    description: validatedData.description,
+                    amount: calculation.amount,
+                    currency: calculation.currency,
+                    exchangeRate: calculation.exchangeRate,
+                    amountInBDT: calculation.amountInBDT,
+                    distance: validatedData.distance || null,
+                    distanceUnit: validatedData.distanceUnit || null,
+                    perDiemDays: validatedData.perDiemDays || null,
+                    perDiemRate: category.perDiemRate || null,
+                    policyViolation: calculation.policyViolation.violationDescription || null,
+                    policyViolationType: calculation.policyViolation.violationType || null,
+                    expenseDate: new Date(validatedData.expenseDate),
+                    receiptUrl: validatedData.receiptUrl,
+                    receiptName: validatedData.receiptName,
+                    status: validatedData.status,
+                    submittedAt: validatedData.status === "submitted" ? new Date() : null,
+                    categoryId: validatedData.categoryId,
+                    employeeId: userEmployeeId,
+                    organizationId: orgId,
+                },
+                include: {
+                    category: true,
+                    employee: {
+                        select: {
+                            firstName: true,
+                            lastName: true,
+                        },
                     },
                 },
-            },
+            });
         });
 
         // ── ✅ NEW: Create Stateful Approval Request when submitted ──
@@ -292,8 +311,8 @@ export async function POST(request: NextRequest) {
                     entityType: "expense",
                     entityId: claim.id,
                     requestTitle: `Expense: ${validatedData.title} (${formattedAmount})`,
-                    requesterId: user.employee.id,
-                    organizationId: user.organizationId,
+                    requesterId: userEmployeeId,
+                    organizationId: orgId,
                     priority: calculation.amountInBDT >= 50000 ? "high" : "normal",
                 });
             } catch (approvalError) {

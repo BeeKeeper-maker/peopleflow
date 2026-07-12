@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant, withPlatform } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { processApprovalStep } from "@/lib/approval-engine";
@@ -50,39 +50,43 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                include: { employee: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
 
-        const claim = await prisma.expenseClaim.findUnique({
-            where: { id },
-            include: {
-                category: true,
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        photoUrl: true,
-                        reportingManagerId: true,
-                        department: { select: { name: true } },
-                        designation: { select: { name: true } },
+        const claim = await withTenant(user.organizationId, (db) =>
+            db.expenseClaim.findUnique({
+                where: { id },
+                include: {
+                    category: true,
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            photoUrl: true,
+                            reportingManagerId: true,
+                            department: { select: { name: true } },
+                            designation: { select: { name: true } },
+                        },
+                    },
+                    approver: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                        },
                     },
                 },
-                approver: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                    },
-                },
-            },
-        });
+            }),
+        );
 
         if (!claim || claim.organizationId !== user.organizationId || !canAccessClaim(user, claim)) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -104,19 +108,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                include: { employee: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
 
-        const claim = await prisma.expenseClaim.findUnique({
-            where: { id },
-            include: { employee: { select: { id: true, reportingManagerId: true } } },
-        });
+        const claim = await withTenant(user.organizationId, (db) =>
+            db.expenseClaim.findUnique({
+                where: { id },
+                include: { employee: { select: { id: true, reportingManagerId: true } } },
+            }),
+        );
 
         if (!claim || claim.organizationId !== user.organizationId || !canAccessClaim(user, claim)) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -141,9 +149,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
             // ── ✅ Route approve/reject through Stateful Approval Engine ──
             if (approvalData.action === "approve" || approvalData.action === "reject") {
-                const approvalRequest = await prisma.approvalRequest.findUnique({
-                    where: { entityType_entityId: { entityType: "expense", entityId: id } },
-                });
+                const approvalRequest = await withTenant(user.organizationId, (db) =>
+                    db.approvalRequest.findUnique({
+                        where: { entityType_entityId: { entityType: "expense", entityId: id } },
+                    }),
+                );
 
                 if (approvalRequest && approvalRequest.status === "in_progress") {
                     const result = await processApprovalStep({
@@ -158,19 +168,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                     }
 
                     // Fetch updated claim
-                    const updatedClaim = await prisma.expenseClaim.findUnique({
-                        where: { id },
-                        include: {
-                            category: true,
-                            employee: {
-                                select: {
-                                    firstName: true,
-                                    lastName: true,
-                                    user: { select: { id: true, email: true } },
+                    const updatedClaim = await withTenant(user.organizationId, (db) =>
+                        db.expenseClaim.findUnique({
+                            where: { id },
+                            include: {
+                                category: true,
+                                employee: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        user: { select: { id: true, email: true } },
+                                    },
                                 },
                             },
-                        },
-                    });
+                        }),
+                    );
 
                     // 🔔 Emit notification for the approved/rejected expense
                     if (updatedClaim?.employee?.user?.id) {
@@ -228,20 +240,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                     break;
             }
 
-            const updated = await prisma.expenseClaim.update({
-                where: { id },
-                data: updateData,
-                include: {
-                    category: true,
-                    employee: {
-                        select: {
-                            firstName: true,
-                            lastName: true,
-                            user: { select: { id: true, email: true } },
+            const updated = await withTenant(user.organizationId, (db) =>
+                db.expenseClaim.update({
+                    where: { id },
+                    data: updateData,
+                    include: {
+                        category: true,
+                        employee: {
+                            select: {
+                                firstName: true,
+                                lastName: true,
+                                user: { select: { id: true, email: true } },
+                            },
                         },
                     },
-                },
-            });
+                }),
+            );
 
             // 🔔 Emit notification for fallback status changes
             if (updated.employee?.user?.id) {
@@ -286,17 +300,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         const validatedData = updateSchema.parse(body);
 
-        const updated = await prisma.expenseClaim.update({
-            where: { id },
-            data: {
-                ...validatedData,
-                ...(validatedData.expenseDate && { expenseDate: new Date(validatedData.expenseDate) }),
-                ...(validatedData.status === "submitted" && { submittedAt: new Date() }),
-            },
-            include: {
-                category: true,
-            },
-        });
+        const updated = await withTenant(user.organizationId, (db) =>
+            db.expenseClaim.update({
+                where: { id },
+                data: {
+                    ...validatedData,
+                    ...(validatedData.expenseDate && { expenseDate: new Date(validatedData.expenseDate) }),
+                    ...(validatedData.status === "submitted" && { submittedAt: new Date() }),
+                },
+                include: {
+                    category: true,
+                },
+            }),
+        );
 
         return NextResponse.json(updated);
     } catch (error) {
@@ -317,18 +333,22 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            include: { employee: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                include: { employee: true },
+            }),
+        );
 
         if (!user?.organizationId || !user.employee) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
 
-        const claim = await prisma.expenseClaim.findUnique({
-            where: { id },
-        });
+        const claim = await withTenant(user.organizationId, (db) =>
+            db.expenseClaim.findUnique({
+                where: { id },
+            }),
+        );
 
         if (!claim || claim.organizationId !== user.organizationId) {
             return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -343,7 +363,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: "Cannot delete claim in current status" }, { status: 400 });
         }
 
-        await prisma.expenseClaim.delete({ where: { id } });
+        await withTenant(user.organizationId, (db) =>
+            db.expenseClaim.delete({ where: { id } }),
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

@@ -518,7 +518,9 @@ export async function POST(req: Request) {
 
             // Roll back: delete the leave application so balance is not consumed
             try {
-                await prisma.leaveApplication.delete({ where: { id: application.id } });
+                await auth.withDB((db) =>
+                    db.leaveApplication.delete({ where: { id: application.id } }),
+                );
                 leaveLogger.info({ leaveApplicationId: application.id }, "Rolled back leave application after approval request failure");
             } catch (rollbackError) {
                 leaveLogger.error({ err: rollbackError, leaveApplicationId: application.id }, "FAILED_TO_ROLLBACK_LEAVE_APPLICATION");
@@ -541,14 +543,16 @@ export async function POST(req: Request) {
         };
 
         // Find admin/HR users in the same organization to notify
-        const adminUsers = await prisma.user.findMany({
-            where: {
-                organizationId: auth.organizationId,
-                role: { in: ["admin", "hr_admin", "manager"] },
-                id: { not: auth.userId }, // Don't notify yourself
-            },
-            select: { id: true },
-        });
+        const adminUsers = await auth.withDB((db) =>
+            db.user.findMany({
+                where: {
+                    organizationId: auth.organizationId,
+                    role: { in: ["admin", "hr_admin", "manager"] },
+                    id: { not: auth.userId }, // Don't notify yourself
+                },
+                select: { id: true },
+            }),
+        );
 
         // Send notifications in parallel (fire & forget, errors handled inside)
         await Promise.allSettled(

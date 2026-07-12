@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireManagerOrAbove, isAuthenticated } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -19,17 +18,19 @@ export async function GET() {
             where.reportingManagerId = auth.employeeId;
         }
 
-        const employees = await prisma.employee.findMany({
-            where,
-            include: {
-                department: { select: { name: true } },
-                designation: { select: { name: true } },
-                reportingManager: {
-                    select: { id: true, firstName: true, lastName: true },
+        const employees = await auth.withDB((db) =>
+            db.employee.findMany({
+                where,
+                include: {
+                    department: { select: { name: true } },
+                    designation: { select: { name: true } },
+                    reportingManager: {
+                        select: { id: true, firstName: true, lastName: true },
+                    },
                 },
-            },
-            orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-        });
+                orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+            }),
+        );
 
         return NextResponse.json({
             data: employees,

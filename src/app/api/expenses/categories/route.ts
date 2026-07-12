@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant, withPlatform } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { z } from "zod";
 import { apiLogger } from "@/lib/logger";
@@ -28,25 +28,30 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { organizationId: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                select: { organizationId: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
 
+        const orgId = user.organizationId;
         const { searchParams } = new URL(request.url);
         const activeOnly = searchParams.get("active") === "true";
 
-        const categories = await prisma.expenseCategory.findMany({
-            where: {
-                organizationId: user.organizationId,
-                ...(activeOnly && { isActive: true }),
-            },
-            orderBy: { name: "asc" },
-        });
+        const categories = await withTenant(orgId, (db) =>
+            db.expenseCategory.findMany({
+                where: {
+                    organizationId: orgId,
+                    ...(activeOnly && { isActive: true }),
+                },
+                orderBy: { name: "asc" },
+            }),
+        );
 
         return NextResponse.json(categories);
     } catch (error) {
@@ -63,14 +68,18 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { organizationId: true, role: true },
-        });
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { id: session.user.id },
+                select: { organizationId: true, role: true },
+            }),
+        );
 
         if (!user?.organizationId) {
             return NextResponse.json({ error: "No organization" }, { status: 400 });
         }
+
+        const orgId = user.organizationId;
 
         // Only HR/Admin can create categories
         if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
@@ -94,12 +103,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const category = await prisma.expenseCategory.create({
-            data: {
-                ...validatedData,
-                organizationId: user.organizationId,
-            },
-        });
+        const category = await withTenant(orgId, (db) =>
+            db.expenseCategory.create({
+                data: {
+                    ...validatedData,
+                    organizationId: orgId,
+                },
+            }),
+        );
 
         return NextResponse.json(category, { status: 201 });
     } catch (error) {

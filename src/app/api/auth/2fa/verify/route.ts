@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { verify as verifyTOTP } from "otplib";
 import { generateRecoveryCodes } from "@/lib/recovery-codes";
@@ -68,14 +68,16 @@ export async function POST(request: Request) {
         const { plaintext, hashes } = await generateRecoveryCodes();
 
         // Enable 2FA + store recovery code hashes
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                twoFactorEnabled: true,
-                twoFactorRecoveryCodes: hashes,
-                twoFactorRecoveryCodesGeneratedAt: new Date(),
-            },
-        });
+        await withTenant(auth.organizationId, (db) =>
+            db.user.update({
+                where: { id: user.id },
+                data: {
+                    twoFactorEnabled: true,
+                    twoFactorRecoveryCodes: hashes,
+                    twoFactorRecoveryCodesGeneratedAt: new Date(),
+                },
+            }),
+        );
 
         return NextResponse.json({
             message: "Two-factor authentication has been enabled successfully!",

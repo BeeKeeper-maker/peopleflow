@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireAuth, isAuthenticated } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
 
 export async function GET() {
     const auth = await requireAuth();
@@ -11,12 +10,14 @@ export async function GET() {
     }
 
     try {
-        const [deptCount, desigCount, shiftCount, empCount] = await Promise.all([
-            prisma.department.count({ where: { organizationId: auth.organizationId } }),
-            prisma.designation.count({ where: { organizationId: auth.organizationId } }),
-            prisma.shift.count({ where: { organizationId: auth.organizationId } }),
-            prisma.employee.count({ where: { organizationId: auth.organizationId, deletedAt: null } }),
-        ]);
+        const [deptCount, desigCount, shiftCount, empCount] = await auth.withDB((db) =>
+            Promise.all([
+                db.department.count({ where: { organizationId: auth.organizationId } }),
+                db.designation.count({ where: { organizationId: auth.organizationId } }),
+                db.shift.count({ where: { organizationId: auth.organizationId } }),
+                db.employee.count({ where: { organizationId: auth.organizationId, deletedAt: null } }),
+            ]),
+        );
 
         return NextResponse.json({
             hasDepartments: deptCount > 0,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma, { withPlatform } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 import { hashPassword, isValidEmail, validatePassword } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
 import { sendTemplateEmail } from "@/lib/email";
@@ -61,9 +61,11 @@ export async function POST(request: Request) {
 
     // Generate organization slug
     let slug = slugify(organizationName);
-    const existingOrg = await prisma.organization.findUnique({
-      where: { slug },
-    });
+    const existingOrg = await withPlatform((db) =>
+      db.organization.findUnique({
+        where: { slug },
+      }),
+    );
 
     if (existingOrg) {
       // Add random suffix if slug exists
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
     const hashedPassword = await hashPassword(password);
 
     // Create organization and admin user in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await withPlatform(async (tx) => {
       // Create organization
       const organization = await tx.organization.create({
         data: {
@@ -302,13 +304,15 @@ export async function POST(request: Request) {
     const verificationToken = crypto.randomUUID();
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    await prisma.emailVerificationToken.create({
-      data: {
-        token: verificationToken,
-        email: normalizedEmail,
-        expiresAt: verificationExpiry,
-      },
-    });
+    await withPlatform((db) =>
+      db.emailVerificationToken.create({
+        data: {
+          token: verificationToken,
+          email: normalizedEmail,
+          expiresAt: verificationExpiry,
+        },
+      }),
+    );
 
     const baseUrl =
       process.env.NEXTAUTH_URL ||

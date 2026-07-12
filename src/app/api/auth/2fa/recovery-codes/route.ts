@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant } from "@/lib/prisma";
 import { getApiUser } from "@/lib/auth";
 import { generateRecoveryCodes, getRemainingCodeCount } from "@/lib/recovery-codes";
 import { createAuditLog } from "@/lib/audit-log";
@@ -91,13 +91,15 @@ export async function POST(request: Request) {
         const { plaintext, hashes } = await generateRecoveryCodes();
 
         // Update user with new hashes
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                twoFactorRecoveryCodes: hashes,
-                twoFactorRecoveryCodesGeneratedAt: new Date(),
-            },
-        });
+        await withTenant(auth.organizationId, (db) =>
+            db.user.update({
+                where: { id: user.id },
+                data: {
+                    twoFactorRecoveryCodes: hashes,
+                    twoFactorRecoveryCodesGeneratedAt: new Date(),
+                },
+            }),
+        );
 
         // Audit log
         await createAuditLog({

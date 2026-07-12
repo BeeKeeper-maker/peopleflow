@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrHR, isAuthenticated } from "@/lib/api-auth";
+import { withTenant } from "@/lib/prisma";
 import { apiLogger } from "@/lib/logger";
 import { calculateFinalSettlement } from "@/lib/final-settlement-engine";
 
@@ -101,21 +102,22 @@ function parseSettlementInput(args: {
  * RLS), so this check is what enforces tenant isolation.
  */
 async function fetchEmployeeForOrg(employeeId: string, organizationId: string) {
-    // Imported lazily inside the request handler so the module-level mock in
-    // tests doesn't shadow the real prisma import for unrelated test files.
-    const { prisma } = await import("@/lib/prisma");
-    return prisma.employee.findFirst({
-        where: { id: employeeId, organizationId, deletedAt: null },
-        select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeCode: true,
-            employmentStatus: true,
-            employmentType: true,
-            joiningDate: true,
-        },
-    });
+    // Use the tenant-scoped DB client so RLS policies enforce org isolation
+    // at the database layer in addition to the explicit organizationId filter.
+    return withTenant(organizationId, (db) =>
+        db.employee.findFirst({
+            where: { id: employeeId, organizationId, deletedAt: null },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeCode: true,
+                employmentStatus: true,
+                employmentType: true,
+                joiningDate: true,
+            },
+        }),
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

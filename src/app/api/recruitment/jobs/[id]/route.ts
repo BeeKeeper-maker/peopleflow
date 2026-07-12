@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { withTenant, withPlatform } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
@@ -15,27 +15,35 @@ export async function GET(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const sessionEmail = session.user.email;
+
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { email: sessionEmail },
+            }),
+        );
 
         if (!user?.organizationId) {
             return new NextResponse("Organization not found", { status: 404 });
         }
 
-        const job = await prisma.jobPosting.findFirst({
-            where: { id, organizationId: user.organizationId },
-            include: {
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-                applications: {
-                    include: {
-                        candidate: true,
+        const orgId = user.organizationId;
+
+        const job = await withTenant(orgId, (db) =>
+            db.jobPosting.findFirst({
+                where: { id, organizationId: orgId },
+                include: {
+                    department: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                    applications: {
+                        include: {
+                            candidate: true,
+                        },
+                        orderBy: { appliedAt: "desc" },
                     },
-                    orderBy: { appliedAt: "desc" },
                 },
-            },
-        });
+            }),
+        );
 
         if (!job) {
             return new NextResponse("Job not found", { status: 404 });
@@ -64,21 +72,29 @@ export async function PATCH(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const sessionEmail = session.user.email;
+
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { email: sessionEmail },
+            }),
+        );
 
         if (!user?.organizationId) {
             return new NextResponse("Organization not found", { status: 404 });
         }
 
+        const orgId = user.organizationId;
+
         if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
 
-        const existingJob = await prisma.jobPosting.findFirst({
-            where: { id, organizationId: user.organizationId },
-        });
+        const existingJob = await withTenant(orgId, (db) =>
+            db.jobPosting.findFirst({
+                where: { id, organizationId: orgId },
+            }),
+        );
 
         if (!existingJob) {
             return new NextResponse("Job not found", { status: 404 });
@@ -111,14 +127,16 @@ export async function PATCH(
             updateData.closesAt = new Date(updateData.closesAt);
         }
 
-        const job = await prisma.jobPosting.update({
-            where: { id },
-            data: updateData,
-            include: {
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-            },
-        });
+        const job = await withTenant(orgId, (db) =>
+            db.jobPosting.update({
+                where: { id },
+                data: updateData,
+                include: {
+                    department: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                },
+            }),
+        );
 
         return NextResponse.json(job);
     } catch (error) {
@@ -143,27 +161,37 @@ export async function DELETE(
             return new NextResponse("Unauthorized", { status: 401 });
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
-        });
+        const sessionEmail = session.user.email;
+
+        const user = await withPlatform((db) =>
+            db.user.findUnique({
+                where: { email: sessionEmail },
+            }),
+        );
 
         if (!user?.organizationId) {
             return new NextResponse("Organization not found", { status: 404 });
         }
 
+        const orgId = user.organizationId;
+
         if (!["admin", "hr_admin", "super_admin"].includes(user.role)) {
             return new NextResponse("Permission denied", { status: 403 });
         }
 
-        const existingJob = await prisma.jobPosting.findFirst({
-            where: { id, organizationId: user.organizationId },
-        });
+        const existingJob = await withTenant(orgId, (db) =>
+            db.jobPosting.findFirst({
+                where: { id, organizationId: orgId },
+            }),
+        );
 
         if (!existingJob) {
             return new NextResponse("Job not found", { status: 404 });
         }
 
-        await prisma.jobPosting.delete({ where: { id } });
+        await withTenant(orgId, (db) =>
+            db.jobPosting.delete({ where: { id } }),
+        );
 
         return NextResponse.json({ success: true });
     } catch (error) {

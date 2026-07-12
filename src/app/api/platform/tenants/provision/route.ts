@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, withPlatform } from "@/lib/prisma";
+import { withPlatform } from "@/lib/prisma";
 import {
   verifyPlatformRequest,
   isPlatformVerified,
@@ -61,9 +61,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get plan
-    const plan = await prisma.plan.findUnique({
-      where: { slug: planSlug },
-    });
+    const plan = await withPlatform((db) =>
+      db.plan.findUnique({
+        where: { slug: planSlug },
+      }),
+    );
     if (!plan) {
       return NextResponse.json(
         { error: `Plan '${planSlug}' not found` },
